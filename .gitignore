@@ -1,0 +1,8 @@
+# تجاهل مجلد node_modules
+node_modules/
+
+# تجاهل ملفات البيئة
+.env
+.env/
+/Backend/.env/
+/Backend/node_modules/

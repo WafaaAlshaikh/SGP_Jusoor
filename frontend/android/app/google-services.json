@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "576013693747",
+    "project_id": "jusoor-eb6d3",
+    "storage_bucket": "jusoor-eb6d3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:576013693747:android:012037eea2869e5a96c446",
+        "android_client_info": {
+          "package_name": "com.example.frontend"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDBsFXBV9AFM3X6d8HkluWwzZyHzmBBNgY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
