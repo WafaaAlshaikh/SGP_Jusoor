@@ -56,7 +56,7 @@ class GroqService {
             'Authorization': `Bearer ${this.apiKey}`,
             'Content-Type': 'application/json'
           },
-          timeout: 15000
+          timeout: 10000 // تقليل timeout من 15 إلى 10 ثواني
         }
       );
 

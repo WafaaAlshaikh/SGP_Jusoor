@@ -249,16 +249,17 @@ class ApiService {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token'
         },
-      ).timeout(const Duration(seconds: 15)); // ⚠️ إضافة timeout
+      ).timeout(const Duration(seconds: 8)); // ⚠️ تقليل timeout
       
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
+        print('❌ Dashboard API error: ${response.statusCode}');
         throw Exception('Failed to load dashboard data: ${response.statusCode}');
       }
     } on TimeoutException catch (_) {
-      print('⚠️ Dashboard API timeout after 15 seconds');
-      throw Exception('Request timeout - Please check your connection');
+      print('⚠️ Dashboard API timeout after 8 seconds');
+      throw TimeoutException('Request timeout - Server is slow or unreachable');
     } catch (e) {
       print('❌ Dashboard API error: $e');
       rethrow;
@@ -345,7 +346,7 @@ class ApiService {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
-      ).timeout(const Duration(seconds: 15));
+      ).timeout(const Duration(seconds: 8)); // ⚠️ تقليل timeout
 
       print('📥 Daily Tip Response: ${response.statusCode}');
 
@@ -359,6 +360,14 @@ class ApiService {
         print('❌ Daily Tip API Error: ${response.statusCode}');
         throw Exception('Failed to load daily tip: ${response.statusCode}');
       }
+    } on TimeoutException catch (_) {
+      print('⚠️ Daily Tip timeout - using fallback');
+      return {
+        'success': true,
+        'tip': 'Spend quality time with your child today—every moment together builds a stronger future.',
+        'aiGenerated': false,
+        'isGeneric': true
+      };
     } catch (e) {
       print('❌ Error fetching daily tip: $e');
       return {
@@ -1469,7 +1478,203 @@ class ApiService {
     }
   }
 
+  // Get AI-powered institution recommendations
+  static Future<Map<String, dynamic>> getAIRecommendations(
+    String token, {
+    required String childConditions,
+    String? childAge,
+    String? location,
+    String? budget,
+  }) async {
+    try {
+      final queryParams = {
+        'childConditions': childConditions,
+        if (childAge != null) 'childAge': childAge,
+        if (location != null) 'location': location,
+        if (budget != null) 'budget': budget,
+      };
 
+      final uri = Uri.parse(_buildUrl('ai/recommendations')).replace(
+        queryParameters: queryParams,
+      );
+
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        return {
+          'success': false,
+          'recommendations': [],
+        };
+      }
+    } catch (e) {
+      print('Error fetching AI recommendations: $e');
+      return {
+        'success': false,
+        'recommendations': [],
+      };
+    }
+  }
+
+  // Get reviews for an institution
+  static Future<Map<String, dynamic>> getInstitutionReviews(
+    String token, {
+    required int institutionId,
+    String sort = 'recent',
+    int limit = 20,
+  }) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${_buildUrl('reviews/institution/$institutionId')}?sort=$sort&limit=$limit'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        return {'success': false, 'reviews': []};
+      }
+    } catch (e) {
+      print('Error fetching reviews: $e');
+      return {'success': false, 'reviews': []};
+    }
+  }
+
+  // Create a review
+  static Future<Map<String, dynamic>> createReview(
+    String token, {
+    required int institutionId,
+    required double rating,
+    String? title,
+    String? comment,
+    double? staffRating,
+    double? facilitiesRating,
+    double? servicesRating,
+    double? valueRating,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse(_buildUrl('reviews/institution/$institutionId')),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'rating': rating,
+          if (title != null && title.isNotEmpty) 'title': title,
+          if (comment != null && comment.isNotEmpty) 'comment': comment,
+          if (staffRating != null) 'staff_rating': staffRating,
+          if (facilitiesRating != null) 'facilities_rating': facilitiesRating,
+          if (servicesRating != null) 'services_rating': servicesRating,
+          if (valueRating != null) 'value_rating': valueRating,
+        }),
+      );
+
+      return jsonDecode(response.body);
+    } catch (e) {
+      print('Error creating review: $e');
+      return {'success': false, 'message': 'Network error'};
+    }
+  }
+
+  // Delete a review
+  static Future<Map<String, dynamic>> deleteReview(
+    String token, {
+    required int reviewId,
+  }) async {
+    try {
+      final response = await http.delete(
+        Uri.parse(_buildUrl('reviews/$reviewId')),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      return jsonDecode(response.body);
+    } catch (e) {
+      print('Error deleting review: $e');
+      return {'success': false};
+    }
+  }
+
+  // Mark review as helpful
+  static Future<Map<String, dynamic>> markReviewHelpful(
+    String token, {
+    required int reviewId,
+    required bool isHelpful,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse(_buildUrl('reviews/$reviewId/helpful')),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'isHelpful': isHelpful}),
+      );
+
+      return jsonDecode(response.body);
+    } catch (e) {
+      print('Error marking review helpful: $e');
+      return {'success': false};
+    }
+  }
+
+  // Get community posts with highlights
+  static Future<Map<String, dynamic>> getCommunityPosts(String token, {int limit = 10}) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${_buildUrl('community/posts')}?limit=$limit'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        // تنسيق البيانات للتوافق مع Dashboard
+        final posts = (data['data'] as List?)?.map((post) {
+          return {
+            'post_id': post['post_id'],
+            'content': post['content'],
+            'user_name': post['user_name'] ?? 'Community Member',
+            'created_at': post['created_at'],
+            'likes_count': post['likes_count'] ?? 0,
+            'comments_count': post['comments_count'] ?? 0,
+          };
+        }).toList() ?? [];
+        
+        return {
+          'success': true,
+          'data': posts,
+        };
+      } else {
+        return {
+          'success': false,
+          'data': [],
+        };
+      }
+    } catch (e) {
+      print('Error fetching community posts: $e');
+      return {
+        'success': false,
+        'data': [],
+      };
+    }
+  }
 
   
 }

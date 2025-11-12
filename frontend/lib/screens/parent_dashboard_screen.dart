@@ -1,9 +1,10 @@
 // ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../utils/app_colors.dart';
+import '../theme/app_colors.dart';
 import '../widgets/parent_summary_card.dart';
 import '../widgets/parent_action_button.dart';
+import '../widgets/progress_analytics_widget.dart';
 import '../services/api_service.dart';
 import '../models/dashboard_data.dart';
 import 'upcoming_sessions_screen.dart';
@@ -14,6 +15,9 @@ import 'questionnaire_screen.dart';
 import 'EditProfileScreen.dart';
 import 'ViewProfileScreen.dart';
 import 'profile_settings_screen.dart';
+import 'community_screen.dart';
+import 'parent_child_evaluations_screen.dart';
+import 'browse_centers_screen.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
   const ParentDashboardScreen({super.key});
@@ -31,19 +35,22 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
   String _dailyTip = 'Loading daily tip...';
   bool _isLoadingTip = true;
+  
+  List<dynamic> _communityHighlights = [];
+  bool _isLoadingCommunity = true;
 
   @override
   void initState() {
     super.initState();
     _loadInitialData();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _fetchDailyTip();
-    });
   }
 
   Future<void> _loadInitialData() async {
+    // جلب بيانات الداشبورد أولاً
     await _fetchDashboardData();
+    // جلب النصيحة بعدين (non-blocking)
+    _fetchDailyTip();
+    _fetchCommunityHighlights();
   }
 
   Future<void> _fetchDashboardData() async {
@@ -60,31 +67,148 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         throw Exception('Token not found');
       }
 
+      print('🔄 Fetching parent dashboard...');
       final response = await ApiService.getParentDashboard(token);
+      
       if (response == null) {
         throw Exception('Invalid server response');
       }
 
       final newDashboardData = DashboardData.fromJson(response);
 
-      setState(() {
-        dashboardData = newDashboardData;
-        _isLoading = false;
-      });
-
-      await _fetchDailyTip();
+      if (mounted) {
+        setState(() {
+          dashboardData = newDashboardData;
+          _isLoading = false;
+        });
+        print('✅ Dashboard loaded successfully');
+      }
 
     } catch (e) {
+      print('❌ Error loading dashboard: $e');
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to load dashboard. Please check your connection.';
+          _isLoading = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not load dashboard. Please try again.'),
+            backgroundColor: Colors.orange,
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () {
+                _fetchDashboardData();
+              },
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _fetchCommunityHighlights() async {
+    if (!mounted) return;
+    
+    setState(() => _isLoadingCommunity = true);
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? '';
+
+      if (token.isEmpty) {
+        setState(() => _isLoadingCommunity = false);
+        return;
+      }
+
+      // جلب المنشورات من الـ API الحقيقي
+      final response = await ApiService.getCommunityPosts(token, limit: 10);
+      
+      print('📊 Community API Response: ${response['success']}');
+      print('📊 Community Posts Count: ${(response['data'] as List?)?.length ?? 0}');
+      
+      final posts = response['data'] as List? ?? [];
+      
+      if (posts.isEmpty) {
+        print('⚠️ No community posts found');
+        setState(() {
+          _communityHighlights = [];
+          _isLoadingCommunity = false;
+        });
+        return;
+      }
+      
+      print('✅ Got ${posts.length} posts');
+
+      // الخيار 4: مزيج ذكي
+      final highlights = <dynamic>[];
+      
+      // 1. آخر منشور (من آخر 24 ساعة)
+      dynamic recentPost;
+      try {
+        recentPost = posts.firstWhere(
+          (p) {
+            try {
+              final createdAt = DateTime.parse(p['created_at'].toString());
+              return DateTime.now().difference(createdAt).inHours < 24;
+            } catch (e) {
+              return false;
+            }
+          },
+        );
+      } catch (e) {
+        // إذا ما في منشور جديد، خذ الأول
+        recentPost = posts.first;
+      }
+      highlights.add(recentPost);
+      
+      // 2. أكثر منشور تفاعلاً (من آخر أسبوع)
+      final weekAgo = DateTime.now().subtract(Duration(days: 7));
+      final recentPosts = posts.where((p) {
+        try {
+          final createdAt = DateTime.parse(p['created_at'].toString());
+          return createdAt.isAfter(weekAgo);
+        } catch (e) {
+          return true;
+        }
+      }).toList();
+      
+      if (recentPosts.isNotEmpty) {
+        // ترتيب حسب التفاعل (likes + comments)
+        recentPosts.sort((a, b) {
+          final aLikes = (a['likes_count'] as num?) ?? 0;
+          final aComments = (a['comments_count'] as num?) ?? 0;
+          final bLikes = (b['likes_count'] as num?) ?? 0;
+          final bComments = (b['comments_count'] as num?) ?? 0;
+          
+          final aEngagement = aLikes + aComments;
+          final bEngagement = bLikes + bComments;
+          return bEngagement.compareTo(aEngagement);
+        });
+        
+        final topPost = recentPosts.first;
+        // تأكد أنه منشور مختلف
+        if (topPost['post_id'] != recentPost['post_id']) {
+          highlights.add(topPost);
+        }
+      }
+
       setState(() {
-        _errorMessage = 'Failed to load data. Please try again.';
-        _isLoading = false;
-        _isLoadingTip = false;
-        _dailyTip = 'Spend quality time playing with your child today - play is a great way to build trust and skills.';
+        _communityHighlights = highlights;
+        _isLoadingCommunity = false;
       });
+    } catch (e) {
+      print('Error fetching community highlights: $e');
+      setState(() => _isLoadingCommunity = false);
     }
   }
 
   Future<void> _fetchDailyTip() async {
+    // ⚠️ هذه الدالة غير ضرورية للتطبيق - إذا فشلت التطبيق يعمل عادي
+    if (!mounted) return;
+    
     setState(() {
       _isLoadingTip = true;
     });
@@ -94,7 +218,8 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       final token = prefs.getString('token') ?? '';
 
       if (token.isEmpty) {
-        throw Exception('Token not found');
+        _setFallbackTip();
+        return;
       }
 
       print('🔄 Fetching AI daily tip...');
@@ -104,34 +229,39 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
       print('✅ AI Tip response: $response');
 
-      if (response['success'] == true) {
+      if (mounted && response['success'] == true) {
         setState(() {
           _dailyTip = response['tip'];
           _isLoadingTip = false;
         });
       } else {
-        throw Exception('Failed to get AI tip');
+        _setFallbackTip();
       }
 
     } catch (e) {
-      print('❌ Error fetching AI tip: $e');
-
-      // Fallback tips
-      final fallbackTips = [
-        'Spend quality time playing with your child today - play is a great way to build trust and skills.',
-        'Read a story to your child before bedtime. It helps develop language skills and imagination.',
-        'Praise your child\'s efforts, not just results. This builds confidence and resilience.',
-        'Create a consistent daily routine - children feel secure when they know what to expect.',
-      ];
-
-      final today = DateTime.now().day;
-      final selectedTip = fallbackTips[today % fallbackTips.length];
-
-      setState(() {
-        _dailyTip = selectedTip;
-        _isLoadingTip = false;
-      });
+      print('❌ Error fetching AI tip (non-critical): $e');
+      _setFallbackTip();
     }
+  }
+
+  void _setFallbackTip() {
+    if (!mounted) return;
+    
+    // Fallback tips
+    final fallbackTips = [
+      'Spend quality time playing with your child today - play is a great way to build trust and skills.',
+      'Read a story to your child before bedtime. It helps develop language skills and imagination.',
+      'Praise your child\'s efforts, not just results. This builds confidence and resilience.',
+      'Create a consistent daily routine - children feel secure when they know what to expect.',
+    ];
+
+    final today = DateTime.now().day;
+    final selectedTip = fallbackTips[today % fallbackTips.length];
+
+    setState(() {
+      _dailyTip = selectedTip;
+      _isLoadingTip = false;
+    });
   }
 
   void _onItemTapped(int index) {
@@ -150,7 +280,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   Widget _buildAvatar({required String name, required String image, double radius = 28}) {
     return CircleAvatar(
       radius: radius,
-      backgroundColor: ParentAppColors.primaryTeal.withOpacity(0.3),
+      backgroundColor: AppColors.primary.withOpacity(0.3),
       child: (image.isNotEmpty)
           ? ClipOval(
         child: Image.network(
@@ -184,7 +314,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ParentAppColors.backgroundLight,
+      backgroundColor: AppColors.background,
       appBar: _buildAppBar(),
       drawer: _buildDrawer(),
       body: _isLoading
@@ -205,8 +335,6 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               SizedBox(height: 25),
               _buildQuickSummaries(),
               SizedBox(height: 25),
-              _buildProgressAndReports(),
-              SizedBox(height: 25),
               _buildMainActionsGrid(),
               SizedBox(height: 25),
               _buildInstitutionSuggestions(),
@@ -214,6 +342,8 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               _buildPaymentOverview(),
               SizedBox(height: 25),
               _buildCommunityHighlights(),
+              SizedBox(height: 25),
+              _buildProgressAnalytics(),
               SizedBox(height: 25),
               _buildRecentNotificationsFeed(),
               SizedBox(height: 50),
@@ -235,7 +365,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.only(top: 60, bottom: 20, left: 20, right: 20),
-              color: ParentAppColors.primaryTeal.withOpacity(0.1),
+              color: AppColors.primary.withOpacity(0.1),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -251,7 +381,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                         right: 0,
                         child: Container(
                           decoration: BoxDecoration(
-                            color: ParentAppColors.primaryTeal,
+                            color: AppColors.primary,
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
@@ -298,7 +428,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Icon(Icons.family_restroom, color: ParentAppColors.primaryTeal, size: 16),
+                      Icon(Icons.family_restroom, color: AppColors.primary, size: 16),
                       const SizedBox(width: 4),
                       Text(
                         '${dashboardData?.children.length ?? 0} Children',
@@ -397,6 +527,12 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                     title: 'Centers & Institutions',
                     onTap: () {
                       Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const BrowseCentersScreen(),
+                        ),
+                      );
                     },
                   ),
                   _buildDrawerItem(
@@ -404,6 +540,12 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                     title: 'Community',
                     onTap: () {
                       Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => CommunityScreen(),
+                        ),
+                      );
                     },
                   ),
 
@@ -464,7 +606,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     return ListTile(
       leading: Icon(
         icon,
-        color: color ?? ParentAppColors.primaryTeal,
+        color: color ?? AppColors.primary,
         size: 22,
       ),
       title: Text(
@@ -586,7 +728,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     return ListTile(
       leading: Icon(
         icon,
-        color: ParentAppColors.primaryTeal,
+        color: AppColors.primary,
         size: 22,
       ),
       title: Text(
@@ -751,13 +893,13 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
   AppBar _buildAppBar() {
     return AppBar(
-      backgroundColor: Colors.white,
-      elevation: 0.2,
+      backgroundColor: AppColors.primary,
+      elevation: 0,
       leading: Builder(
         builder: (context) => IconButton(
           icon: Icon(
             Icons.menu,
-            color: ParentAppColors.textDark,
+            color: Colors.white,
             size: 28,
           ),
           onPressed: () => Scaffold.of(context).openDrawer(),
@@ -765,14 +907,14 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       ),
       title: Text('Parent Dashboard',
           style: TextStyle(
-              color: ParentAppColors.textDark,
+              color: Colors.white,
               fontSize: 21,
               fontWeight: FontWeight.bold)),
       actions: [
         Stack(
           children: [
             IconButton(
-              icon: Icon(Icons.notifications_none, color: ParentAppColors.textDark),
+              icon: Icon(Icons.notifications_none, color: Colors.white),
               onPressed: () {},
             ),
             if (_unreadMessagesCount > 0)
@@ -837,15 +979,46 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               separatorBuilder: (_, __) => SizedBox(width: 15),
               itemBuilder: (_, i) {
                 final child = children[i];
-                return Column(
-                  children: [
-                    _buildAvatar(name: child.name, image: child.image, radius: 25),
-                    SizedBox(height: 5),
-                    Text(child.name,
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
-                    Text(child.condition,
-                        style: TextStyle(fontSize: 11, color: Colors.grey)),
-                  ],
+                return InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ParentChildEvaluationsScreen(childId: child.childId),
+                      ),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Column(
+                    children: [
+                      Stack(
+                        children: [
+                          _buildAvatar(name: child.name, image: child.image, radius: 25),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              padding: EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.assignment,
+                                size: 12,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 5),
+                      Text(child.name,
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                      Text(child.condition,
+                          style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    ],
+                  ),
                 );
               },
             ),
@@ -860,12 +1033,12 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       padding: EdgeInsets.all(15),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [ParentAppColors.accentOrange.withOpacity(0.1), Colors.white],
+          colors: [AppColors.warning.withOpacity(0.1), Colors.white],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: ParentAppColors.accentOrange.withOpacity(0.3)),
+        border: Border.all(color: AppColors.warning.withOpacity(0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -874,7 +1047,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             children: [
               Icon(
                   _isLoadingTip ? Icons.hourglass_top : Icons.auto_awesome,
-                  color: ParentAppColors.accentOrange,
+                  color: AppColors.warning,
                   size: 30
               ),
               SizedBox(width: 12),
@@ -893,7 +1066,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                             height: 16,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(ParentAppColors.accentOrange),
+                              valueColor: AlwaysStoppedAnimation<Color>(AppColors.warning),
                             ),
                           ),
                       ],
@@ -911,7 +1084,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               ),
               if (!_isLoadingTip)
                 IconButton(
-                  icon: Icon(Icons.refresh, size: 20, color: ParentAppColors.primaryTeal),
+                  icon: Icon(Icons.refresh, size: 20, color: AppColors.primary),
                   onPressed: _fetchDailyTip,
                   tooltip: 'Get New Tip',
                 ),
@@ -959,7 +1132,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               icon: Icons.calendar_month,
               title: 'Upcoming Sessions',
               count: dashboardData?.summaries.upcomingSessions ?? 0,
-              color: ParentAppColors.primaryTeal,
+              color: AppColors.primary,
               buttonText: 'View All ➜',
               onTap: () async {
                 try {
@@ -999,13 +1172,20 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               count: s?.newReportsCount ?? 0,
               color: Colors.deepPurpleAccent,
               buttonText: 'Open ➜',
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ParentChildEvaluationsScreen(),
+                  ),
+                );
+              },
             ),
             ParentSummaryCard(
                 icon: Icons.child_care,
                 title: 'Children',
                 count: dashboardData?.children.length ?? 0,
-                color: ParentAppColors.accentOrange,
+                color: AppColors.warning,
                 buttonText: 'Manage ➜',
                 onTap: () {
                   Navigator.push(context,
@@ -1014,40 +1194,6 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           ]),
         )
       ],
-    );
-  }
-
-  Widget _buildProgressAndReports() {
-    return Container(
-      padding: EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black12.withOpacity(0.05), blurRadius: 6)],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Progress & Reports',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          SizedBox(height: 8),
-          Text('Track your child\'s improvement over time 📈',
-              style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-          SizedBox(height: 12),
-          LinearProgressIndicator(
-            value: 0.65,
-            color: ParentAppColors.primaryTeal,
-            backgroundColor: Colors.grey[200],
-            borderRadius: BorderRadius.circular(8),
-            minHeight: 10,
-          ),
-          SizedBox(height: 8),
-          Align(
-              alignment: Alignment.centerRight,
-              child: Text('65% of therapy plan completed',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]))),
-        ],
-      ),
     );
   }
 
@@ -1076,7 +1222,16 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 );
               },
             ),
-            ParentActionButton(icon: Icons.school, text: 'Browse Centers', onTap: () {}),
+            ParentActionButton(
+              icon: Icons.school,
+              text: 'Browse Centers',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BrowseCentersScreen()),
+                );
+              },
+            ),
             ParentActionButton(
               icon: Icons.menu_book,
               text: 'Educational Resources',
@@ -1087,7 +1242,16 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 );
               },
             ),
-            ParentActionButton(icon: Icons.forum, text: 'Community', onTap: () {}),
+            ParentActionButton(
+              icon: Icons.forum,
+              text: 'Community',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => CommunityScreen()),
+                );
+              },
+            ),
           ],
         ),
       ],
@@ -1104,15 +1268,38 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Recommended Centers 🏥',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Recommended Centers 🏥',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.primary),
+            ],
+          ),
           SizedBox(height: 10),
           Column(
             children: [
               _buildInstitutionTile('Yasmeen Charity', 'Amman, Jordan', 'Autism, Speech Therapy'),
               _buildInstitutionTile('Sanad Center', 'Irbid', 'ADHD, Down Syndrome'),
             ],
-          )
+          ),
+          SizedBox(height: 12),
+          Center(
+            child: TextButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BrowseCentersScreen()),
+                );
+              },
+              icon: Icon(Icons.search, size: 18),
+              label: Text('Browse All Centers'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1122,7 +1309,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading:
-      CircleAvatar(radius: 25, backgroundColor: ParentAppColors.primaryTeal.withOpacity(0.2)),
+      CircleAvatar(radius: 25, backgroundColor: AppColors.primary.withOpacity(0.2)),
       title: Text(name, style: TextStyle(fontWeight: FontWeight.w600)),
       subtitle: Text('$location • $tags', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
       trailing: Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
@@ -1146,7 +1333,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         ]),
         LinearProgressIndicator(
           value: 0.8,
-          color: ParentAppColors.accentOrange,
+          color: AppColors.warning,
           backgroundColor: Colors.grey[200],
           minHeight: 8,
           borderRadius: BorderRadius.circular(8),
@@ -1158,32 +1345,220 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   }
 
   Widget _buildCommunityHighlights() {
-    return Container(
-      padding: EdgeInsets.all(15),
-      decoration: BoxDecoration(
-          color: ParentAppColors.primaryTeal.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(16)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Community Highlights 🌟',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          SizedBox(height: 10),
-          _buildCommunityPost('New awareness event this Friday at Yasmeen Charity!'),
-          _buildCommunityPost('Parents forum: Tips for managing ADHD routines.'),
-        ],
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CommunityScreen(),
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: EdgeInsets.all(15),
+        decoration: BoxDecoration(
+            color: AppColors.primary.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(16)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Community Highlights 🌟',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.primary),
+              ],
+            ),
+            SizedBox(height: 10),
+            
+            if (_isLoadingCommunity)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                ),
+              )
+            else if (_communityHighlights.isEmpty)
+              _buildCommunityPost('No recent posts. Be the first to share!')
+            else
+              ..._communityHighlights.map((post) {
+                final content = post['content']?.toString() ?? 'Post content';
+                final userName = post['user_name']?.toString() ?? 'Community Member';
+                final timeAgo = _getTimeAgo(post['created_at']);
+                final likesCount = (post['likes_count'] as num?) ?? 0;
+                final commentsCount = (post['comments_count'] as num?) ?? 0;
+                
+                return _buildCommunityPostCard(
+                  content: content,
+                  userName: userName,
+                  timeAgo: timeAgo,
+                  likesCount: likesCount,
+                  commentsCount: commentsCount,
+                );
+              }).toList(),
+            
+            SizedBox(height: 8),
+            Center(
+              child: Text(
+                'Tap to view all posts',
+                style: TextStyle(
+                  color: AppColors.primary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  String _getTimeAgo(dynamic createdAt) {
+    try {
+      final dateTime = DateTime.parse(createdAt.toString());
+      final difference = DateTime.now().difference(dateTime);
+      
+      if (difference.inMinutes < 1) return 'Just now';
+      if (difference.inMinutes < 60) return '${difference.inMinutes}m ago';
+      if (difference.inHours < 24) return '${difference.inHours}h ago';
+      if (difference.inDays < 7) return '${difference.inDays}d ago';
+      return '${(difference.inDays / 7).floor()}w ago';
+    } catch (e) {
+      return '';
+    }
   }
 
   Widget _buildCommunityPost(String text) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 6.0),
     child: Row(children: [
-      Icon(Icons.campaign, color: ParentAppColors.primaryTeal, size: 20),
+      Icon(Icons.campaign, color: AppColors.primary, size: 20),
       SizedBox(width: 8),
       Expanded(child: Text(text, style: TextStyle(fontSize: 13))),
     ]),
   );
+
+  Widget _buildCommunityPostCard({
+    required String content,
+    required String userName,
+    required String timeAgo,
+    required num likesCount,
+    required num commentsCount,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withOpacity(0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: AppColors.primary.withOpacity(0.2),
+                child: Icon(Icons.person, size: 18, color: AppColors.primary),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      userName,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textDark,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (timeAgo.isNotEmpty)
+                      Text(
+                        timeAgo,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textGray,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 8),
+          
+          // Content
+          Text(
+            content.length > 100 ? '${content.substring(0, 100)}...' : content,
+            style: TextStyle(
+              fontSize: 13,
+              color: AppColors.textDark,
+              height: 1.4,
+            ),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
+          
+          const SizedBox(height: 8),
+          
+          // Engagement
+          Row(
+            children: [
+              Icon(Icons.favorite, size: 14, color: Colors.red[400]),
+              const SizedBox(width: 4),
+              Text(
+                '$likesCount',
+                style: TextStyle(fontSize: 11, color: AppColors.textGray),
+              ),
+              const SizedBox(width: 12),
+              Icon(Icons.comment, size: 14, color: AppColors.primary),
+              const SizedBox(width: 4),
+              Text(
+                '$commentsCount',
+                style: TextStyle(fontSize: 11, color: AppColors.textGray),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProgressAnalytics() {
+    // Get first child's evaluations for analytics
+    final children = dashboardData?.children ?? [];
+    if (children.isEmpty) {
+      return SizedBox.shrink();
+    }
+
+    final firstChild = children.first;
+    final rawEvaluations = firstChild.evaluations ?? [];
+    
+    // Convert to List<Map<String, dynamic>>
+    final evaluations = rawEvaluations.map((e) {
+      if (e is Map<String, dynamic>) {
+        return e;
+      } else if (e is Map) {
+        return Map<String, dynamic>.from(e);
+      }
+      return <String, dynamic>{};
+    }).toList();
+    
+    return ProgressAnalyticsWidget(
+      evaluations: evaluations,
+      childName: firstChild.childName ?? 'Child',
+    );
+  }
 
   Widget _buildRecentNotificationsFeed() {
     final notifications = dashboardData?.summaries.notifications ?? [];
@@ -1199,7 +1574,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           final time = '2 hours ago';
 
           return ListTile(
-            leading: Icon(Icons.notifications, color: ParentAppColors.primaryTeal),
+            leading: Icon(Icons.notifications, color: AppColors.primary),
             title: Text(title, style: TextStyle(fontWeight: FontWeight.w500)),
             subtitle: Text(time, style: TextStyle(color: Colors.grey[600])),
             trailing: Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
@@ -1220,7 +1595,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
       ],
       currentIndex: _selectedIndex,
-      selectedItemColor: ParentAppColors.primaryTeal,
+      selectedItemColor: AppColors.primary,
       unselectedItemColor: Colors.grey,
       onTap: _onItemTapped,
       type: BottomNavigationBarType.fixed,
