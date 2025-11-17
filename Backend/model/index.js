@@ -19,6 +19,8 @@ const Question = require('./Question');
 const Questionnaire = require('./Questionnaire');
 const ChildAttachment = require('./ChildAttachment');
 
+const QuestionnaireAnswer = require('./QuestionnaireAnswer');
+const QuestionnaireResult = require('./QuestionnaireResult');
 const AIDonorReport = require('./AIDonorReport');
 const AIParentInteraction = require('./AIParentInteraction');
 const AIRecommendation = require('./AIRecommendation');
@@ -101,13 +103,6 @@ Like.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 Like.belongsTo(Post, { foreignKey: 'post_id', as: 'LikePost' });
 Like.belongsTo(Comment, { foreignKey: 'comment_id', as: 'LikeComment' });
 
-// Questionnaire relationships
-Questionnaire.belongsTo(User, { foreignKey: 'parent_id', as: 'QuestionnaireParent' });
-Questionnaire.belongsTo(Child, { foreignKey: 'child_id', as: 'QuestionnaireChild' });
-
-User.hasMany(Questionnaire, { foreignKey: 'parent_id', as: 'ParentQuestionnaires' });
-Child.hasMany(Questionnaire, { foreignKey: 'child_id', as: 'ChildQuestionnaires' });
-
 // Notification relationships
 Notification.belongsTo(User, { foreignKey: 'user_id', as: 'NotificationUser' });
 User.hasMany(Notification, { foreignKey: 'user_id', as: 'UserNotifications' });
@@ -145,5 +140,7 @@ module.exports = {
   Comment,
   Like,
   Notification,
-  Manager
+  Manager,
+  QuestionnaireAnswer,
+  QuestionnaireResult
 };

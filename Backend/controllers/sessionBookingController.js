@@ -57,6 +57,9 @@ async function createInvoiceForSession(session, child) {
   }
 }
 
+// إتاحة الدالة لاستخدامها من ملفات أخرى (مثل specialistSessionController)
+exports.createInvoiceForSession = createInvoiceForSession;
+
 // ================= GET AVAILABLE SLOTS =================
 exports.getAvailableSlots = async (req, res) => {
   try {

@@ -22,18 +22,20 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   String _language = 'ar';
   double _progress = 0.0;
   String? _currentQuestionnaireId;
+  String _currentStage = 'demographics';
 
   @override
   void initState() {
     super.initState();
-    _loadQuestions();
+    _loadQuestionsForStage('demographics');
   }
 
-  Future<void> _loadQuestions() async {
+  Future<void> _loadQuestionsForStage(String stage) async {
     try {
       setState(() {
         _isLoading = true;
         _errorMessage = '';
+        _currentStage = stage;
       });
 
       final prefs = await SharedPreferences.getInstance();
@@ -50,7 +52,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       final questions = await ApiService.getQuestionnaireQuestions(
         token,
         childId: widget.childId,
-        previousAnswers: _responses,
+        previousAnswers: _currentStage == 'deep' ? _responses : null,
+        stage: stage,
         language: _language,
       );
 
@@ -96,7 +99,19 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     if (_currentQuestionIndex < _questions.length - 1) {
       setState(() => _currentQuestionIndex++);
     } else {
-      _submitQuestionnaire();
+      // انتهت أسئلة هذه المرحلة
+      if (_currentStage == 'demographics') {
+        // انتقل إلى الأسئلة العامة المشتركة
+        _currentQuestionIndex = 0;
+        _loadQuestionsForStage('general');
+      } else if (_currentStage == 'general') {
+        // انتقل إلى الأسئلة المتخصصة (حسب النتائج)
+        _currentQuestionIndex = 0;
+        _loadQuestionsForStage('deep');
+      } else {
+        // انتهت الأسئلة المتخصصة -> إرسال الاستبيان
+        _submitQuestionnaire();
+      }
     }
   }
 
@@ -354,7 +369,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     setState(() {
       _language = _language == 'ar' ? 'en' : 'ar';
     });
-    _loadQuestions();
+    _loadQuestionsForStage(_currentStage);
   }
 
   @override
@@ -413,8 +428,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
             Text(_errorMessage, textAlign: TextAlign.center),
             SizedBox(height: 16),
             ElevatedButton(
-              onPressed: _loadQuestions,
-              child: Text('إعادة المحاولة'),
+              onPressed: () => _loadQuestionsForStage(_currentStage),
+              child: Text('إعادة التحميل'),
             ),
           ],
         ),
@@ -680,7 +695,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
           ),
           SizedBox(height: 16),
           ElevatedButton(
-            onPressed: _loadQuestions,
+            onPressed: () => _loadQuestionsForStage(_currentStage),
             child: Text('إعادة التحميل'),
           ),
         ],
