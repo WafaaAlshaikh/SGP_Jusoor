@@ -121,6 +121,37 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
     }
   }
 
+  Future<void> _showDateRangePicker() async {
+    final DateTime now = DateTime.now();
+    final DateTime firstAllowed = DateTime(now.year - 5);
+    final DateTime lastAllowed = now;
+
+    final DateTimeRange? picked = await showDateRangePicker(
+      context: context,
+      firstDate: firstAllowed,
+      lastDate: lastAllowed,
+      initialDateRange: _startDate != null && _endDate != null
+          ? DateTimeRange(start: _startDate!, end: _endDate!)
+          : null,
+      helpText: 'Select evaluation date range',
+      saveText: 'Apply',
+    );
+
+    if (picked != null) {
+      setState(() {
+        _comparisonMode = true;
+        _comparisonType = 'date_range';
+        _selectedEvaluationsForComparison.clear();
+        _comparisonResults = null;
+        _allEvaluationsInPeriod.clear();
+        _startDate = DateTime(picked.start.year, picked.start.month, picked.start.day);
+        _endDate = DateTime(picked.end.year, picked.end.month, picked.end.day);
+      });
+
+      _performAutoComparison();
+    }
+  }
+
   void _performAutoComparison() {
     final evaluations = _safeList(childData?['evaluations']);
     if (evaluations.isEmpty) return;
@@ -243,7 +274,8 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
     final recommendations = _generateComprehensiveRecommendations(
         overallAssessment,
         domainAnalysis,
-        progressMetrics
+        progressMetrics,
+        periodAnalysis
     );
 
     return {
@@ -494,24 +526,40 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
 
     // Calculate changes between consecutive evaluations
     final scoreChanges = <Map<String, dynamic>>[];
+    int improvementCount = 0;
+    int declineCount = 0;
+    int stableCount = 0;
     for (int i = 1; i < evaluations.length; i++) {
       final prevScore = _safeDouble(evaluations[i-1]['progress_score']) ?? 0.0;
       final currentScore = _safeDouble(evaluations[i]['progress_score']) ?? 0.0;
       final change = currentScore - prevScore;
 
       scoreChanges.add({
-        'fromDate': _formatDate(_safeString(evaluations[i-1]['created_at'])),
+        'fromDate': _formatDate(_safeString(evaluations[i-1]['created_at'])) ,
         'toDate': _formatDate(_safeString(evaluations[i]['created_at'])),
         'fromScore': prevScore,
         'toScore': currentScore,
         'change': change,
         'trend': change >= 0 ? 'improvement' : 'decline',
       });
+
+      if (change > 0.5) improvementCount++;
+      else if (change < -0.5) declineCount++;
+      else stableCount++;
     }
 
     // Find best and worst evaluations
     final bestEvaluation = evaluations[scores.indexOf(highestScore)];
     final worstEvaluation = evaluations[scores.indexOf(lowestScore)];
+
+    // Classify improvement level for the period
+    String improvementLevel;
+    if (overallChange > 12 && improvementCount >= declineCount + 2) improvementLevel = 'strong_improvement';
+    else if (overallChange > 6 && improvementCount > declineCount) improvementLevel = 'moderate_improvement';
+    else if (overallChange.abs() <= 3) improvementLevel = 'stable';
+    else if (overallChange < -6 && declineCount >= improvementCount) improvementLevel = 'moderate_decline';
+    else if (overallChange < -12) improvementLevel = 'significant_decline';
+    else improvementLevel = 'mixed';
 
     return {
       'totalEvaluations': evaluations.length,
@@ -525,6 +573,10 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
       'worstEvaluation': worstEvaluation,
       'evaluationDates': evaluations.map((e) => _formatDate(_safeString(e['created_at']))).toList(),
       'evaluationScores': scores,
+      'improvementCount': improvementCount,
+      'declineCount': declineCount,
+      'stableCount': stableCount,
+      'improvementLevel': improvementLevel,
     };
   }
 
@@ -798,7 +850,8 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
   List<String> _generateComprehensiveRecommendations(
       Map<String, dynamic> overallAssessment,
       Map<String, dynamic> domainAnalysis,
-      Map<String, dynamic> progressMetrics
+      Map<String, dynamic> progressMetrics,
+      Map<String, dynamic> periodAnalysis
       ) {
     final recommendations = <String>[];
     final trend = overallAssessment['trend'];
@@ -864,6 +917,27 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
 
     if (stats['removedCount'] > 0) {
       recommendations.add('Review rationale for discontinued assessment areas');
+    }
+
+    // Period-based recommendations
+    final impCount = (periodAnalysis['improvementCount'] ?? 0) as int;
+    final decCount = (periodAnalysis['declineCount'] ?? 0) as int;
+    final stCount = (periodAnalysis['stableCount'] ?? 0) as int;
+    final totalEval = (periodAnalysis['totalEvaluations'] ?? 0) as int;
+    final level = periodAnalysis['improvementLevel']?.toString() ?? '';
+
+    if (totalEval >= 3) {
+      if (decCount > impCount) {
+        recommendations.add('Increase intervention intensity and add targeted supports due to frequent declines');
+      }
+      if (stCount < (totalEval / 3) && impCount > 0 && decCount > 0) {
+        recommendations.add('Address inconsistency across sessions; standardize routines and reinforcement');
+      }
+      if (level == 'strong_improvement') {
+        recommendations.add('Consider advancing goals and introducing generalization tasks');
+      }
+    } else {
+      recommendations.add('Collect more evaluations to strengthen longitudinal conclusions');
     }
 
     return recommendations.take(8).toList();
@@ -971,7 +1045,7 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
         title: Text(title, style: TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text(subtitle, style: TextStyle(fontSize: 12)),
         trailing: Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: () => _startComparison(type),
+        onTap: () => type == 'date_range' ? _showDateRangePicker() : _startComparison(type),
       ),
     );
   }
@@ -1019,6 +1093,14 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
   }
 
   Widget _buildComparisonHeader(Map<String, dynamic> comparison) {
+    final dynamic overallAssessment = comparison['overallAssessment'];
+    final Color baseColor = overallAssessment != null && overallAssessment['color'] is Color
+        ? overallAssessment['color'] as Color
+        : const Color(0xFF7815A0);
+    final IconData headerIcon = overallAssessment != null && overallAssessment['icon'] is IconData
+        ? overallAssessment['icon'] as IconData
+        : Icons.analytics;
+
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(20),
@@ -1026,7 +1108,10 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF7815A0), Color(0xFF9C27B0)],
+          colors: [
+            baseColor,
+            baseColor.withOpacity(0.85),
+          ],
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
@@ -1039,7 +1124,7 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
       ),
       child: Column(
         children: [
-          Icon(Icons.analytics, size: 40, color: Colors.white),
+          Icon(headerIcon, size: 40, color: Colors.white),
           SizedBox(height: 12),
           Text(
             'Comprehensive Progress Report',
@@ -1147,6 +1232,7 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
   }
 
   Widget _buildScoreAnalysisCard(Map<String, dynamic> scoreAnalysis, Map<String, dynamic> progressMetrics) {
+    final pwm = _computePeriodWideMetrics();
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1199,10 +1285,122 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
                 _buildProgressMetric('Timeline', progressMetrics['expectedTimeline'].split(' ').first, Icons.schedule),
               ],
             ),
+
+            if (pwm.isNotEmpty) ...[
+              SizedBox(height: 20),
+              Divider(),
+              SizedBox(height: 16),
+              Text(
+                'Period-wide Metrics',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[700],
+                ),
+              ),
+              SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildProgressMetric('Slope/mo', '${(pwm['slopePerMonth'] as double).toStringAsFixed(1)}%', Icons.trending_up),
+                  _buildProgressMetric('R²', (pwm['r2'] as double).toStringAsFixed(2), Icons.stacked_line_chart),
+                  _buildProgressMetric('Volatility', '${(pwm['volatilityPct'] as double).toStringAsFixed(1)}%', Icons.multiline_chart),
+                ],
+              ),
+              SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildProgressMetric('Avg Δ', '${(pwm['avgDelta'] as double).toStringAsFixed(1)}%', Icons.swap_vert),
+                  _buildProgressMetric('Median Δ', '${(pwm['medianDelta'] as double).toStringAsFixed(1)}%', Icons.linear_scale),
+                  _buildProgressMetric('%↑ intervals', '${(pwm['improvingPct'] as double).toStringAsFixed(0)}%', Icons.north_east),
+                ],
+              ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  Map<String, dynamic> _computePeriodWideMetrics() {
+    final evals = _safeList(_allEvaluationsInPeriod);
+    if (evals.length < 2) return {};
+
+    // Extract scores and dates
+    final scores = <double>[];
+    final dates = <DateTime>[];
+    for (final e in evals) {
+      final m = _safeMap(e);
+      final s = _safeDouble(m['progress_score']) ?? 0.0;
+      final dStr = _safeString(m['created_at']);
+      DateTime? d;
+      try { d = DateTime.parse(dStr); } catch (_) {}
+      if (d != null) {
+        scores.add(s);
+        dates.add(d);
+      }
+    }
+    if (scores.length < 2) return {};
+
+    // Ensure chronological
+    final idx = List.generate(scores.length, (i) => i);
+    idx.sort((a,b)=>dates[a].compareTo(dates[b]));
+    final sSorted = [for (final i in idx) scores[i]];
+    final dSorted = [for (final i in idx) dates[i]];
+
+    // Deltas
+    final deltas = <double>[];
+    int improving = 0, declining = 0;
+    for (int i=1;i<sSorted.length;i++){
+      final delta = sSorted[i] - sSorted[i-1];
+      deltas.add(delta);
+      if (delta > 0.5) improving++; else if (delta < -0.5) declining++;
+    }
+    final avgDelta = deltas.reduce((a,b)=>a+b)/deltas.length;
+    final medianDelta = _median(deltas);
+
+    // Volatility (% as coefficient of variation)
+    final mean = sSorted.reduce((a,b)=>a+b)/sSorted.length;
+    double variance = 0.0;
+    for (final v in sSorted){ variance += pow(v-mean,2) as double; }
+    variance /= sSorted.length;
+    final stdDev = sqrt(variance);
+    final volatilityPct = mean > 0 ? (stdDev/mean)*100.0 : 0.0;
+
+    // Linear regression slope per day and R^2
+    final firstDate = dSorted.first;
+    final x = dSorted.map((dt)=>dt.difference(firstDate).inDays.toDouble()).toList();
+    double sumX=0,sumY=0,sumXY=0,sumX2=0;
+    final n = sSorted.length;
+    for (int i=0;i<n;i++){ sumX+=x[i]; sumY+=sSorted[i]; sumXY+=x[i]*sSorted[i]; sumX2+=x[i]*x[i]; }
+    final denom = n*sumX2 - sumX*sumX;
+    final slopePerDay = denom.abs() < 1e-9 ? 0.0 : ((n*sumXY - sumX*sumY)/denom);
+    final intercept = (sumY - slopePerDay*sumX)/n;
+    double ssTot=0, ssRes=0; final meanY = sumY/n;
+    for (int i=0;i<n;i++){ final pred = slopePerDay*x[i]+intercept; ssTot += pow(sSorted[i]-meanY,2) as double; ssRes += pow(sSorted[i]-pred,2) as double; }
+    final r2 = ssTot>0 ? (1 - (ssRes/ssTot)) : 0.0;
+    final slopePerMonth = slopePerDay * 30.0;
+
+    final improvingPct = 100.0 * improving / deltas.length;
+
+    return {
+      'avgDelta': avgDelta,
+      'medianDelta': medianDelta,
+      'improvingPct': improvingPct,
+      'decliningPct': 100.0 * declining / deltas.length,
+      'volatilityPct': volatilityPct,
+      'slopePerMonth': slopePerMonth,
+      'r2': r2,
+    };
+  }
+
+  double _median(List<double> values){
+    if (values.isEmpty) return 0.0;
+    final sorted = [...values]..sort();
+    final mid = sorted.length>>1;
+    if (sorted.length.isOdd) return sorted[mid];
+    return (sorted[mid-1] + sorted[mid]) / 2.0;
   }
 
   Widget _buildScoreMetric(String label, String value, IconData icon) {
@@ -1264,6 +1462,37 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
     );
   }
 
+  Widget _buildPeriodStat(String label, String value, IconData icon) {
+    return Column(
+      children: [
+        Container(
+          padding: EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.purple.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, size: 18, color: Colors.purple),
+        ),
+        SizedBox(height: 8),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey[800],
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: Colors.grey[600],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildPeriodAnalysisCard(Map<String, dynamic> periodAnalysis) {
     return Card(
       elevation: 4,
@@ -1305,7 +1534,6 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
             // Performance Highlights
             Row(
               children: [
-
                 Expanded(
                   child: _buildPerformanceCard(
                     'Best Score',
@@ -1315,7 +1543,7 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
                     periodAnalysis['bestEvaluation'],
                   ),
                 ),
-                SizedBox(width:2),
+                SizedBox(width:3),
                 Expanded(
                   child: _buildPerformanceCard(
                     'Needs Attention',
@@ -1327,40 +1555,88 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
                 ),
               ],
             ),
+
+            SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildPeriodStat('Improved', (periodAnalysis['improvementCount'] ?? 0).toString(), Icons.trending_up),
+                _buildPeriodStat('Stable', (periodAnalysis['stableCount'] ?? 0).toString(), Icons.trending_flat),
+                _buildPeriodStat('Declined', (periodAnalysis['declineCount'] ?? 0).toString(), Icons.trending_down),
+              ],
+            ),
+
+            SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Chip(
+                label: Text('Level: ${_safeString(periodAnalysis['improvementLevel']).replaceAll('_', ' ')}'),
+                backgroundColor: Colors.blueGrey[50],
+              ),
+            ),
+
+            SizedBox(height: 16),
+            if ((periodAnalysis['evaluationScores'] as List).isNotEmpty)
+              Container(
+                height: 100,
+                width: double.infinity,
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: _buildMiniTrendChart((periodAnalysis['evaluationScores'] as List).map((e) => _safeDouble(e)).toList()),
+              ),
+
+            SizedBox(height: 16),
+            if ((periodAnalysis['scoreChanges'] as List).isNotEmpty)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Change Timeline',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                  ),
+                  SizedBox(height: 8),
+                  ...(periodAnalysis['scoreChanges'] as List).map((c) {
+                    final m = _safeMap(c);
+                    final ch = _safeDouble(m['change']);
+                    final isUp = ch >= 0;
+                    return Padding(
+                      padding: EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        children: [
+                          Icon(isUp ? Icons.north_east : Icons.south_east, size: 16, color: isUp ? Colors.green : Colors.red),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '${m['fromDate']} → ${m['toDate']}  |  ${(_safeDouble(m['fromScore'])).toStringAsFixed(1)}% → ${(_safeDouble(m['toScore'])).toStringAsFixed(1)}%  (${isUp ? '+' : ''}${ch.toStringAsFixed(1)}%)',
+                              style: TextStyle(fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ],
+              ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildPeriodStat(String label, String value, IconData icon) {
-    return Column(
-      children: [
-        Container(
-          padding: EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.purple.withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, size: 18, color: Colors.purple),
-        ),
-        SizedBox(height: 8),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: Colors.grey[800],
-          ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: Colors.grey[600],
-          ),
-        ),
-      ],
+  Widget _buildMiniTrendChart(List<double> scores) {
+    if (scores.isEmpty) return SizedBox();
+    double minY = scores.reduce((a, b) => a < b ? a : b);
+    double maxY = scores.reduce((a, b) => a > b ? a : b);
+    if ((maxY - minY).abs() < 1) {
+      maxY = minY + 1;
+    }
+    return CustomPaint(
+      painter: _TrendLinePainter(scores: scores, minY: minY, maxY: maxY),
+      child: Container(),
     );
   }
 
@@ -2243,8 +2519,8 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
             ),
           ),
 
-        // Comparison Interface
-        if (_comparisonMode && _comparisonType == 'select_manually')
+        // Comparison Interface (only when selecting manually and before results)
+        if (_comparisonMode && _comparisonType == 'select_manually' && _comparisonResults == null)
           Padding(
             padding: EdgeInsets.all(16),
             child: _buildComparisonSelector(),
@@ -2497,4 +2773,53 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
       ),
     );
   }
+}
+// Painter for mini trend chart (top-level)
+class _TrendLinePainter extends CustomPainter {
+  final List<double> scores;
+  final double minY;
+  final double maxY;
+
+  _TrendLinePainter({required this.scores, required this.minY, required this.maxY});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paintLine = Paint()
+      ..color = const Color(0xFF7815A0)
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+
+    final paintFill = Paint()
+      ..color = const Color(0xFF9C27B0).withOpacity(0.15)
+      ..style = PaintingStyle.fill;
+
+    final path = Path();
+    final fillPath = Path();
+
+    if (scores.isEmpty) return;
+
+    final double dxStep = scores.length == 1 ? size.width : size.width / (scores.length - 1);
+
+    for (int i = 0; i < scores.length; i++) {
+      final x = i * dxStep;
+      final norm = (scores[i] - minY) / (maxY - minY);
+      final y = size.height - (norm * (size.height - 4)) - 2;
+      if (i == 0) {
+        path.moveTo(x, y);
+        fillPath.moveTo(x, size.height);
+        fillPath.lineTo(x, y);
+      } else {
+        path.lineTo(x, y);
+        fillPath.lineTo(x, y);
+      }
+    }
+    fillPath.lineTo(size.width, size.height);
+    fillPath.close();
+
+    canvas.drawPath(fillPath, paintFill);
+    canvas.drawPath(path, paintLine);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
