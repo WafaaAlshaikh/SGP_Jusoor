@@ -883,6 +883,7 @@ class ApiService {
       String token, {
         String? childId,
         Map<String, dynamic>? previousAnswers,
+        String? stage,
         String language = 'ar',
       }) async {
     try {
@@ -895,6 +896,9 @@ class ApiService {
       if (childId != null) queryParams['child_id'] = childId;
       if (previousAnswers != null && previousAnswers.isNotEmpty) {
         queryParams['previous_answers'] = jsonEncode(previousAnswers);
+      }
+      if (stage != null && stage.isNotEmpty) {
+        queryParams['stage'] = stage;
       }
 
       final response = await http.get(

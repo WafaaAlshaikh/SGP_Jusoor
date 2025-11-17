@@ -1,70 +1,123 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/db');
-const User = require('./User');
-const Child = require('./Child');
 
 const Questionnaire = sequelize.define('Questionnaire', {
-  questionnaire_id: {
+  id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
     autoIncrement: true
   },
+  
+  // Foreign Keys
   parent_id: {
     type: DataTypes.BIGINT.UNSIGNED,
-    allowNull: false
+    allowNull: false,
+    references: {
+      model: 'Users',
+      key: 'user_id'
+    }
   },
+  
   child_id: {
     type: DataTypes.BIGINT.UNSIGNED,
-    allowNull: true 
+    allowNull: true, // قد يكون الاستبيان قبل تسجيل الطفل
+    references: {
+      model: 'Children',
+      key: 'child_id'
+    }
   },
-  title: {
-    type: DataTypes.STRING(255),
-    allowNull: false
+  
+  // Assessment Info
+  assessment_date: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
   },
-  type: {
-    type: DataTypes.ENUM('Initial Screening', 'Follow Up', 'Specialized'),
-    defaultValue: 'Initial Screening'
-  },
+  
   status: {
-    type: DataTypes.ENUM('In Progress', 'Completed', 'Analyzed'),
-    defaultValue: 'In Progress'
+    type: DataTypes.ENUM('in_progress', 'completed', 'expired'),
+    defaultValue: 'in_progress'
   },
-  responses: {
+  
+  current_section: {
+    type: DataTypes.STRING,
+    defaultValue: 'demographics' // demographics, general_screening, conditional
+  },
+  
+  // Demographics Data (JSON)
+  demographics: {
     type: DataTypes.JSON,
-    allowNull: true
+    defaultValue: {}
   },
-  results: {
+  
+  // General Screening Answers (JSON)
+  general_answers: {
     type: DataTypes.JSON,
+    defaultValue: {}
+  },
+  
+  // Conditional Section Answers (JSON)
+  conditional_answers: {
+    type: DataTypes.JSON,
+    defaultValue: {
+      ASD: {},
+      ADHD: {},
+      Speech: {},
+      Down: {}
+    }
+  },
+  
+  // Scores
+  scores: {
+    type: DataTypes.JSON,
+    defaultValue: {
+      ASD: { general: 0, conditional: 0, total: 0, percentage: 0 },
+      ADHD: { general: 0, conditional: 0, total: 0, percentage: 0 },
+      Speech: { general: 0, conditional: 0, total: 0, percentage: 0 },
+      Down: { general: 0, conditional: 0, total: 0, percentage: 0 }
+    }
+  },
+  
+  // Results
+  primary_concern: {
+    type: DataTypes.ENUM('ASD', 'ADHD', 'Speech', 'Down', 'None'),
     allowNull: true
   },
-  ai_analysis: {
-    type: DataTypes.TEXT,
-    allowNull: true
-  },
+  
   risk_level: {
-    type: DataTypes.ENUM('Low', 'Medium', 'High'),
+    type: DataTypes.ENUM('very_low', 'low', 'medium', 'high', 'very_high'),
     allowNull: true
   },
-  suggested_conditions: {
-    type: DataTypes.JSON,
+  
+  urgency_level: {
+    type: DataTypes.ENUM('low_concern', 'monitor', 'soon', 'immediate'),
     allowNull: true
   },
+  
+  // Recommendations
   recommendations: {
     type: DataTypes.JSON,
     allowNull: true
   },
-  completed_at: {
-    type: DataTypes.DATE,
+  
+  // Metadata
+  time_taken_seconds: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+  
+  total_questions_asked: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+  
+  notes: {
+    type: DataTypes.TEXT,
     allowNull: true
   }
+  
 }, {
   tableName: 'Questionnaires',
-  timestamps: true,
-  createdAt: 'created_at',
-  updatedAt: 'updated_at'
+  timestamps: true
 });
-
-Questionnaire.belongsTo(User, { foreignKey: 'parent_id' });
-Questionnaire.belongsTo(Child, { foreignKey: 'child_id' });
 
 module.exports = Questionnaire;

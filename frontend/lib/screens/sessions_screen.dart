@@ -17,6 +17,7 @@ import 'dart:io';
 import '../services/payment_service.dart';
 import 'payment_screen.dart';
 import '../services/parent_api.dart';
+import 'parent_approve_sessions_screen.dart';
 
 class SessionsScreen extends StatefulWidget {
   const SessionsScreen({super.key});
@@ -488,6 +489,18 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
     }
   }
 
+  void _navigateToParentApproveSessions() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ParentApproveSessionsScreen(),
+      ),
+    ).then((_) {
+      // بعد الرجوع من شاشة الموافقة، نعيد تحميل الجلسات
+      _loadAllSessions();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -748,6 +761,27 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
       return _buildEmptyState(type);
     }
 
+    if (type == 'pending') {
+      return ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: sessions.length + 1,
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: OutlinedButton.icon(
+                onPressed: _navigateToParentApproveSessions,
+                icon: const Icon(Icons.how_to_reg),
+                label: const Text('Review specialist sessions waiting approval'),
+              ),
+            );
+          }
+          final session = sessions[index - 1];
+          return _buildSessionCard(session, type);
+        },
+      );
+    }
+
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: sessions.length,
@@ -825,7 +859,16 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
-            if (type == 'upcoming' || type == 'pending')
+            if (type == 'upcoming')
+              ElevatedButton(
+                onPressed: _navigateToBookSession,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primaryColor,
+                  foregroundColor: Colors.white,
+                ),
+                child: Text(state['action'] as String),
+              )
+            else if (type == 'pending') ...[
               ElevatedButton(
                 onPressed: _navigateToBookSession,
                 style: ElevatedButton.styleFrom(
@@ -834,6 +877,13 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
                 ),
                 child: Text(state['action'] as String),
               ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _navigateToParentApproveSessions,
+                icon: const Icon(Icons.how_to_reg),
+                label: const Text('Review specialist sessions waiting approval'),
+              ),
+            ],
           ],
         ),
       ),

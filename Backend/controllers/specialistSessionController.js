@@ -7,6 +7,7 @@ const Notification = require('../model/Notification');
 const { Op } = require('sequelize');
 const ZoomMeeting = require('../model/ZoomMeeting');
 const { createZoomMeeting } = require('../services/zoomService');
+const { createInvoiceForSession } = require('./sessionBookingController');
 
 // ✅ 1. جلب كل الجلسات للأخصائي - النسخة المعدلة
 exports.getAllSessionsForSpecialist = async (req, res) => {
@@ -596,10 +597,10 @@ exports.getNewPendingSessionsForParent = async (req, res) => {
     });
   } catch (err) {
     console.error('Error in getNewPendingSessionsForParent:', err);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       message: 'خطأ في جلب الجلسات المعلقة',
-      error: err.message 
+      error: err.message
     });
   }
 };
@@ -641,12 +642,24 @@ exports.approveNewSession = async (req, res) => {
     }
 
     if (approve) {
-      // الموافقة: تحديث حالة الجلسة إلى "Scheduled"
+      // الموافقة: تحديث حالة الجلسة إلى "Scheduled" مع إعداد الدفع إلى Pending
       await session.update({
         status: 'Scheduled',
         parent_approved: true,
-        is_pending: false
+        is_pending: false,
+        is_paid: false,
+        payment_status: 'Pending'
       });
+
+      // إنشاء فاتورة للجلسة بنفس منطق حجز الأهل
+      let invoiceId = null;
+      try {
+        const child = session.child;
+        const invoice = await createInvoiceForSession(session, child);
+        invoiceId = invoice.invoice_id;
+      } catch (invoiceError) {
+        console.error('⚠️ Failed to create invoice for specialist-created session:', invoiceError);
+      }
 
       // إرسال إشعار للمختص
       await Notification.create({
@@ -663,7 +676,8 @@ exports.approveNewSession = async (req, res) => {
         message: 'تمت الموافقة على الجلسة بنجاح',
         data: {
           session_id: session.session_id,
-          status: 'Scheduled'
+          status: 'Scheduled',
+          invoice_id: invoiceId
         }
       });
     } else {
