@@ -81,9 +81,28 @@ class ChildCard extends StatelessWidget {
 
   String _getInitials(String name) {
     if (name.isEmpty) return '?';
-    final parts = name.split(' ');
-    if (parts.length == 1) return parts[0][0].toUpperCase();
-    return '${parts[0][0]}${parts[parts.length - 1][0]}'.toUpperCase();
+
+    final trimmedName = name.trim();
+    if (trimmedName.isEmpty) return '?';
+
+    final parts = trimmedName.split(' ').where((part) => part.isNotEmpty).toList();
+
+    if (parts.isEmpty) return '?';
+
+    // إذا كان هناك جزء واحد فقط
+    if (parts.length == 1) {
+      return parts[0].isNotEmpty ? parts[0][0].toUpperCase() : '?';
+    }
+
+    // إذا كان هناك أكثر من جزء، خذ الحرف الأول من الجزء الأول والأخير
+    final firstPart = parts[0];
+    final lastPart = parts[parts.length - 1];
+
+    if (firstPart.isEmpty && lastPart.isEmpty) return '?';
+    if (firstPart.isEmpty) return lastPart[0].toUpperCase();
+    if (lastPart.isEmpty) return firstPart[0].toUpperCase();
+
+    return '${firstPart[0]}${lastPart[0]}'.toUpperCase();
   }
 
   IconData _getConditionIcon(String? condition) {
@@ -387,35 +406,36 @@ class ChildCard extends StatelessWidget {
                         runSpacing: 6,
                         children: [
                           // Condition Chip
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: _conditionColor(child.condition).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                color: _conditionColor(child.condition).withOpacity(0.3),
+                          if (child.condition != null && child.condition!.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: _conditionColor(child.condition).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: _conditionColor(child.condition).withOpacity(0.3),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    _getConditionIcon(child.condition),
+                                    size: 12,
+                                    color: _conditionColor(child.condition),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    child.condition!,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: _conditionColor(child.condition),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  _getConditionIcon(child.condition),
-                                  size: 12,
-                                  color: _conditionColor(child.condition),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  child.condition ?? '-',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: _conditionColor(child.condition),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
 
                           // Registration Status Chip
                           Container(
@@ -477,7 +497,7 @@ class ChildCard extends StatelessWidget {
                             ),
                           ),
 
-                          if (child.currentInstitutionName != null) ...[
+                          if (child.currentInstitutionName != null && child.currentInstitutionName!.isNotEmpty) ...[
                             const SizedBox(width: 16),
                             Icon(
                               Icons.school_rounded,

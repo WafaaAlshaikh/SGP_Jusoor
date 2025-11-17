@@ -43,7 +43,17 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
   @override
   void initState() {
     super.initState();
+    _initializeData();
     _fetchChildren();
+  }
+
+  void _initializeData() {
+    _allChildren = [];
+    _filteredChildren = [];
+    _searchQuery = '';
+    _selectedCondition = 'All';
+    _selectedRegistrationStatus = 'All';
+    _sortOption = ChildSortOption.name;
   }
 
   Future<void> _fetchChildren({int page = 1, int limit = 100}) async {
@@ -93,19 +103,22 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
       final List<dynamic> list = resp['data'] ?? [];
       final fetched = list.map((c) => Child.fromJson(c)).toList();
 
+      print('✅ Loaded ${fetched.length} children from API');
+      print('📊 API response data length: ${list.length}');
+
       setState(() {
         _allChildren = fetched;
         _filteredChildren = List.from(_allChildren);
         _isLoading = false;
+        _applyLocalFilters(); // تطبيق الفلاتر بعد جلب البيانات
       });
 
-      print('✅ Loaded ${_allChildren.length} children');
     } catch (e) {
+      print('❌ Fetch children error: $e');
       setState(() {
         _isLoading = false;
         _hasError = true;
       });
-      print('❌ Fetch children error: $e');
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -135,6 +148,8 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
   ];
 
   void _applyLocalFilters() {
+    print('🔍 Applying filters - Search: "$_searchQuery", Condition: "$_selectedCondition", Status: "$_selectedRegistrationStatus"');
+
     _filteredChildren = _allChildren.where((child) {
       final matchesSearch = _searchQuery.isEmpty ||
           child.fullName.toLowerCase().contains(_searchQuery.toLowerCase());
@@ -148,10 +163,17 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
       return matchesSearch && matchesCondition && matchesRegistrationStatus;
     }).toList();
 
+    print('📋 After filtering: ${_filteredChildren.length} children');
+
     _sortChildren();
   }
 
   void _sortChildren() {
+    if (_filteredChildren.isEmpty) {
+      print('ℹ️ No children to sort');
+      return;
+    }
+
     switch (_sortOption) {
       case ChildSortOption.name:
         _filteredChildren.sort((a, b) => a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()));
@@ -170,6 +192,8 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
         _filteredChildren.sort((a, b) => a.registrationStatus.compareTo(b.registrationStatus));
         break;
     }
+
+    print('🔄 Sorted children by ${_sortOption.name}');
   }
 
   void _openAddEditChild({Child? child}) async {
@@ -911,7 +935,8 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              Expanded(
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 400),
                 child: SingleChildScrollView(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -925,7 +950,7 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                       ],
 
                       if (result['recommended_institutions'] != null &&
-                          result['recommended_institutions'].isNotEmpty) ...[
+                          (result['recommended_institutions'] as List).isNotEmpty) ...[
                         const SizedBox(height: 16),
                         Text('Recommended Institutions:',
                             style: TextStyle(fontWeight: FontWeight.w600, color: _textPrimary)),
@@ -946,6 +971,13 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                           }).toList()
                         else
                           Text(result['next_steps'].toString(), style: TextStyle(color: _textSecondary)),
+                      ],
+
+                      if (result['symptoms_analysis'] == null &&
+                          result['recommended_institutions'] == null &&
+                          result['next_steps'] == null) ...[
+                        Text('No analysis results available.',
+                            style: TextStyle(color: _textSecondary)),
                       ],
                     ],
                   ),
@@ -993,6 +1025,13 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
 
   List<Widget> _buildAnalysisConditions(Map<String, dynamic> analysis) {
     final conditions = analysis['suggested_conditions'] ?? [];
+
+    if (conditions.isEmpty) {
+      return [
+        Text('No conditions suggested', style: TextStyle(color: _textSecondary))
+      ];
+    }
+
     return conditions.map<Widget>((condition) {
       return Container(
         margin: const EdgeInsets.only(bottom: 8),
@@ -1018,6 +1057,12 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
   }
 
   List<Widget> _buildAnalysisInstitutions(List<dynamic> institutions) {
+    if (institutions.isEmpty) {
+      return [
+        Text('No institutions recommended', style: TextStyle(color: _textSecondary))
+      ];
+    }
+
     return institutions.map<Widget>((inst) {
       return Container(
         margin: const EdgeInsets.only(bottom: 8),
@@ -1035,8 +1080,9 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(inst['name'] ?? 'Unknown', style: TextStyle(fontSize: 14, color: _textPrimary)),
-                  Text('Match: ${inst['match_score']}%',
-                      style: TextStyle(fontSize: 12, color: _textSecondary)),
+                  if (inst['match_score'] != null)
+                    Text('Match: ${inst['match_score']}%',
+                        style: TextStyle(fontSize: 12, color: _textSecondary)),
                 ],
               ),
             ),
@@ -1112,6 +1158,10 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
   }
 
   Widget _buildChildrenList() {
+    if (_filteredChildren.isEmpty) {
+      return EmptyStateWidget(onAdd: () => _openAddEditChild());
+    }
+
     return RefreshIndicator(
       onRefresh: _fetchChildren,
       color: _primaryColor,
@@ -1120,6 +1170,11 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
         padding: const EdgeInsets.all(16),
         itemCount: _filteredChildren.length,
         itemBuilder: (ctx, idx) {
+          if (idx >= _filteredChildren.length) {
+            print('⚠️ Warning: Index $idx out of bounds for filtered children list');
+            return const SizedBox.shrink();
+          }
+
           final child = _filteredChildren[idx];
           return Container(
             margin: const EdgeInsets.only(bottom: 12),
@@ -1273,8 +1328,6 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                 ? _buildLoadingState()
                 : _hasError
                 ? ErrorStateWidget(onRetry: _fetchChildren)
-                : _filteredChildren.isEmpty
-                ? EmptyStateWidget(onAdd: () => _openAddEditChild())
                 : _buildChildrenList(),
           ),
         ],

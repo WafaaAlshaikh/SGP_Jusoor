@@ -29,7 +29,7 @@ const getUpcomingSessions = async (req, res) => {
     const sessions = await Session.findAll({
       where: {
         child_id: { [Op.in]: childIds },
-        status: 'Scheduled' // فقط الجلسات المقررة
+        status: ['Scheduled', 'Rescheduled'] // فقط الجلسات المقررة
       },
       include: [
         {

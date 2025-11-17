@@ -72,7 +72,7 @@ const Session = sequelize.define('Session', {
     type: DataTypes.BOOLEAN,
     defaultValue: true
   },
-  requested_by_parent: { type: DataTypes.BOOLEAN, defaultValue: false }, 
+  // requested_by_parent: { type: DataTypes.BOOLEAN, defaultValue: false }, 
   parent_notes: { type: DataTypes.TEXT, allowNull: true },
   is_first_booking: { type: DataTypes.BOOLEAN, defaultValue: false }, 
   approved_by_manager_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: true }, 
