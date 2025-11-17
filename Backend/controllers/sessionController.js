@@ -126,6 +126,7 @@ const confirmSession = async (req, res) => {
 
 
 const cancelSession = async (req, res) => {
+// here send notification to specialist and refund pay
   const { id } = req.params;
   const { reason } = req.body;
 
@@ -141,15 +142,6 @@ const cancelSession = async (req, res) => {
           model: User,
           as: 'specialist',
           attributes: ['user_id', 'full_name']
-        },
-        {
-          model: Invoice,  // ✅ استخدام العلاقة الجديدة
-          as: 'Invoice',   // ✅ استخدام الـ alias الصحيح
-          attributes: ['invoice_id', 'status', 'total_amount']
-        },
-        {
-          model: SessionType,
-          attributes: ['price']
         }
       ]
     });
@@ -166,74 +158,15 @@ const cancelSession = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
-    let refundProcessed = false;
-    let refundAmount = 0;
-
-    // ✅ إذا كانت الجلسة مدفوعة، قم باسترداد المبلغ
-    if (session.is_paid && session.payment_status === 'Paid') {
-      try {
-        // تحديث حالة الدفع في الجلسة
-        await session.update({
-          payment_status: 'Refunded',
-          status: 'Cancelled',
-          reason: reason || 'Cancelled by parent'
-        });
-
-        // إذا كان هناك فاتورة، تحديث حالتها
-        if (session.Invoice) {
-          await session.Invoice.update({
-            status: 'Cancelled',
-            refund_amount: session.Invoice.total_amount,
-            refund_reason: reason || 'Session cancelled by parent',
-            refunded_at: new Date()
-          });
-
-          // إنشاء سجل refund في Payment
-          await Payment.create({
-            invoice_id: session.Invoice.invoice_id,
-            amount: -parseFloat(session.Invoice.total_amount),
-            payment_method: 'Refund',
-            status: 'Completed',
-            payment_date: new Date(),
-            transaction_id: `REF-${Date.now()}-${id}`
-          });
-
-          refundProcessed = true;
-          refundAmount = parseFloat(session.Invoice.total_amount);
-        } else {
-          // إذا لم تكن هناك فاتورة ولكن الجلسة مدفوعة
-          refundProcessed = true;
-          refundAmount = session.SessionType ? parseFloat(session.SessionType.price) : parseFloat(session.price || 0);
-        }
-      } catch (refundError) {
-        console.error('Error processing refund:', refundError);
-        // نستمر في إلغاء الجلسة حتى لو فشل الاسترداد
-      }
-    } else {
-      // ✅ إذا لم تكن مدفوعة، فقط قم بالإلغاء
-      await session.update({
-        status: 'Cancelled',
-        reason: reason || 'Cancelled by parent'
-      });
-    }
-
-    // ✅ إرسال إشعار للـ specialist
-    if (session.specialist) {
-      await Notification.create({
-        user_id: session.specialist.user_id,
-        title: 'Session Cancelled',
-        message: `Session for ${session.child.full_name} scheduled on ${session.date} at ${session.time} has been cancelled by parent. ${reason ? `Reason: ${reason}` : ''}`,
-        type: 'session_cancelled',
-        related_id: session.session_id,
-        is_read: false
-      });
-    }
+    // ✅ تحديث حالة الجلسة إلى "Cancelled" فقط
+    await session.update({
+      status: 'Cancelled',
+      reason: reason || 'Cancelled by parent'
+    });
 
     res.json({
       success: true,
-      message: refundProcessed ? 'Session cancelled and refund processed' : 'Session cancelled successfully',
-      refundProcessed,
-      refundAmount: refundProcessed ? refundAmount : 0
+      message: 'Session cancelled successfully'
     });
   } catch (err) {
     console.error('Cancel session error:', err);
