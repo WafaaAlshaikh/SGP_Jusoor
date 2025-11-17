@@ -9,6 +9,8 @@ class Question {
   final int minAge;
   final int maxAge;
   final Map<String, dynamic>? nextQuestionLogic;
+  final String? questionTextAr; // ⬅️ جديد
+  final List<String>? optionsAr; // ⬅️ جديد
 
   Question({
     required this.questionId,
@@ -21,6 +23,8 @@ class Question {
     required this.minAge,
     required this.maxAge,
     this.nextQuestionLogic,
+    this.questionTextAr,
+    this.optionsAr,
   });
 
   factory Question.fromJson(Map<String, dynamic> json) {
@@ -28,8 +32,10 @@ class Question {
       questionId: _parseInt(json['question_id'] ?? json['id'] ?? 0),
       category: json['category']?.toString() ?? '',
       questionText: json['question_text']?.toString() ?? json['text']?.toString() ?? '',
+      questionTextAr: json['question_text_ar']?.toString(), // ⬅️ جديد
       questionType: json['question_type']?.toString() ?? 'Multiple Choice',
       options: _parseOptions(json['options']),
+      optionsAr: _parseOptions(json['options_ar']), // ⬅️ جديد
       weight: _parseDouble(json['weight'] ?? 1.0),
       targetConditions: _parseStringList(json['target_conditions']),
       minAge: _parseInt(json['min_age'] ?? 0),
@@ -37,6 +43,9 @@ class Question {
       nextQuestionLogic: _parseMap(json['next_question_logic']),
     );
   }
+
+
+
 
   // دوال مساعدة لتحويل البيانات
   static int _parseInt(dynamic value) {

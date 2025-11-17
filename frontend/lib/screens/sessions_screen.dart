@@ -2,8 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
-import '../models/session.dart'; // ⬅️ استخدم هذا فقط
-import '../models/payment_models.dart'; // ⬅️ أضف هذا الاستيراد
+import '../models/session.dart';
+import '../models/payment_models.dart';
 import '../utils/app_colors.dart';
 import 'book_session_screen.dart';
 import '../widgets/session_details_sheet.dart';
@@ -16,6 +16,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import '../services/payment_service.dart';
 import 'payment_screen.dart';
+import '../services/parent_api.dart';
 
 class SessionsScreen extends StatefulWidget {
   const SessionsScreen({super.key});
@@ -45,6 +46,18 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
   bool _isRefreshing = false;
   String? _errorMessage;
 
+  // نظام الألوان المتناسق مع التطبيق
+  final Color _primaryColor = const Color(0xFF7815A0);
+  final Color _secondaryColor = const Color(0xFF976EF4);
+  final Color _accentColor = const Color(0xFFCAA9F8);
+  final Color _backgroundColor = const Color(0xFFF8F9FA);
+  final Color _surfaceColor = Colors.white;
+  final Color _textPrimary = const Color(0xFF212529);
+  final Color _textSecondary = const Color(0xFF6C757D);
+  final Color _successColor = const Color(0xFF4CAF50);
+  final Color _warningColor = const Color(0xFFFF9800);
+  final Color _errorColor = const Color(0xFFF44336);
+
   final List<Tab> _tabs = [
     const Tab(text: 'Upcoming', icon: Icon(Icons.schedule)),
     const Tab(text: 'Completed', icon: Icon(Icons.check_circle)),
@@ -71,10 +84,24 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
       }
 
       print('🔐 Loading sessions...');
-      final allSessions = await ApiService.getSessions(token);
-      print('✅ Loaded ${allSessions.length} sessions');
 
-      _categorizeSessions(allSessions);
+      // جلب كل نوع من الجلسات من endpoint منفصل
+      final results = await Future.wait([
+        ApiService.getUpcomingSessions(token),
+        ApiService.getCompletedSessions(token),
+        ApiService.getPendingSessions(token),
+        ApiService.getCancelledSessions(token),
+      ]);
+
+      setState(() {
+        _upcomingSessions = results[0];
+        _completedSessions = results[1];
+        _pendingSessions = results[2];
+        _cancelledSessions = results[3];
+      });
+
+      print('✅ Loaded sessions - Upcoming: ${_upcomingSessions.length}, Completed: ${_completedSessions.length}, Pending: ${_pendingSessions.length}, Cancelled: ${_cancelledSessions.length}');
+
       _applyFilters();
 
       setState(() {
@@ -90,15 +117,6 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
         _isRefreshing = false;
       });
     }
-  }
-
-  void _categorizeSessions(List<Session> sessions) {
-    setState(() {
-      _upcomingSessions = sessions.where((s) => s.displayStatus == 'upcoming').toList();
-      _completedSessions = sessions.where((s) => s.displayStatus == 'completed').toList();
-      _pendingSessions = sessions.where((s) => s.displayStatus == 'pending').toList();
-      _cancelledSessions = sessions.where((s) => s.displayStatus == 'cancelled').toList();
-    });
   }
 
   void _applyFilters() {
@@ -137,9 +155,11 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
 
   void _onSessionRated() {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Thank you for your rating! 🌟'),
-        backgroundColor: Colors.green,
+      SnackBar(
+        content: const Text('Thank you for your rating! 🌟'),
+        backgroundColor: _successColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
     _loadAllSessions();
@@ -158,8 +178,6 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
       _applyFilters();
     });
   }
-
-  // ============ NEW FEATURES ============
 
   void _showSessionDetails(Session session) {
     showModalBottomSheet(
@@ -204,9 +222,11 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
 
   Future<void> _scheduleReminder(Session session) async {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Reminder scheduled for 1 hour before session'),
-        backgroundColor: Colors.green,
+      SnackBar(
+        content: const Text('Reminder scheduled for 1 hour before session'),
+        backgroundColor: _successColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -357,7 +377,9 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('✅ تم حفظ الفاتورة بنجاح'),
-            backgroundColor: Colors.green,
+            backgroundColor: _successColor,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             action: SnackBarAction(
               label: 'فتح الملف',
               onPressed: () async {
@@ -374,7 +396,9 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('❌ فشل في إنشاء الفاتورة: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            backgroundColor: _errorColor,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         );
       }
@@ -404,22 +428,90 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
     );
   }
 
-  // ============ BUILD METHOD ============
+  void _navigateToPayment(Session session) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? '';
+
+      print('🔍 Looking for invoice for session: ${session.sessionId}');
+
+      final invoices = await PaymentService.getParentInvoices(token);
+      print('📊 Found ${invoices.length} invoices');
+
+      Invoice? sessionInvoice;
+      try {
+        sessionInvoice = invoices.firstWhere(
+              (invoice) => invoice.sessionId == int.tryParse(session.sessionId),
+        );
+        print('✅ Found invoice: ${sessionInvoice.invoiceNumber}');
+      } catch (e) {
+        print('❌ No invoice found for session ${session.sessionId}');
+        print('💡 Available sessions in invoices: ${invoices.map((i) => i.sessionId).toList()}');
+
+        try {
+          sessionInvoice = invoices.firstWhere(
+                (invoice) => invoice.sessionId.toString() == session.sessionId,
+          );
+          print('✅ Found invoice using string comparison: ${sessionInvoice!.invoiceNumber}');
+        } catch (e2) {
+          print('❌ Also failed with string comparison');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No invoice found for this session'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          return;
+        }
+      }
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PaymentScreen(
+            invoice: sessionInvoice!,
+            session: session,
+          ),
+        ),
+      ).then((_) {
+        _loadAllSessions();
+      });
+
+    } catch (e) {
+      print('❌ Payment navigation error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: ParentAppColors.backgroundLight,
+      backgroundColor: _backgroundColor,
       appBar: AppBar(
-        title: const Text('My Sessions'),
-        backgroundColor: Colors.white,
-        foregroundColor: ParentAppColors.textDark,
-        elevation: 0.5,
+        title: const Text(
+          'My Sessions',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+        backgroundColor: _primaryColor,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(16)),
+        ),
         bottom: TabBar(
           controller: _tabController,
-          labelColor: ParentAppColors.primaryTeal,
-          unselectedLabelColor: Colors.grey,
-          indicatorColor: ParentAppColors.primaryTeal,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          indicatorColor: Colors.white,
+          indicatorWeight: 3,
           tabs: _tabs,
         ),
         actions: [
@@ -433,7 +525,7 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
                 ? const SizedBox(
               width: 20,
               height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
             )
                 : const Icon(Icons.refresh),
             onPressed: _isRefreshing ? null : _loadAllSessions,
@@ -451,6 +543,8 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
           Expanded(
             child: RefreshIndicator(
               onRefresh: _loadAllSessions,
+              color: _primaryColor,
+              backgroundColor: _surfaceColor,
               child: TabBarView(
                 controller: _tabController,
                 children: [
@@ -466,8 +560,9 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _navigateToBookSession,
-        backgroundColor: ParentAppColors.primaryTeal,
-        child: const Icon(Icons.add, color: Colors.white),
+        backgroundColor: _primaryColor,
+        foregroundColor: Colors.white,
+        child: const Icon(Icons.add),
       ),
     );
   }
@@ -477,16 +572,26 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
     final sessionTypes = _getUniqueSessionTypes();
 
     return Container(
-      color: Colors.white,
+      color: _surfaceColor,
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
           TextField(
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText: 'Search by child, specialist, institution...',
-              prefixIcon: Icon(Icons.search),
-              border: OutlineInputBorder(),
-              contentPadding: EdgeInsets.symmetric(horizontal: 12),
+              hintStyle: TextStyle(color: _textSecondary),
+              prefixIcon: Icon(Icons.search, color: _textSecondary),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: _textSecondary.withOpacity(0.2)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: _primaryColor, width: 2),
+              ),
+              filled: true,
+              fillColor: _backgroundColor,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
             onChanged: _onSearchChanged,
           ),
@@ -503,10 +608,20 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
                     );
                   }).toList(),
                   onChanged: _onInstitutionFilterChanged,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Institution',
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12),
+                    labelStyle: TextStyle(color: _textSecondary),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: _textSecondary.withOpacity(0.2)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: _primaryColor, width: 2),
+                    ),
+                    filled: true,
+                    fillColor: _backgroundColor,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   ),
                 ),
               ),
@@ -521,10 +636,20 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
                     );
                   }).toList(),
                   onChanged: _onTypeFilterChanged,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Session Type',
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12),
+                    labelStyle: TextStyle(color: _textSecondary),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: _textSecondary.withOpacity(0.2)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: _primaryColor, width: 2),
+                    ),
+                    filled: true,
+                    fillColor: _backgroundColor,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   ),
                 ),
               ),
@@ -560,12 +685,20 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const CircularProgressIndicator(),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: _primaryColor.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: CircularProgressIndicator(color: _primaryColor),
+          ),
           const SizedBox(height: 16),
           Text(
             'Loading Sessions...',
             style: TextStyle(
-              color: Colors.grey[600],
+              color: _textSecondary,
               fontSize: 16,
             ),
           ),
@@ -579,16 +712,19 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.error_outline,
-            color: Colors.red[300],
-            size: 64,
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _errorColor.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.error_outline, size: 48, color: _errorColor),
           ),
           const SizedBox(height: 16),
           Text(
             _errorMessage!,
             style: TextStyle(
-              color: Colors.grey[600],
+              color: _textSecondary,
               fontSize: 16,
             ),
             textAlign: TextAlign.center,
@@ -597,9 +733,10 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
           ElevatedButton(
             onPressed: _loadAllSessions,
             style: ElevatedButton.styleFrom(
-              backgroundColor: ParentAppColors.primaryTeal,
+              backgroundColor: _primaryColor,
+              foregroundColor: Colors.white,
             ),
-            child: const Text('Try Again', style: TextStyle(color: Colors.white)),
+            child: const Text('Try Again'),
           ),
         ],
       ),
@@ -657,18 +794,25 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              state['icon'] as IconData,
-              size: 64,
-              color: Colors.grey[300],
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: _backgroundColor,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                state['icon'] as IconData,
+                size: 48,
+                color: _textSecondary.withOpacity(0.5),
+              ),
             ),
             const SizedBox(height: 16),
             Text(
               state['title'] as String,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Colors.grey,
+                color: _textSecondary,
               ),
             ),
             const SizedBox(height: 8),
@@ -676,7 +820,7 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
               state['message'] as String,
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey[500],
+                color: _textSecondary,
               ),
               textAlign: TextAlign.center,
             ),
@@ -685,12 +829,10 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
               ElevatedButton(
                 onPressed: _navigateToBookSession,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: ParentAppColors.primaryTeal,
+                  backgroundColor: _primaryColor,
+                  foregroundColor: Colors.white,
                 ),
-                child: Text(
-                  state['action'] as String,
-                  style: const TextStyle(color: Colors.white),
-                ),
+                child: Text(state['action'] as String),
               ),
           ],
         ),
@@ -699,283 +841,295 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
   }
 
   Widget _buildSessionCard(Session session, String type) {
+    final bool isPaid = session.isPaid ?? false;
+    final bool canCancel = type == 'upcoming' && session.status == 'Scheduled';
+    final bool showPayButton = type == 'upcoming' && !isPaid && session.status == 'Scheduled';
+
     return GestureDetector(
       onTap: () => _showSessionDetails(session),
-      child: Card(
-        elevation: 2,
+      child: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header with status and actions
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _buildStatusChip(session.displayStatus),
+        child: Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header with status and actions
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _buildStatusChip(session.displayStatus),
+                    if (isPaid)
+                      _buildPaymentChip('Paid', Colors.green)
+                    else
+                      _buildPaymentChip('Pending Payment', Colors.orange),
+                  ],
+                ),
 
-                  // Quick Actions Row
+                const SizedBox(height: 16),
+
+                // Session details
+                _buildSessionDetailRow(
+                  icon: Icons.child_care,
+                  title: 'Child',
+                  value: session.childName,
+                ),
+                _buildSessionDetailRow(
+                  icon: Icons.person,
+                  title: 'Specialist',
+                  value: session.specialistName,
+                ),
+                _buildSessionDetailRow(
+                  icon: Icons.local_hospital,
+                  title: 'Institution',
+                  value: session.institutionName,
+                ),
+
+                const SizedBox(height: 12),
+
+                // Date, Time, and Duration
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _buildDetailChip(Icons.calendar_today, session.date),
+                    _buildDetailChip(Icons.access_time, session.time),
+                    _buildDetailChip(Icons.timer, '${session.duration} min'),
+                    _buildDetailChip(Icons.category, session.sessionType),
+                    _buildDetailChip(Icons.location_on, session.sessionLocation),
+                  ],
+                ),
+
+                // Price information
+                if (session.sessionTypePrice > 0) ...[
+                  const SizedBox(height: 12),
+                  _buildSessionDetailRow(
+                    icon: Icons.attach_money,
+                    title: 'Price',
+                    value: '\$${session.sessionTypePrice.toStringAsFixed(2)}',
+                  ),
+                ],
+
+                // Free session
+                if (session.sessionTypePrice <= 0) ...[
+                  const SizedBox(height: 12),
+                  _buildSessionDetailRow(
+                    icon: Icons.money_off,
+                    title: 'Price',
+                    value: 'Free',
+                  ),
+                ],
+
+                // Rating for completed sessions
+                if (type == 'completed' && session.rating != null) ...[
+                  const SizedBox(height: 12),
+                  _buildRatingRow(session.rating!),
+                ],
+
+                // Cancellation reason for cancelled sessions
+                if (canCancel || showPayButton) ...[
+                  const SizedBox(height: 16),
                   Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      // زر الدفع للجلسات التي تحتاج دفع
-                      if (session.status == 'Pending Payment')
-                        Container(
-                          margin: const EdgeInsets.only(right: 8),
+                      if (showPayButton)
+                        Expanded(
                           child: ElevatedButton(
                             onPressed: () => _navigateToPayment(session),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.orange,
+                              backgroundColor: Colors.green,
                               foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              textStyle: const TextStyle(fontSize: 12),
                             ),
                             child: const Text('Pay Now'),
                           ),
                         ),
-
-                      // زر المنبه للجميع
-                      IconButton(
-                        icon: const Icon(Icons.notifications_none, size: 20),
-                        onPressed: () => _scheduleReminder(session),
-                        color: Colors.blue,
-                        tooltip: 'Set Reminder',
-                      ),
-
-                      // زر إعادة الجدولة للجلسات المعلقة فقط
-                      if (session.displayStatus == 'pending' || session.status == 'Pending Approval')
-                        IconButton(
-                          icon: const Icon(Icons.schedule, size: 20),
-                          onPressed: () => _rescheduleSession(session),
-                          color: Colors.orange,
-                          tooltip: 'Reschedule',
-                        ),
-
-                      // زر التقييم للجلسات المكتملة بدون تقييم
-                      if (type == 'completed' && session.rating == null)
-                        IconButton(
-                          icon: const Icon(Icons.star_outline, size: 20),
-                          onPressed: () => _rateSession(session),
-                          color: Colors.amber,
-                          tooltip: 'Rate Session',
-                        ),
-
-                      // زر التأكيد للجلسات القادمة والمعلقة
-                      if (session.displayStatus == 'upcoming' || session.displayStatus == 'pending')
-                        IconButton(
-                          icon: const Icon(Icons.check, size: 20),
-                          onPressed: () => _confirmSession(session),
-                          color: Colors.green,
-                          tooltip: 'Confirm Session',
-                        ),
-
-                      // زر الإلغاء للجلسات القادمة والمعلقة
-                      if (session.displayStatus == 'upcoming' || session.displayStatus == 'pending')
-                        IconButton(
-                          icon: const Icon(Icons.close, size: 20),
-                          onPressed: () => _cancelSession(session),
-                          color: Colors.red,
-                          tooltip: 'Cancel Session',
-                        ),
-
-                      // زر مشاركة للجميع
-                      IconButton(
-                        icon: const Icon(Icons.share, size: 20),
-                        onPressed: () => _shareSession(session),
-                        color: Colors.purple,
-                        tooltip: 'Share Session',
-                      ),
-
-                      // زر الفاتورة إذا كان هناك سعر
-                      if (session.sessionTypePrice > 0)
-                        IconButton(
-                          icon: const Icon(Icons.picture_as_pdf, size: 20),
-                          onPressed: () => _downloadInvoice(session),
-                          color: Colors.red,
-                          tooltip: 'Download Invoice',
+                      if (showPayButton) const SizedBox(width: 8),
+                      if (canCancel)
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => _cancelSession(session),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red,
+                              side: const BorderSide(color: Colors.red),
+                            ),
+                            child: const Text('Cancel Session'),
+                          ),
                         ),
                     ],
                   ),
                 ],
-              ),
-
-              const SizedBox(height: 12),
-
-              // Session details
-              _buildSessionDetailRow(
-                icon: Icons.child_care,
-                title: 'Child',
-                value: session.childName,
-              ),
-              _buildSessionDetailRow(
-                icon: Icons.person,
-                title: 'Specialist',
-                value: session.specialistName,
-              ),
-              _buildSessionDetailRow(
-                icon: Icons.local_hospital,
-                title: 'Institution',
-                value: session.institutionName,
-              ),
-
-              const SizedBox(height: 8),
-
-              // Date, Time, and Duration
-              Row(
-                children: [
-                  _buildDetailChip(Icons.calendar_today, session.date),
-                  const SizedBox(width: 8),
-                  _buildDetailChip(Icons.access_time, session.time),
-                  const SizedBox(width: 8),
-                  _buildDetailChip(Icons.timer, '${session.duration} min'),
-                ],
-              ),
-
-              const SizedBox(height: 8),
-
-              // Session type and location
-              Row(
-                children: [
-                  _buildDetailChip(Icons.category, session.sessionType),
-                  const SizedBox(width: 8),
-                  _buildDetailChip(Icons.location_on, session.sessionLocation),
-                ],
-              ),
-
-              // Price information
-              if (session.sessionTypePrice > 0) ...[
-                const SizedBox(height: 8),
-                _buildSessionDetailRow(
-                  icon: Icons.attach_money,
-                  title: 'Price',
-                  value: '\$${session.sessionTypePrice.toStringAsFixed(2)}',
-                ),
               ],
-
-              // Free session
-              if (session.sessionTypePrice <= 0) ...[
-                const SizedBox(height: 8),
-                _buildSessionDetailRow(
-                  icon: Icons.money_off,
-                  title: 'Price',
-                  value: 'Free',
-                ),
-              ],
-
-              // Rating for completed sessions
-              if (type == 'completed' && session.rating != null) ...[
-                const SizedBox(height: 8),
-                _buildRatingRow(session.rating!),
-              ],
-
-              // Cancellation reason for cancelled sessions
-              if (type == 'cancelled' && session.cancellationReason != null) ...[
-                const SizedBox(height: 8),
-                _buildSessionDetailRow(
-                  icon: Icons.info_outline,
-                  title: 'Cancellation Reason',
-                  value: session.cancellationReason!,
-                ),
-              ],
-
-              // Session notes if available
-              if (session.parentNotes != null && session.parentNotes!.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                _buildSessionDetailRow(
-                  icon: Icons.note,
-                  title: 'Notes',
-                  value: session.parentNotes!,
-                ),
-              ],
-            ],
+            ),
           ),
         ),
       ),
     );
   }
-// في sessions_screen.dart - أضف معالجة الأخطاء
-  void _navigateToPayment(Session session) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token') ?? '';
 
-      print('🔍 Looking for invoice for session: ${session.sessionId}');
-
-      final invoices = await PaymentService.getParentInvoices(token);
-      print('📊 Found ${invoices.length} invoices');
-
-      Invoice? sessionInvoice;
-      try {
-        // ⬇️⬇️⬇️ إصلاح المقارنة - تحويل sessionId إلى int
-        sessionInvoice = invoices.firstWhere(
-              (invoice) => invoice.sessionId == int.tryParse(session.sessionId),
-        );
-        print('✅ Found invoice: ${sessionInvoice.invoiceNumber}');
-      } catch (e) {
-        print('❌ No invoice found for session ${session.sessionId}');
-        print('💡 Available sessions in invoices: ${invoices.map((i) => i.sessionId).toList()}');
-
-        // ⬇️⬇️⬇️ حل بديل - البحث باستخدام toString()
-        try {
-          sessionInvoice = invoices.firstWhere(
-                (invoice) => invoice.sessionId.toString() == session.sessionId,
-          );
-          print('✅ Found invoice using string comparison: ${sessionInvoice!.invoiceNumber}');
-        } catch (e2) {
-          print('❌ Also failed with string comparison');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No invoice found for this session'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-          return;
-        }
-      }
-
-      // التنقل لشاشة الدفع
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => PaymentScreen(
-            invoice: sessionInvoice!,
-            session: session,
-          ),
+  Widget _buildPaymentChip(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
         ),
-      ).then((_) {
-        _loadAllSessions();
-      });
+      ),
+    );
+  }
 
-    } catch (e) {
-      print('❌ Payment navigation error: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          backgroundColor: Colors.red,
+  List<Widget> _buildActionButtons(Session session, String type) {
+    final buttons = <Widget>[];
+
+    // زر الدفع للجلسات التي تحتاج دفع
+    if (session.status == 'Pending Payment') {
+      buttons.add(
+        Container(
+          margin: const EdgeInsets.only(right: 4),
+          child: ElevatedButton(
+            onPressed: () => _navigateToPayment(session),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _warningColor,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              textStyle: const TextStyle(fontSize: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Pay Now'),
+          ),
         ),
       );
     }
-  }  Widget _buildRatingRow(double rating) {
+
+    // زر المنبه للجميع
+    buttons.add(
+      IconButton(
+        icon: const Icon(Icons.notifications_none, size: 20),
+        onPressed: () => _scheduleReminder(session),
+        color: _primaryColor,
+        tooltip: 'Set Reminder',
+      ),
+    );
+
+    // زر الموافقة للجلسات Pending Approval
+    if (type == 'pending' && session.status == 'Pending Approval') {
+      buttons.add(
+        IconButton(
+          icon: const Icon(Icons.check_circle, size: 20),
+          onPressed: () => _approvePendingSession(session, true),
+          color: _successColor,
+          tooltip: 'Approve Session',
+        ),
+      );
+    }
+
+    // زر الرفض للجلسات Pending Approval
+    if (type == 'pending' && session.status == 'Pending Approval') {
+      buttons.add(
+        IconButton(
+          icon: const Icon(Icons.cancel, size: 20),
+          onPressed: () => _approvePendingSession(session, false),
+          color: _errorColor,
+          tooltip: 'Reject Session',
+        ),
+      );
+    }
+
+    // زر إعادة الجدولة للجلسات المعلقة فقط
+    if (session.displayStatus == 'pending' || session.status == 'Pending Approval') {
+      buttons.add(
+        IconButton(
+          icon: const Icon(Icons.schedule, size: 20),
+          onPressed: () => _rescheduleSession(session),
+          color: _warningColor,
+          tooltip: 'Reschedule',
+        ),
+      );
+    }
+
+    // زر التقييم للجلسات المكتملة بدون تقييم
+    if (type == 'completed' && session.rating == null) {
+      buttons.add(
+        IconButton(
+          icon: const Icon(Icons.star_outline, size: 20),
+          onPressed: () => _rateSession(session),
+          color: Colors.amber,
+          tooltip: 'Rate Session',
+        ),
+      );
+    }
+
+    // زر التأكيد للجلسات القادمة فقط
+    if (type == 'upcoming' && session.status == 'Scheduled') {
+      buttons.add(
+        IconButton(
+          icon: const Icon(Icons.check, size: 20),
+          onPressed: () => _confirmSession(session),
+          color: _successColor,
+          tooltip: 'Confirm Session',
+        ),
+      );
+    }
+
+    // زر الإلغاء للجلسات القادمة فقط
+    if (type == 'upcoming' && session.status == 'Scheduled') {
+      buttons.add(
+        IconButton(
+          icon: const Icon(Icons.close, size: 20),
+          onPressed: () => _cancelSession(session),
+          color: _errorColor,
+          tooltip: 'Cancel Session',
+        ),
+      );
+    }
+
+    // زر مشاركة للجميع
+    buttons.add(
+      IconButton(
+        icon: const Icon(Icons.share, size: 20),
+        onPressed: () => _shareSession(session),
+        color: _secondaryColor,
+        tooltip: 'Share Session',
+      ),
+    );
+
+    // زر الفاتورة إذا كان هناك سعر
+    if (session.sessionTypePrice > 0) {
+      buttons.add(
+        IconButton(
+          icon: const Icon(Icons.picture_as_pdf, size: 20),
+          onPressed: () => _downloadInvoice(session),
+          color: _errorColor,
+          tooltip: 'Download Invoice',
+        ),
+      );
+    }
+
+    return buttons;
+  }
+
+  Widget _buildRatingRow(double rating) {
     return Row(
       children: [
         const Icon(Icons.star, size: 16, color: Colors.amber),
         const SizedBox(width: 8),
-        const Text(
-          'Rating: ',
-          style: TextStyle(
-            fontWeight: FontWeight.w500,
-            fontSize: 14,
-          ),
-        ),
         Text(
           '$rating/5',
           style: const TextStyle(
             fontSize: 14,
             color: Colors.black87,
+            fontWeight: FontWeight.w500,
           ),
         ),
         const Spacer(),
@@ -993,9 +1147,9 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
   Widget _buildStatusChip(String status) {
     final statusConfig = {
       'upcoming': {'color': Colors.blue, 'icon': Icons.schedule},
-      'completed': {'color': Colors.green, 'icon': Icons.check_circle},
-      'pending': {'color': Colors.orange, 'icon': Icons.pending},
-      'cancelled': {'color': Colors.red, 'icon': Icons.cancel},
+      'completed': {'color': _successColor, 'icon': Icons.check_circle},
+      'pending': {'color': _warningColor, 'icon': Icons.pending},
+      'cancelled': {'color': _errorColor, 'icon': Icons.cancel},
     };
 
     final config = statusConfig[status] ?? statusConfig['pending']!;
@@ -1034,24 +1188,25 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
     required String value,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Icon(icon, size: 16, color: Colors.grey),
+          Icon(icon, size: 16, color: _textSecondary),
           const SizedBox(width: 8),
           Text(
             '$title: ',
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.w500,
               fontSize: 14,
+              color: _textPrimary,
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
-                color: Colors.black87,
+                color: _textPrimary,
               ),
             ),
           ),
@@ -1064,20 +1219,20 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
+        color: _backgroundColor,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(color: _textSecondary.withOpacity(0.2)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: Colors.grey[600]),
+          Icon(icon, size: 12, color: _textSecondary),
           const SizedBox(width: 4),
           Text(
             text,
             style: TextStyle(
               fontSize: 12,
-              color: Colors.grey[700],
+              color: _textSecondary,
             ),
           ),
         ],
@@ -1094,9 +1249,11 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
 
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Session confirmed successfully'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: const Text('Session confirmed successfully'),
+            backgroundColor: _successColor,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         );
         _loadAllSessions();
@@ -1105,27 +1262,50 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to confirm session: ${e.toString()}'),
-          backgroundColor: Colors.red,
+          backgroundColor: _errorColor,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
     }
   }
 
   void _cancelSession(Session session) async {
-    showDialog(
+    String? cancellationReason;
+
+    await showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: _surfaceColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Cancel Session'),
-        content: const Text('Are you sure you want to cancel this session?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Are you sure you want to cancel this session?'),
+            const SizedBox(height: 16),
+            TextField(
+              decoration: const InputDecoration(
+                labelText: 'Cancellation Reason (Optional)',
+                hintText: 'Enter reason for cancellation...',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+              onChanged: (value) {
+                cancellationReason = value;
+              },
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('No'),
           ),
           TextButton(
-            onPressed: () async {
+            onPressed: () {
               Navigator.pop(context);
-              await _performCancelSession(session);
+              _performCancelSession(session, cancellationReason);
             },
             child: const Text('Yes', style: TextStyle(color: Colors.red)),
           ),
@@ -1134,29 +1314,103 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
     );
   }
 
-  Future<void> _performCancelSession(Session session) async {
+  Future<void> _performCancelSession(Session session, String? reason) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token') ?? '';
 
-      final success = await ApiService.cancelSession(token, session.sessionId);
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
 
-      if (success) {
+      final result = await ApiService.cancelSession(token, session.sessionId, reason: reason);
+
+      if (mounted) Navigator.pop(context);
+
+      if (result['success'] == true) {
+        String message = result['message'] ?? 'Session cancelled successfully';
+
+        if (result['refundProcessed'] == true) {
+          final refundAmount = result['refundAmount'] ?? 0;
+          message += '\nRefund of ${refundAmount} JOD has been processed.';
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Session cancelled successfully'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: Text(message),
+            backgroundColor: _successColor,
+            duration: const Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         );
         _loadAllSessions();
+      } else {
+        throw Exception(result['message'] ?? 'Failed to cancel session');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to cancel session: ${e.toString()}'),
-          backgroundColor: Colors.red,
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to cancel session: ${e.toString()}'),
+            backgroundColor: _errorColor,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    }
+  }
+
+  void _approvePendingSession(Session session, bool approve) async {
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
         ),
       );
+
+      final result = await ParentService.approveNewSession(
+        int.parse(session.sessionId),
+        approve,
+      );
+
+      if (mounted) Navigator.pop(context);
+
+      if (result['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(approve
+                ? 'Session approved successfully. Status changed to Scheduled.'
+                : 'Session rejected successfully.'),
+            backgroundColor: _successColor,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+        _loadAllSessions();
+      } else {
+        throw Exception(result['message'] ?? 'Failed to process approval');
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to process approval: ${e.toString()}'),
+            backgroundColor: _errorColor,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
     }
   }
 

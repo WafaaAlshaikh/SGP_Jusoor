@@ -1,12 +1,12 @@
 const Invoice = require('./Invoice');
 const Payment = require('./Payment');
 
-Invoice.hasMany(Payment, { 
-  foreignKey: 'invoice_id', 
+Invoice.hasMany(Payment, {
+  foreignKey: 'invoice_id',
   as: 'Payments'
 });
 
-Payment.belongsTo(Invoice, { 
+Payment.belongsTo(Invoice, {
   foreignKey: 'invoice_id',
   as: 'Invoice'
 });

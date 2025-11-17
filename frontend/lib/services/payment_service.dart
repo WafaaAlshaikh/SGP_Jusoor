@@ -122,6 +122,47 @@ class PaymentService {
     }
   }
 
+  // جلب فواتير طفل محدد
+  static Future<List<Invoice>> getChildInvoices(String token, int childId) async {
+    try {
+      print('🔍 Fetching invoices for child: $childId');
+      final response = await http.get(
+        Uri.parse('$baseUrl/payments/child-invoices/$childId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      print('📡 Child Invoices Response Status: ${response.statusCode}');
+      print('📦 Child Invoices Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data['success'] == true) {
+          final invoicesData = data['data'] as List;
+          print('📊 Number of invoices for child: ${invoicesData.length}');
+
+          final invoices = invoicesData.map((json) {
+            print('🧾 Processing invoice: $json');
+            return Invoice.fromJson(json);
+          }).toList();
+
+          print('✅ Successfully parsed ${invoices.length} invoices for child');
+          return invoices;
+        } else {
+          throw Exception(data['message'] ?? 'Failed to load child invoices');
+        }
+      } else {
+        throw Exception('HTTP ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print('❌ Error loading child invoices: $e');
+      rethrow;
+    }
+  }
+
   // جلب تفاصيل فاتورة محددة
   static Future<Invoice> getInvoiceDetails(String token, int invoiceId) async {
     try {

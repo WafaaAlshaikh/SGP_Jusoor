@@ -13,6 +13,8 @@ import 'screens/chat_list_screen.dart';
 import 'screens/profile_settings_screen.dart';
 import 'screens/map_screen.dart';
 import 'screens/parent_payment_dashboard.dart';
+import 'screens/admin_dashboard_screen.dart';
+
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -234,6 +236,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         '/profileSettings': (context) => ProfileSettingsScreen(),
         '/vacation': (context) => VacationRequestScreen(),
         '/forgotPassword': (context) => ForgotPasswordScreen(),
+        '/adminDashboard': (context) => AdminDashboardScreen(),
         '/specialistDashboard': (context) => SpecialistDashboardScreen(),
         '/chats': (context) => ChatListScreen(),
         '/map': (context) => MapScreen(),

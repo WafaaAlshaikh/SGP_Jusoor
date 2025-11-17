@@ -321,6 +321,7 @@ const rescheduleSession = async (req, res) => {
   }
 };
 
+
 // الحصول على تقييمات أطفال الوالد
 const getChildEvaluations = async (req, res) => {
   try {
@@ -334,7 +335,7 @@ const getChildEvaluations = async (req, res) => {
         e.evaluation_id,
         e.evaluation_type,
         e.notes,
-        e.progress_score,
+        CAST(e.progress_score AS DECIMAL(5,2)) as progress_score,
         e.attachment,
         e.created_at,
         c.child_id,
@@ -349,29 +350,64 @@ const getChildEvaluations = async (req, res) => {
       LEFT JOIN Diagnoses diag ON c.diagnosis_id = diag.diagnosis_id
       WHERE c.parent_id = ? AND c.deleted_at IS NULL
       ORDER BY e.created_at DESC
-      LIMIT 10
     `;
 
-    const [evaluations] = await sequelize.query(query, {
-      replacements: [parentId]
+    const evaluations = await sequelize.query(query, {
+      replacements: [parentId],
+      type: sequelize.QueryTypes.SELECT
     });
 
+    // التأكد من أن evaluations هو array
+    if (!Array.isArray(evaluations)) {
+      console.error('❌ Evaluations is not an array:', typeof evaluations, evaluations);
+      return res.status(500).json({
+        success: false,
+        error: 'Invalid data format from database'
+      });
+    }
+
     console.log('📊 Evaluations found:', evaluations.length);
+    // Debug: طباعة أول evaluation لفحص progress_score
+    if (evaluations && evaluations.length > 0) {
+      console.log('🔍 Sample evaluation progress_score:', {
+        raw: evaluations[0].progress_score,
+        type: typeof evaluations[0].progress_score,
+        stringified: JSON.stringify(evaluations[0].progress_score)
+      });
+    }
 
     // معالجة البيانات
-    const processedEvaluations = evaluations.map(evaluation => ({
-      evaluation_id: evaluation.evaluation_id,
-      evaluation_type: evaluation.evaluation_type,
-      notes: evaluation.notes,
-      progress_score: evaluation.progress_score,
-      attachment: evaluation.attachment,
-      created_at: evaluation.created_at,
-      child_id: evaluation.child_id,
-      child_name: evaluation.child_name,
-      specialist_name: evaluation.specialist_name,
-      specialization: evaluation.specialization,
-      diagnosis: evaluation.diagnosis_name
-    }));
+    const processedEvaluations = evaluations.map(evaluation => {
+      // تحويل progress_score بشكل صحيح من DECIMAL
+      let progressScore = evaluation.progress_score;
+      if (progressScore != null) {
+        // إذا كان string (من MySQL DECIMAL)، حوّله إلى number
+        if (typeof progressScore === 'string') {
+          progressScore = parseFloat(progressScore);
+        } else if (typeof progressScore === 'object' && progressScore.toString) {
+          // إذا كان Decimal object من mysql2
+          progressScore = parseFloat(progressScore.toString());
+        }
+        // تأكد من أنه رقم صحيح
+        if (isNaN(progressScore)) {
+          progressScore = null;
+        }
+      }
+      
+      return {
+        evaluation_id: evaluation.evaluation_id,
+        evaluation_type: evaluation.evaluation_type,
+        notes: evaluation.notes,
+        progress_score: progressScore,
+        attachment: evaluation.attachment,
+        created_at: evaluation.created_at,
+        child_id: evaluation.child_id,
+        child_name: evaluation.child_name,
+        specialist_name: evaluation.specialist_name,
+        specialization: evaluation.specialization,
+        diagnosis: evaluation.diagnosis_name
+      };
+    });
 
     res.status(200).json({
       success: true,
@@ -394,5 +430,5 @@ module.exports = {
   getParentDashboard,
   updateParentProfile,
   rescheduleSession,
-  getChildEvaluations
+  getChildEvaluations,
 };

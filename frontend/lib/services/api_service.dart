@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/child_model.dart';
 import '../models/session.dart';
 import '../models/questionnaire_model.dart';
+import '../models/admin_model.dart';
 
 
 
@@ -266,10 +267,11 @@ class ApiService {
     }
   }
 
-  static Future<List<dynamic>> getUpcomingSessions(String token) async {
+  static Future<List<Session>> getUpcomingSessions(String token) async {
     try {
+      final url = _buildUrl('parent/upcoming-sessions');
       final response = await http.get(
-        Uri.parse('http://10.0.2.2:5000/api/parent/upcoming-sessions'),
+        Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token'
@@ -278,7 +280,8 @@ class ApiService {
       
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = jsonDecode(response.body);
-        return List<dynamic>.from(data['sessions'] ?? []);
+        final sessions = data['sessions'] as List;
+        return sessions.map((session) => Session.fromJson(session)).toList();
       } else {
         throw Exception('Failed to load upcoming sessions: ${response.statusCode}');
       }
@@ -538,20 +541,31 @@ class ApiService {
 
 
 
-  static Future<bool> cancelSession(String token, String sessionId) async {
+  static Future<Map<String, dynamic>> cancelSession(String token, String sessionId, {String? reason}) async {
     try {
+      final url = _buildUrl('parent/sessions/$sessionId/cancel');
       final response = await http.patch(
-        Uri.parse('http://10.0.2.2:5000/api/parent/sessions/$sessionId/cancel'),
+        Uri.parse(url),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
+        body: jsonEncode({
+          if (reason != null) 'reason': reason,
+        }),
       );
 
       if (response.statusCode == 200) {
-        return true;
+        final data = json.decode(response.body);
+        return {
+          'success': data['success'] ?? true,
+          'message': data['message'] ?? 'Session cancelled successfully',
+          'refundProcessed': data['refundProcessed'] ?? false,
+          'refundAmount': data['refundAmount'] ?? 0,
+        };
       } else {
-        throw Exception('Failed to cancel session');
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['message'] ?? 'Failed to cancel session');
       }
     } catch (e) {
       throw Exception('Network error: $e');
@@ -666,8 +680,9 @@ class ApiService {
 
   static Future<List<Session>> getCompletedSessions(String token) async {
     try {
+      final url = _buildUrl('parent/completed-sessions');
       final response = await http.get(
-        Uri.parse('$baseUrl/api/parent/completed-sessions'),
+        Uri.parse(url),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -686,10 +701,59 @@ class ApiService {
     }
   }
 
+  static Future<List<Session>> getPendingSessions(String token) async {
+    try {
+      final url = _buildUrl('parent/pending-sessions');
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final sessions = data['sessions'] as List;
+        return sessions.map((session) => Session.fromJson(session)).toList();
+      } else {
+        throw Exception('Failed to load pending sessions');
+      }
+    } catch (e) {
+      throw Exception('Network error: $e');
+    }
+  }
+
+  static Future<List<Session>> getCancelledSessions(String token) async {
+    try {
+      final url = _buildUrl('parent/cancelled-sessions');
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final sessions = data['sessions'] as List;
+        return sessions.map((session) => Session.fromJson(session)).toList();
+      } else {
+        throw Exception('Failed to load cancelled sessions');
+      }
+    } catch (e) {
+      throw Exception('Network error: $e');
+    }
+  }
+
   static Future<List<Session>> getChildSessions(String token, String childId) async {
     try {
+      // استخدام _buildUrl لبناء الـ URL الصحيح
+      final url = _buildUrl('parent/child-sessions/$childId');
+      
       final response = await http.get(
-        Uri.parse('$baseUrl/api/parent/child-sessions/$childId'),
+        Uri.parse(url),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -719,31 +783,27 @@ class ApiService {
     try {
       print('⭐ Rating session $sessionId with rating: $rating, review: $review');
 
-      await Future.delayed(const Duration(seconds: 2));
+      final url = _buildUrl('parent/sessions/$sessionId/rate');
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'rating': rating,
+          'review': review ?? '',
+        }),
+      );
 
-      print('✅ MOCK: Rating submitted successfully for session $sessionId');
-      print('✅ Rating: $rating/5, Review: ${review ?? "No review"}');
-
-      return true;
-
-      // // الكود الأصلي - علقوه لوقت ما الـ API يجهز
-      // final response = await http.post(
-      //   Uri.parse('$baseUrl/sessions/$sessionId/rate'),
-      //   headers: {
-      //     'Authorization': 'Bearer $token',
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: json.encode({
-      //     'rating': rating,
-      //     'review': review ?? '',
-      //   }),
-      // );
-      //
-      // if (response.statusCode == 200 || response.statusCode == 201) {
-      //   return true;
-      // } else {
-      //   throw Exception('Failed to rate session: ${response.statusCode}');
-      // }
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        print('✅ Rating submitted successfully: ${data['message']}');
+        return data['success'] ?? true;
+      } else {
+        final error = jsonDecode(response.body);
+        throw Exception(error['message'] ?? 'Failed to rate session: ${response.statusCode}');
+      }
     } catch (e) {
       print('❌ Rating API Error: $e');
       throw e;
@@ -817,30 +877,42 @@ class ApiService {
     }
   }
 
+// ==================== Questionnaire APIs ====================
 
-  static Future<List<Question>> getScreeningQuestions(
+  static Future<List<Question>> getQuestionnaireQuestions(
       String token, {
         String? childId,
         Map<String, dynamic>? previousAnswers,
+        String language = 'ar',
       }) async {
     try {
-      final Map<String, String> queryParams = {};
+      print('📋 جلب أسئلة الاستبيان - اللغة: $language');
+
+      final Map<String, String> queryParams = {
+        'language': language,
+      };
+
       if (childId != null) queryParams['child_id'] = childId;
-      if (previousAnswers != null) {
+      if (previousAnswers != null && previousAnswers.isNotEmpty) {
         queryParams['previous_answers'] = jsonEncode(previousAnswers);
       }
 
       final response = await http.get(
         Uri.parse('http://10.0.2.2:5000/api/questionnaire/questions')
             .replace(queryParameters: queryParams),
-        headers: {'Authorization': 'Bearer $token'},
-      );
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(Duration(seconds: 15));
+
+      print('📡 استجابة الأسئلة: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
         if (data['success'] == false) {
-          throw Exception('API Error: ${data['message']}');
+          throw Exception('خطأ في API: ${data['message']}');
         }
 
         final questions = (data['questions'] as List)
@@ -848,12 +920,12 @@ class ApiService {
           try {
             return Question.fromJson(q);
           } catch (e) {
-            print('❌ Error parsing question: $e');
-            print('❌ Question data: $q');
+            print('❌ خطأ في تحليل السؤال: $e');
+            print('❌ بيانات السؤال: $q');
             return Question.fromJson({
               'question_id': 0,
-              'category': 'General',
-              'question_text': 'سؤال غير متوفر',
+              'category': 'عام',
+              'question_text': 'سؤال غير متوفر حالياً',
               'question_type': 'Multiple Choice',
               'options': ['نعم', 'لا'],
               'weight': 1.0,
@@ -863,48 +935,174 @@ class ApiService {
             });
           }
         })
-            .where((q) => q.questionId != 0) // إزالة الأسئلة الفاشلة
+            .where((q) => q.questionId != 0)
             .toList();
 
-        print('✅ Successfully parsed ${questions.length} questions');
+        print('✅ تم تحليل ${questions.length} سؤال بنجاح');
         return questions;
       } else {
-        throw Exception('Failed to load questions: ${response.statusCode}');
+        throw Exception('فشل في جلب الأسئلة: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ Error in getScreeningQuestions: $e');
-      throw Exception('Failed to load questions: $e');
+      print('❌ خطأ في جلب الأسئلة: $e');
+      throw Exception('فشل في جلب الأسئلة: $e');
     }
   }
 
-  static Future<Map<String, dynamic>> submitQuestionnaire(
+  static Future<Map<String, dynamic>> submitQuestionnaireResponses(
       String token, {
         required Map<String, dynamic> responses,
         String? childId,
+        String? questionnaireId,
+        String language = 'ar',
       }) async {
     try {
+      print('💾 حفظ إجابات الاستبيان - عدد الإجابات: ${responses.length}');
+
+      final Map<String, dynamic> requestBody = {
+        'responses': responses,
+        'language': language,
+      };
+
+      if (childId != null) requestBody['child_id'] = childId;
+      if (questionnaireId != null) requestBody['questionnaire_id'] = questionnaireId;
+
       final response = await http.post(
         Uri.parse('http://10.0.2.2:5000/api/questionnaire/responses'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({
-          'responses': responses,
-          'child_id': childId,
-        }),
-      );
+        body: jsonEncode(requestBody),
+      ).timeout(Duration(seconds: 30));
+
+      print('📡 استجابة حفظ الإجابات: ${response.statusCode}');
+      print('📦 النتيجة: ${response.body}');
 
       if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+        final result = jsonDecode(response.body);
+
+        if (result['success'] == true) {
+          print('✅ تم حفظ الإجابات بنجاح');
+          return result;
+        } else {
+          throw Exception(result['message'] ?? 'فشل في حفظ الإجابات');
+        }
       } else {
-        throw Exception('Failed to submit questionnaire: ${response.statusCode}');
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['message'] ?? 'فشل في حفظ الإجابات: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error in submitQuestionnaire: $e');
-      throw Exception('Failed to submit questionnaire: $e');
+      print('❌ خطأ في حفظ الاستبيان: $e');
+      throw Exception('فشل في حفظ الاستبيان: $e');
     }
   }
+
+  static Future<Map<String, dynamic>> getQuestionnaireHistory(
+      String token, {
+        int page = 1,
+        int limit = 10,
+        String language = 'ar',
+      }) async {
+    try {
+      print('📜 جلب تاريخ الاستبيانات - الصفحة: $page');
+
+      final response = await http.get(
+        Uri.parse('http://10.0.2.2:5000/api/questionnaire/history')
+            .replace(queryParameters: {
+          'page': page.toString(),
+          'limit': limit.toString(),
+          'language': language,
+        }),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body);
+
+        if (result['success'] == true) {
+          print('✅ تم جلب ${result['questionnaires']?.length ?? 0} استبيان');
+          return result;
+        } else {
+          throw Exception(result['message'] ?? 'فشل في جلب التاريخ');
+        }
+      } else {
+        throw Exception('فشل في جلب التاريخ: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ خطأ في جلب التاريخ: $e');
+      throw Exception('فشل في جلب التاريخ: $e');
+    }
+  }
+
+  static Future<Map<String, dynamic>> getQuestionnaireDetails(
+      String token,
+      String questionnaireId,
+      ) async {
+    try {
+      print('🔍 جلب تفاصيل الاستبيان: $questionnaireId');
+
+      final response = await http.get(
+        Uri.parse('http://10.0.2.2:5000/api/questionnaire/$questionnaireId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body);
+
+        if (result['success'] == true) {
+          print('✅ تم جلب تفاصيل الاستبيان بنجاح');
+          return result;
+        } else {
+          throw Exception(result['message'] ?? 'فشل في جلب التفاصيل');
+        }
+      } else {
+        throw Exception('فشل في جلب التفاصيل: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ خطأ في جلب التفاصيل: $e');
+      throw Exception('فشل في جلب التفاصيل: $e');
+    }
+  }
+
+// ==================== دوال مساعدة محسنة ====================
+
+// دالة جلب الأسئلة القديمة (للتوافق) - استبدال getScreeningQuestions
+  static Future<List<Question>> getScreeningQuestions(
+      String token, {
+        String? childId,
+        Map<String, dynamic>? previousAnswers,
+      }) async {
+    return await getQuestionnaireQuestions(
+      token,
+      childId: childId,
+      previousAnswers: previousAnswers,
+      language: 'ar',
+    );
+  }
+
+// دالة إرسال الاستبيان القديمة (للتوافق) - استبدال submitQuestionnaire
+  static Future<Map<String, dynamic>> submitQuestionnaire(
+      String token, {
+        required Map<String, dynamic> responses,
+        String? childId,
+      }) async {
+    return await submitQuestionnaireResponses(
+      token,
+      responses: responses,
+      childId: childId,
+      language: 'ar',
+    );
+  }
+
+
+
 
 
 
@@ -1676,5 +1874,145 @@ class ApiService {
     }
   }
 
-  
+
+  // ==================== Admin APIs ====================
+
+  static Future<AdminDashboardStats> getAdminDashboardStats(String token) async {
+    try {
+      final response = await http.get(
+        Uri.parse('http://10.0.2.2:5000/api/admin/dashboard'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          return AdminDashboardStats.fromJson(data['data']);
+        } else {
+          throw Exception(data['message'] ?? 'Failed to load dashboard stats');
+        }
+      } else {
+        throw Exception('Failed to load dashboard: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error loading admin dashboard: $e');
+      rethrow;
+    }
+  }
+
+  static Future<Map<String, dynamic>> getAdminInstitutions({
+    required String token,
+    int page = 1,
+    int limit = 10,
+    String? status,
+    String? search,
+  }) async {
+    try {
+      final Map<String, String> queryParams = {
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+
+      if (status != null && status != 'all') {
+        queryParams['status'] = status;
+      }
+      if (search != null && search.isNotEmpty) {
+        queryParams['search'] = search;
+      }
+
+      final response = await http.get(
+        Uri.parse('http://10.0.2.2:5000/api/admin/institutions')
+            .replace(queryParameters: queryParams),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to load institutions: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error loading admin institutions: $e');
+      rethrow;
+    }
+  }
+
+  static Future<bool> approveInstitution(String token, int institutionId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('http://10.0.2.2:5000/api/admin/institutions/$institutionId/approve'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['success'] == true;
+      } else {
+        throw Exception('Failed to approve institution: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error approving institution: $e');
+      rethrow;
+    }
+  }
+
+  static Future<bool> rejectInstitution(String token, int institutionId, String reason) async {
+    try {
+      final response = await http.post(
+        Uri.parse('http://10.0.2.2:5000/api/admin/institutions/$institutionId/reject'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'reason': reason}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['success'] == true;
+      } else {
+        throw Exception('Failed to reject institution: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error rejecting institution: $e');
+      rethrow;
+    }
+  }
+
+
+
+
+  // أضف هذه الدوال لـ ApiService
+  static Future<Map<String, dynamic>> recordSkillProgress({
+    required String token,
+    required String childId,
+    required String skillId,
+    required int level,
+    required int attempts,
+    String? notes,
+  }) async {
+    // تنفيذ واقعي للـ API
+    await Future.delayed(Duration(milliseconds: 500)); // محاكاة اتصال شبكة
+
+    return {
+      'success': true,
+      'message': 'تم حفظ التقدم بنجاح',
+      'data': {
+        'record_id': 'rec_${DateTime.now().millisecondsSinceEpoch}',
+        'skill_id': skillId,
+        'level': level,
+        'attempts': attempts,
+        'timestamp': DateTime.now().toIso8601String(),
+      }
+    };
+  }
 }

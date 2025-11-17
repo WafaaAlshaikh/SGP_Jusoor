@@ -551,6 +551,160 @@ exports.getPendingSessionsForParent = async (req, res) => {
   }
 };
 
+// ✅ جلب الجلسات الجديدة المعلقة للموافقة (أنشأها المختص)
+exports.getNewPendingSessionsForParent = async (req, res) => {
+  try {
+    const parentId = req.user.user_id;
+    
+    // جلب الجلسات التي بحالة "Pending Approval" و parent_approved = null
+    const pendingSessions = await Session.findAll({
+      where: {
+        status: 'Pending Approval',
+        parent_approved: null,
+        is_pending: true
+      },
+      include: [
+        {
+          model: Child,
+          as: 'child',
+          attributes: ['child_id', 'full_name', 'photo'],
+          where: { parent_id: parentId }
+        },
+        {
+          model: User,
+          as: 'specialist',
+          attributes: ['user_id', 'full_name', 'profile_picture']
+        },
+        {
+          model: Institution,
+          as: 'institution',
+          attributes: ['institution_id', 'name']
+        },
+        {
+          model: SessionType,
+          attributes: ['session_type_id', 'name', 'duration', 'price', 'category']
+        }
+      ],
+      order: [['date', 'ASC'], ['time', 'ASC']]
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'تم جلب الجلسات المعلقة بنجاح',
+      data: pendingSessions,
+      count: pendingSessions.length
+    });
+  } catch (err) {
+    console.error('Error in getNewPendingSessionsForParent:', err);
+    res.status(500).json({ 
+      success: false,
+      message: 'خطأ في جلب الجلسات المعلقة',
+      error: err.message 
+    });
+  }
+};
+
+// ✅ موافقة أو رفض الجلسة الجديدة من قبل الأهل
+exports.approveNewSession = async (req, res) => {
+  try {
+    const parentId = req.user.user_id;
+    const { session_id } = req.params;
+    const { approve } = req.body; // true = موافقة, false = رفض
+
+    // جلب الجلسة
+    const session = await Session.findOne({
+      where: {
+        session_id,
+        status: 'Pending Approval',
+        parent_approved: null
+      },
+      include: [
+        {
+          model: Child,
+          as: 'child',
+          attributes: ['child_id', 'full_name', 'parent_id'],
+          where: { parent_id: parentId }
+        },
+        {
+          model: User,
+          as: 'specialist',
+          attributes: ['user_id', 'full_name']
+        }
+      ]
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        message: 'الجلسة غير موجودة أو تمت معالجتها مسبقاً'
+      });
+    }
+
+    if (approve) {
+      // الموافقة: تحديث حالة الجلسة إلى "Scheduled"
+      await session.update({
+        status: 'Scheduled',
+        parent_approved: true,
+        is_pending: false
+      });
+
+      // إرسال إشعار للمختص
+      await Notification.create({
+        user_id: session.specialist_id,
+        title: 'تمت الموافقة على الجلسة',
+        message: `تمت موافقة الأهل على الجلسة لطفل ${session.child.full_name} في ${session.date} الساعة ${session.time}.`,
+        type: 'session_update',
+        related_id: session.session_id,
+        is_read: false
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'تمت الموافقة على الجلسة بنجاح',
+        data: {
+          session_id: session.session_id,
+          status: 'Scheduled'
+        }
+      });
+    } else {
+      // الرفض: تحديث حالة الجلسة إلى "Rejected"
+      await session.update({
+        status: 'Rejected',
+        parent_approved: false,
+        is_pending: false,
+        is_visible: false
+      });
+
+      // إرسال إشعار للمختص
+      await Notification.create({
+        user_id: session.specialist_id,
+        title: 'تم رفض الجلسة',
+        message: `تم رفض الجلسة لطفل ${session.child.full_name} في ${session.date} الساعة ${session.time} من قبل الأهل.`,
+        type: 'session_update',
+        related_id: session.session_id,
+        is_read: false
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'تم رفض الجلسة بنجاح',
+        data: {
+          session_id: session.session_id,
+          status: 'Rejected'
+        }
+      });
+    }
+
+  } catch (err) {
+    console.error('Error in approveNewSession:', err);
+    res.status(500).json({
+      success: false,
+      message: 'خطأ في معالجة الموافقة',
+      error: err.message
+    });
+  }
+};
+
 // ✅ 11. جلب إحصائيات سريعة
 exports.getQuickStats = async (req, res) => {
   try {

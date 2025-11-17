@@ -22,6 +22,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+
 // ===========================
 // 📌 Create required directories
 // ===========================
@@ -100,6 +101,9 @@ app.use('/api/specialist', require('./routes/specialistSessionRoutes'));
 app.use('/api/specialist', require('./routes/specialistChildrenRoutes'));
 app.use('/api/specialist/approval', require('./routes/specialistApprovalRoutes'));
 
+// Manager
+app.use('/api/manager', require('./routes/managerRoutes'));
+
 // Community
 app.use('/api/community', require('./routes/communityRoutes'));
 
@@ -142,6 +146,10 @@ app.use('/api', require('./routes/testRoutes'));
 
 // Static uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+//Admin 
+app.use('/api/admin', require('./routes/adminRoutes'));
+
 
 // ===========================
 // 📌 GLOBAL ERROR HANDLER

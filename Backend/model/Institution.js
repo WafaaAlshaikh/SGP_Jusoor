@@ -45,37 +45,56 @@ const Institution = sequelize.define('Institution', {
   },
   services_offered: {
     type: DataTypes.TEXT,
-    allowNull: true,
-    comment: 'Comma-separated services like: Speech Therapy, Occupational Therapy, etc.'
+    allowNull: true
   },
   conditions_supported: {
     type: DataTypes.TEXT,
-    allowNull: true,
-    comment: 'Comma-separated conditions like: Autism, ADHD, Down Syndrome, etc.'
+    allowNull: true
   },
   rating: {
     type: DataTypes.DECIMAL(3, 2),
     allowNull: true,
-    defaultValue: 0.0,
-    validate: {
-      min: 0.0,
-      max: 5.0
-    }
+    defaultValue: 0.0
   },
   price_range: {
     type: DataTypes.STRING(50),
-    allowNull: true,
-    comment: 'e.g., "50-100 JD" or "Free-500 JD"'
+    allowNull: true
   },
   capacity: {
     type: DataTypes.INTEGER,
-    allowNull: true,
-    comment: 'Maximum number of children the institution can handle'
+    allowNull: true
   },
   available_slots: {
     type: DataTypes.INTEGER,
-    allowNull: true,
-    comment: 'Current available slots'
+    allowNull: true
+  },
+  approval_status: {
+    type: DataTypes.ENUM('Pending', 'Approved', 'Rejected', 'Suspended'),
+    defaultValue: 'Pending'
+  },
+  rejection_reason: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  is_active: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  contact_email: {
+    type: DataTypes.STRING(100),
+    allowNull: true
+  },
+  contact_phone: {
+    type: DataTypes.STRING(20),
+    allowNull: true
+  },
+  license_number: {
+    type: DataTypes.STRING(50),
+    allowNull: true
+  },
+  established_year: {
+    type: DataTypes.INTEGER,
+    allowNull: true
   }
 
 }, {

@@ -138,6 +138,7 @@ router.get('/posts', authMiddleware, async (req, res) => {
         {
           model: Post,
           as: 'originalPost',
+          required: false,
           include: [{
             model: User,
             as: 'user',
@@ -225,6 +226,7 @@ router.get('/posts/my-posts', authMiddleware, async (req, res) => {
         {
           model: Post,
           as: 'originalPost',
+          required: false,
           include: [{
             model: User,
             as: 'user',

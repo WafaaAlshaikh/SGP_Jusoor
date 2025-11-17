@@ -15,14 +15,55 @@ class ParentChildEvaluationsScreen extends StatefulWidget {
 class _ParentChildEvaluationsScreenState extends State<ParentChildEvaluationsScreen> {
   List<dynamic> _evaluations = [];
   List<dynamic> _filteredEvaluations = [];
+  List<dynamic> _children = [];
   bool _isLoading = true;
+  bool _isLoadingChildren = true;
   String _errorMessage = '';
   String _searchQuery = '';
+  int? _selectedChildId; // للفلترة حسب الطفل
 
   @override
   void initState() {
     super.initState();
+    _loadChildren();
     _loadEvaluations();
+  }
+
+  Future<void> _loadChildren() async {
+    setState(() {
+      _isLoadingChildren = true;
+    });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? '';
+
+      if (token.isEmpty) {
+        setState(() {
+          _isLoadingChildren = false;
+        });
+        return;
+      }
+
+      final response = await ApiService.getChildren(token: token);
+
+      if (response['success'] == true || response['data'] != null) {
+        List<dynamic> children = response['data'] ?? [];
+        setState(() {
+          _children = children;
+          _isLoadingChildren = false;
+        });
+      } else {
+        setState(() {
+          _isLoadingChildren = false;
+        });
+      }
+    } catch (e) {
+      print('❌ Error loading children: $e');
+      setState(() {
+        _isLoadingChildren = false;
+      });
+    }
   }
 
   Future<void> _loadEvaluations() async {
@@ -44,7 +85,7 @@ class _ParentChildEvaluationsScreenState extends State<ParentChildEvaluationsScr
       if (response != null && response['success'] == true) {
         List<dynamic> allEvaluations = response['data'] ?? [];
 
-        // إذا تم تحديد طفل معين، فلتر التقييمات
+        // إذا تم تحديد طفل معين من widget، فلتر التقييمات
         if (widget.childId != null) {
           allEvaluations = allEvaluations
               .where((eval) => eval['child_id'] == widget.childId)
@@ -56,6 +97,7 @@ class _ParentChildEvaluationsScreenState extends State<ParentChildEvaluationsScr
           _filteredEvaluations = allEvaluations;
           _isLoading = false;
         });
+        _applySearch(); // إعادة تطبيق الفلترة
       } else {
         throw Exception(response?['error'] ?? 'Failed to load evaluations');
       }
@@ -69,23 +111,28 @@ class _ParentChildEvaluationsScreenState extends State<ParentChildEvaluationsScr
   }
 
   void _applySearch() {
-    if (_searchQuery.isEmpty) {
-      setState(() {
-        _filteredEvaluations = _evaluations;
-      });
-      return;
-    }
-
     setState(() {
       _filteredEvaluations = _evaluations.where((eval) {
-        final childName = eval['child_name']?.toString().toLowerCase() ?? '';
-        final evalType = eval['evaluation_type']?.toString().toLowerCase() ?? '';
-        final specialistName = eval['specialist_name']?.toString().toLowerCase() ?? '';
-        final query = _searchQuery.toLowerCase();
+        // فلترة حسب الطفل المختار
+        if (_selectedChildId != null && eval['child_id'] != _selectedChildId) {
+          return false;
+        }
 
-        return childName.contains(query) ||
-            evalType.contains(query) ||
-            specialistName.contains(query);
+        // فلترة حسب البحث
+        if (_searchQuery.isNotEmpty) {
+          final childName = eval['child_name']?.toString().toLowerCase() ?? '';
+          final evalType = eval['evaluation_type']?.toString().toLowerCase() ?? '';
+          final specialistName = eval['specialist_name']?.toString().toLowerCase() ?? '';
+          final query = _searchQuery.toLowerCase();
+
+          if (!childName.contains(query) &&
+              !evalType.contains(query) &&
+              !specialistName.contains(query)) {
+            return false;
+          }
+        }
+
+        return true;
       }).toList();
     });
   }
@@ -147,7 +194,7 @@ class _ParentChildEvaluationsScreenState extends State<ParentChildEvaluationsScr
           ? const Center(child: CircularProgressIndicator())
           : _errorMessage.isNotEmpty
               ? _buildErrorState()
-              : _filteredEvaluations.isEmpty
+              : _filteredEvaluations.isEmpty && _evaluations.isEmpty
                   ? _buildEmptyState()
                   : _buildEvaluationsList(),
     );
@@ -224,6 +271,9 @@ class _ParentChildEvaluationsScreenState extends State<ParentChildEvaluationsScr
   Widget _buildEvaluationsList() {
     return Column(
       children: [
+        // My Children Section
+        if (!_isLoadingChildren && _children.isNotEmpty) _buildChildrenSection(),
+
         // Search Bar
         Padding(
           padding: const EdgeInsets.all(16.0),
@@ -1091,5 +1141,101 @@ class _ParentChildEvaluationsScreenState extends State<ParentChildEvaluationsScr
     if (avgScore >= 65) return '👍 Good progress! Continue the momentum!';
     if (avgScore >= 50) return '💪 Steady progress. Stay consistent!';
     return '🌱 Starting journey. Every step counts!';
+  }
+
+  Widget _buildChildrenSection() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.child_care, color: AppColors.primary, size: 24),
+              const SizedBox(width: 8),
+              Text(
+                'My Children',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textDark,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                // "All" button
+                _buildChildFilterChip(
+                  childId: null,
+                  label: 'All Children',
+                  isSelected: _selectedChildId == null,
+                ),
+                const SizedBox(width: 8),
+                // Children chips
+                ..._children.map((child) {
+                  final childId = child['child_id'] as int?;
+                  final childName = child['full_name']?.toString() ?? 'Unknown';
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: _buildChildFilterChip(
+                      childId: childId,
+                      label: childName,
+                      isSelected: _selectedChildId == childId,
+                    ),
+                  );
+                }).toList(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChildFilterChip({
+    required int? childId,
+    required String label,
+    required bool isSelected,
+  }) {
+    return FilterChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (selected) {
+        setState(() {
+          _selectedChildId = selected ? childId : null;
+        });
+        _applySearch();
+      },
+      selectedColor: AppColors.primary.withOpacity(0.2),
+      checkmarkColor: AppColors.primary,
+      labelStyle: TextStyle(
+        color: isSelected ? AppColors.primary : AppColors.textDark,
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: isSelected ? AppColors.primary : Colors.grey[300]!,
+          width: isSelected ? 2 : 1,
+        ),
+      ),
+    );
   }
 }

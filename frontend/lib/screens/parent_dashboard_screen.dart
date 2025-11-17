@@ -18,6 +18,7 @@ import 'profile_settings_screen.dart';
 import 'community_screen.dart';
 import 'parent_child_evaluations_screen.dart';
 import 'browse_centers_screen.dart';
+import 'daily_skills_tracker.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
   const ParentDashboardScreen({super.key});
@@ -1229,6 +1230,17 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const BrowseCentersScreen()),
+                );
+              },
+            ),
+            // في ParentDashboardScreen - أضف في _buildMainActionsGrid()
+            ParentActionButton(
+              icon: Icons.track_changes,
+              text: 'تتبع المهارات',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => DailySkillsTracker()),
                 );
               },
             ),

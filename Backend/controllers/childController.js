@@ -12,11 +12,10 @@ const { Op } = require('sequelize');
 const sequelize = require('../config/db');
 const GeocodingService = require('../services/geocodingService');
 
-// 🔧 دالة حساب المسافة باستخدام Haversine formula
 exports.calculateDistance = (lat1, lon1, lat2, lon2) => {
   if (!lat1 || !lon1 || !lat2 || !lon2) return null;
   
-  const R = 6371; // نصف قطر الأرض بالكيلومتر
+  const R = 6371; 
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   
@@ -28,14 +27,11 @@ exports.calculateDistance = (lat1, lon1, lat2, lon2) => {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   const distance = R * c;
   
-  return Number(distance.toFixed(2)); // تقريب لرقمين عشريين
+  return Number(distance.toFixed(2));
 };
 
-// 🔧 دالة للحصول على إحداثيات الطفل
-// 🔧 دالة محسنة للحصول على إحداثيات الطفل
 exports.getChildCoordinates = async (childData) => {
   try {
-    // 1️⃣ الأولوية: الإحداثيات المخزنة مباشرة
     if (childData.location_lat && childData.location_lng) {
       return {
         lat: parseFloat(childData.location_lat),
@@ -43,13 +39,11 @@ exports.getChildCoordinates = async (childData) => {
       };
     }
     
-    // 2️⃣ المحاولة الثانية: استخدام العنوان المحدد للطفل
     if (childData.address || childData.city) {
       const addressToGeocode = childData.address || childData.city;
       const coords = await GeocodingService.geocodeAddress(addressToGeocode);
       
       if (coords) {
-        // نحفظ الإحداثيات للمستقبل
         await Child.update({
           location_lat: coords.lat,
           location_lng: coords.lng
@@ -59,7 +53,6 @@ exports.getChildCoordinates = async (childData) => {
       }
     }
     
-    // 3️⃣ إذا ما في أي بيانات موقع، نرجع null
     console.log('⚠️ No location data available for child:', childData.child_id);
     return null;
     
@@ -69,7 +62,6 @@ exports.getChildCoordinates = async (childData) => {
   }
 };
 
-// ================= STEP 1: Save Basic Information Temporarily =================
 // ================= STEP 1: Save Basic Information Temporarily =================
 exports.saveChildBasicInfo = async (req, res) => {
   try {
@@ -83,8 +75,8 @@ exports.saveChildBasicInfo = async (req, res) => {
       photo,
       city,
       address,
-      location_lat,    // ⭐ جديد: إحداثيات الطفل المباشرة
-      location_lng     // ⭐ جديد: إحداثيات الطفل المباشرة
+      location_lat,    
+      location_lng   
     } = req.body;
 
     if (!full_name || !date_of_birth || !gender) {
@@ -94,7 +86,6 @@ exports.saveChildBasicInfo = async (req, res) => {
       });
     }
 
-    // ✅ التحقق من العمر
     const birthDate = new Date(date_of_birth);
     const today = new Date();
     if (birthDate > today) {
@@ -112,13 +103,10 @@ exports.saveChildBasicInfo = async (req, res) => {
       });
     }
 
-    // ⭐ جديد: جلب إحداثيات الطفل الحقيقية
     let childCoords = null;
     if (location_lat && location_lng) {
-      // إذا أرسل الإحداثيات مباشرة من Flutter
       childCoords = { lat: parseFloat(location_lat), lng: parseFloat(location_lng) };
     } else if (address || city) {
-      // إذا ما في إحداثيات، نستخدم Geocoding
       childCoords = await GeocodingService.geocodeAddress(address || city);
     }
 
@@ -153,7 +141,6 @@ exports.saveChildBasicInfo = async (req, res) => {
       photo: photo || '',
       registration_status: 'Not Registered',
       current_institution_id: null,
-      // ⭐ مهم: نخزن إحداثيات الطفل الخاصة
       location_lat: childCoords ? childCoords.lat : null,
       location_lng: childCoords ? childCoords.lng : null
     });
@@ -220,14 +207,12 @@ exports.analyzeMedicalCondition = async (req, res) => {
       console.log('🤖 Starting AI symptom analysis...');
       console.log('🌐 Trying External AI (GROQ) first...');
       
-      // Try GROQ AI first (Fast and powerful)
       aiAnalysis = await GroqAIService.analyzeSymptoms(
         symptoms_description, 
         medical_history || '',
         previous_services || ''
       );
 
-      // Fallback to Local AI if GROQ fails
       if (!aiAnalysis || !aiAnalysis.suggested_conditions || aiAnalysis.suggested_conditions.length === 0) {
         console.log('⚠️ External AI failed or returned no results');
         console.log('🔄 Falling back to Local AI...');
@@ -497,7 +482,6 @@ exports.getRecommendedInstitutions = async (
       limit = 10
     } = filters;
 
-    // جلب بيانات الطفل أولاً
     const child = await Child.findByPk(childId);
     if (!child) {
       throw new Error('Child not found');
@@ -595,7 +579,6 @@ exports.getRecommendedInstitutions = async (
         let distance = null;
         let childCoords = null;
 
-        // جلب إحداثيات الطفل
         if (childAddress || childCity) {
           childCoords = await exports.getChildCoordinates({
             child_id: childId,
@@ -606,7 +589,6 @@ exports.getRecommendedInstitutions = async (
           });
         }
 
-        // حساب المسافة الحقيقية
         if (childCoords && instData.location_lat && instData.location_lng) {
           distance = exports.calculateDistance(
             childCoords.lat,
@@ -617,7 +599,6 @@ exports.getRecommendedInstitutions = async (
           console.log(`📍 المسافة بين الطفل والمؤسسة ${instData.name}: ${distance} كم`);
         }
 
-        // تطبيق فلتر المسافة القصوى
         if (max_distance && distance && distance > parseFloat(max_distance)) {
           console.log(`❌ تم استبعاد المؤسسة ${instData.name} - المسافة ${distance}كم أكبر من ${max_distance}كم`);
           return null;
@@ -639,7 +620,7 @@ exports.getRecommendedInstitutions = async (
 
         let finalScore = matchScore;
         if (distance) {
-          finalScore += Math.max(0, (50 - distance) / 50) * 0.3; // Closer = higher points
+          finalScore += Math.max(0, (50 - distance) / 50) * 0.3;
         }
         if (instData.city === childCity) {
           finalScore += 0.2;
@@ -671,7 +652,6 @@ exports.getRecommendedInstitutions = async (
 
     let filteredInstitutions = scoredInstitutions.filter(i => i !== null);
 
-    // التصنيف حسب الخيار المطلوب
     filteredInstitutions.sort((a, b) => {
       switch(sort_by) {
         case 'distance':
@@ -686,7 +666,6 @@ exports.getRecommendedInstitutions = async (
       }
     });
 
-    // Pagination
     const offset = (page - 1) * limit;
     const paginatedInstitutions = filteredInstitutions.slice(offset, offset + limit);
 
@@ -756,12 +735,12 @@ exports.getChildren = async (req, res) => {
       {
         model: Diagnosis,
         attributes: ['name'],
-        as: 'Diagnosis',
+        as: 'ChildDiagnosis',
         required: false
       },
       {
         model: Institution,
-        as: 'currentInstitution',
+        as: 'CurrentInstitution',
         attributes: ['institution_id', 'name'],
         required: false
       }
@@ -773,13 +752,13 @@ exports.getChildren = async (req, res) => {
           {
             model: Diagnosis,
             attributes: ['name'],
-            as: 'Diagnosis',
+            as: 'ChildDiagnosis',
             required: true,
             where: { name: diagnosis }
           },
           {
             model: Institution,
-            as: 'currentInstitution',
+            as: 'CurrentInstitution',
             attributes: ['institution_id', 'name'],
             required: false
           }
@@ -873,8 +852,8 @@ exports.addChild = async (req, res) => {
       previous_services,
       additional_notes,
       consent_given,
-      location_lat,    // جديد: إحداثيات الطفل
-      location_lng     // جديد: إحداثيات الطفل
+      location_lat,   
+      location_lng    
     } = req.body;
 
     if (!full_name || !date_of_birth || !gender) {
@@ -901,14 +880,11 @@ exports.addChild = async (req, res) => {
       });
     }
 
-    // معالجة الإحداثيات الجغرافية
     let childCoords = null;
     if (location_lat && location_lng) {
-      // إذا أرسل الإحداثيات مباشرة من Flutter
       childCoords = { lat: parseFloat(location_lat), lng: parseFloat(location_lng) };
       console.log('📍 تم استقبال إحداثيات مباشرة:', childCoords);
     } else if (address || city) {
-      // إذا ما في إحداثيات، نستخدم Geocoding
       childCoords = await GeocodingService.geocodeAddress(address || city);
       console.log('📍 تم الحصول على إحداثيات من Geocoding:', childCoords);
     }
@@ -959,7 +935,6 @@ exports.addChild = async (req, res) => {
       additional_notes: additional_notes || null,
       consent_given: consent_given || false,
 
-      // حفظ الإحداثيات الجغرافية
       location_lat: childCoords ? childCoords.lat : null,
       location_lng: childCoords ? childCoords.lng : null,
 

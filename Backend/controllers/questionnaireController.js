@@ -2,18 +2,18 @@ const Questionnaire = require('../model/Questionnaire');
 const Question = require('../model/Question');
 const Child = require('../model/Child');
 const { Op } = require('sequelize');
+const AIAnalysisService = require('../services/aiAnalysisService');
 
-// جلب الأسئلة حسب شجرة القرارات
 exports.getQuestions = async (req, res) => {
   try {
-    const { child_id, previous_answers } = req.query;
+    const { child_id, previous_answers, language = 'ar' } = req.query;
     const parentId = req.user.user_id;
 
-    console.log('📋 Fetching questions for parent:', parentId, 'child:', child_id);
+    console.log('📋 جلب أسئلة الاستبيان:', { parentId, child_id, language });
 
     let where = { is_active: true };
-    
-    // فلترة حسب عمر الطفل إذا كان محدد
+    let childAge = null;
+
     if (child_id) {
       const child = await Child.findOne({
         where: { 
@@ -24,26 +24,25 @@ exports.getQuestions = async (req, res) => {
       });
       
       if (child && child.date_of_birth) {
-        const age = calculateAge(child.date_of_birth);
-        console.log('👶 Child age:', age);
+        childAge = calculateAge(child.date_of_birth);
+        console.log('👶 عمر الطفل:', childAge);
         
         where = {
           ...where,
           [Op.and]: [
-            { min_age: { [Op.lte]: age } },
-            { max_age: { [Op.gte]: age } }
+            { min_age: { [Op.lte]: childAge } },
+            { max_age: { [Op.gte]: childAge } }
           ]
         };
       }
     }
 
-    // تطبيق شجرة القرارات بناءً على الإجابات السابقة
     let questions = await Question.findAll({ 
       where,
       order: [['question_id', 'ASC']]
     });
 
-    console.log('❓ Raw questions found:', questions.length);
+    console.log('❓ عدد الأسئلة المستلمة:', questions.length);
 
     let filteredQuestions = questions;
     
@@ -54,19 +53,18 @@ exports.getQuestions = async (req, res) => {
           : previous_answers;
         
         filteredQuestions = applyDecisionTree(questions, answers);
-        console.log('🎯 Filtered questions after decision tree:', filteredQuestions.length);
+        console.log('🎯 عدد الأسئلة بعد التصفية:', filteredQuestions.length);
       } catch (parseError) {
-        console.log('⚠️ Error parsing previous_answers, using all questions');
+        console.log('⚠️ خطأ في تحليل الإجابات السابقة، استخدام جميع الأسئلة');
       }
     }
 
-    // تحويل البيانات للاستجابة
     const responseQuestions = filteredQuestions.map(q => ({
       question_id: q.question_id,
       category: q.category,
-      question_text: q.question_text,
+      question_text: language === 'ar' ? (q.question_text_ar || q.question_text) : q.question_text,
       question_type: q.question_type,
-      options: q.options || [],
+      options: language === 'ar' ? (q.options_ar || q.options || []) : (q.options || []),
       weight: q.weight,
       target_conditions: q.target_conditions || [],
       min_age: q.min_age,
@@ -78,31 +76,38 @@ exports.getQuestions = async (req, res) => {
       success: true,
       questions: responseQuestions,
       total: responseQuestions.length,
-      progress: calculateProgress(previous_answers, responseQuestions.length)
+      child_age: childAge,
+      progress: calculateProgress(previous_answers, responseQuestions.length),
+      language: language
     });
 
   } catch (error) {
-    console.error('❌ Error fetching questions:', error);
+    console.error('❌ خطأ في جلب الأسئلة:', error);
     res.status(500).json({ 
       success: false,
-      message: 'Server error', 
+      message: 'فشل في جلب الأسئلة', 
       error: error.message 
     });
   }
 };
 
-// حفظ إجابات الاستبيان
 exports.saveQuestionnaireResponse = async (req, res) => {
   try {
     const parentId = req.user.user_id;
-    const { child_id, responses, questionnaire_id = null } = req.body;
+    const { child_id, responses, questionnaire_id = null, language = 'ar' } = req.body;
 
-    console.log('💾 Saving questionnaire responses for parent:', parentId);
+    console.log('💾 حفظ إجابات الاستبيان:', { parentId, child_id, responsesCount: Object.keys(responses || {}).length });
+
+    if (!responses || Object.keys(responses).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'لا توجد إجابات لحفظها'
+      });
+    }
 
     let questionnaire;
     
     if (questionnaire_id) {
-      // تحديث استبيان موجود
       questionnaire = await Questionnaire.findOne({
         where: { questionnaire_id, parent_id: parentId }
       });
@@ -110,29 +115,30 @@ exports.saveQuestionnaireResponse = async (req, res) => {
       if (!questionnaire) {
         return res.status(404).json({ 
           success: false,
-          message: 'Questionnaire not found' 
+          message: 'الاستبيان غير موجود' 
         });
       }
       
       const updatedResponses = { ...questionnaire.responses, ...responses };
-      await questionnaire.update({ responses: updatedResponses });
+      await questionnaire.update({ 
+        responses: updatedResponses,
+        status: 'In Progress'
+      });
     } else {
-      // إنشاء استبيان جديد
       questionnaire = await Questionnaire.create({
         parent_id: parentId,
         child_id: child_id || null,
-        title: 'Initial Screening Assessment',
+        title: language === 'ar' ? 'تقييم مبدئي' : 'Initial Screening Assessment',
         type: 'Initial Screening',
         responses: responses,
         status: 'In Progress'
       });
     }
 
-    // إذا كان الاستبيان مكتمل، نقوم بالتحليل
     if (isQuestionnaireComplete(responses)) {
-      console.log('🔍 Questionnaire completed, starting analysis...');
+      console.log('🔍 الاستبيان مكتمل، بدء التحليل...');
       
-      const analysis = await analyzeQuestionnaire(responses, child_id);
+      const analysis = await analyzeQuestionnaire(responses, child_id, language);
       
       await questionnaire.update({
         status: 'Completed',
@@ -144,11 +150,11 @@ exports.saveQuestionnaireResponse = async (req, res) => {
         completed_at: new Date()
       });
 
-      console.log('✅ Analysis completed for questionnaire:', questionnaire.questionnaire_id);
+      console.log('✅ اكتمل تحليل الاستبيان:', questionnaire.questionnaire_id);
 
       res.status(200).json({
         success: true,
-        message: 'Questionnaire completed and analyzed successfully',
+        message: language === 'ar' ? 'تم إكمال الاستبيان والتحليل بنجاح' : 'Questionnaire completed and analyzed successfully',
         questionnaire_id: questionnaire.questionnaire_id,
         status: questionnaire.status,
         results: analysis.results,
@@ -160,190 +166,130 @@ exports.saveQuestionnaireResponse = async (req, res) => {
     } else {
       res.status(200).json({
         success: true,
-        message: 'Responses saved successfully',
+        message: language === 'ar' ? 'تم حفظ الإجابات بنجاح' : 'Responses saved successfully',
         questionnaire_id: questionnaire.questionnaire_id,
         status: questionnaire.status,
-        progress: calculateProgress(responses, 20) // افتراضي 20 سؤال
+        progress: calculateProgress(responses, 20)
       });
     }
 
   } catch (error) {
-    console.error('❌ Error saving questionnaire:', error);
+    console.error('❌ خطأ في حفظ الاستبيان:', error);
     res.status(500).json({ 
       success: false,
-      message: 'Failed to save responses', 
+      message: 'فشل في حفظ الإجابات', 
       error: error.message 
     });
   }
 };
 
-// تحليل الاستبيان
-async function analyzeQuestionnaire(responses, child_id) {
+exports.getQuestionnaireHistory = async (req, res) => {
   try {
-    console.log('🧮 Starting questionnaire analysis...');
-    
-    // 1. التحليل الأساسي
-    const basicAnalysis = performBasicAnalysis(responses);
-    
-    // 2. استخدام AI للتحليل المتقدم (يمكنك تفعيله لاحقاً)
-    const aiAnalysis = await performAIAnalysis(responses, child_id);
-    
-    // 3. توليد التوصيات
-    const recommendations = generateRecommendations(basicAnalysis, aiAnalysis);
-    
-    console.log('📊 Analysis results:', {
-      risk_level: calculateRiskLevel(basicAnalysis, aiAnalysis),
-      suggested_conditions: aiAnalysis.suggested_conditions,
-      recommendations_count: Object.values(recommendations).flat().length
+    const parentId = req.user.user_id;
+    const { page = 1, limit = 10, language = 'ar' } = req.query;
+
+    const questionnaires = await Questionnaire.findAll({
+      where: { parent_id: parentId },
+      include: [
+        {
+          model: require('../model/Child'),
+          attributes: ['child_id', 'full_name']
+        }
+      ],
+      order: [['created_at', 'DESC']],
+      limit: parseInt(limit),
+      offset: (parseInt(page) - 1) * parseInt(limit)
     });
-    
-    return {
-      results: basicAnalysis,
-      ai_analysis: aiAnalysis.analysis,
-      risk_level: calculateRiskLevel(basicAnalysis, aiAnalysis),
-      suggested_conditions: aiAnalysis.suggested_conditions,
-      recommendations: recommendations
-    };
-    
+
+    const totalCount = await Questionnaire.count({ 
+      where: { parent_id: parentId } 
+    });
+
+    res.status(200).json({
+      success: true,
+      questionnaires: questionnaires.map(q => ({
+        id: q.questionnaire_id,
+        title: q.title,
+        type: q.type,
+        status: q.status,
+        child_name: q.Child ? q.Child.full_name : (language === 'ar' ? 'تقييم عام' : 'General Assessment'),
+        risk_level: q.risk_level,
+        created_at: q.created_at,
+        completed_at: q.completed_at
+      })),
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: totalCount,
+        total_pages: Math.ceil(totalCount / parseInt(limit))
+      }
+    });
+
   } catch (error) {
-    console.error('Analysis error:', error);
-    return getFallbackAnalysis(responses);
+    console.error('❌ خطأ في جلب تاريخ الاستبيانات:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'فشل في جلب التاريخ', 
+      error: error.message 
+    });
   }
-}
+};
 
-// التحليل الأساسي
-function performBasicAnalysis(responses) {
-  const scores = {
-    'Attention & Focus': 0,
-    'Social Interaction': 0,
-    'Communication': 0,
-    'Behavior Patterns': 0,
-    'Motor Skills': 0,
-    'Academic Performance': 0,
-    'Daily Living Skills': 0
-  };
-
-  const answerWeights = {
-    'أبداً': 0, 'Never': 0,
-    'نادراً': 1, 'Rarely': 1,
-    'أحياناً': 2, 'Sometimes': 2,
-    'غالباً': 3, 'Often': 3,
-    'دائماً': 4, 'Always': 4
-  };
-
-  Object.values(responses).forEach(response => {
-    if (response.category && response.answer) {
-      const weight = answerWeights[response.answer] || 2; // قيمة افتراضية
-      scores[response.category] += weight;
-    }
-  });
-
-  const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
-  const areasOfConcern = Object.entries(scores)
-    .filter(([_, score]) => score > 8) // عتبة القلق
-    .map(([category]) => category);
-
-  return {
-    category_scores: scores,
-    total_score: totalScore,
-    areas_of_concern: areasOfConcern,
-    assessment_date: new Date().toISOString()
-  };
-}
-
-// استخدام AI للتحليل (بدون تكاليف)
-async function performAIAnalysis(responses, child_id) {
+exports.getQuestionnaire = async (req, res) => {
   try {
-    // تحليل محلي بدلاً من API خارجي
-    return performLocalAIAnalysis(responses);
+    const parentId = req.user.user_id;
+    const { id } = req.params;
+
+    const questionnaire = await Questionnaire.findOne({
+      where: { 
+        questionnaire_id: id, 
+        parent_id: parentId 
+      },
+      include: [
+        {
+          model: require('../model/Child'),
+          attributes: ['child_id', 'full_name', 'date_of_birth']
+        }
+      ]
+    });
+
+    if (!questionnaire) {
+      return res.status(404).json({
+        success: false,
+        message: 'الاستبيان غير موجود'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      questionnaire: {
+        id: questionnaire.questionnaire_id,
+        title: questionnaire.title,
+        type: questionnaire.type,
+        status: questionnaire.status,
+        child: questionnaire.Child,
+        responses: questionnaire.responses,
+        results: questionnaire.results,
+        risk_level: questionnaire.risk_level,
+        suggested_conditions: questionnaire.suggested_conditions,
+        recommendations: questionnaire.recommendations,
+        created_at: questionnaire.created_at,
+        completed_at: questionnaire.completed_at
+      }
+    });
+
   } catch (error) {
-    console.log('🔄 Falling back to local analysis');
-    return performLocalAIAnalysis(responses);
+    console.error('❌ خطأ في جلب الاستبيان:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'فشل في جلب الاستبيان', 
+      error: error.message 
+    });
   }
-}
+};
 
-// تحليل محلي
-function performLocalAIAnalysis(responses) {
-  const analysis = {
-    analysis: "تم التحليل باستخدام الخوارزميات المحلية. هذه النتائج أولية وتستدعي استشارة متخصص.",
-    suggested_conditions: [],
-    confidence: 0.7
-  };
+// ====================Helper methods ====================
 
-  // تحليل بسيط بناءً على الإجابات
-  const attentionScore = calculateCategoryScore(responses, 'Attention & Focus');
-  const socialScore = calculateCategoryScore(responses, 'Social Interaction');
-  const communicationScore = calculateCategoryScore(responses, 'Communication');
-
-  if (attentionScore > 12) {
-    analysis.suggested_conditions.push('ADHD');
-  }
-
-  if (socialScore > 10 || communicationScore > 10) {
-    analysis.suggested_conditions.push('ASD');
-  }
-
-  if (analysis.suggested_conditions.length === 0) {
-    analysis.suggested_conditions.push('تطور طبيعي - يوصى بمتابعة النمو');
-  }
-
-  return analysis;
-}
-
-// توليد التوصيات
-function generateRecommendations(basicAnalysis, aiAnalysis) {
-  const recommendations = {
-    immediate_actions: [],
-    resources: [],
-    specialists: [],
-    institutions: [],
-    follow_up_actions: []
-  };
-
-  // تحليل ADHD
-  if (basicAnalysis.category_scores['Attention & Focus'] > 12) {
-    recommendations.immediate_actions.push(
-      'استشارة طبيب أعصاب أطفال أو أخصائي ADHD',
-      'تنفيظم روتين يومي منظم وجداول بصرية',
-      'تقليل الملهيات في بيئة التعلم'
-    );
-    recommendations.resources.push(
-      'دليل استراتيجيات تربية أطفال ADHD',
-      'تمارين بناء التركيز والانتباه'
-    );
-    recommendations.specialists.push('طبيب أعصاب أطفال', 'أخصائي سلوكي');
-  }
-
-  // تحليل التوحد
-  if (basicAnalysis.category_scores['Social Interaction'] > 10) {
-    recommendations.immediate_actions.push(
-      'حجز موعد مع أخصائي توحد',
-      'بدء تدريب المهارات الاجتماعية',
-      'استخدام وسائل اتصال بصرية'
-    );
-    recommendations.specialists.push('أخصائي علاج سلوكي', 'أخصائي نطق ولغة');
-  }
-
-  // توصيات عامة
-  recommendations.immediate_actions.push(
-    'متابعة النمو مع طبيب الأطفال',
-    'توثيق الملاحظات السلوكية اليومية'
-  );
-
-  recommendations.institutions.push(
-    'جمعية ياسمين الخيرية - مركز التوحد',
-    'مركز سند - أخصائيون ADHD'
-  );
-
-  recommendations.follow_up_actions.push(
-    'إعادة التقييم بعد 3 أشهر',
-    'مشاركة النتائج مع المدرسة إذا كان الطفل في سن الدراسة'
-  );
-
-  return recommendations;
-}
-
-// دوال مساعدة
 function calculateAge(birthDate) {
   const today = new Date();
   const birth = new Date(birthDate);
@@ -384,7 +330,197 @@ function isQuestionnaireComplete(responses) {
   if (!responses || typeof responses !== 'object') return false;
   
   const answeredCount = Object.keys(responses).length;
-  return answeredCount >= 15; // اعتبار الاستبيان مكتملاً عند 15 إجابة
+  return answeredCount >= 15; 
+}
+
+async function analyzeQuestionnaire(responses, child_id, language = 'ar') {
+  try {
+    console.log('🧮 بدء تحليل الاستبيان...');
+    
+    const basicAnalysis = performBasicAnalysis(responses);
+    
+    const aiAnalysis = await performAIAnalysis(responses, child_id, language);
+    
+    const recommendations = generateRecommendations(basicAnalysis, aiAnalysis, language);
+    
+    console.log('📊 نتائج التحليل:', {
+      risk_level: calculateRiskLevel(basicAnalysis, aiAnalysis),
+      suggested_conditions: aiAnalysis.suggested_conditions,
+      recommendations_count: Object.values(recommendations).flat().length
+    });
+    
+    return {
+      results: basicAnalysis,
+      ai_analysis: aiAnalysis.analysis,
+      risk_level: calculateRiskLevel(basicAnalysis, aiAnalysis),
+      suggested_conditions: aiAnalysis.suggested_conditions,
+      recommendations: recommendations
+    };
+    
+  } catch (error) {
+    console.error('❌ خطأ في التحليل:', error);
+    return getFallbackAnalysis(responses, language);
+  }
+}
+
+function performBasicAnalysis(responses) {
+  const scores = {
+    'Attention & Focus': 0,
+    'Social Interaction': 0,
+    'Communication': 0,
+    'Behavior Patterns': 0,
+    'Motor Skills': 0,
+    'Academic Performance': 0,
+    'Daily Living Skills': 0
+  };
+
+  const answerWeights = {
+    'أبداً': 0, 'Never': 0, 'لا': 0,
+    'نادراً': 1, 'Rarely': 1, 'قليلاً': 1,
+    'أحياناً': 2, 'Sometimes': 2, 'نعم، بشكل ملحوظ': 2,
+    'غالباً': 3, 'Often': 3, 'نعم، بشكل مكثف': 3,
+    'دائماً': 4, 'Always': 4
+  };
+
+  Object.values(responses).forEach(response => {
+    if (response.category && response.answer) {
+      const weight = answerWeights[response.answer] || 2;
+      scores[response.category] += weight;
+    }
+  });
+
+  const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
+  const areasOfConcern = Object.entries(scores)
+    .filter(([_, score]) => score > 8)
+    .map(([category]) => category);
+
+  return {
+    category_scores: scores,
+    total_score: totalScore,
+    areas_of_concern: areasOfConcern,
+    assessment_date: new Date().toISOString()
+  };
+}
+
+async function performAIAnalysis(responses, child_id, language) {
+  try {
+    return await performExternalAIAnalysis(responses, language);
+  } catch (error) {
+    console.log('🔄 العودة للتحليل المحلي');
+    return performLocalAIAnalysis(responses, language);
+  }
+}
+
+function performLocalAIAnalysis(responses, language) {
+  const analysis = {
+    analysis: language === 'ar' 
+      ? "تم التحليل باستخدام الخوارزميات المحلية. هذه النتائج أولية وتستدعي استشارة متخصص." 
+      : "Analysis performed using local algorithms. These are preliminary results and require specialist consultation.",
+    suggested_conditions: [],
+    confidence: 0.7
+  };
+
+  const attentionScore = calculateCategoryScore(responses, 'Attention & Focus');
+  const socialScore = calculateCategoryScore(responses, 'Social Interaction');
+  const communicationScore = calculateCategoryScore(responses, 'Communication');
+
+  if (attentionScore > 12) {
+    analysis.suggested_conditions.push(language === 'ar' ? 'اضطراب فرط الحركة ونقص الانتباه' : 'ADHD');
+  }
+
+  if (socialScore > 10 || communicationScore > 10) {
+    analysis.suggested_conditions.push(language === 'ar' ? 'طيف التوحد' : 'ASD');
+  }
+
+  if (analysis.suggested_conditions.length === 0) {
+    analysis.suggested_conditions.push(
+      language === 'ar' 
+        ? 'تطور طبيعي - يوصى بمتابعة النمو' 
+        : 'Normal development - growth monitoring recommended'
+    );
+  }
+
+  return analysis;
+}
+
+async function performExternalAIAnalysis(responses, language) {
+  try {
+    const symptomsText = Object.values(responses)
+      .map(r => `${r.category}: ${r.answer}`)
+      .join('\n');
+
+    const aiAnalysis = await AIAnalysisService.analyzeSymptoms(
+      symptomsText,
+      '',
+      '',
+      language
+    );
+
+    return {
+      analysis: aiAnalysis.analysis || "AI analysis completed",
+      suggested_conditions: aiAnalysis.suggested_conditions || [],
+      confidence: aiAnalysis.analysis_confidence || 0.7
+    };
+  } catch (error) {
+    throw new Error('External AI analysis failed');
+  }
+}
+
+function generateRecommendations(basicAnalysis, aiAnalysis, language) {
+  const recommendations = {
+    immediate_actions: [],
+    resources: [],
+    specialists: [],
+    institutions: [],
+    follow_up_actions: []
+  };
+
+  const isArabic = language === 'ar';
+
+  if (basicAnalysis.category_scores['Attention & Focus'] > 12) {
+    recommendations.immediate_actions.push(
+      isArabic ? 'استشارة طبيب أعصاب أطفال أو أخصائي ADHD' : 'Consult a pediatric neurologist or ADHD specialist',
+      isArabic ? 'تنفيظم روتين يومي منظم وجداول بصرية' : 'Establish a structured daily routine and visual schedules',
+      isArabic ? 'تقليل الملهيات في بيئة التعلم' : 'Reduce distractions in the learning environment'
+    );
+    recommendations.resources.push(
+      isArabic ? 'دليل استراتيجيات تربية أطفال ADHD' : 'ADHD parenting strategies guide',
+      isArabic ? 'تمارين بناء التركيز والانتباه' : 'Focus and attention building exercises'
+    );
+    recommendations.specialists.push(
+      isArabic ? 'طبيب أعصاب أطفال' : 'Pediatric neurologist',
+      isArabic ? 'أخصائي سلوكي' : 'Behavioral specialist'
+    );
+  }
+
+  if (basicAnalysis.category_scores['Social Interaction'] > 10) {
+    recommendations.immediate_actions.push(
+      isArabic ? 'حجز موعد مع أخصائي توحد' : 'Book an appointment with an autism specialist',
+      isArabic ? 'بدء تدريب المهارات الاجتماعية' : 'Start social skills training',
+      isArabic ? 'استخدام وسائل اتصال بصرية' : 'Use visual communication tools'
+    );
+    recommendations.specialists.push(
+      isArabic ? 'أخصائي علاج سلوكي' : 'Behavioral therapist',
+      isArabic ? 'أخصائي نطق ولغة' : 'Speech and language specialist'
+    );
+  }
+
+  recommendations.immediate_actions.push(
+    isArabic ? 'متابعة النمو مع طبيب الأطفال' : 'Follow up growth with pediatrician',
+    isArabic ? 'توثيق الملاحظات السلوكية اليومية' : 'Document daily behavioral observations'
+  );
+
+  recommendations.institutions.push(
+    isArabic ? 'جمعية ياسمين الخيرية - مركز التوحد' : 'Yasmin Charity Association - Autism Center',
+    isArabic ? 'مركز سند - أخصائيون ADHD' : 'Sanad Center - ADHD Specialists'
+  );
+
+  recommendations.follow_up_actions.push(
+    isArabic ? 'إعادة التقييم بعد 3 أشهر' : 'Re-evaluation after 3 months',
+    isArabic ? 'مشاركة النتائج مع المدرسة إذا كان الطفل في سن الدراسة' : 'Share results with school if child is school-aged'
+  );
+
+  return recommendations;
 }
 
 function calculateCategoryScore(responses, category) {
@@ -412,62 +548,36 @@ function calculateRiskLevel(basicAnalysis, aiAnalysis) {
   return 'Low';
 }
 
-function getFallbackAnalysis(responses) {
+function getFallbackAnalysis(responses, language) {
   return {
     results: performBasicAnalysis(responses),
-    ai_analysis: "تعذر التحليل المتقدم، يرجى استشارة متخصص",
+    ai_analysis: language === 'ar' 
+      ? "تعذر التحليل المتقدم، يرجى استشارة متخصص" 
+      : "Advanced analysis unavailable, please consult a specialist",
     risk_level: 'Medium',
-    suggested_conditions: ['يوصى باستشارة متخصص للتقييم الدقيق'],
+    suggested_conditions: [
+      language === 'ar' 
+        ? 'يوصى باستشارة متخصص للتقييم الدقيق' 
+        : 'Specialist consultation recommended for accurate assessment'
+    ],
     recommendations: {
-      immediate_actions: ['حجز موعد مع أخصائي نمو أطفال'],
+      immediate_actions: [
+        language === 'ar' 
+          ? 'حجز موعد مع أخصائي نمو أطفال' 
+          : 'Book an appointment with a child development specialist'
+      ],
       resources: [],
-      specialists: ['أخصائي نمو أطفال'],
+      specialists: [
+        language === 'ar' ? 'أخصائي نمو أطفال' : 'Child development specialist'
+      ],
       institutions: [],
-      follow_up_actions: ['إعادة التقييم بعد استشارة المتخصص']
+      follow_up_actions: [
+        language === 'ar' 
+          ? 'إعادة التقييم بعد استشارة المتخصص' 
+          : 'Re-evaluation after specialist consultation'
+      ]
     }
   };
 }
 
-// جلب نتائج الاستبيانات السابقة
-exports.getQuestionnaireHistory = async (req, res) => {
-  try {
-    const parentId = req.user.user_id;
-    const { page = 1, limit = 10 } = req.query;
-
-    const questionnaires = await Questionnaire.findAll({
-      where: { parent_id: parentId },
-      include: [
-        {
-          model: require('../models/Child'),
-          attributes: ['child_id', 'full_name']
-        }
-      ],
-      order: [['created_at', 'DESC']],
-      limit: parseInt(limit),
-      offset: (parseInt(page) - 1) * parseInt(limit)
-    });
-
-    res.status(200).json({
-      success: true,
-      questionnaires: questionnaires.map(q => ({
-        id: q.questionnaire_id,
-        title: q.title,
-        type: q.type,
-        status: q.status,
-        child_name: q.Child ? q.Child.full_name : 'تقييم عام',
-        risk_level: q.risk_level,
-        created_at: q.created_at,
-        completed_at: q.completed_at
-      })),
-      total: await Questionnaire.count({ where: { parent_id: parentId } })
-    });
-
-  } catch (error) {
-    console.error('Error fetching questionnaire history:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Server error', 
-      error: error.message 
-    });
-  }
-};
+module.exports = exports;

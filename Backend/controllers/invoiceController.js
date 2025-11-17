@@ -86,6 +86,127 @@ exports.getParentInvoices = async (req, res) => {
   }
 };
 
+// جلب فواتير طفل محدد
+exports.getChildInvoices = async (req, res) => {
+  try {
+    const parentId = req.user.user_id;
+    const { childId } = req.params;
+    const { status, page = 1, limit = 100 } = req.query;
+
+    // التحقق من أن الـ parent يملك هذا الطفل
+    const child = await Child.findOne({
+      where: { 
+        child_id: childId,
+        parent_id: parentId
+      }
+    });
+
+    if (!child) {
+      return res.status(403).json({ 
+        success: false,
+        message: 'Access denied. This child does not belong to you.' 
+      });
+    }
+
+    // جلب الجلسات الخاصة بهذا الطفل
+    const sessions = await Session.findAll({
+      where: { child_id: childId },
+      attributes: ['session_id'],
+      raw: true
+    });
+
+    const sessionIds = sessions.map(s => s.session_id);
+    
+    if (sessionIds.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: 0,
+          pages: 0
+        }
+      });
+    }
+
+    const where = { 
+      parent_id: parentId,
+      session_id: { [require('sequelize').Op.in]: sessionIds }
+    };
+    
+    if (status && status !== 'All') {
+      where.status = status;
+    }
+
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    // جلب الفواتير
+    const invoices = await Invoice.findAll({
+      where,
+      order: [['issued_date', 'DESC']],
+      offset,
+      limit: parseInt(limit),
+      raw: true
+    });
+
+    // معالجة كل فاتورة على حدة
+    const processedInvoices = await Promise.all(
+      invoices.map(async (invoice) => {
+        // جلب بيانات الجلسة
+        const session = await Session.findByPk(invoice.session_id, {
+          include: [
+            {
+              model: SessionType,
+              attributes: ['name', 'duration']
+            },
+            {
+              model: Child,
+              as: 'child',
+              attributes: ['full_name']
+            }
+          ],
+          raw: true,
+          nest: true
+        });
+
+        // جلب بيانات المؤسسة
+        const institution = await Institution.findByPk(invoice.institution_id, {
+          attributes: ['name'],
+          raw: true
+        });
+
+        return {
+          ...invoice,
+          Session: session,
+          institution: institution
+        };
+      })
+    );
+
+    const totalInvoices = await Invoice.count({ where });
+
+    res.status(200).json({
+      success: true,
+      data: processedInvoices,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: totalInvoices,
+        pages: Math.ceil(totalInvoices / parseInt(limit))
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching child invoices:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch child invoices',
+      error: error.message
+    });
+  }
+};
+
 // جلب تفاصيل فاتورة محددة
 exports.getInvoiceDetails = async (req, res) => {
   try {

@@ -10,8 +10,7 @@ class SessionDetailsBottomSheet extends StatelessWidget {
   final VoidCallback? onSetReminder;
   final VoidCallback? onShareSession;
   final VoidCallback? onDownloadInvoice;
-  final VoidCallback? onRated; // أضف هذا
-
+  final VoidCallback? onRated;
 
   const SessionDetailsBottomSheet({
     super.key,
@@ -21,18 +20,29 @@ class SessionDetailsBottomSheet extends StatelessWidget {
     this.onSetReminder,
     this.onShareSession,
     this.onDownloadInvoice,
-    this.onRated, // أضف هذا
-
+    this.onRated,
   });
+
+  // نظام الألوان المتناسق مع التطبيق
+  final Color _primaryColor = const Color(0xFF7815A0);
+  final Color _secondaryColor = const Color(0xFF976EF4);
+  final Color _accentColor = const Color(0xFFCAA9F8);
+  final Color _backgroundColor = const Color(0xFFF8F9FA);
+  final Color _surfaceColor = Colors.white;
+  final Color _textPrimary = const Color(0xFF212529);
+  final Color _textSecondary = const Color(0xFF6C757D);
+  final Color _successColor = const Color(0xFF4CAF50);
+  final Color _warningColor = const Color(0xFFFF9800);
+  final Color _errorColor = const Color(0xFFF44336);
 
   @override
   Widget build(BuildContext context) {
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
       padding: const EdgeInsets.all(24),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: _surfaceColor,
+        borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(24),
           topRight: Radius.circular(24),
         ),
@@ -98,51 +108,12 @@ class SessionDetailsBottomSheet extends StatelessWidget {
                     const SizedBox(height: 16),
                     _buildRatingCard(),
                     const SizedBox(height: 24),
-                    // بعد سطر الـ Rating Card، أضف زر التقييم إذا الجلسة مكتملة ومش مترقية
-                    if (session.displayStatus == 'completed' && session.rating == null) ...[
-                      const SizedBox(height: 16),
-                      Card(
-                        elevation: 2,
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            children: [
-                              const Icon(Icons.star_outline, size: 48, color: Colors.amber),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'Rate This Session',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'Share your experience to help us improve',
-                                style: TextStyle(fontSize: 14),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 12),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  icon: const Icon(Icons.star, size: 18),
-                                  label: const Text('Rate Now'),
-                                  onPressed: () {
-                                    Navigator.pop(context); // يغلق الـ sheet
-                                    onRateSession?.call(); // يفتح dialog التقييم
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.amber,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
+                  ],
+
+                  // Rating Prompt (if completed and not rated)
+                  if (session.displayStatus == 'completed' && session.rating == null) ...[
+                    _buildRatingPromptCard(context),
+                    const SizedBox(height: 24),
                   ],
                 ],
               ),
@@ -160,16 +131,16 @@ class SessionDetailsBottomSheet extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        const Text(
+        Text(
           'Session Details',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: ParentAppColors.textDark,
+            color: _textPrimary,
           ),
         ),
         IconButton(
-          icon: const Icon(Icons.close, size: 24),
+          icon: Icon(Icons.close, size: 24, color: _textSecondary),
           onPressed: () => Navigator.pop(context),
         ),
       ],
@@ -179,10 +150,10 @@ class SessionDetailsBottomSheet extends StatelessWidget {
   Widget _buildSectionTitle(String title) {
     return Text(
       title,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 18,
         fontWeight: FontWeight.bold,
-        color: ParentAppColors.textDark,
+        color: _textPrimary,
       ),
     );
   }
@@ -191,9 +162,9 @@ class SessionDetailsBottomSheet extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+        color: _backgroundColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _textSecondary.withOpacity(0.2)),
       ),
       child: Column(
         children: [
@@ -221,10 +192,10 @@ class SessionDetailsBottomSheet extends StatelessWidget {
           width: 100,
           child: Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.w500,
               fontSize: 14,
-              color: Colors.grey,
+              color: _textSecondary,
             ),
           ),
         ),
@@ -237,6 +208,7 @@ class SessionDetailsBottomSheet extends StatelessWidget {
   Widget _buildSpecialistCard(BuildContext context) {
     return Card(
       elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -245,13 +217,13 @@ class SessionDetailsBottomSheet extends StatelessWidget {
               width: 60,
               height: 60,
               decoration: BoxDecoration(
-                color: ParentAppColors.primaryTeal.withOpacity(0.1),
+                color: _primaryColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(30),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.person,
                 size: 30,
-                color: ParentAppColors.primaryTeal,
+                color: _primaryColor,
               ),
             ),
             const SizedBox(width: 16),
@@ -261,9 +233,10 @@ class SessionDetailsBottomSheet extends StatelessWidget {
                 children: [
                   Text(
                     session.specialistName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
+                      color: _textPrimary,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -271,7 +244,7 @@ class SessionDetailsBottomSheet extends StatelessWidget {
                     'Specialist',
                     style: TextStyle(
                       fontSize: 14,
-                      color: Colors.grey[600],
+                      color: _textSecondary,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -281,7 +254,7 @@ class SessionDetailsBottomSheet extends StatelessWidget {
                       const SizedBox(width: 4),
                       Text(
                         '4.8', // Placeholder - should come from API
-                        style: TextStyle(fontSize: 14),
+                        style: TextStyle(fontSize: 14, color: _textPrimary),
                       ),
                     ],
                   ),
@@ -289,11 +262,15 @@ class SessionDetailsBottomSheet extends StatelessWidget {
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.message, color: ParentAppColors.primaryTeal),
+              icon: Icon(Icons.message, color: _primaryColor),
               onPressed: () {
-                // TODO: Implement chat with specialist
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Chat feature coming soon')),
+                  SnackBar(
+                    content: const Text('Chat feature coming soon'),
+                    backgroundColor: _primaryColor,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
                 );
               },
             ),
@@ -306,6 +283,7 @@ class SessionDetailsBottomSheet extends StatelessWidget {
   Widget _buildChildCard() {
     return Card(
       elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -314,13 +292,13 @@ class SessionDetailsBottomSheet extends StatelessWidget {
               width: 60,
               height: 60,
               decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.1),
+                color: _warningColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(30),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.child_care,
                 size: 30,
-                color: Colors.orange,
+                color: _warningColor,
               ),
             ),
             const SizedBox(width: 16),
@@ -330,9 +308,10 @@ class SessionDetailsBottomSheet extends StatelessWidget {
                 children: [
                   Text(
                     session.childName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
+                      color: _textPrimary,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -340,7 +319,7 @@ class SessionDetailsBottomSheet extends StatelessWidget {
                     'Age: ${session.childAge ?? 'N/A'}',
                     style: TextStyle(
                       fontSize: 14,
-                      color: Colors.grey[600],
+                      color: _textSecondary,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -348,7 +327,7 @@ class SessionDetailsBottomSheet extends StatelessWidget {
                     'Condition: ${session.childCondition ?? 'N/A'}',
                     style: TextStyle(
                       fontSize: 14,
-                      color: Colors.grey[600],
+                      color: _textSecondary,
                     ),
                   ),
                 ],
@@ -363,22 +342,24 @@ class SessionDetailsBottomSheet extends StatelessWidget {
   Widget _buildNotesCard() {
     return Card(
       elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Parent Notes',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
+                color: _textPrimary,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               session.parentNotes!,
-              style: const TextStyle(fontSize: 14),
+              style: TextStyle(fontSize: 14, color: _textPrimary),
             ),
           ],
         ),
@@ -389,19 +370,20 @@ class SessionDetailsBottomSheet extends StatelessWidget {
   Widget _buildPaymentCard() {
     return Card(
       elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             _buildPaymentRow('Session Fee', '\$${session.price.toStringAsFixed(2)}'),
             const SizedBox(height: 8),
-            _buildPaymentRow('Insurance Discount', '-\$0.00'), // Placeholder
+            _buildPaymentRow('Insurance Discount', '-\$0.00'),
             const SizedBox(height: 8),
-            _buildPaymentRow('Tax', '\$${(session.price * 0.16).toStringAsFixed(2)}'), // Placeholder
+            _buildPaymentRow('Tax', '\$${(session.price * 0.16).toStringAsFixed(2)}'),
             const Divider(height: 20),
             _buildPaymentRow(
               'Total Amount',
-              '\$${(session.price * 1.16).toStringAsFixed(2)}', // Placeholder
+              '\$${(session.price * 1.16).toStringAsFixed(2)}',
               isTotal: true,
             ),
           ],
@@ -419,7 +401,7 @@ class SessionDetailsBottomSheet extends StatelessWidget {
           style: TextStyle(
             fontSize: 14,
             fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
-            color: isTotal ? ParentAppColors.textDark : Colors.grey,
+            color: isTotal ? _textPrimary : _textSecondary,
           ),
         ),
         Text(
@@ -427,7 +409,7 @@ class SessionDetailsBottomSheet extends StatelessWidget {
           style: TextStyle(
             fontSize: 14,
             fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
-            color: isTotal ? ParentAppColors.primaryTeal : Colors.grey,
+            color: isTotal ? _primaryColor : _textSecondary,
           ),
         ),
       ],
@@ -436,8 +418,9 @@ class SessionDetailsBottomSheet extends StatelessWidget {
 
   Widget _buildCancellationCard() {
     return Card(
-      color: Colors.red[50],
+      color: _errorColor.withOpacity(0.1),
       elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -445,14 +428,14 @@ class SessionDetailsBottomSheet extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.info, color: Colors.red),
+                Icon(Icons.info, color: _errorColor),
                 const SizedBox(width: 8),
-                const Text(
+                Text(
                   'Cancellation Reason',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.red,
+                    color: _errorColor,
                   ),
                 ),
               ],
@@ -460,7 +443,7 @@ class SessionDetailsBottomSheet extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               session.cancellationReason!,
-              style: const TextStyle(fontSize: 14),
+              style: TextStyle(fontSize: 14, color: _textPrimary),
             ),
           ],
         ),
@@ -470,18 +453,20 @@ class SessionDetailsBottomSheet extends StatelessWidget {
 
   Widget _buildRatingCard() {
     return Card(
-      color: Colors.green[50],
+      color: _successColor.withOpacity(0.1),
       elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Your Rating',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
+                color: _textPrimary,
               ),
             ),
             const SizedBox(height: 8),
@@ -497,7 +482,7 @@ class SessionDetailsBottomSheet extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   '${session.rating!.toStringAsFixed(1)}/5',
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _textPrimary),
                 ),
               ],
             ),
@@ -505,9 +490,56 @@ class SessionDetailsBottomSheet extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 session.review!,
-                style: const TextStyle(fontSize: 14),
+                style: TextStyle(fontSize: 14, color: _textPrimary),
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRatingPromptCard(BuildContext context) { // Add context parameter
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Icon(Icons.star_outline, size: 48, color: Colors.amber),
+            const SizedBox(height: 8),
+            Text(
+              'Rate This Session',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: _textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Share your experience to help us improve',
+              style: TextStyle(fontSize: 14, color: _textSecondary),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.star, size: 18),
+                label: const Text('Rate Now'),
+                onPressed: () {
+                  Navigator.pop(context);
+                  onRateSession?.call();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.amber,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -526,6 +558,11 @@ class SessionDetailsBottomSheet extends StatelessWidget {
                 icon: const Icon(Icons.notifications_none, size: 18),
                 label: const Text('Reminder'),
                 onPressed: onSetReminder,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _primaryColor,
+                  side: BorderSide(color: _primaryColor),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -538,6 +575,11 @@ class SessionDetailsBottomSheet extends StatelessWidget {
                 icon: const Icon(Icons.schedule, size: 18),
                 label: const Text('Reschedule'),
                 onPressed: onReschedule,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _warningColor,
+                  side: BorderSide(color: _warningColor),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -550,13 +592,14 @@ class SessionDetailsBottomSheet extends StatelessWidget {
                 icon: const Icon(Icons.star, size: 18),
                 label: const Text('Rate Session'),
                 onPressed: () {
-                  Navigator.pop(context); // يغلق الـ sheet
-                  onRateSession?.call(); // يفتح dialog التقييم
-                  onRated?.call(); // يحدث البيانات بعد التقييم
+                  Navigator.pop(context);
+                  onRateSession?.call();
+                  onRated?.call();
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.amber,
                   foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ),
@@ -564,17 +607,19 @@ class SessionDetailsBottomSheet extends StatelessWidget {
           ],
 
           // Share Button
-          // بدل الـ Share Button الحالي، غير لـ:
           Expanded(
             child: OutlinedButton.icon(
               icon: const Icon(Icons.share, size: 18),
-              label: const Text('share'),
+              label: const Text('Share'),
               onPressed: () {
-                Navigator.pop(context); // يغلق الـ sheet أول
-                if (onShareSession != null) {
-                  onShareSession!(); // ثم ينفذ المشاركة
-                }
+                Navigator.pop(context);
+                onShareSession?.call();
               },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _secondaryColor,
+                side: BorderSide(color: _secondaryColor),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
             ),
           ),
 
@@ -585,8 +630,13 @@ class SessionDetailsBottomSheet extends StatelessWidget {
             Expanded(
               child: OutlinedButton.icon(
                 icon: const Icon(Icons.download, size: 18),
-                label: const Text('فاتورة'),
+                label: const Text('Invoice'),
                 onPressed: onDownloadInvoice,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _errorColor,
+                  side: BorderSide(color: _errorColor),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
               ),
             ),
         ],
@@ -597,9 +647,9 @@ class SessionDetailsBottomSheet extends StatelessWidget {
   Widget _buildStatusChip(String status) {
     final statusConfig = {
       'upcoming': {'color': Colors.blue, 'icon': Icons.schedule},
-      'completed': {'color': Colors.green, 'icon': Icons.check_circle},
-      'pending': {'color': Colors.orange, 'icon': Icons.pending},
-      'cancelled': {'color': Colors.red, 'icon': Icons.cancel},
+      'completed': {'color': _successColor, 'icon': Icons.check_circle},
+      'pending': {'color': _warningColor, 'icon': Icons.pending},
+      'cancelled': {'color': _errorColor, 'icon': Icons.cancel},
     };
 
     final config = statusConfig[status] ?? statusConfig['pending']!;
@@ -607,14 +657,14 @@ class SessionDetailsBottomSheet extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: config['color'] as Color? ?? Colors.orange,
+        color: config['color'] as Color,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            config['icon'] as IconData? ?? Icons.pending,
+            config['icon'] as IconData,
             size: 14,
             color: Colors.white,
           ),
@@ -633,9 +683,10 @@ class SessionDetailsBottomSheet extends StatelessWidget {
   }
 
   TextStyle _infoTextStyle() {
-    return const TextStyle(
+    return TextStyle(
       fontSize: 14,
       fontWeight: FontWeight.w500,
+      color: _textPrimary,
     );
   }
 }

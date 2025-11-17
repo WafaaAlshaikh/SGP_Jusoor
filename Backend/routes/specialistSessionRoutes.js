@@ -117,4 +117,31 @@ router.get(
 
 // ⭐ روت جديد لجلب الجلسات المطلوب حذفها
 router.get('/delete-requests', authMiddleware,  specialistSessionController.getDeleteRequestedSessions);
+
+// ✅ جلب الجلسات الجديدة المعلقة للموافقة (للأهل)
+router.get(
+  '/pending-new-sessions',
+  authMiddleware,
+  async (req, res, next) => {
+    if (req.user.role !== 'Parent') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    next();
+  },
+  specialistSessionController.getNewPendingSessionsForParent
+);
+
+// ✅ موافقة أو رفض الجلسة الجديدة (للأهل)
+router.post(
+  '/sessions/:session_id/approve-new',
+  authMiddleware,
+  async (req, res, next) => {
+    if (req.user.role !== 'Parent') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    next();
+  },
+  specialistSessionController.approveNewSession
+);
+
 module.exports = router;

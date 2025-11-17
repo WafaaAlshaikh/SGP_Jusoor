@@ -17,6 +17,10 @@ class Session {
   final double? rating;
   final String? cancellationReason;
   final double sessionTypePrice;// أضيفي هذا
+  final bool isPaid;
+  final String paymentStatus;
+  final bool canCancel;
+  final bool canPay;
 
 
   // الخصائص الجديدة
@@ -48,9 +52,15 @@ class Session {
     this.review,
     this.childAge,
     this.childCondition,
+    required this.isPaid,
+    required this.paymentStatus,
+    required this.canCancel,
+    required this.canPay,
   });
 
   factory Session.fromJson(Map<String, dynamic> json) {
+    final status = json['status']?.toString() ?? '';
+    final isPaid = json['is_paid'] ?? false;
     return Session(
       sessionId: json['sessionId']?.toString() ?? json['id']?.toString() ?? '',
       childName: json['childName'] ?? '',
@@ -66,6 +76,11 @@ class Session {
       reportUrl: json['reportUrl'],
       rating: json['rating']?.toDouble(),
       cancellationReason: json['cancellationReason'],
+
+      isPaid: isPaid,
+      paymentStatus: json['payment_status'] ?? 'Pending',
+      canCancel: status == 'Scheduled', // يمكن الإلغاء إذا كانت مجدولة
+      canPay: status == 'Scheduled' && !isPaid, // يمكن الدفع إذا لم تكن مدفوعة
 
       // الخصائص الجديدة
       parentNotes: json['parentNotes'],

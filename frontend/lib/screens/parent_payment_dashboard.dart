@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/payment_models.dart';
 import '../services/payment_service.dart';
-import '../utils/app_colors.dart';
+import '../theme/app_colors.dart';
 import 'payment_screen.dart';
 
 class ParentPaymentDashboard extends StatefulWidget {
@@ -19,18 +19,18 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
   List<Invoice> _pendingInvoices = [];
   List<Invoice> _paidInvoices = [];
   List<Invoice> _filteredInvoices = [];
-  
+
   // Stats
   double _totalPending = 0.0;
   double _totalPaid = 0.0;
   int _pendingCount = 0;
-  
+
   // New Features
   final TextEditingController _searchController = TextEditingController();
   String _selectedTimeFilter = 'all'; // all, week, month, year
   bool _showFilters = false;
   bool _showAnalytics = true;
-  
+
   // Analytics
   double _avgPayment = 0.0;
   int _paymentsThisMonth = 0;
@@ -41,7 +41,11 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _searchController.addListener(_filterInvoices);
-    _loadInvoices();
+
+    // ✅ تأجيل تحميل البيانات حتى بعد بناء الواجهة
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadInvoices();
+    });
   }
 
   @override
@@ -50,7 +54,7 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
     _searchController.dispose();
     super.dispose();
   }
-  
+
   void _filterInvoices() {
     setState(() {
       final query = _searchController.text.toLowerCase();
@@ -66,13 +70,13 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
       _updateFilteredLists();
     });
   }
-  
+
   bool _matchesTimeFilter(Invoice invoice) {
     if (_selectedTimeFilter == 'all') return true;
-    
+
     final now = DateTime.now();
     final invoiceDate = invoice.issuedDate;
-    
+
     switch (_selectedTimeFilter) {
       case 'week':
         return now.difference(invoiceDate).inDays <= 7;
@@ -84,10 +88,10 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
         return true;
     }
   }
-  
+
   void _updateFilteredLists() {
-    _pendingInvoices = _filteredInvoices.where((i) => 
-      i.status == 'Pending' || i.status == 'Overdue' || i.status == 'Draft'
+    _pendingInvoices = _filteredInvoices.where((i) =>
+    i.status == 'Pending' || i.status == 'Overdue' || i.status == 'Draft'
     ).toList();
     _paidInvoices = _filteredInvoices.where((i) => i.status == 'Paid').toList();
     _pendingCount = _pendingInvoices.length;
@@ -102,30 +106,33 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token') ?? '';
 
+      if (token.isEmpty) {
+        throw Exception('No token found');
+      }
+
+      print('🔄 Loading invoices...');
       final invoices = await PaymentService.getParentInvoices(token);
+      print('✅ Invoices loaded: ${invoices.length}');
 
-      _allInvoices = invoices;
-      _filteredInvoices = invoices;
-      _pendingInvoices = invoices.where((i) => 
-        i.status == 'Pending' || i.status == 'Overdue' || i.status == 'Draft'
-      ).toList();
-      _paidInvoices = invoices.where((i) => i.status == 'Paid').toList();
-
-      // Calculate stats
-      _totalPending = _pendingInvoices.fold(0.0, (sum, inv) => sum + inv.totalAmount);
-      _totalPaid = _paidInvoices.fold(0.0, (sum, inv) => sum + inv.totalAmount);
-      _pendingCount = _pendingInvoices.length;
-      
-      // Calculate analytics
-      _calculateAnalytics();
+      if (mounted) {
+        setState(() {
+          _allInvoices = invoices;
+          _filteredInvoices = invoices;
+          _updateFilteredLists();
+          _calculateAnalytics();
+        });
+      }
 
     } catch (e) {
-      print('❌ Error loading invoices: $e');
+      print('❌ CRITICAL ERROR in _loadInvoices: $e');
+      print('Stack trace: ${e.toString()}');
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('فشل تحميل الفواتير: ${e.toString()}'),
+            content: Text('Failed to load invoices: ${e.toString()}'),
             backgroundColor: Colors.red,
+            duration: Duration(seconds: 5),
           ),
         );
       }
@@ -137,46 +144,65 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
       }
     }
   }
-  
+
   void _calculateAnalytics() {
     // Average payment
     if (_paidInvoices.isNotEmpty) {
       _avgPayment = _totalPaid / _paidInvoices.length;
     }
-    
+
     // Payments this month
     final now = DateTime.now();
     final thisMonthInvoices = _paidInvoices.where((inv) {
       return inv.paidDate != null &&
-             inv.paidDate!.year == now.year &&
-             inv.paidDate!.month == now.month;
+          inv.paidDate!.year == now.year &&
+          inv.paidDate!.month == now.month;
     }).toList();
-    
+
     _paymentsThisMonth = thisMonthInvoices.length;
     _totalThisMonth = thisMonthInvoices.fold(0.0, (sum, inv) => sum + inv.totalAmount);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey.shade50,
-      appBar: _buildAppBar(),
-      body: _isLoading ? _buildLoadingState() : _buildContent(),
-    );
+    try {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: _buildAppBar(),
+        body: _isLoading ? _buildLoadingState() : _buildContent(),
+      );
+    } catch (e) {
+      print('❌ ERROR in build method: $e');
+      return Scaffold(
+        appBar: AppBar(title: Text('Error')),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error, size: 64, color: Colors.red),
+              SizedBox(height: 16),
+              Text('Something went wrong'),
+              SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+                child: Text('Go Back'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
   }
 
   AppBar _buildAppBar() {
     return AppBar(
+      backgroundColor: AppColors.primary,
       elevation: 0,
-      backgroundColor: Colors.transparent,
-      flexibleSpace: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [ParentAppColors.primaryTeal, ParentAppColors.mintGreen],
-          ),
-        ),
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: Colors.white),
+        onPressed: () => Navigator.pop(context),
       ),
       title: Row(
         children: [
@@ -193,7 +219,7 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'المدفوعات',
+                'Payments',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -201,7 +227,7 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
                 ),
               ),
               Text(
-                'إدارة الفواتير والدفعات',
+                'Manage Invoices & Payments',
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.white70,
@@ -215,7 +241,7 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
         IconButton(
           icon: const Icon(Icons.refresh, color: Colors.white),
           onPressed: _loadInvoices,
-          tooltip: 'تحديث',
+          tooltip: 'Refresh',
         ),
       ],
     );
@@ -228,7 +254,7 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
         children: [
           CircularProgressIndicator(),
           SizedBox(height: 16),
-          Text('جاري تحميل البيانات...'),
+          Text('Loading data...'),
         ],
       ),
     );
@@ -246,7 +272,7 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
               child: _buildSearchAndFilters(),
             ),
           ),
-          
+
           // Stats Cards
           SliverToBoxAdapter(
             child: Padding(
@@ -254,7 +280,7 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
               child: _buildStatsCards(),
             ),
           ),
-          
+
           // Analytics Cards
           if (_showAnalytics)
             SliverToBoxAdapter(
@@ -280,13 +306,11 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
               child: Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.grey.shade100, Colors.grey.shade50],
-                  ),
+                  color: Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.grey.shade300,
+                      color: Colors.black12.withOpacity(0.05),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -295,19 +319,10 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
                 child: TabBar(
                   controller: _tabController,
                   labelColor: Colors.white,
-                  unselectedLabelColor: ParentAppColors.textGrey,
+                  unselectedLabelColor: AppColors.textGray,
                   indicator: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [ParentAppColors.primaryTeal, ParentAppColors.mintGreen],
-                    ),
+                    color: AppColors.primary,
                     borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: ParentAppColors.primaryTeal.withOpacity(0.3),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
                   ),
                   labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                   unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
@@ -318,7 +333,7 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
                         children: [
                           const Icon(Icons.pending_actions, size: 20),
                           const SizedBox(width: 8),
-                          Text('معلق ($_pendingCount)'),
+                          Text('Pending ($_pendingCount)'),
                         ],
                       ),
                     ),
@@ -328,7 +343,7 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
                         children: [
                           const Icon(Icons.check_circle, size: 20),
                           const SizedBox(width: 8),
-                          Text('مدفوع (${_paidInvoices.length})'),
+                          Text('Paid (${_paidInvoices.length})'),
                         ],
                       ),
                     ),
@@ -338,7 +353,7 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
                         children: [
                           Icon(Icons.list, size: 20),
                           SizedBox(width: 8),
-                          Text('الكل'),
+                          Text('All'),
                         ],
                       ),
                     ),
@@ -363,7 +378,7 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
       ),
     );
   }
-  
+
   Widget _buildSearchAndFilters() {
     return Column(
       children: [
@@ -374,7 +389,7 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: ParentAppColors.primaryTeal.withOpacity(0.1),
+                color: Colors.black12.withOpacity(0.05),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -383,16 +398,16 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
           child: TextField(
             controller: _searchController,
             decoration: InputDecoration(
-              hintText: 'ابحث برقم الفاتورة...',
-              hintStyle: TextStyle(color: ParentAppColors.textGrey),
-              prefixIcon: Icon(Icons.search, color: ParentAppColors.primaryTeal),
+              hintText: 'Search by invoice number...',
+              hintStyle: TextStyle(color: AppColors.textGray),
+              prefixIcon: Icon(Icons.search, color: AppColors.primary),
               suffixIcon: _searchController.text.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        _searchController.clear();
-                      },
-                    )
+                icon: const Icon(Icons.clear),
+                onPressed: () {
+                  _searchController.clear();
+                },
+              )
                   : null,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -404,15 +419,15 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
             ),
           ),
         ),
-        
+
         const SizedBox(height: 12),
-        
+
         // Quick Filters
         Row(
           children: [
             Expanded(
               child: _buildFilterChip(
-                'الكل',
+                'All',
                 'all',
                 Icons.all_inclusive,
               ),
@@ -420,7 +435,7 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
             const SizedBox(width: 8),
             Expanded(
               child: _buildFilterChip(
-                'أسبوع',
+                'Week',
                 'week',
                 Icons.calendar_view_week,
               ),
@@ -428,7 +443,7 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
             const SizedBox(width: 8),
             Expanded(
               child: _buildFilterChip(
-                'شهر',
+                'Month',
                 'month',
                 Icons.calendar_month,
               ),
@@ -436,16 +451,16 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
             const SizedBox(width: 8),
             Expanded(
               child: _buildFilterChip(
-                'سنة',
+                'Year',
                 'year',
                 Icons.calendar_today,
               ),
             ),
           ],
         ),
-        
+
         const SizedBox(height: 8),
-        
+
         // Toggle Analytics Button
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
@@ -461,11 +476,11 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
                 size: 18,
               ),
               label: Text(
-                _showAnalytics ? 'إخفاء التحليلات' : 'عرض التحليلات',
+                _showAnalytics ? 'Hide Analytics' : 'Show Analytics',
                 style: const TextStyle(fontSize: 12),
               ),
               style: TextButton.styleFrom(
-                foregroundColor: ParentAppColors.primaryTeal,
+                foregroundColor: AppColors.primary,
               ),
             ),
           ],
@@ -473,10 +488,10 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
       ],
     );
   }
-  
+
   Widget _buildFilterChip(String label, String value, IconData icon) {
     final isSelected = _selectedTimeFilter == value;
-    
+
     return GestureDetector(
       onTap: () {
         setState(() {
@@ -487,40 +502,33 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          gradient: isSelected
-              ? LinearGradient(
-                  colors: [ParentAppColors.primaryTeal, ParentAppColors.mintGreen],
-                )
-              : null,
-          color: isSelected ? null : Colors.white,
+          color: isSelected ? AppColors.primary : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected
                 ? Colors.transparent
-                : ParentAppColors.primaryTeal.withOpacity(0.3),
+                : AppColors.primary.withOpacity(0.3),
           ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: ParentAppColors.primaryTeal.withOpacity(0.3),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : [],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black12.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
           children: [
             Icon(
               icon,
-              color: isSelected ? Colors.white : ParentAppColors.primaryTeal,
+              color: isSelected ? Colors.white : AppColors.primary,
               size: 18,
             ),
             const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? Colors.white : ParentAppColors.textDark,
+                color: isSelected ? Colors.white : AppColors.textDark,
                 fontSize: 11,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
               ),
@@ -530,21 +538,21 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
       ),
     );
   }
-  
+
   Widget _buildAnalyticsCards() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(Icons.analytics, color: ParentAppColors.primaryTeal, size: 20),
+            Icon(Icons.analytics, color: AppColors.primary, size: 20),
             const SizedBox(width: 8),
             const Text(
-              'تحليلات الدفع',
+              'Payment Analytics',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: ParentAppColors.textDark,
+                color: AppColors.textDark,
               ),
             ),
           ],
@@ -554,20 +562,20 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
           children: [
             Expanded(
               child: _buildAnalyticsCard(
-                title: 'متوسط الدفعة',
+                title: 'Average Payment',
                 value: '\$${_avgPayment.toStringAsFixed(2)}',
                 icon: Icons.show_chart,
-                gradient: [ParentAppColors.primaryBlue, ParentAppColors.secondaryLavender],
+                color: AppColors.primary,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _buildAnalyticsCard(
-                title: 'دفعات الشهر',
+                title: 'This Month',
                 value: '$_paymentsThisMonth',
                 subtitle: '\$${_totalThisMonth.toStringAsFixed(2)}',
                 icon: Icons.calendar_month,
-                gradient: [ParentAppColors.secondaryLavender, ParentAppColors.skyBlue],
+                color: Colors.deepPurpleAccent,
               ),
             ),
           ],
@@ -575,30 +583,20 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
       ],
     );
   }
-  
+
   Widget _buildAnalyticsCard({
     required String title,
     required String value,
     String? subtitle,
     required IconData icon,
-    required List<Color> gradient,
+    required Color color,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: gradient,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: gradient[0].withOpacity(0.3),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -609,8 +607,8 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: AppColors.textDark,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -619,18 +617,18 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.3),
+                  color: color.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, color: Colors.white, size: 20),
+                child: Icon(icon, color: color, size: 20),
               ),
             ],
           ),
           const SizedBox(height: 12),
           Text(
             value,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: AppColors.textDark,
               fontSize: 24,
               fontWeight: FontWeight.bold,
             ),
@@ -639,8 +637,8 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
             const SizedBox(height: 4),
             Text(
               subtitle,
-              style: const TextStyle(
-                color: Colors.white70,
+              style: TextStyle(
+                color: AppColors.textGray,
                 fontSize: 12,
               ),
             ),
@@ -657,23 +655,21 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
           children: [
             Expanded(
               child: _buildStatCard(
-                title: 'الفواتير المعلقة',
+                title: 'Pending Invoices',
                 value: '$_pendingCount',
                 subtitle: '\$${_totalPending.toStringAsFixed(2)}',
                 icon: Icons.pending_actions,
-                gradient: [ParentAppColors.warningOrange, ParentAppColors.accentOrange],
-                iconColor: ParentAppColors.softYellow.withOpacity(0.3),
+                color: AppColors.warning,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _buildStatCard(
-                title: 'المدفوع',
+                title: 'Paid',
                 value: '${_paidInvoices.length}',
                 subtitle: '\$${_totalPaid.toStringAsFixed(2)}',
                 icon: Icons.check_circle,
-                gradient: [ParentAppColors.successGreen, ParentAppColors.mintGreen],
-                iconColor: Colors.white.withOpacity(0.3),
+                color: Colors.green,
               ),
             ),
           ],
@@ -689,25 +685,14 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
     required String value,
     required String subtitle,
     required IconData icon,
-    required List<Color> gradient,
-    required Color iconColor,
+    required Color color,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: gradient,
-        ),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: gradient[0].withOpacity(0.3),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -717,8 +702,8 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
             children: [
               Text(
                 title,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: AppColors.textDark,
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                 ),
@@ -726,18 +711,18 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: iconColor,
+                  color: color.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, color: Colors.white, size: 20),
+                child: Icon(icon, color: color, size: 20),
               ),
             ],
           ),
           const SizedBox(height: 12),
           Text(
             value,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: AppColors.textDark,
               fontSize: 28,
               fontWeight: FontWeight.bold,
             ),
@@ -745,8 +730,8 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
           const SizedBox(height: 4),
           Text(
             subtitle,
-            style: const TextStyle(
-              color: Colors.white70,
+            style: TextStyle(
+              color: AppColors.textGray,
               fontSize: 14,
             ),
           ),
@@ -757,23 +742,13 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
 
   Widget _buildTotalCard() {
     final total = _totalPending + _totalPaid;
-    
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [ParentAppColors.primaryTeal, ParentAppColors.primaryBlue],
-        ),
+        color: AppColors.primary.withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: ParentAppColors.primaryTeal.withOpacity(0.4),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
+        border: Border.all(color: AppColors.primary.withOpacity(0.3)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -781,18 +756,18 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'إجمالي المدفوعات',
+              Text(
+                'Total Payments',
                 style: TextStyle(
-                  color: Colors.white70,
+                  color: AppColors.textGray,
                   fontSize: 14,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 '\$${total.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: AppColors.textDark,
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
                 ),
@@ -802,12 +777,12 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: AppColors.primary.withOpacity(0.2),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.account_balance_wallet,
-              color: Colors.white,
+              color: AppColors.primary,
               size: 40,
             ),
           ),
@@ -821,30 +796,19 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [ParentAppColors.accentCoral.withOpacity(0.1), ParentAppColors.softYellow.withOpacity(0.1)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppColors.warning.withOpacity(0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: ParentAppColors.accentCoral.withOpacity(0.3), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: ParentAppColors.accentCoral.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: AppColors.warning.withOpacity(0.3)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: ParentAppColors.accentCoral.withOpacity(0.2),
+              color: AppColors.warning.withOpacity(0.2),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(Icons.notifications_active, color: ParentAppColors.accentCoral, size: 24),
+            child: Icon(Icons.notifications_active, color: AppColors.warning, size: 24),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -852,17 +816,17 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'تنبيه!',
+                  'Alert!',
                   style: TextStyle(
-                    color: ParentAppColors.accentCoral,
+                    color: AppColors.warning,
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),
                 ),
                 Text(
-                  'لديك $_pendingCount فاتورة معلقة',
-                  style: const TextStyle(
-                    color: ParentAppColors.textDark,
+                  'You have $_pendingCount pending invoices',
+                  style: TextStyle(
+                    color: AppColors.textDark,
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   ),
@@ -875,15 +839,14 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
               _tabController.animateTo(0);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: ParentAppColors.accentCoral,
+              backgroundColor: AppColors.warning,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              elevation: 0,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: const Text('ادفع الآن', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('Pay Now', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -903,7 +866,7 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
             ),
             const SizedBox(height: 16),
             Text(
-              isPending == true ? 'لا توجد فواتير معلقة' : 'لا توجد فواتير',
+              isPending == true ? 'No pending invoices' : 'No invoices',
               style: TextStyle(
                 fontSize: 16,
                 color: Colors.grey.shade600,
@@ -925,25 +888,20 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
   }
 
   Widget _buildInvoiceCard(Invoice invoice) {
-    final isPending = invoice.status == 'Pending' || 
-                      invoice.status == 'Overdue' || 
-                      invoice.status == 'Draft';
-    
-    final statusColor = isPending ? ParentAppColors.warningOrange : ParentAppColors.successGreen;
-    final bgColor = isPending ? ParentAppColors.warningOrange.withOpacity(0.08) : ParentAppColors.successGreen.withOpacity(0.08);
-    
+    final isPending = invoice.status == 'Pending' ||
+        invoice.status == 'Overdue' ||
+        invoice.status == 'Draft';
+
+    final statusColor = isPending ? AppColors.warning : Colors.green;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: statusColor.withOpacity(0.3),
-          width: 1.5,
-        ),
         boxShadow: [
           BoxShadow(
-            color: statusColor.withOpacity(0.1),
+            color: Colors.black12.withOpacity(0.05),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -954,11 +912,7 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
         leading: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [bgColor, statusColor.withOpacity(0.15)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            color: statusColor.withOpacity(0.1),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: statusColor.withOpacity(0.2)),
           ),
@@ -1024,40 +978,23 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
             ),
             if (isPending) ...[
               const SizedBox(height: 8),
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [ParentAppColors.accentCoral, ParentAppColors.warningOrange],
+              ElevatedButton(
+                onPressed: () => _navigateToPayment(invoice),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  borderRadius: BorderRadius.circular(10),
-                  boxShadow: [
-                    BoxShadow(
-                      color: ParentAppColors.accentCoral.withOpacity(0.3),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
                 ),
-                child: ElevatedButton(
-                  onPressed: () => _navigateToPayment(invoice),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    elevation: 0,
-                    minimumSize: Size.zero,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.payment, size: 14),
-                      SizedBox(width: 4),
-                      Text('ادفع', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.payment, size: 14),
+                    SizedBox(width: 4),
+                    Text('Pay', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  ],
                 ),
               ),
             ],
@@ -1068,10 +1005,9 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
   }
 
   void _navigateToPayment(Invoice invoice) {
-    // TODO: Navigate to payment screen
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('سيتم فتح صفحة الدفع للفاتورة ${invoice.invoiceNumber}'),
+        content: Text('Opening payment page for invoice ${invoice.invoiceNumber}'),
         backgroundColor: Colors.blue,
       ),
     );
@@ -1082,26 +1018,26 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
       case 'paid':
         return Colors.green;
       case 'pending':
-        return Colors.orange;
+        return AppColors.warning;
       case 'overdue':
         return Colors.red;
       case 'draft':
         return Colors.grey;
       default:
-        return Colors.blue;
+        return AppColors.primary;
     }
   }
 
   String _getStatusText(String status) {
     switch (status.toLowerCase()) {
       case 'paid':
-        return 'مدفوع';
+        return 'Paid';
       case 'pending':
-        return 'معلق';
+        return 'Pending';
       case 'overdue':
-        return 'متأخر';
+        return 'Overdue';
       case 'draft':
-        return 'مسودة';
+        return 'Draft';
       default:
         return status;
     }

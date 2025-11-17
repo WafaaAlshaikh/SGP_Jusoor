@@ -24,6 +24,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final response = await ApiService.login({'email': email.trim(), 'password': password});
     setState(() => isLoading = false);
 
+
     final message = response['message'] ?? 'Unknown error';
     final success = response['token'] != null;
 
@@ -34,6 +35,15 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
 
+
+    // في دالة submit بعد response
+    print('=== LOGIN RESPONSE ===');
+    print('Success: ${response['success']}');
+    print('Message: ${response['message']}');
+    print('Token: ${response['token']}');
+    print('User Role: ${response['user']?['role']}');
+    print('User Status: ${response['user']?['status']}');
+    print('=====================');
     if (success && mounted) {
       final prefs = await SharedPreferences.getInstance();
 

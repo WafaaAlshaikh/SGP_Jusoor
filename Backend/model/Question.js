@@ -23,13 +23,21 @@ const Question = sequelize.define('Question', {
     type: DataTypes.TEXT,
     allowNull: false
   },
+  question_text_ar: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
   question_type: {
     type: DataTypes.ENUM('Multiple Choice', 'Scale', 'Yes/No', 'Text'),
     defaultValue: 'Multiple Choice'
   },
   options: {
     type: DataTypes.JSON,
-    allowNull: true // {options: ['Never', 'Rarely', 'Sometimes', 'Often', 'Always']}
+    allowNull: true
+  },
+  options_ar: {
+    type: DataTypes.JSON,
+    allowNull: true
   },
   weight: {
     type: DataTypes.DECIMAL(3, 2),
@@ -37,11 +45,11 @@ const Question = sequelize.define('Question', {
   },
   target_conditions: {
     type: DataTypes.JSON,
-    allowNull: true // ['ADHD', 'ASD', 'Speech Delay']
+    allowNull: true
   },
   next_question_logic: {
     type: DataTypes.JSON,
-    allowNull: true 
+    allowNull: true
   },
   min_age: {
     type: DataTypes.INTEGER,

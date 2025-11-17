@@ -94,4 +94,139 @@ class SpecialistService {
     final data = jsonDecode(response.body);
     return data['children_count'] ?? 0;
   }
+
+  // ✅ جلب الأطفال المؤهلين (نفس المؤسسة + نفس الحالة)
+  static Future<Map<String, dynamic>> getEligibleChildren() async {
+    try {
+      final token = await _getToken();
+      if (token == null) throw Exception('No token found');
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/eligible-children'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to load eligible children: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error in getEligibleChildren: $e');
+      rethrow;
+    }
+  }
+
+  // ✅ جلب أنواع الجلسات المتاحة
+  static Future<Map<String, dynamic>> getAvailableSessionTypes({String? condition}) async {
+    try {
+      final token = await _getToken();
+      if (token == null) throw Exception('No token found');
+
+      String url = '$baseUrl/available-session-types';
+      if (condition != null && condition.isNotEmpty) {
+        url += '?condition=$condition';
+      }
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to load session types: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error in getAvailableSessionTypes: $e');
+      rethrow;
+    }
+  }
+
+  // ✅ إضافة جلسات لعدة أطفال
+  static Future<Map<String, dynamic>> addSessionsForChildren({
+    required List<int> childIds,
+    required int sessionTypeId,
+    required String date,
+    required String time,
+    String sessionType = 'Onsite',
+    String? notes,
+  }) async {
+    try {
+      final token = await _getToken();
+      if (token == null) throw Exception('No token found');
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/add-sessions'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'child_ids': childIds,
+          'session_type_id': sessionTypeId,
+          'date': date,
+          'time': time,
+          'session_type': sessionType,
+          'notes': notes,
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        return jsonDecode(response.body);
+      } else {
+        final error = jsonDecode(response.body);
+        throw Exception(error['message'] ?? 'Failed to add sessions');
+      }
+    } catch (e) {
+      print('❌ Error in addSessionsForChildren: $e');
+      rethrow;
+    }
+  }
+
+  // ✅ إضافة نوع جلسة جديد
+  static Future<Map<String, dynamic>> addSessionType({
+    required String name,
+    required int duration,
+    required double price,
+    required String category,
+    List<String>? targetConditions,
+  }) async {
+    try {
+      final token = await _getToken();
+      if (token == null) throw Exception('No token found');
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/add-session-type'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'name': name,
+          'duration': duration,
+          'price': price,
+          'category': category,
+          'target_conditions': targetConditions,
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        return jsonDecode(response.body);
+      } else {
+        final error = jsonDecode(response.body);
+        throw Exception(error['message'] ?? 'Failed to add session type');
+      }
+    } catch (e) {
+      print('❌ Error in addSessionType: $e');
+      rethrow;
+    }
+  }
 }

@@ -572,7 +572,7 @@ class ChatService {
 
       print('🔄 Auto-syncing Firebase for user: $userName ($userEmail)');
 
-      final firebaseEmail = 'user_${userId}@jusoor.com';
+      final firebaseEmail = userEmail;
       // ✅ استخدام password ثابت متطابق مع auth_sync_service
       final firebasePassword = 'jusoor_user_${userId}_fixed_password';
 

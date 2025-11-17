@@ -67,4 +67,4 @@ const Questionnaire = sequelize.define('Questionnaire', {
 Questionnaire.belongsTo(User, { foreignKey: 'parent_id' });
 Questionnaire.belongsTo(Child, { foreignKey: 'child_id' });
 
-module.exports = Questionnaire; 
+module.exports = Questionnaire;

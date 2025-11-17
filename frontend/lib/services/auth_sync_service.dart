@@ -29,8 +29,7 @@ class AuthSyncService {
 
       print('🔄 مزامنة المستخدم الحقيقي: $userName ($userEmail)');
 
-      final firebaseEmail = 'user_${userId}@jusoor.com';
-      // ✅ استخدام password ثابت بدلاً من token المتغير
+      final firebaseEmail = userEmail; // استخدم البريد الحقيقي
       final firebasePassword = 'jusoor_user_${userId}_fixed_password';
 
       try {

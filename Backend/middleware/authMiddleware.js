@@ -10,7 +10,7 @@
 
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        req.user = decoded; // user_id و role موجودين هنا
+        req.user = decoded; 
         next();
       } catch (err) {
         return res.status(401).json({ message: 'Invalid token' });
@@ -20,9 +20,8 @@
 
 
     // middleware/paymentValidation.js
-const Joi = require('joi');
+const Joi = require('joi'); 
 
-// التحقق من صحة بيانات الدفع
 exports.validatePayment = (req, res, next) => {
   const schema = Joi.object({
     invoice_id: Joi.number().integer().required(),
@@ -47,7 +46,6 @@ exports.validatePayment = (req, res, next) => {
   next();
 };
 
-// التحقق من بيانات البطاقة
 exports.validateCard = (req, res, next) => {
   const schema = Joi.object({
     card_number: Joi.string().creditCard().required(),

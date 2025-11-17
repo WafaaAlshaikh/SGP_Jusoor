@@ -28,6 +28,18 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
   String _selectedRegistrationStatus = 'All';
   ChildSortOption _sortOption = ChildSortOption.name;
 
+  // نظام الألوان المتناسق مع التطبيق
+  final Color _primaryColor = const Color(0xFF7815A0);
+  final Color _secondaryColor = const Color(0xFF976EF4);
+  final Color _accentColor = const Color(0xFFCAA9F8);
+  final Color _backgroundColor = const Color(0xFFF8F9FA);
+  final Color _surfaceColor = Colors.white;
+  final Color _textPrimary = const Color(0xFF212529);
+  final Color _textSecondary = const Color(0xFF6C757D);
+  final Color _successColor = const Color(0xFF4CAF50);
+  final Color _warningColor = const Color(0xFFFF9800);
+  final Color _errorColor = const Color(0xFFF44336);
+
   @override
   void initState() {
     super.initState();
@@ -98,7 +110,9 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to load children: $e'),
-          backgroundColor: Colors.red,
+          backgroundColor: _errorColor,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
     }
@@ -169,7 +183,9 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(child == null ? 'Child added successfully!' : 'Child updated successfully!'),
-          backgroundColor: Colors.green,
+          backgroundColor: _successColor,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
     }
@@ -178,50 +194,74 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
   void _confirmDelete(Child child) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
+      builder: (ctx) => Dialog(
+        backgroundColor: _surfaceColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.red.shade400),
-            const SizedBox(width: 12),
-            Text('Confirm Deletion', style: TextStyle(
-              color: Colors.red.shade700,
-              fontWeight: FontWeight.w600,
-              fontSize: 18,
-            )),
-          ],
-        ),
-        content: Text(
-          'Are you sure you want to permanently delete ${child.fullName}? This action cannot be undone.',
-          style: TextStyle(
-            color: Colors.grey.shade700,
-            fontSize: 15,
-            height: 1.4,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: _errorColor.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.delete_outline, color: _errorColor, size: 30),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Delete Child?',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: _textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Are you sure you want to delete ${child.fullName}? This action cannot be undone.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: _textSecondary,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _textSecondary,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        side: BorderSide(color: _textSecondary.withOpacity(0.3)),
+                      ),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _errorColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Delete'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.grey.shade600,
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            ),
-            child: Text('Cancel', style: TextStyle(fontWeight: FontWeight.w500)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.shade500,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            ),
-            child: Text('Delete', style: TextStyle(fontWeight: FontWeight.w600)),
-          ),
-        ],
       ),
     );
 
@@ -237,7 +277,7 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('${child.fullName} deleted successfully'),
-            backgroundColor: Colors.green.shade500,
+            backgroundColor: _successColor,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
@@ -246,7 +286,7 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Delete failed: $e'),
-            backgroundColor: Colors.red.shade500,
+            backgroundColor: _errorColor,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
@@ -258,9 +298,9 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
   void _showFilterDialog() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: _surfaceColor,
       isScrollControlled: true,
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
@@ -270,6 +310,17 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: _textSecondary.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -278,28 +329,28 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
-                      color: Colors.grey.shade800,
+                      color: _textPrimary,
                     ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: Icon(Icons.close_rounded, size: 24, color: Colors.grey.shade600),
+                    icon: Icon(Icons.close_rounded, size: 24, color: _textSecondary),
                     style: IconButton.styleFrom(
-                      backgroundColor: Colors.grey.shade100,
-                      padding: EdgeInsets.all(8),
+                      backgroundColor: _backgroundColor,
+                      padding: const EdgeInsets.all(8),
                     ),
                   ),
                 ],
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Text(
                 'Refine your children list',
                 style: TextStyle(
-                  color: Colors.grey.shade600,
+                  color: _textSecondary,
                   fontSize: 14,
                 ),
               ),
-              SizedBox(height: 24),
+              const SizedBox(height: 24),
 
               _buildFilterSection(
                 title: 'Condition',
@@ -311,7 +362,7 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                 },
               ),
 
-              SizedBox(height: 24),
+              const SizedBox(height: 24),
 
               _buildFilterSection(
                 title: 'Registration Status',
@@ -323,11 +374,11 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                 },
               ),
 
-              SizedBox(height: 24),
+              const SizedBox(height: 24),
 
               _buildSortSection(),
 
-              SizedBox(height: 32),
+              const SizedBox(height: 32),
 
               Row(
                 children: [
@@ -343,15 +394,15 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                         _fetchChildren();
                       },
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.grey.shade700,
-                        padding: EdgeInsets.symmetric(vertical: 16),
+                        foregroundColor: _textSecondary,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        side: BorderSide(color: Colors.grey.shade300),
+                        side: BorderSide(color: _textSecondary.withOpacity(0.3)),
                       ),
-                      child: Text('Reset All', style: TextStyle(fontWeight: FontWeight.w600)),
+                      child: const Text('Reset All'),
                     ),
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
@@ -359,13 +410,12 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                         _fetchChildren();
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).primaryColor,
+                        backgroundColor: _primaryColor,
                         foregroundColor: Colors.white,
-                        padding: EdgeInsets.symmetric(vertical: 16),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 0,
                       ),
-                      child: Text('Apply Filters', style: TextStyle(fontWeight: FontWeight.w600)),
+                      child: const Text('Apply Filters'),
                     ),
                   ),
                 ],
@@ -390,49 +440,47 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
       children: [
         Row(
           children: [
-            Icon(icon, size: 20, color: Theme.of(context).primaryColor),
-            SizedBox(width: 8),
+            Icon(icon, size: 20, color: _primaryColor),
+            const SizedBox(width: 8),
             Text(
               title,
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 16,
-                color: Colors.grey.shade800,
+                color: _textPrimary,
               ),
             ),
           ],
         ),
-        SizedBox(height: 12),
+        const SizedBox(height: 12),
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: options.map((option) {
             final isSelected = selectedValue == option;
-            return ChoiceChip(
+            return FilterChip(
               label: Text(
                 option,
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
-                  color: isSelected ? Colors.white : Colors.grey.shade700,
+                  color: isSelected ? Colors.white : _textPrimary,
                 ),
               ),
               selected: isSelected,
               onSelected: (selected) {
                 onChanged(selected ? option : 'All');
               },
-              backgroundColor: Colors.grey.shade100,
-              selectedColor: Theme.of(context).primaryColor,
+              backgroundColor: _backgroundColor,
+              selectedColor: _primaryColor,
+              checkmarkColor: Colors.white,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(8),
                 side: BorderSide(
-                  color: isSelected ? Theme.of(context).primaryColor : Colors.grey.shade300,
-                  width: 1,
+                  color: isSelected ? _primaryColor : _textSecondary.withOpacity(0.2),
                 ),
               ),
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              labelPadding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             );
           }).toList(),
         ),
@@ -447,60 +495,60 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
       children: [
         Row(
           children: [
-            Icon(Icons.sort_rounded, size: 20, color: Theme.of(context).primaryColor),
-            SizedBox(width: 8),
+            Icon(Icons.sort_rounded, size: 20, color: _primaryColor),
+            const SizedBox(width: 8),
             Text(
               'Sort By',
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 16,
-                color: Colors.grey.shade800,
+                color: _textPrimary,
               ),
             ),
           ],
         ),
-        SizedBox(height: 12),
+        const SizedBox(height: 12),
         Container(
           decoration: BoxDecoration(
-            color: Colors.grey.shade50,
+            color: _backgroundColor,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade200),
+            border: Border.all(color: _textSecondary.withOpacity(0.2)),
           ),
           child: Column(
             children: ChildSortOption.values.map((option) {
               final isSelected = _sortOption == option;
               return ListTile(
                 dense: true,
-                contentPadding: EdgeInsets.symmetric(horizontal: 16),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                 leading: Radio<ChildSortOption>(
                   value: option,
                   groupValue: _sortOption,
                   onChanged: (value) {
                     setState(() => _sortOption = value!);
                   },
-                  activeColor: Theme.of(context).primaryColor,
+                  activeColor: _primaryColor,
                 ),
                 title: Text(
                   _getSortOptionText(option),
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                    color: isSelected ? Theme.of(context).primaryColor : Colors.grey.shade700,
+                    color: isSelected ? _primaryColor : _textPrimary,
                   ),
                 ),
                 trailing: isSelected ? Icon(
                   Icons.check_circle_rounded,
                   size: 20,
-                  color: Theme.of(context).primaryColor,
+                  color: _primaryColor,
                 ) : null,
                 onTap: () {
                   setState(() => _sortOption = option);
                 },
                 shape: RoundedRectangleBorder(
                   borderRadius: option == ChildSortOption.values.first
-                      ? BorderRadius.vertical(top: Radius.circular(12))
+                      ? const BorderRadius.vertical(top: Radius.circular(12))
                       : option == ChildSortOption.values.last
-                      ? BorderRadius.vertical(bottom: Radius.circular(12))
+                      ? const BorderRadius.vertical(bottom: Radius.circular(12))
                       : BorderRadius.zero,
                 ),
               );
@@ -529,9 +577,9 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: _surfaceColor,
       isScrollControlled: true,
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
@@ -540,6 +588,17 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: _textSecondary.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -548,35 +607,36 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
-                      color: Colors.grey.shade800,
+                      color: _textPrimary,
                     ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: Icon(Icons.close_rounded, size: 24, color: Colors.grey.shade600),
+                    icon: Icon(Icons.close_rounded, size: 24, color: _textSecondary),
                     style: IconButton.styleFrom(
-                      backgroundColor: Colors.grey.shade100,
-                      padding: EdgeInsets.all(8),
+                      backgroundColor: _backgroundColor,
+                      padding: const EdgeInsets.all(8),
                     ),
                   ),
                 ],
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               TextField(
                 autofocus: true,
                 decoration: InputDecoration(
                   hintText: 'Enter child name...',
+                  hintStyle: TextStyle(color: _textSecondary),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
+                    borderSide: BorderSide(color: _textSecondary.withOpacity(0.2)),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 2),
+                    borderSide: BorderSide(color: _primaryColor, width: 2),
                   ),
-                  prefixIcon: Icon(Icons.search_rounded, color: Colors.grey.shade500),
+                  prefixIcon: Icon(Icons.search_rounded, color: _textSecondary),
                   filled: true,
-                  fillColor: Colors.grey.shade50,
+                  fillColor: _backgroundColor,
                 ),
                 onChanged: (value) {
                   tempSearchQuery = value;
@@ -587,23 +647,23 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                 },
               ),
               if (_searchQuery.isNotEmpty) ...[
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 Container(
-                  padding: EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
+                    color: _primaryColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.info_outline_rounded, size: 16, color: Colors.blue.shade600),
-                      SizedBox(width: 8),
+                      Icon(Icons.info_outline_rounded, size: 16, color: _primaryColor),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'Current search: "$_searchQuery"',
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.blue.shade700,
+                            color: _primaryColor,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -612,7 +672,7 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                   ),
                 ),
               ],
-              SizedBox(height: 24),
+              const SizedBox(height: 24),
               Row(
                 children: [
                   if (_searchQuery.isNotEmpty)
@@ -623,15 +683,15 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                           Navigator.pop(context);
                         },
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.grey.shade700,
-                          padding: EdgeInsets.symmetric(vertical: 16),
+                          foregroundColor: _textSecondary,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          side: BorderSide(color: Colors.grey.shade300),
+                          side: BorderSide(color: _textSecondary.withOpacity(0.3)),
                         ),
-                        child: Text('Clear Search', style: TextStyle(fontWeight: FontWeight.w600)),
+                        child: const Text('Clear Search'),
                       ),
                     ),
-                  if (_searchQuery.isNotEmpty) SizedBox(width: 12),
+                  if (_searchQuery.isNotEmpty) const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
@@ -639,13 +699,12 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                         Navigator.pop(context);
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).primaryColor,
+                        backgroundColor: _primaryColor,
                         foregroundColor: Colors.white,
-                        padding: EdgeInsets.symmetric(vertical: 16),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 0,
                       ),
-                      child: Text('Search', style: TextStyle(fontWeight: FontWeight.w600)),
+                      child: const Text('Search'),
                     ),
                   ),
                 ],
@@ -670,7 +729,8 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: RoundedRectangleBorder(
+      backgroundColor: _surfaceColor,
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
@@ -679,45 +739,80 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: _textSecondary.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
                     'Quick Symptoms Analysis',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: _textPrimary,
+                    ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: Icon(Icons.close),
+                    icon: Icon(Icons.close, color: _textSecondary),
                   ),
                 ],
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               TextFormField(
                 maxLines: 4,
                 decoration: InputDecoration(
                   labelText: 'Describe symptoms...',
-                  border: OutlineInputBorder(),
+                  labelStyle: TextStyle(color: _textSecondary),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: _textSecondary.withOpacity(0.2)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: _primaryColor, width: 2),
+                  ),
                   hintText: 'e.g., لا يتكلم، حركات متكررة، صعوبة تواصل...',
+                  hintStyle: TextStyle(color: _textSecondary.withOpacity(0.6)),
                 ),
                 onChanged: (value) => symptomsText = value,
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () => Navigator.pop(context),
-                      child: Text('Cancel'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _textSecondary,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        side: BorderSide(color: _textSecondary.withOpacity(0.3)),
+                      ),
+                      child: const Text('Cancel'),
                     ),
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () async {
                         if (symptomsText.trim().isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Please describe symptoms')),
+                            SnackBar(
+                              content: const Text('Please describe symptoms'),
+                              backgroundColor: _warningColor,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
                           );
                           return;
                         }
@@ -725,7 +820,13 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                         Navigator.pop(context);
                         await _analyzeSymptoms(symptomsText);
                       },
-                      child: Text('Analyze Symptoms'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Analyze Symptoms'),
                     ),
                   ),
                 ],
@@ -754,7 +855,9 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(result['message'] ?? 'Analysis failed'),
-            backgroundColor: Colors.red,
+            backgroundColor: _errorColor,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         );
       }
@@ -762,7 +865,9 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error: $e'),
-          backgroundColor: Colors.red,
+          backgroundColor: _errorColor,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
     } finally {
@@ -775,59 +880,113 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
   void _showSymptomsAnalysisResult(Map<String, dynamic> result) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Symptoms Analysis Results'),
-        content: SingleChildScrollView(
+      builder: (context) => Dialog(
+        backgroundColor: _surfaceColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (result['symptoms_analysis'] != null) ...[
-                Text('Suggested Conditions:',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                SizedBox(height: 8),
-                ..._buildAnalysisConditions(result['symptoms_analysis']),
-              ],
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: _primaryColor.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.psychology, color: _primaryColor, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Symptoms Analysis Results',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: _textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (result['symptoms_analysis'] != null) ...[
+                        Text('Suggested Conditions:',
+                            style: TextStyle(fontWeight: FontWeight.w600, color: _textPrimary)),
+                        const SizedBox(height: 8),
+                        ..._buildAnalysisConditions(result['symptoms_analysis']),
+                      ],
 
-              if (result['recommended_institutions'] != null &&
-                  result['recommended_institutions'].isNotEmpty) ...[
-                SizedBox(height: 16),
-                Text('Recommended Institutions:',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                SizedBox(height: 8),
-                ..._buildAnalysisInstitutions(result['recommended_institutions']),
-              ],
+                      if (result['recommended_institutions'] != null &&
+                          result['recommended_institutions'].isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        Text('Recommended Institutions:',
+                            style: TextStyle(fontWeight: FontWeight.w600, color: _textPrimary)),
+                        const SizedBox(height: 8),
+                        ..._buildAnalysisInstitutions(result['recommended_institutions']),
+                      ],
 
-              if (result['next_steps'] != null) ...[
-                SizedBox(height: 16),
-                Text('Next Steps:', style: TextStyle(fontWeight: FontWeight.bold)),
-                SizedBox(height: 8),
-                if (result['next_steps'] is List)
-                  ...(result['next_steps'] as List).map<Widget>((step) {
-                    return Padding(
-                      padding: EdgeInsets.symmetric(vertical: 2),
-                      child: Text('• $step'),
-                    );
-                  }).toList()
-                else
-                  Text(result['next_steps'].toString()),
-              ],
+                      if (result['next_steps'] != null) ...[
+                        const SizedBox(height: 16),
+                        Text('Next Steps:', style: TextStyle(fontWeight: FontWeight.w600, color: _textPrimary)),
+                        const SizedBox(height: 8),
+                        if (result['next_steps'] is List)
+                          ...(result['next_steps'] as List).map<Widget>((step) {
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              child: Text('• $step', style: TextStyle(color: _textSecondary)),
+                            );
+                          }).toList()
+                        else
+                          Text(result['next_steps'].toString(), style: TextStyle(color: _textSecondary)),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _textSecondary,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        side: BorderSide(color: _textSecondary.withOpacity(0.3)),
+                      ),
+                      child: const Text('OK'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _openAddEditChild();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Add Child'),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('OK'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _openAddEditChild();
-            },
-            child: Text('Add Child with These Symptoms'),
-          ),
-        ],
       ),
     );
   }
@@ -835,24 +994,54 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
   List<Widget> _buildAnalysisConditions(Map<String, dynamic> analysis) {
     final conditions = analysis['suggested_conditions'] ?? [];
     return conditions.map<Widget>((condition) {
-      return ListTile(
-        dense: true,
-        contentPadding: EdgeInsets.zero,
-        leading: Icon(Icons.medical_services, size: 16),
-        title: Text(condition['arabic_name'] ?? condition['name'] ?? 'Unknown'),
-        trailing: Text('${(condition['confidence'] * 100).toStringAsFixed(1)}%'),
+      return Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: _backgroundColor,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.medical_services, size: 16, color: _primaryColor),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(condition['arabic_name'] ?? condition['name'] ?? 'Unknown',
+                  style: TextStyle(fontSize: 14, color: _textPrimary)),
+            ),
+            Text('${(condition['confidence'] * 100).toStringAsFixed(1)}%',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _primaryColor)),
+          ],
+        ),
       );
     }).toList();
   }
 
   List<Widget> _buildAnalysisInstitutions(List<dynamic> institutions) {
     return institutions.map<Widget>((inst) {
-      return ListTile(
-        dense: true,
-        contentPadding: EdgeInsets.zero,
-        leading: Icon(Icons.school, size: 16),
-        title: Text(inst['name'] ?? 'Unknown'),
-        subtitle: Text('Match: ${inst['match_score']}%'),
+      return Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: _backgroundColor,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.school, size: 16, color: _primaryColor),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(inst['name'] ?? 'Unknown', style: TextStyle(fontSize: 14, color: _textPrimary)),
+                  Text('Match: ${inst['match_score']}%',
+                      style: TextStyle(fontSize: 12, color: _textSecondary)),
+                ],
+              ),
+            ),
+          ],
+        ),
       );
     }).toList();
   }
@@ -866,19 +1055,19 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w500,
-            color: Colors.orange.shade700,
+            color: _primaryColor,
           ),
         ),
-        backgroundColor: Colors.orange.shade50,
-        deleteIcon: Icon(Icons.close_rounded, size: 16, color: Colors.orange.shade600),
+        backgroundColor: _primaryColor.withOpacity(0.1),
+        deleteIcon: Icon(Icons.close_rounded, size: 16, color: _primaryColor),
         onDeleted: onRemove,
         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
         visualDensity: VisualDensity.compact,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: Colors.orange.shade200),
+          side: BorderSide(color: _primaryColor.withOpacity(0.3)),
         ),
-        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       ),
     );
   }
@@ -889,65 +1078,31 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 120,
-            height: 120,
+            width: 80,
+            height: 80,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: _primaryColor.withOpacity(0.1),
               shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 12,
-                  offset: Offset(0, 4),
-                ),
-              ],
             ),
-            child: Stack(
-              children: [
-                Center(
-                  child: Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Theme.of(context).primaryColor.withOpacity(0.1),
-                          Theme.of(context).primaryColor.withOpacity(0.05),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-                Center(
-                  child: SizedBox(
-                    width: 48,
-                    height: 48,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 3,
-                      valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColor),
-                    ),
-                  ),
-                ),
-              ],
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              valueColor: AlwaysStoppedAnimation<Color>(_primaryColor),
             ),
           ),
-          SizedBox(height: 24),
+          const SizedBox(height: 16),
           Text(
             'Loading Children',
             style: TextStyle(
-              fontSize: 18,
-              color: Colors.grey.shade700,
+              fontSize: 16,
+              color: _textPrimary,
               fontWeight: FontWeight.w600,
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
             'Please wait while we fetch your children',
             style: TextStyle(
-              color: Colors.grey.shade500,
+              color: _textSecondary,
               fontSize: 14,
             ),
           ),
@@ -959,17 +1114,15 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
   Widget _buildChildrenList() {
     return RefreshIndicator(
       onRefresh: _fetchChildren,
-      color: Theme.of(context).primaryColor,
-      backgroundColor: Colors.white,
-      displacement: 20,
-      edgeOffset: 10,
+      color: _primaryColor,
+      backgroundColor: _surfaceColor,
       child: ListView.builder(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         itemCount: _filteredChildren.length,
         itemBuilder: (ctx, idx) {
           final child = _filteredChildren[idx];
           return Container(
-            margin: EdgeInsets.only(bottom: 12),
+            margin: const EdgeInsets.only(bottom: 12),
             child: ChildCard(
               child: child,
               onView: () => ChildBottomSheet.show(context, child: child),
@@ -984,10 +1137,8 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final Color primaryColor = Theme.of(context).primaryColor;
-
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
+      backgroundColor: _backgroundColor,
       appBar: AppBar(
         title: Text(
           'Children Management',
@@ -998,7 +1149,7 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
           ),
         ),
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => Navigator.maybePop(context),
           style: IconButton.styleFrom(
             backgroundColor: Colors.white.withOpacity(0.2),
@@ -1006,7 +1157,7 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
         ),
         actions: [
           Container(
-            margin: EdgeInsets.only(right: 8),
+            margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.15),
               borderRadius: BorderRadius.circular(12),
@@ -1016,7 +1167,7 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                 IconButton(
                   icon: Icon(
                     Icons.search_rounded,
-                    color: _searchQuery.isNotEmpty ? Colors.orange.shade200 : Colors.white,
+                    color: _searchQuery.isNotEmpty ? _accentColor : Colors.white,
                   ),
                   onPressed: _showSearchDialog,
                   tooltip: 'Search',
@@ -1030,7 +1181,7 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                   icon: Icon(
                     Icons.filter_list_rounded,
                     color: _selectedCondition != 'All' || _selectedRegistrationStatus != 'All'
-                        ? Colors.blue.shade200
+                        ? _accentColor
                         : Colors.white,
                   ),
                   onPressed: _showFilterDialog,
@@ -1041,9 +1192,8 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
           ),
         ],
         elevation: 0,
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
+        backgroundColor: _primaryColor,
+        shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(bottom: Radius.circular(16)),
         ),
       ),
@@ -1054,22 +1204,22 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
           if (_selectedCondition != 'All' || _selectedRegistrationStatus != 'All' || _searchQuery.isNotEmpty)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              margin: EdgeInsets.fromLTRB(16, 8, 16, 0),
+              margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: _surfaceColor,
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.05),
                     blurRadius: 8,
-                    offset: Offset(0, 2),
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
               child: Row(
                 children: [
-                  Icon(Icons.filter_alt_rounded, size: 16, color: Colors.orange.shade600),
-                  SizedBox(width: 8),
+                  Icon(Icons.filter_alt_rounded, size: 16, color: _primaryColor),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
@@ -1103,13 +1253,13 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                       _fetchChildren();
                     },
                     style: TextButton.styleFrom(
-                      foregroundColor: Colors.orange.shade600,
-                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      foregroundColor: _primaryColor,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     ),
                     child: Row(
                       children: [
                         Icon(Icons.clear_all_rounded, size: 16),
-                        SizedBox(width: 4),
+                        const SizedBox(width: 4),
                         Text('Clear All', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                       ],
                     ),
@@ -1133,25 +1283,25 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           Container(
-            margin: EdgeInsets.only(bottom: 16),
+            margin: const EdgeInsets.only(bottom: 16),
             child: FloatingActionButton(
               onPressed: _showQuickSymptomsSearch,
-              backgroundColor: Colors.purple,
+              backgroundColor: _secondaryColor,
               foregroundColor: Colors.white,
               elevation: 4,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               heroTag: 'symptoms_search',
-              child: Icon(Icons.psychology_outlined, size: 24),
+              child: const Icon(Icons.psychology_outlined, size: 24),
             ),
           ),
           FloatingActionButton(
             onPressed: () => _openAddEditChild(),
-            backgroundColor: Theme.of(context).primaryColor,
+            backgroundColor: _primaryColor,
             foregroundColor: Colors.white,
             elevation: 4,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             heroTag: 'add_child',
-            child: Icon(Icons.add_rounded, size: 28),
+            child: const Icon(Icons.add_rounded, size: 28),
           ),
         ],
       ),

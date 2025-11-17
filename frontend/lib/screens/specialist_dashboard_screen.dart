@@ -21,6 +21,7 @@ import 'package:frontend/screens/chat_list_screen.dart';
 import 'package:frontend/screens/ai_insights_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/activity_service.dart';
+import 'add_session_screen.dart';
 
 class SpecialistDashboardScreen extends StatefulWidget {
   const SpecialistDashboardScreen({Key? key}) : super(key: key);

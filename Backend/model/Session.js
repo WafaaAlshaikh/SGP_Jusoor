@@ -77,7 +77,23 @@ const Session = sequelize.define('Session', {
   is_first_booking: { type: DataTypes.BOOLEAN, defaultValue: false }, 
   approved_by_manager_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: true }, 
   manager_approval_date: { type: DataTypes.DATE, allowNull: true }, 
-  manager_notes: { type: DataTypes.TEXT, allowNull: true } 
+  manager_notes: { type: DataTypes.TEXT, allowNull: true },
+is_paid: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  payment_status: {
+    type: DataTypes.ENUM('Pending', 'Paid', 'Refunded', 'Failed'),
+    defaultValue: 'Pending'
+  },
+  payment_date: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },  // ✅ تقييمات الجلسة - سيتم إضافتها لاحقاً بعد migration
+  // parent_rating: { type: DataTypes.DECIMAL(2, 1), allowNull: true },
+  // parent_review: { type: DataTypes.TEXT, allowNull: true },
+  // specialist_rating: { type: DataTypes.DECIMAL(2, 1), allowNull: true },
+  // cancellation_reason: { type: DataTypes.TEXT, allowNull: true } 
 }, { 
   tableName: 'Sessions', 
   timestamps: false 

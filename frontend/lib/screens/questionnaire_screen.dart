@@ -4,7 +4,10 @@ import '../services/api_service.dart';
 import '../models/questionnaire_model.dart';
 
 class QuestionnaireScreen extends StatefulWidget {
-  const QuestionnaireScreen({super.key});
+  final String? childId;
+  final String? childName;
+
+  const QuestionnaireScreen({super.key, this.childId, this.childName});
 
   @override
   State<QuestionnaireScreen> createState() => _QuestionnaireScreenState();
@@ -15,8 +18,10 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   Map<String, dynamic> _responses = {};
   bool _isLoading = true;
   int _currentQuestionIndex = 0;
-  String? _selectedChildId;
   String _errorMessage = '';
+  String _language = 'ar';
+  double _progress = 0.0;
+  String? _currentQuestionnaireId;
 
   @override
   void initState() {
@@ -26,33 +31,39 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
   Future<void> _loadQuestions() async {
     try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = '';
+      });
+
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token') ?? '';
 
       if (token.isEmpty) {
         setState(() {
-          _errorMessage = 'Please login again';
+          _errorMessage = 'يرجى تسجيل الدخول مرة أخرى';
           _isLoading = false;
         });
         return;
       }
 
-      final questions = await ApiService.getScreeningQuestions(
-          token,
-          childId: _selectedChildId,
-          previousAnswers: _responses
+      final questions = await ApiService.getQuestionnaireQuestions(
+        token,
+        childId: widget.childId,
+        previousAnswers: _responses,
+        language: _language,
       );
 
       setState(() {
         _questions = questions;
         _isLoading = false;
-        _errorMessage = '';
+        _progress = _calculateProgress();
       });
     } catch (e) {
-      print('Error loading questions: $e');
+      print('❌ خطأ في تحميل الأسئلة: $e');
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Failed to load questions: $e';
+        _errorMessage = 'فشل في تحميل الأسئلة: $e';
       });
     }
   }
@@ -61,19 +72,18 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     setState(() {
       _responses[questionId] = {
         'answer': answer,
+        'category': category,
         'timestamp': DateTime.now().toIso8601String(),
-        'category': category
       };
+      _progress = _calculateProgress();
     });
 
-    // الانتقال للسؤال التالي تلقائياً بعد ثانية
-    Future.delayed(Duration(milliseconds: 500), () {
-      if (_currentQuestionIndex < _questions.length - 1) {
+    // الانتقال التلقائي بعد حفظ الإجابة
+    if (_currentQuestionIndex < _questions.length - 1) {
+      Future.delayed(Duration(milliseconds: 400), () {
         setState(() => _currentQuestionIndex++);
-      } else {
-        _submitQuestionnaire();
-      }
-    });
+      });
+    }
   }
 
   void _goToPreviousQuestion() {
@@ -82,26 +92,44 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     }
   }
 
+  void _goToNextQuestion() {
+    if (_currentQuestionIndex < _questions.length - 1) {
+      setState(() => _currentQuestionIndex++);
+    } else {
+      _submitQuestionnaire();
+    }
+  }
+
   Future<void> _submitQuestionnaire() async {
     try {
+      setState(() {
+        _isLoading = true;
+      });
+
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token') ?? '';
 
       if (token.isEmpty) {
-        _showError('Please login again');
+        _showError('يرجى تسجيل الدخول مرة أخرى');
         return;
       }
 
-      final result = await ApiService.submitQuestionnaire(
-          token,
-          responses: _responses,
-          childId: _selectedChildId
+      final result = await ApiService.submitQuestionnaireResponses(
+        token,
+        responses: _responses,
+        childId: widget.childId,
+        questionnaireId: _currentQuestionnaireId,
+        language: _language,
       );
 
       _showResults(result);
     } catch (e) {
-      print('Error submitting questionnaire: $e');
-      _showError('Failed to submit questionnaire: $e');
+      print('❌ خطأ في إرسال الاستبيان: $e');
+      _showError('فشل في إرسال الاستبيان: $e');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -114,7 +142,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
           children: [
             Icon(Icons.analytics, color: Colors.green),
             SizedBox(width: 8),
-            Text('نتائج الفحص الأولي'),
+            Text('نتائج التقييم المبدئي'),
           ],
         ),
         content: SingleChildScrollView(
@@ -142,6 +170,12 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
               // التوصيات
               if (results['recommendations'] != null)
                 _buildRecommendations(results['recommendations']),
+
+              SizedBox(height: 16),
+
+              // معلومات إضافية
+              if (results['questionnaire_id'] != null)
+                _buildQuestionnaireInfo(results),
             ],
           ),
         ),
@@ -149,10 +183,18 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context); // إغلاق النتائج
-              Navigator.pop(context); // العودة للداشبورد
+              Navigator.pop(context); // العودة للشاشة السابقة
             },
             child: Text('حسناً', style: TextStyle(fontSize: 16)),
           ),
+          if (results['questionnaire_id'] != null)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _viewQuestionnaireDetails(results['questionnaire_id']);
+              },
+              child: Text('عرض التفاصيل', style: TextStyle(fontSize: 16)),
+            ),
         ],
       ),
     );
@@ -171,7 +213,10 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: color),
           ),
-          child: Text(value, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+          child: Text(
+            value,
+            style: TextStyle(color: color, fontWeight: FontWeight.w600),
+          ),
         ),
       ],
     );
@@ -203,6 +248,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       children: [
         Text('التوصيات', style: TextStyle(fontWeight: FontWeight.bold)),
         SizedBox(height: 8),
+
+        // الإجراءات الفورية
         if (recommendations['immediate_actions'] != null)
           ...(recommendations['immediate_actions'] as List).take(3).map((action) => Padding(
             padding: const EdgeInsets.symmetric(vertical: 2.0),
@@ -214,8 +261,65 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
               ],
             ),
           )),
+
+        // المختصون المقترحون
+        if (recommendations['specialists'] != null &&
+            (recommendations['specialists'] as List).isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('المختصون المقترحون', style: TextStyle(fontWeight: FontWeight.bold)),
+                ...(recommendations['specialists'] as List).take(2).map((specialist) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2.0),
+                  child: Row(
+                    children: [
+                      Icon(Icons.person, size: 16, color: Colors.purple),
+                      SizedBox(width: 8),
+                      Text('• $specialist'),
+                    ],
+                  ),
+                )),
+              ],
+            ),
+          ),
       ],
     );
+  }
+
+  Widget _buildQuestionnaireInfo(Map<String, dynamic> results) {
+    return Container(
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('معلومات التقييم', style: TextStyle(fontWeight: FontWeight.bold)),
+          SizedBox(height: 4),
+          Text('رقم التقييم: ${results['questionnaire_id']}'),
+          if (results['completed_at'] != null)
+            Text('تاريخ الإكمال: ${_formatDate(results['completed_at'])}'),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(String dateString) {
+    try {
+      final date = DateTime.parse(dateString);
+      return '${date.day}/${date.month}/${date.year}';
+    } catch (e) {
+      return dateString;
+    }
+  }
+
+  void _viewQuestionnaireDetails(String questionnaireId) {
+    // يمكنك التنقل لشاشة تفاصيل الاستبيان هنا
+    print('عرض تفاصيل الاستبيان: $questionnaireId');
   }
 
   Color _getRiskColor(String riskLevel) {
@@ -231,115 +335,158 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     }
   }
 
+  double _calculateProgress() {
+    if (_questions.isEmpty) return 0.0;
+    return (_currentQuestionIndex + 1) / _questions.length;
+  }
+
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
         backgroundColor: Colors.red,
+        duration: Duration(seconds: 4),
       ),
     );
   }
 
+  void _toggleLanguage() {
+    setState(() {
+      _language = _language == 'ar' ? 'en' : 'ar';
+    });
+    _loadQuestions();
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
-        appBar: AppBar(title: Text('الفحص الأولي')),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('جاري تحميل الأسئلة...'),
-            ],
-          ),
-        ),
-      );
+    if (_isLoading && _questions.isEmpty) {
+      return _buildLoadingScreen();
     }
 
     if (_errorMessage.isNotEmpty) {
-      return Scaffold(
-        appBar: AppBar(title: Text('الفحص الأولي')),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.error_outline, color: Colors.red, size: 64),
-              SizedBox(height: 16),
-              Text(_errorMessage, textAlign: TextAlign.center),
-              SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _loadQuestions,
-                child: Text('إعادة المحاولة'),
-              ),
-            ],
-          ),
-        ),
-      );
+      return _buildErrorScreen();
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('الفحص الأولي'),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          if (_questions.isNotEmpty && _currentQuestionIndex == _questions.length - 1)
-            IconButton(
-              icon: Icon(Icons.done_all),
-              onPressed: _submitQuestionnaire,
-              tooltip: 'إرسال الاستبيان',
-            ),
-        ],
-      ),
+      appBar: _buildAppBar(),
       body: Column(
         children: [
-          // شريط التقدم
-          Container(
-            padding: EdgeInsets.all(16),
-            child: Column(
-              children: [
-                LinearProgressIndicator(
-                  value: _questions.isNotEmpty ?
-                  (_currentQuestionIndex + 1) / _questions.length : 0,
-                  backgroundColor: Colors.grey[200],
-                  color: Colors.blue,
-                ),
-                SizedBox(height: 8),
-                Text(
-                  'السؤال ${_currentQuestionIndex + 1} من ${_questions.length}',
-                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                ),
-              ],
-            ),
-          ),
-
-          // السؤال الحالي
+          _buildProgressSection(),
           Expanded(
-            child: _questions.isNotEmpty ?
-            _buildQuestion(_questions[_currentQuestionIndex]) :
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.quiz_outlined, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text('لا توجد أسئلة متاحة'),
-                  SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _loadQuestions,
-                    child: Text('إعادة التحميل'),
-                  ),
-                ],
-              ),
-            ),
+            child: _questions.isNotEmpty
+                ? _buildQuestion(_questions[_currentQuestionIndex])
+                : _buildEmptyQuestions(),
           ),
         ],
       ),
       bottomNavigationBar: _questions.isNotEmpty ? _buildBottomNav() : null,
+    );
+  }
+
+  Widget _buildLoadingScreen() {
+    return Scaffold(
+      appBar: AppBar(title: Text('التقييم المبدئي')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('جاري تحميل الأسئلة...'),
+            if (widget.childId != null)
+              Text('لطفل: ${widget.childName ?? "غير محدد"}'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorScreen() {
+    return Scaffold(
+      appBar: AppBar(title: Text('التقييم المبدئي')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, color: Colors.red, size: 64),
+            SizedBox(height: 16),
+            Text(_errorMessage, textAlign: TextAlign.center),
+            SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadQuestions,
+              child: Text('إعادة المحاولة'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  AppBar _buildAppBar() {
+    return AppBar(
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('التقييم المبدئي'),
+          if (widget.childName != null)
+            Text(
+              widget.childName!,
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.normal),
+            ),
+        ],
+      ),
+      leading: IconButton(
+        icon: Icon(Icons.arrow_back),
+        onPressed: () => Navigator.pop(context),
+      ),
+      actions: [
+        IconButton(
+          icon: Icon(_language == 'ar' ? Icons.language : Icons.translate),
+          onPressed: _toggleLanguage,
+          tooltip: 'تبديل اللغة',
+        ),
+        if (_questions.isNotEmpty && _currentQuestionIndex == _questions.length - 1)
+          IconButton(
+            icon: Icon(Icons.done_all),
+            onPressed: _submitQuestionnaire,
+            tooltip: 'إرسال الاستبيان',
+          ),
+      ],
+    );
+  }
+
+  Widget _buildProgressSection() {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue[50],
+        border: Border(bottom: BorderSide(color: Colors.blue[100]!)),
+      ),
+      child: Column(
+        children: [
+          LinearProgressIndicator(
+            value: _progress,
+            backgroundColor: Colors.grey[200],
+            color: Colors.blue,
+            minHeight: 8,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'السؤال ${_currentQuestionIndex + 1} من ${_questions.length}',
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              ),
+              Text(
+                '${(_progress * 100).toStringAsFixed(0)}%',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blue),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -352,22 +499,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // فئة السؤال
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: _getCategoryColor(question.category).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _getCategoryColor(question.category)),
-            ),
-            child: Text(
-              question.category,
-              style: TextStyle(
-                color: _getCategoryColor(question.category),
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
+          _buildCategoryChip(question.category),
 
           SizedBox(height: 20),
 
@@ -383,64 +515,174 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
           SizedBox(height: 30),
 
-          // خيارات الإجابة
-          if (question.questionType == 'Multiple Choice')
-            ...question.options.asMap().entries.map((entry) {
-              final index = entry.key;
-              final option = entry.value;
+          // خيارات الإجابة حسب النوع
+          _buildAnswerOptions(question, currentAnswer),
+        ],
+      ),
+    );
+  }
 
-              return Container(
-                margin: EdgeInsets.only(bottom: 12),
-                child: Card(
-                  elevation: 2,
-                  child: ListTile(
-                    title: Text(
-                      option,
-                      style: TextStyle(fontSize: 16),
-                    ),
-                    leading: Radio(
-                      value: option,
-                      groupValue: currentAnswer,
-                      onChanged: (value) => _saveAnswer(
-                          question.questionId.toString(),
-                          value,
-                          question.category
-                      ),
-                    ),
-                    onTap: () => _saveAnswer(
-                        question.questionId.toString(),
-                        option,
-                        question.category
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              );
-            }),
+  Widget _buildCategoryChip(String category) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: _getCategoryColor(category).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _getCategoryColor(category)),
+      ),
+      child: Text(
+        category,
+        style: TextStyle(
+          color: _getCategoryColor(category),
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
 
-          if (question.questionType == 'Scale')
-            Column(
-              children: [
-                Slider(
-                  value: (currentAnswer ?? 5).toDouble(),
-                  min: 0,
-                  max: 10,
-                  divisions: 10,
-                  onChanged: (value) => _saveAnswer(
-                      question.questionId.toString(),
-                      value.toInt(),
-                      question.category
-                  ),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  'القيمة: ${currentAnswer ?? 5}',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
-              ],
+  Widget _buildAnswerOptions(Question question, dynamic currentAnswer) {
+    switch (question.questionType) {
+      case 'Multiple Choice':
+        return _buildMultipleChoiceOptions(question, currentAnswer);
+      case 'Scale':
+        return _buildScaleOptions(question, currentAnswer);
+      case 'Yes/No':
+        return _buildYesNoOptions(question, currentAnswer);
+      default:
+        return _buildMultipleChoiceOptions(question, currentAnswer);
+    }
+  }
+
+  Widget _buildMultipleChoiceOptions(Question question, dynamic currentAnswer) {
+    return Column(
+      children: question.options.asMap().entries.map((entry) {
+        final index = entry.key;
+        final option = entry.value;
+
+        return Container(
+          margin: EdgeInsets.only(bottom: 8),
+          child: Card(
+            elevation: 1,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: BorderSide(
+                color: currentAnswer == option
+                    ? _getCategoryColor(question.category)
+                    : Colors.transparent,
+                width: 2,
+              ),
             ),
+            child: ListTile(
+              title: Text(
+                option,
+                style: TextStyle(fontSize: 16),
+              ),
+              leading: Radio(
+                value: option,
+                groupValue: currentAnswer,
+                onChanged: (value) => _saveAnswer(
+                    question.questionId.toString(),
+                    value,
+                    question.category
+                ),
+              ),
+              onTap: () => _saveAnswer(
+                  question.questionId.toString(),
+                  option,
+                  question.category
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildScaleOptions(Question question, dynamic currentAnswer) {
+    final initialValue = (currentAnswer ?? 5).toDouble();
+
+    return Column(
+      children: [
+        Slider(
+          value: initialValue,
+          min: 0,
+          max: 10,
+          divisions: 10,
+          onChanged: (value) => _saveAnswer(
+              question.questionId.toString(),
+              value.toInt(),
+              question.category
+          ),
+        ),
+        SizedBox(height: 8),
+        Text(
+          'القيمة: ${currentAnswer ?? 5}',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: ['0', '2', '4', '6', '8', '10'].map((label) =>
+              Text(label, style: TextStyle(fontSize: 12, color: Colors.grey))
+          ).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildYesNoOptions(Question question, dynamic currentAnswer) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: [
+        _buildOptionButton('نعم', currentAnswer == 'نعم', question),
+        _buildOptionButton('لا', currentAnswer == 'لا', question),
+      ],
+    );
+  }
+
+  Widget _buildOptionButton(String text, bool isSelected, Question question) {
+    return Expanded(
+      child: Container(
+        margin: EdgeInsets.symmetric(horizontal: 8),
+        child: ElevatedButton(
+          onPressed: () => _saveAnswer(
+              question.questionId.toString(),
+              text,
+              question.category
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: isSelected
+                ? _getCategoryColor(question.category)
+                : Colors.grey[200],
+            foregroundColor: isSelected ? Colors.white : Colors.black87,
+            padding: EdgeInsets.symmetric(vertical: 16),
+          ),
+          child: Text(text, style: TextStyle(fontSize: 16)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyQuestions() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.quiz_outlined, size: 64, color: Colors.grey),
+          SizedBox(height: 16),
+          Text('لا توجد أسئلة متاحة'),
+          SizedBox(height: 8),
+          Text(
+            'قد يكون ذلك بسبب عدم توافق عمر الطفل مع الأسئلة المتاحة',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey),
+          ),
+          SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: _loadQuestions,
+            child: Text('إعادة التحميل'),
+          ),
         ],
       ),
     );
@@ -466,12 +708,12 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
           Expanded(
             child: ElevatedButton(
               onPressed: _currentQuestionIndex < _questions.length - 1
-                  ? () => setState(() => _currentQuestionIndex++)
+                  ? _goToNextQuestion
                   : _submitQuestionnaire,
               child: Text(
                 _currentQuestionIndex < _questions.length - 1
                     ? 'التالي'
-                    : 'إنهاء الاستبيان',
+                    : 'إنهاء التقييم',
               ),
             ),
           ),
@@ -492,6 +734,10 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         return Colors.purple;
       case 'Motor Skills':
         return Colors.teal;
+      case 'Academic Performance':
+        return Colors.indigo;
+      case 'Daily Living Skills':
+        return Colors.brown;
       default:
         return Colors.grey;
     }

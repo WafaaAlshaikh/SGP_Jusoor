@@ -235,6 +235,67 @@ const processBankTransferPayment = async (paymentData) => {
   };
 };
 
+// في controllers/paymentController.js - أضف هذه الدالة
+exports.processPaymentSuccess = async (req, res) => {
+  try {
+    const { session_id, payment_id, transaction_id } = req.body;
+    const parentId = req.user.user_id;
+
+    console.log('✅ Payment success confirmation:', { session_id, payment_id, transaction_id });
+
+    // التحقق من أن الجلسة تابعة للوالد
+    const session = await Session.findOne({
+      where: { session_id: session_id },
+      include: [
+        {
+          model: Child,
+          as: 'child',
+          where: { parent_id: parentId },
+          attributes: ['child_id']
+        }
+      ]
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        message: 'Session not found or access denied'
+      });
+    }
+
+    // تحديث حالة الجلسة إلى مدفوعة
+    await Session.update({
+      is_paid: true,
+      payment_status: 'Paid',
+      payment_date: new Date(),
+      status: 'Scheduled' // تأكيد الجلسة بعد الدفع
+    }, {
+      where: { session_id: session_id }
+    });
+
+    // تحديث الفاتورة إذا كانت موجودة
+    await Invoice.update({
+      status: 'Paid',
+      paid_date: new Date()
+    }, {
+      where: { session_id: session_id }
+    });
+
+    res.json({
+      success: true,
+      message: 'Payment processed successfully',
+      session_status: 'Scheduled'
+    });
+
+  } catch (error) {
+    console.error('❌ Payment success error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error processing payment success: ' + error.message
+    });
+  }
+};
+
 // 🏦 الحصول على تفاصيل التحويل البنكي
 exports.getBankDetails = async (req, res) => {
   try {

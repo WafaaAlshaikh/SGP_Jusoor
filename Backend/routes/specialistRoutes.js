@@ -6,7 +6,11 @@ const {
   getChildrenCount, 
   addSession,
   getChildrenInInstitution,
-  getImminentSessions
+  getImminentSessions,
+  getEligibleChildren,
+  getAvailableSessionTypes,
+  addSessionsForChildren,
+  addSessionType
 } = require('../controllers/specialistController');
 
 // 🔒 كل الرُتب بس للأخصائيين (تحقق من الـ role)
@@ -42,4 +46,37 @@ router.get(
   specialistOnly,
   getChildrenInInstitution
 );
+
+// ✅ جلب الأطفال المؤهلين (نفس المؤسسة + نفس الحالة)
+router.get(
+  '/eligible-children',
+  authMiddleware,
+  specialistOnly,
+  getEligibleChildren
+);
+
+// ✅ جلب أنواع الجلسات المتاحة حسب الحالة
+router.get(
+  '/available-session-types',
+  authMiddleware,
+  specialistOnly,
+  getAvailableSessionTypes
+);
+
+// ✅ إضافة جلسات لعدة أطفال (مع طلب موافقة الأهل)
+router.post(
+  '/add-sessions',
+  authMiddleware,
+  specialistOnly,
+  addSessionsForChildren
+);
+
+// ✅ إضافة نوع جلسة جديد (بحاجة لموافقة المدير)
+router.post(
+  '/add-session-type',
+  authMiddleware,
+  specialistOnly,
+  addSessionType
+);
+
 module.exports = router;
