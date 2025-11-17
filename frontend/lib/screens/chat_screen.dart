@@ -1,6 +1,8 @@
 // screens/chat_screen.dart
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/chat_service.dart';
+import '../services/user_service.dart';
 import '../models/chat_models.dart';
 import '../theme/app_colors.dart';
 
@@ -24,16 +26,139 @@ class _ChatScreenState extends State<ChatScreen> {
   Stream<List<ChatMessage>>? _messagesStream;
   bool _isTyping = false;
   Set<String> _seenMessages = {}; // 🆕 NEW: تتبع الرسائل المقروءة
+  String? _myTag; // user_<localId>
+  String? _myName;
 
   @override
   void initState() {
     super.initState();
     _loadMessages();
     _markAllMessagesAsSeen(); // 🆕 NEW: وضع علامة مقروء عند فتح الشات
+    _loadMyTag();
+  }
+
+  Future<Map<String, String?>> _computeOtherParticipantProfile() async {
+    try {
+      final chatRoom = widget.chatRoom;
+      String resolvedName = await _computeTitleName();
+
+      // Try resolve other participant by ID first
+      if (chatRoom.type == 'direct' && chatRoom.participantIds.length == 2) {
+        final myUid = widget.chatService.currentUserId;
+        final prefs = await SharedPreferences.getInstance();
+        final localId = prefs.getString('user_id');
+        final myTag = localId != null ? 'user_$localId' : null;
+        final otherId = chatRoom.participantIds.firstWhere(
+          (id) => id != (myTag ?? myUid),
+          orElse: () => '',
+        );
+
+        if (otherId.startsWith('user_')) {
+          final backendId = otherId.substring('user_'.length);
+          try {
+            final users = await UserService.getAvailableUsers();
+            final match = users.firstWhere(
+              (u) => (u['id']?.toString() ?? '') == backendId,
+              orElse: () => {},
+            );
+            if (match.isNotEmpty) {
+              final img = match['profileImage'];
+              final nm = match['name']?.toString();
+              return {
+                'name': (nm != null && nm.isNotEmpty) ? nm : (resolvedName.isNotEmpty ? resolvedName : chatRoom.name),
+                'profileImage': img?.toString(),
+              };
+            }
+          } catch (_) {}
+        }
+      }
+
+      // Fallback: try by name equality
+      final fallbackName = resolvedName.isNotEmpty ? resolvedName : chatRoom.name;
+      try {
+        final users = await UserService.getAvailableUsers();
+        final match = users.firstWhere(
+          (u) => (u['name']?.toString() ?? '') == fallbackName,
+          orElse: () => {},
+        );
+        if (match.isNotEmpty) {
+          final img = match['profileImage'];
+          return {'name': fallbackName, 'profileImage': img?.toString()};
+        }
+      } catch (_) {}
+
+      return {'name': fallbackName, 'profileImage': null};
+    } catch (_) {
+      return {'name': widget.chatRoom.name, 'profileImage': null};
+    }
+  }
+
+  Future<void> _loadMyTag() async {
+    final prefs = await SharedPreferences.getInstance();
+    final localId = prefs.getString('user_id');
+    _myName = prefs.getString('user_name');
+    setState(() {
+      _myTag = localId != null ? 'user_$localId' : null;
+    });
   }
 
   void _loadMessages() {
     _messagesStream = widget.chatService.getChatMessages(widget.chatRoom.id);
+  }
+
+  Future<String> _computeTitleName() async {
+    try {
+      final chatRoom = widget.chatRoom;
+      if (chatRoom.type == 'direct' && chatRoom.participantIds.length == 2) {
+        final myUid = widget.chatService.currentUserId;
+        final prefs = await SharedPreferences.getInstance();
+        final localId = prefs.getString('user_id');
+        final myTag = localId != null ? 'user_$localId' : null;
+        final otherId = chatRoom.participantIds.firstWhere(
+          (id) => id != (myTag ?? myUid),
+          orElse: () => '',
+        );
+
+        if (otherId.isEmpty) return chatRoom.name;
+
+        if (otherId.startsWith('user_')) {
+          final backendId = otherId.substring('user_'.length);
+          final users = await UserService.getAvailableUsers();
+          final match = users.firstWhere(
+            (u) => (u['id']?.toString() ?? '') == backendId,
+            orElse: () => {},
+          );
+          if (match.isNotEmpty && (match['name']?.toString().isNotEmpty ?? false)) {
+            return match['name'].toString();
+          }
+        }
+
+        // Try infer from messages by otherId
+        try {
+          final messages = await widget.chatService.getChatMessages(chatRoom.id).first;
+          for (var i = messages.length - 1; i >= 0; i--) {
+            if (messages[i].senderId == otherId) {
+              final n = messages[i].senderName;
+              if (n.isNotEmpty) return n;
+            }
+          }
+          // Secondary fallback: use last message not sent by me
+          for (var i = messages.length - 1; i >= 0; i--) {
+            final msg = messages[i];
+            if (msg.senderId != (myTag ?? myUid)) {
+              final n = msg.senderName;
+              if (n.isNotEmpty) return n;
+            }
+          }
+        } catch (_) {}
+
+        return chatRoom.name;
+      }
+
+      return widget.chatRoom.name;
+    } catch (e) {
+      return widget.chatRoom.name;
+    }
   }
 
   // 🆕 NEW: وضع علامة مقروء على جميع الرسائل عند فتح الشات
@@ -88,53 +213,102 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       title: Row(
         children: [
-          CircleAvatar(
-            backgroundColor: AppColors.accent1,
-            radius: 18,
-            child: Text(
-              widget.chatRoom.name[0].toUpperCase(),
-              style: const TextStyle(
-                color: AppColors.primary,
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-              ),
-            ),
+          FutureBuilder<Map<String, String?>>(
+            future: _computeOtherParticipantProfile(),
+            builder: (context, snapshot) {
+              final name = snapshot.data != null && (snapshot.data!['name'] ?? '').isNotEmpty
+                  ? snapshot.data!['name']!
+                  : widget.chatRoom.name;
+              final imageUrl = snapshot.data?['profileImage'];
+              if (imageUrl != null && imageUrl.isNotEmpty) {
+                return SizedBox(
+                  width: 36,
+                  height: 36,
+                  child: ClipOval(
+                    child: Image.network(
+                      imageUrl,
+                      width: 36,
+                      height: 36,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return CircleAvatar(
+                          backgroundColor: AppColors.accent1,
+                          radius: 18,
+                          child: Text(
+                            name.isNotEmpty ? name[0].toUpperCase() : '?',
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        );
+                      },
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return CircleAvatar(
+                          backgroundColor: AppColors.accent1,
+                          radius: 18,
+                          child: Text(
+                            name.isNotEmpty ? name[0].toUpperCase() : '?',
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                );
+              }
+              return CircleAvatar(
+                backgroundColor: AppColors.accent1,
+                radius: 18,
+                child: Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              );
+            },
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  widget.chatRoom.name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
+                FutureBuilder<String>(
+                  future: _computeTitleName(),
+                  builder: (context, snapshot) {
+                    final titleName = snapshot.data ?? widget.chatRoom.name;
+                    return Text(
+                      titleName,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 2),
                 StreamBuilder<List<ChatMessage>>(
                   stream: _messagesStream,
                   builder: (context, snapshot) {
-                    if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-                      final lastMessage = snapshot.data!.last;
-                      final isOnline = _isUserOnline(lastMessage.timestamp);
-
-                      return Text(
-                        isOnline ? 'Online' : 'Last seen ${_formatLastSeen(lastMessage.timestamp)}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w400,
-                          color: isOnline ? AppColors.success : AppColors.textLight,
-                        ),
-                      );
-                    }
-                    return const Text(
-                      'Online',
+                    final messages = snapshot.data ?? [];
+                    final lastSeenTime = messages.isNotEmpty ? messages.last.timestamp : DateTime.now();
+                    final isOnline = _isUserOnline(lastSeenTime);
+                    return Text(
+                      isOnline ? 'Online' : 'Last seen ${_formatLastSeen(lastSeenTime)}',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w400,
-                        color: AppColors.success,
+                        color: isOnline ? AppColors.success : AppColors.textLight,
                       ),
                     );
                   },
@@ -300,7 +474,18 @@ class _ChatScreenState extends State<ChatScreen> {
           itemCount: messages.length,
           itemBuilder: (context, index) {
             final message = messages[index];
-            final isMe = message.senderId == widget.chatService.currentUserId;
+            final myUid = widget.chatService.currentUserId;
+            bool isMe;
+            if (_myTag != null && message.senderId == _myTag) {
+              isMe = true;
+            } else if (message.senderId.startsWith('user_')) {
+              isMe = (message.senderId == _myTag);
+            } else if (message.senderId == myUid) {
+              // Legacy messages stored with shared UID → disambiguate by senderName
+              isMe = (message.senderName == (_myName ?? ''));
+            } else {
+              isMe = false;
+            }
 
             // 🆕 UPDATED: تحسين منطق عرض التواريخ
             final showTimestamp = _shouldShowTimestamp(messages, index, message);
@@ -745,57 +930,74 @@ class _MessageBubble extends StatelessWidget {
             const SizedBox(width: 8),
           ],
           Flexible(
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: isMe ? AppColors.myMessage : AppColors.theirMessage,
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 2,
-                    offset: const Offset(0, 1),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (!isMe)
-                    Text(
-                      message.senderName,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12,
-                        color: AppColors.primary,
-                      ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isMe ? AppColors.myMessage : AppColors.theirMessage,
+                  borderRadius: isMe
+                      ? const BorderRadius.only(
+                          topLeft: Radius.circular(16),
+                          topRight: Radius.circular(16),
+                          bottomLeft: Radius.circular(16),
+                          bottomRight: Radius.circular(6),
+                        )
+                      : const BorderRadius.only(
+                          topLeft: Radius.circular(16),
+                          topRight: Radius.circular(16),
+                          bottomLeft: Radius.circular(6),
+                          bottomRight: Radius.circular(16),
+                        ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.06),
+                      blurRadius: 2,
+                      offset: const Offset(0, 1),
                     ),
-                  Text(
-                    message.content,
-                    style: TextStyle(
-                      color: isMe ? AppColors.messageTextMe : AppColors.messageTextThem,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                  children: [
+                    if (!isMe)
                       Text(
-                        _formatTime(message.timestamp),
+                        message.senderName,
                         style: TextStyle(
-                          fontSize: 10,
-                          color: isMe ? AppColors.textWhite.withOpacity(0.7) : AppColors.textLight,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                          color: AppColors.primary,
                         ),
                       ),
-                      if (isMe) ...[
-                        const SizedBox(width: 4),
-                        // 🆕 UPDATED: نظام الـ seen المحسن
-                        _buildMessageStatus(message),
+                    Text(
+                      message.content,
+                      textAlign: isMe ? TextAlign.right : TextAlign.left,
+                      style: TextStyle(
+                        color: isMe ? AppColors.messageTextMe : AppColors.messageTextThem,
+                        fontSize: 14,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                      children: [
+                        Text(
+                          _formatTime(message.timestamp),
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: isMe ? AppColors.textWhite.withOpacity(0.75) : AppColors.textLight,
+                          ),
+                        ),
+                        if (isMe) ...[
+                          const SizedBox(width: 4),
+                          _buildMessageStatus(message),
+                        ],
                       ],
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

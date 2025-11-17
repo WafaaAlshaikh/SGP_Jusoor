@@ -14,6 +14,8 @@ import 'questionnaire_screen.dart';
 import 'EditProfileScreen.dart';
 import 'ViewProfileScreen.dart';
 import 'profile_settings_screen.dart';
+import 'package:frontend/screens/notifications_screen.dart';
+import 'package:frontend/screens/chat_list_screen.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
   const ParentDashboardScreen({super.key});
@@ -360,9 +362,9 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   _buildDrawerItem(
                     icon: Icons.chat,
                     title: 'Messages',
-                    badgeCount: _unreadMessagesCount,
+                    badgeCount: 3,
                     onTap: () {
-                      Navigator.pop(context);
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => ChatListScreen()));
                     },
                   ),
                   _buildDrawerItem(

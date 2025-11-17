@@ -719,7 +719,15 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
           title: 'New Messages',
           count: unreadMessagesCount,
           buttonText: 'Open ➔',
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ChatListScreen())),
+          onTap: () {
+            Navigator.pop(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ChatListScreen(),
+              ),
+            );
+          },
         ),
         _SummaryCard(
           icon: Icons.psychology_outlined,
@@ -1021,7 +1029,7 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
         children: [
           SizedBox(width: MediaQuery.of(context).size.width * 0.6, child: _SummaryCard(icon: Icons.calendar_month, title: 'Upcoming Sessions ', count: dashboardData['upcomingSessionsCount'] ?? 0, buttonText: 'View ➔', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SpecialistSessionsScreen())))),
           SizedBox(width: MediaQuery.of(context).size.width * 0.6, child: _SummaryCard(icon: Icons.people, title: 'My Children', count: dashboardData['childrenCount'] ?? 0, buttonText: 'View ➔', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SpecialistChildrenScreen())))),
-          SizedBox(width: MediaQuery.of(context).size.width * 0.6, child: _SummaryCard(icon: Icons.mail_outline, title: 'New Messages', count: unreadMessagesCount, buttonText: 'Open Messages ➔', onTap: () {})),
+          SizedBox(width: MediaQuery.of(context).size.width * 0.6, child: _SummaryCard(icon: Icons.mail_outline, title: 'New Messages', count: unreadMessagesCount, buttonText: 'Open Messages ➔',onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ChatListScreen())))),
           SizedBox(
               width: MediaQuery.of(context).size.width * 0.6,
               child: _SummaryCard(
@@ -1164,6 +1172,9 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
         switch (index) {
           case 1: Navigator.push(context, MaterialPageRoute(builder: (context) => SpecialistSessionsScreen())); break;
           case 2: Navigator.push(context, MaterialPageRoute(builder: (context) => SpecialistChildrenScreen())); break;
+          case 3: Navigator.push(context, MaterialPageRoute(builder: (context) => ChatListScreen())); break;
+
+
         }
       },
     );

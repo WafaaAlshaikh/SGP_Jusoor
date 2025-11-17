@@ -6,6 +6,7 @@ import 'chat_screen.dart';
 import 'select_user_screen.dart';
 import '../theme/app_colors.dart';
 import '../services/user_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
 
@@ -24,6 +25,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
     super.initState();
     _loadChatRooms();
   }
+
 
   void _loadChatRooms() {
     _chatRoomsStream = _chatService.getUserChatRooms();
@@ -344,13 +346,20 @@ class _ChatRoomListItem extends StatelessWidget {
           title: Row(
             children: [
               Expanded(
-                child: Text(
-                  chatRoom.name.isEmpty ? 'Unknown User' : chatRoom.name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    color: AppColors.textDark,
-                  ),
+                child: FutureBuilder<String>(
+                  future: _computeDisplayName(context),
+                  builder: (context, snapshot) {
+                    final displayName = snapshot.data ?? (chatRoom.name.isEmpty ? 'Unknown User' : chatRoom.name);
+                    return Text(
+                      displayName,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                        color: AppColors.textDark,
+                      ),
+                    );
+                  },
                 ),
               ),
               if (chatRoom.lastMessageTime != null)
@@ -384,20 +393,112 @@ class _ChatRoomListItem extends StatelessWidget {
     );
   }
 
-  // 🆕 UPDATED: Build user avatar with profile image from backend
-  Widget _buildUserAvatar(BuildContext context) {
-    return FutureBuilder<String?>(
-      future: _getUserProfileImage(chatRoom.name),
-      builder: (context, snapshot) {
-        // إذا في خطأ أو الاسم فارغ، استخدم الحرف الأول مباشرة
-        if (chatRoom.name.isEmpty) {
-          return _buildFallbackAvatar('User');
+  Future<String> _computeDisplayName(BuildContext context) async {
+    try {
+      if (chatRoom.type == 'direct' && chatRoom.participantIds.length == 2) {
+        final myUid = chatService.currentUserId;
+        final prefs = await SharedPreferences.getInstance();
+        final localId = prefs.getString('user_id');
+        final myTag = localId != null ? 'user_$localId' : null;
+        final otherId = chatRoom.participantIds.firstWhere(
+          (id) => id != (myTag ?? myUid),
+          orElse: () => '',
+        );
+
+        if (otherId.isEmpty) return chatRoom.name;
+
+        if (otherId.startsWith('user_')) {
+          final backendId = otherId.substring('user_'.length);
+          final users = await UserService.getAvailableUsers();
+          final match = users.firstWhere(
+            (u) => (u['id']?.toString() ?? '') == backendId,
+            orElse: () => {},
+          );
+          if (match.isNotEmpty && (match['name']?.toString().isNotEmpty ?? false)) {
+            return match['name'].toString();
+          }
         }
 
-        final profileImage = snapshot.data;
+        try {
+          final messages = await chatService.getChatMessages(chatRoom.id).first;
+          for (var i = messages.length - 1; i >= 0; i--) {
+            if (messages[i].senderId == otherId) {
+              final n = messages[i].senderName;
+              if (n.isNotEmpty) return n;
+            }
+          }
+        } catch (_) {}
+
+        return chatRoom.name;
+      }
+
+      return chatRoom.name;
+    } catch (e) {
+      return chatRoom.name;
+    }
+  }
+
+  Future<Map<String, String?>> _computeOtherParticipantProfile() async {
+    try {
+      if (chatRoom.type == 'direct' && chatRoom.participantIds.length == 2) {
+        final myUid = chatService.currentUserId;
+        final prefs = await SharedPreferences.getInstance();
+        final localId = prefs.getString('user_id');
+        final myTag = localId != null ? 'user_$localId' : null;
+        final otherId = chatRoom.participantIds.firstWhere(
+          (id) => id != (myTag ?? myUid),
+          orElse: () => '',
+        );
+
+        if (otherId.isEmpty) {
+          return {'name': chatRoom.name, 'profileImage': null};
+        }
+
+        if (otherId.startsWith('user_')) {
+          final backendId = otherId.substring('user_'.length);
+          final users = await UserService.getAvailableUsers();
+          final match = users.firstWhere(
+            (u) => (u['id']?.toString() ?? '') == backendId,
+            orElse: () => {},
+          );
+          if (match.isNotEmpty) {
+            final name = match['name']?.toString() ?? chatRoom.name;
+            final img = match['profileImage'];
+            return {'name': name, 'profileImage': img?.toString()};
+          }
+        }
+
+        // Fallback: try infer from messages
+        try {
+          final messages = await chatService.getChatMessages(chatRoom.id).first;
+          for (var i = messages.length - 1; i >= 0; i--) {
+            if (messages[i].senderId == otherId) {
+              final n = messages[i].senderName;
+              if (n.isNotEmpty) return {'name': n, 'profileImage': null};
+            }
+          }
+        } catch (_) {}
+
+        return {'name': chatRoom.name, 'profileImage': null};
+      }
+
+      return {'name': chatRoom.name, 'profileImage': null};
+    } catch (e) {
+      return {'name': chatRoom.name, 'profileImage': null};
+    }
+  }
+
+  // 🆕 UPDATED: Build user avatar with profile image from backend
+  Widget _buildUserAvatar(BuildContext context) {
+    return FutureBuilder<Map<String, String?>>(
+      future: _computeOtherParticipantProfile(),
+      builder: (context, snapshot) {
+        final name = snapshot.data != null && (snapshot.data!['name'] ?? '').isNotEmpty
+            ? snapshot.data!['name']!
+            : (chatRoom.name.isNotEmpty ? chatRoom.name : 'User');
+        final profileImage = snapshot.data?['profileImage'];
 
         if (profileImage != null && profileImage.isNotEmpty) {
-          // استخدم Image.network مع errorBuilder
           return SizedBox(
             width: 48,
             height: 48,
@@ -408,21 +509,18 @@ class _ChatRoomListItem extends StatelessWidget {
                 height: 48,
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) {
-                  // إذا فشل تحميل الصورة، استخدم الحرف الأول
-                  return _buildFallbackAvatar(chatRoom.name);
+                  return _buildFallbackAvatar(name);
                 },
                 loadingBuilder: (context, child, loadingProgress) {
                   if (loadingProgress == null) return child;
-                  // أثناء التحميل، اعرض الحرف الأول مؤقتاً
-                  return _buildFallbackAvatar(chatRoom.name);
+                  return _buildFallbackAvatar(name);
                 },
               ),
             ),
           );
-        } else {
-          // إذا ما في صورة - استخدم الحرف الأول
-          return _buildFallbackAvatar(chatRoom.name);
         }
+
+        return _buildFallbackAvatar(name);
       },
     );
   }

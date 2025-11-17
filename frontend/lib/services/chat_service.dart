@@ -58,6 +58,10 @@ class ChatService {
       // Get username from local storage
       final userName = await _getUserNameFromLocalStorage();
 
+      final prefs = await SharedPreferences.getInstance();
+      final localId = prefs.getString('user_id');
+      final myTag = localId != null ? 'user_$localId' : user.uid;
+
       final messageRef = _firestore
           .collection('chatRooms')
           .doc(chatRoomId)
@@ -67,13 +71,13 @@ class ChatService {
       final message = ChatMessage(
         id: messageRef.id,
         chatRoomId: chatRoomId,
-        senderId: user.uid,
+        senderId: myTag,
         senderName: userName ?? user.displayName ?? user.email!.split('@')[0],
         content: content,
         type: type,
         timestamp: DateTime.now(),
         isRead: false,
-        readBy: [user.uid],
+        readBy: [myTag],
       ).toMap();
 
       await messageRef.set(message);
@@ -82,20 +86,20 @@ class ChatService {
       await _firestore.collection('chatRooms').doc(chatRoomId).update({
         'lastMessage': content,
         'lastMessageTime': DateTime.now().millisecondsSinceEpoch,
-        'lastSenderId': user.uid,
+        'lastSenderId': myTag,
       });
 
-      // 🔔 NEW: Send smart notifications
+      // NEW: Send smart notifications
       await _sendSmartNotifications(
         chatRoomId: chatRoomId,
         messageContent: content,
         senderName: userName ?? 'مستخدم',
       );
 
-      print('✅ Message sent: $content');
+      print(' Message sent: $content');
 
     } catch (e) {
-      print('❌ Error sending message: $e');
+      print(' Error sending message: $e');
       throw e;
     }
   }
@@ -105,15 +109,33 @@ class ChatService {
     final user = _auth.currentUser;
     if (user == null) return Stream.value([]);
 
-    return _firestore
-        .collection('chatRooms')
-        .where('participantIds', arrayContains: user.uid)
-        .orderBy('lastMessageTime', descending: true)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        return ChatRoom.fromMap(doc.data() as Map<String, dynamic>);
-      }).toList();
+    return Stream.fromFuture(SharedPreferences.getInstance()).asyncExpand((prefs) async* {
+      final localId = prefs.getString('user_id');
+      if (localId == null) {
+        yield [];
+        return;
+      }
+
+      final myTag = 'user_$localId';
+      print(' getUserChatRooms myTag = $myTag');
+
+      yield* _firestore
+          .collection('chatRooms')
+          .where('participantIds', arrayContains: myTag)
+          .orderBy('lastMessageTime', descending: true)
+          .snapshots()
+          .map((snapshot) {
+        try {
+          print(' getUserChatRooms returned ${snapshot.docs.length} rooms');
+          for (final d in snapshot.docs) {
+            final data = d.data();
+            print('  • room ${d.id} participants=${data['participantIds']} name=${data['name']}');
+          }
+        } catch (_) {}
+        return snapshot.docs.map((doc) {
+          return ChatRoom.fromMap(doc.data() as Map<String, dynamic>);
+        }).toList();
+      });
     });
   }
 
@@ -139,6 +161,11 @@ class ChatService {
       final user = _auth.currentUser;
       if (user == null) return;
 
+      // use local tag for read receipts
+      final prefs = await SharedPreferences.getInstance();
+      final localId = prefs.getString('user_id');
+      final myTag = localId != null ? 'user_$localId' : user.uid;
+
       final messageRef = _firestore
           .collection('chatRooms')
           .doc(chatRoomId)
@@ -146,13 +173,13 @@ class ChatService {
           .doc(messageId);
 
       await messageRef.update({
-        'readBy': FieldValue.arrayUnion([user.uid]),
+        'readBy': FieldValue.arrayUnion([myTag]),
         'isRead': true,
       });
 
-      print('✅ Message marked as seen: $messageId');
+      print(' Message marked as seen: $messageId');
     } catch (e) {
-      print('❌ Error marking message as seen: $e');
+      print(' Error marking message as seen: $e');
     }
   }
 
@@ -161,13 +188,16 @@ class ChatService {
       final user = _auth.currentUser;
       if (user == null) return;
 
+      final prefs = await SharedPreferences.getInstance();
+      final localId = prefs.getString('user_id');
+      final myTag = localId != null ? 'user_$localId' : user.uid;
+
       // جلب جميع الرسائل غير المقروءة
       final messagesSnapshot = await _firestore
           .collection('chatRooms')
           .doc(chatRoomId)
           .collection('messages')
-          .where('senderId', isNotEqualTo: user.uid)
-          .where('readBy', arrayContains: user.uid)
+          .where('senderId', isNotEqualTo: myTag)
           .get();
 
       final batch = _firestore.batch();
@@ -179,20 +209,24 @@ class ChatService {
             .collection('messages')
             .doc(doc.id);
 
-        batch.update(messageRef, {
-          'readBy': FieldValue.arrayUnion([user.uid]),
-          'isRead': true,
-        });
+        final data = doc.data();
+        final readBy = List<String>.from((data['readBy'] ?? []) as List);
+        if (!readBy.contains(myTag)) {
+          batch.update(messageRef, {
+            'readBy': FieldValue.arrayUnion([myTag]),
+            'isRead': true,
+          });
+        }
       }
 
       await batch.commit();
-      print('✅ All messages marked as seen in chat: $chatRoomId');
+      print(' All messages marked as seen in chat: $chatRoomId');
     } catch (e) {
-      print('❌ Error marking all messages as seen: $e');
+      print(' Error marking all messages as seen: $e');
     }
   }
 
-// 🆕 NEW: دالة لتحديث حالة seen عند فتح الشات
+// NEW: دالة لتحديث حالة seen عند فتح الشات
   Stream<void> onChatOpened(String chatRoomId) {
     return Stream.value(null).asyncMap((_) => markAllMessagesAsSeen(chatRoomId));
   }
@@ -201,6 +235,10 @@ class ChatService {
   Future<void> markMessagesAsRead(String chatRoomId, List<String> messageIds) async {
     final user = _auth.currentUser;
     if (user == null) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final localId = prefs.getString('user_id');
+    final myTag = localId != null ? 'user_$localId' : user.uid;
 
     final batch = _firestore.batch();
 
@@ -212,39 +250,49 @@ class ChatService {
           .doc(messageId);
 
       batch.update(messageRef, {
-        'readBy': FieldValue.arrayUnion([user.uid]),
+        'readBy': FieldValue.arrayUnion([myTag]),
       });
     }
 
     await batch.commit();
-    print('✅ Messages marked as read');
+    print(' Messages marked as read');
   }
 
-  // 🔄 6. Enhanced function to create direct chat
+  // 6. Enhanced function to create direct chat
   Future<String> createDirectChat({
     required String otherUserId, // ID from local database
     required String otherUserName,
   }) async {
     try {
-      // 🔥 Auto-sync with Firebase if not logged in
+      // Auto-sync with Firebase if not logged in
       var user = _auth.currentUser;
       if (user == null) {
-        print('⚠️ User not logged in to Firebase, attempting auto-sync...');
+        print(' User not logged in to Firebase, attempting auto-sync...');
         await _autoSyncFirebaseAuth();
         user = _auth.currentUser;
         if (user == null) throw Exception('User not logged in');
       }
 
+      // Resolve local sender tag (user_<localId>)
+      final prefs = await SharedPreferences.getInstance();
+      final localId = prefs.getString('user_id');
+      final myTag = localId != null ? 'user_$localId' : user.uid;
+
       // Get Firebase UID for the other user
       final otherUserFirebaseId = await _getFirebaseUserId(otherUserId);
 
-      final participants = [user.uid, otherUserFirebaseId];
+      // participantIds تعتمد فقط على user_<localId> لكلا الطرفين لتجنب تسريب الغرف عبر UID مشترك
+      final participants = [
+        myTag,
+        otherUserFirebaseId,
+      ];
 
-      // Check if chat already exists
+      // Check if chat already exists (match any of my identifiers)
+      final myVariants = <String>[if (myTag != null) myTag];
       final existingChats = await _firestore
           .collection('chatRooms')
-          .where('participantIds', arrayContains: user.uid)
           .where('type', isEqualTo: 'direct')
+          .where('participantIds', arrayContainsAny: myVariants)
           .get();
 
       for (var doc in existingChats.docs) {
@@ -364,7 +412,11 @@ class ChatService {
     final user = _auth.currentUser;
     if (user == null) return Stream.value(0);
 
-    return _firestore
+    return Stream.fromFuture(SharedPreferences.getInstance()).asyncExpand((prefs) {
+      final localId = prefs.getString('user_id');
+      final myTag = localId != null ? 'user_$localId' : user.uid;
+
+      return _firestore
         .collection('chatRooms')
         .doc(chatRoomId)
         .collection('messages')
@@ -373,8 +425,9 @@ class ChatService {
         .map((snapshot) {
       return snapshot.docs.where((doc) {
         final message = ChatMessage.fromMap(doc.data() as Map<String, dynamic>);
-        return message.senderId != user.uid && !message.readBy.contains(user.uid);
+        return message.senderId != myTag && !message.readBy.contains(myTag);
       }).length;
+    });
     });
   }
 
@@ -388,11 +441,13 @@ class ChatService {
       final chatRoom = await getChatRoomById(chatRoomId);
       if (chatRoom == null) return;
 
-      final currentUserId = _auth.currentUser?.uid;
-      if (currentUserId == null) return;
+      final prefs = await SharedPreferences.getInstance();
+      final localId = prefs.getString('user_id');
+      final myTag = localId != null ? 'user_$localId' : _auth.currentUser?.uid;
+      if (myTag == null) return;
 
-      // الحصول على المشاركين الآخرين
-      final otherParticipants = chatRoom.participantIds.where((id) => id != currentUserId).toList();
+      // الحصول على المشاركين الآخرين (استبعاد معرفي المحلي)
+      final otherParticipants = chatRoom.participantIds.where((id) => id != myTag).toList();
       if (otherParticipants.isEmpty) return;
 
       print('🔔 إرسال إشعارات إلى ${otherParticipants.length} مستخدم');
@@ -453,10 +508,11 @@ class ChatService {
       final notificationService = CompleteNotificationService();
 
       // إنشاء بيانات الإشعار
+      final currentSenderId = _auth.currentUser?.uid;
       final notificationData = {
         'type': 'chat',
         'chatRoomId': chatRoomId,
-        'senderId': targetUserId,
+        'senderId': currentSenderId,
         'senderName': senderName,
         'message': message,
         'channel': 'chat_channel',
