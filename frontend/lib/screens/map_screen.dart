@@ -5,12 +5,14 @@ class MapScreen extends StatefulWidget {
   final double? initialLat;
   final double? initialLng;
   final String? initialAddress;
+  final Function(double lat, double lng, String locationName)? onLocationSelected;
 
   const MapScreen({
     Key? key,
     this.initialLat,
     this.initialLng,
     this.initialAddress,
+    this.onLocationSelected,
   }) : super(key: key);
 
   @override
@@ -22,7 +24,13 @@ class _MapScreenState extends State<MapScreen> {
   LatLng? _selectedLocation;
   Set<Marker> _markers = {};
 
-  // Palestinian locations
+  // Jordanian locations (Main cities for Jusoor project)
+  static const LatLng _ammanLocation = LatLng(31.9539, 35.9106);
+  static const LatLng _irbidLocation = LatLng(32.5556, 35.8469);
+  static const LatLng _zarqaLocation = LatLng(32.0728, 36.0881);
+  static const LatLng _aqabaLocation = LatLng(29.5267, 35.0063);
+  
+  // Palestinian locations (for reference)
   static const LatLng _jeninLocation = LatLng(32.4645, 35.3027);
   static const LatLng _ramallahLocation = LatLng(31.9466, 35.3027);
   static const LatLng _gazaLocation = LatLng(31.5017, 34.4668);
@@ -33,13 +41,13 @@ class _MapScreenState extends State<MapScreen> {
     super.initState();
     print('🗺️ [MAP] MapScreen initialized');
 
-    // Use initial location or default
+    // Use initial location or default (Amman)
     if (widget.initialLat != null && widget.initialLng != null) {
       _selectedLocation = LatLng(widget.initialLat!, widget.initialLng!);
       print('📍 [MAP] Using initial location: $_selectedLocation');
     } else {
-      _selectedLocation = _jeninLocation;
-      print('📍 [MAP] Using default location: $_selectedLocation');
+      _selectedLocation = _ammanLocation;
+      print('📍 [MAP] Using default location: Amman');
     }
 
     _updateMarkers();
@@ -96,17 +104,27 @@ class _MapScreenState extends State<MapScreen> {
     if (_selectedLocation != null) {
       print('✅ [MAP] Location selected: $_selectedLocation');
 
+      final lat = _selectedLocation!.latitude;
+      final lng = _selectedLocation!.longitude;
+      final locationName = _extractCityFromPosition(_selectedLocation!);
+
+      // If callback provided, use it
+      if (widget.onLocationSelected != null) {
+        widget.onLocationSelected!(lat, lng, locationName);
+        Navigator.pop(context);
+        return;
+      }
+
+      // Otherwise use old method (for backward compatibility)
       final result = {
-        'lat': _selectedLocation!.latitude,
-        'lng': _selectedLocation!.longitude,
+        'lat': lat,
+        'lng': lng,
         'address': _getAddressFromPosition(_selectedLocation!),
-        'city': _extractCityFromPosition(_selectedLocation!),
+        'city': locationName,
         'region': _extractRegionFromPosition(_selectedLocation!),
       };
 
       print('✅ [MAP] Returning data: $result');
-
-      // ✅ Important: Return data to previous screen
       Navigator.pop(context, result);
     } else {
       print('❌ [MAP] No location selected');
@@ -117,25 +135,49 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   String _getAddressFromPosition(LatLng position) {
-    if (position.latitude >= 32.4 && position.latitude <= 32.5) return 'Jenin, Palestine';
-    if (position.latitude >= 31.9 && position.latitude <= 32.0) return 'Ramallah, Palestine';
-    if (position.latitude >= 31.5 && position.latitude <= 31.6) return 'Gaza, Palestine';
-    if (position.latitude >= 31.5 && position.latitude <= 31.6) return 'Hebron, Palestine';
-    return 'Selected location on map';
+    // Jordanian cities
+    if (_isNear(position, _ammanLocation)) return 'Amman, Jordan';
+    if (_isNear(position, _irbidLocation)) return 'Irbid, Jordan';
+    if (_isNear(position, _zarqaLocation)) return 'Zarqa, Jordan';
+    if (_isNear(position, _aqabaLocation)) return 'Aqaba, Jordan';
+    
+    // Palestinian cities (for reference)
+    if (_isNear(position, _jeninLocation)) return 'Jenin, Palestine';
+    if (_isNear(position, _ramallahLocation)) return 'Ramallah, Palestine';
+    if (_isNear(position, _gazaLocation)) return 'Gaza, Palestine';
+    if (_isNear(position, _hebronLocation)) return 'Hebron, Palestine';
+    
+    return 'Selected location in Jordan';
+  }
+
+  bool _isNear(LatLng pos1, LatLng pos2) {
+    final latDiff = (pos1.latitude - pos2.latitude).abs();
+    final lngDiff = (pos1.longitude - pos2.longitude).abs();
+    return latDiff < 0.5 && lngDiff < 0.5; // Within ~50km radius
   }
 
   String _extractCityFromPosition(LatLng position) {
-    if (position.latitude >= 32.4 && position.latitude <= 32.5) return 'Jenin';
-    if (position.latitude >= 31.9 && position.latitude <= 32.0) return 'Ramallah';
-    if (position.latitude >= 31.5 && position.latitude <= 31.6) return 'Gaza';
-    if (position.latitude >= 31.5 && position.latitude <= 31.6) return 'Hebron';
-    return 'Palestine';
+    // Jordanian cities (primary)
+    if (_isNear(position, _ammanLocation)) return 'Amman';
+    if (_isNear(position, _irbidLocation)) return 'Irbid';
+    if (_isNear(position, _zarqaLocation)) return 'Zarqa';
+    if (_isNear(position, _aqabaLocation)) return 'Aqaba';
+    
+    // Palestinian cities
+    if (_isNear(position, _jeninLocation)) return 'Jenin';
+    if (_isNear(position, _ramallahLocation)) return 'Ramallah';
+    if (_isNear(position, _gazaLocation)) return 'Gaza';
+    if (_isNear(position, _hebronLocation)) return 'Hebron';
+    
+    return 'Jordan';
   }
 
   String _extractRegionFromPosition(LatLng position) {
-    if (position.latitude >= 32.0) return 'North West Bank';
-    if (position.latitude >= 31.5) return 'Central West Bank';
-    return 'South West Bank';
+    // Jordanian regions
+    if (position.latitude >= 32.0) return 'North Jordan';
+    if (position.latitude >= 31.0) return 'Central Jordan';
+    if (position.latitude < 31.0) return 'South Jordan';
+    return 'Jordan';
   }
 
   Widget _buildCityButton(String cityName, LatLng location, Color color) {
@@ -212,19 +254,19 @@ class _MapScreenState extends State<MapScreen> {
             },
           ),
 
-          // City buttons
+          // City buttons - Jordanian Cities
           Positioned(
             top: 20,
             left: 20,
             child: Column(
               children: [
-                _buildCityButton('Jenin', _jeninLocation, Colors.green),
+                _buildCityButton('Amman', _ammanLocation, Color(0xFF7815A0)),
                 SizedBox(height: 10),
-                _buildCityButton('Ramallah', _ramallahLocation, Colors.blue),
+                _buildCityButton('Irbid', _irbidLocation, Colors.blue),
                 SizedBox(height: 10),
-                _buildCityButton('Gaza', _gazaLocation, Colors.orange),
+                _buildCityButton('Zarqa', _zarqaLocation, Colors.green),
                 SizedBox(height: 10),
-                _buildCityButton('Hebron', _hebronLocation, Colors.purple),
+                _buildCityButton('Aqaba', _aqabaLocation, Colors.orange),
               ],
             ),
           ),

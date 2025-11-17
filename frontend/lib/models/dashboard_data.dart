@@ -29,17 +29,30 @@ class Parent {
 }
 
 class Child {
+  final int? childId;
   final String name;
   final String condition;
   final String image;
+  final List<dynamic>? evaluations;
 
-  Child({required this.name, required this.condition, required this.image});
+  // Add getter for compatibility
+  String? get childName => name;
+
+  Child({
+    this.childId,
+    required this.name,
+    required this.condition,
+    required this.image,
+    this.evaluations,
+  });
 
   factory Child.fromJson(Map<String, dynamic> json) {
     return Child(
+      childId: json['child_id'],
       name: json['name'] ?? '',
       condition: json['condition'] ?? '',
       image: json['image'] ?? '',
+      evaluations: json['evaluations'] as List<dynamic>? ?? [],
     );
   }
 }

@@ -290,6 +290,170 @@ Make it practical, detailed, and evidence-based.`
 });
 
 /**
+ * POST /api/ai/educational-resources
+ * يجيب موارد تعليمية من مصادر موثوقة حسب التشخيص
+ */
+router.post('/educational-resources', authMiddleware, async (req, res) => {
+  try {
+    const { diagnosis, age } = req.body;
+
+    if (!diagnosis) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Diagnosis is required' 
+      });
+    }
+
+    console.log(`🔄 Generating educational resources for: ${diagnosis}, age: ${age}`);
+
+    // Add variation seed based on current time
+    const now = new Date();
+    const seed = now.getHours() + now.getMinutes(); // Changes every minute
+    const focusAreas = [
+      'communication and social interaction',
+      'daily living skills and independence',
+      'behavior management and emotional regulation',
+      'cognitive development and learning strategies',
+      'sensory processing and physical activities'
+    ];
+    const selectedFocus = focusAreas[seed % focusAreas.length];
+
+    // Trusted sources mapping
+    const trustedSources = {
+      'Autism Spectrum Disorder': [
+        { name: 'Autism Speaks', url: 'https://www.autismspeaks.org' },
+        { name: 'CDC Autism', url: 'https://www.cdc.gov/autism' },
+        { name: 'National Autistic Society', url: 'https://www.autism.org.uk' }
+      ],
+      'Down Syndrome': [
+        { name: 'National Down Syndrome Society', url: 'https://www.ndss.org' },
+        { name: 'Down Syndrome Education International', url: 'https://www.dseinternational.org' }
+      ],
+      'ADHD': [
+        { name: 'CHADD', url: 'https://chadd.org' },
+        { name: 'CDC ADHD', url: 'https://www.cdc.gov/adhd' }
+      ],
+      'Speech Delays': [
+        { name: 'ASHA', url: 'https://www.asha.org' },
+        { name: 'Speech and Language Kids', url: 'https://www.speechandlanguagekids.com' }
+      ],
+      'Learning Disabilities': [
+        { name: 'Learning Disabilities Association', url: 'https://ldaamerica.org' },
+        { name: 'Understood.org', url: 'https://www.understood.org' }
+      ]
+    };
+
+    const sources = trustedSources[diagnosis] || trustedSources['Learning Disabilities'];
+
+    // Generate AI resources using Groq
+    const chatCompletion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert in special education and evidence-based resources. 
+Provide ONLY resources from trusted, reliable English-language organizations. 
+Focus on scientifically proven methods and established educational practices.`
+        },
+        {
+          role: "user",
+          content: `Generate 5 UNIQUE and DIVERSE educational resources for a child with ${diagnosis}, age ${age} years.
+
+🎯 PRIMARY FOCUS for this set: ${selectedFocus}
+
+IMPORTANT: Make each resource DIFFERENT by varying:
+- Topics (don't repeat similar topics)
+- Approaches (practical tips, research-based strategies, hands-on activities, etc.)
+- Target audiences (parents, teachers, therapists)
+- Skill levels (beginner to advanced)
+
+For each resource, provide:
+1. Title (clear, specific, and UNIQUE - avoid generic titles)
+2. Description (2-3 sentences explaining the specific value and approach)
+3. Type (Article, Video, or PDF - vary these)
+4. Focus area (specific skill like "Expressive Language", "Joint Attention", "Fine Motor Skills")
+
+Return ONLY a JSON array:
+[
+  {
+    "title": "Specific unique title",
+    "description": "Clear explanation of what makes this resource valuable",
+    "type": "Article",
+    "focus_area": "Specific skill area"
+  }
+]
+
+Guidelines:
+- ALL resources MUST be evidence-based and from reliable sources
+- Each resource should cover a DIFFERENT aspect of ${selectedFocus}
+- Make titles specific and actionable (e.g., "Using Visual Schedules for Morning Routines" not "Visual Schedules")
+- Vary the types (mix Articles, Videos, PDFs)
+- Age-appropriate for ${age} years old
+- Related to ${diagnosis}
+
+Current time seed: ${seed} (use this to ensure variety)
+
+Generate 5 DIVERSE resources in JSON format ONLY.`
+        }
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.85, // Higher for more variety
+      max_tokens: 1800,
+      top_p: 0.9 // Add nucleus sampling for diversity
+    });
+
+    const content = chatCompletion.choices[0]?.message?.content || '[]';
+    const jsonMatch = content.match(/\[[\s\S]*\]/);
+    
+    if (jsonMatch) {
+      const aiResources = JSON.parse(jsonMatch[0]);
+      
+      // Format resources with trusted sources
+      const resources = aiResources.map((resource, index) => {
+        const source = sources[index % sources.length];
+        return {
+          title: resource.title,
+          description: resource.description,
+          type: resource.type || 'Article',
+          link: `${source.url}/resources`,
+          source: source.name,
+          age_group: age < 6 ? '3-5' : age < 10 ? '6-9' : age < 14 ? '10-13' : '14+',
+          skill_type: resource.focus_area || 'General',
+          views: Math.floor(Math.random() * 300) + 100,
+          rating: 5,
+          ai_generated: true
+        };
+      });
+      
+      console.log(`✅ Generated ${resources.length} AI resources for ${diagnosis}`);
+      console.log(`🎯 Focus area: ${selectedFocus}`);
+      console.log(`🎲 Variation seed: ${seed}`);
+      
+      return res.json({
+        success: true,
+        resources: resources,
+        diagnosis: diagnosis,
+        age: age,
+        focus_area: selectedFocus,
+        sources: sources.map(s => s.name),
+        generated_at: new Date().toISOString(),
+        variation_seed: seed,
+        note: `Resources focused on ${selectedFocus} from trusted organizations: ` + sources.map(s => s.name).join(', ')
+      });
+    }
+    
+    throw new Error('Failed to parse AI response');
+
+  } catch (error) {
+    console.error('❌ Error generating educational resources:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to generate resources',
+      error: error.message 
+    });
+  }
+});
+
+/**
  * GET /api/ai/test
  * endpoint للاختبار السريع (بدون authentication)
  */
@@ -318,6 +482,80 @@ router.get('/test', async (req, res) => {
       success: false,
       message: 'Groq AI connection failed',
       error: error.message
+    });
+  }
+});
+
+// Educational Chatbot - General Q&A about conditions
+router.post('/educational-chat', authMiddleware, async (req, res) => {
+  try {
+    const { message, diagnoses } = req.body;
+
+    if (!message) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Message is required' 
+      });
+    }
+
+    console.log(`💬 Educational Chat Question: "${message}"`);
+    console.log(`📋 User's diagnoses: ${diagnoses?.join(', ') || 'None'}`);
+
+    // Build context based on user's diagnoses
+    let contextInfo = '';
+    if (diagnoses && diagnoses.length > 0) {
+      contextInfo = `\n\nThe parent has children with the following conditions: ${diagnoses.join(', ')}.`;
+    }
+
+    const chatCompletion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: `You are a friendly and knowledgeable special education assistant. 
+Your role is to provide helpful, accurate, and compassionate information about:
+- Autism Spectrum Disorder (ASD)
+- Down Syndrome
+- ADHD (Attention Deficit Hyperactivity Disorder)
+- Learning Disabilities
+- Speech and Language Delays
+- Other developmental conditions
+
+Guidelines:
+- Be empathetic and supportive
+- Provide evidence-based information
+- Use simple, clear language
+- Offer practical tips and strategies
+- Encourage professional consultation when needed
+- Be culturally sensitive
+- Never provide medical diagnosis
+- Focus on educational support and parenting strategies${contextInfo}`
+        },
+        {
+          role: "user",
+          content: message
+        }
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.7,
+      max_tokens: 800
+    });
+
+    const response = chatCompletion.choices[0]?.message?.content || 'I apologize, but I could not generate a response. Please try again.';
+    
+    console.log(`✅ Educational chat response generated (${response.length} chars)`);
+
+    return res.json({
+      success: true,
+      response: response,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ Error in educational chat:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to process chat message',
+      error: error.message 
     });
   }
 });

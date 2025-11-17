@@ -42,6 +42,40 @@ const Institution = sequelize.define('Institution', {
   region: {
     type: DataTypes.STRING(100),
     allowNull: true
+  },
+  services_offered: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'Comma-separated services like: Speech Therapy, Occupational Therapy, etc.'
+  },
+  conditions_supported: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'Comma-separated conditions like: Autism, ADHD, Down Syndrome, etc.'
+  },
+  rating: {
+    type: DataTypes.DECIMAL(3, 2),
+    allowNull: true,
+    defaultValue: 0.0,
+    validate: {
+      min: 0.0,
+      max: 5.0
+    }
+  },
+  price_range: {
+    type: DataTypes.STRING(50),
+    allowNull: true,
+    comment: 'e.g., "50-100 JD" or "Free-500 JD"'
+  },
+  capacity: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    comment: 'Maximum number of children the institution can handle'
+  },
+  available_slots: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    comment: 'Current available slots'
   }
 
 }, {

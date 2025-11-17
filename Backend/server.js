@@ -105,6 +105,7 @@ app.use('/api/community', require('./routes/communityRoutes'));
 
 // AI Assistant
 app.use('/api/ai', require('./routes/aiAdviceRoutes'));
+app.use('/api/ai', require('./routes/aiRecommendationsRoutes'));
 
 // Chat
 app.use('/api/chat', require('./routes/chatRoutes'));
@@ -114,6 +115,9 @@ app.use('/api', require('./routes/institutionRoutes'));
 
 // Resources
 app.use('/api', require('./routes/resourceRoutes'));
+
+// Reviews
+app.use('/api/reviews', require('./routes/reviewRoutes'));
 
 // Booking
 app.use('/api/booking', require('./routes/sessionBookingRoutes'));

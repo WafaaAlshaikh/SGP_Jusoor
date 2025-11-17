@@ -38,6 +38,27 @@ const getParentDashboard = async (req, res) => {
         }
       ],
     });
+    
+    // Get evaluations for each child
+    const childrenWithEvaluations = await Promise.all(
+      children.map(async (child) => {
+        const evaluations = await sequelize.query(`
+          SELECT evaluation_id, evaluation_type, progress_score, notes, created_at
+          FROM Evaluations
+          WHERE child_id = ?
+          ORDER BY created_at DESC
+          LIMIT 10
+        `, {
+          replacements: [child.child_id],
+          type: sequelize.QueryTypes.SELECT
+        });
+        
+        return {
+          ...child.toJSON(),
+          evaluations
+        };
+      })
+    );
 
     // جلب طلبات الانضمام pending
     const pendingRegistrations = await ChildRegistrationRequest.count({
@@ -77,13 +98,14 @@ const getParentDashboard = async (req, res) => {
         email: parent.User.email,
         profile_picture: parent.User.profile_picture,
       },
-      children: children.map(c => ({
-        id: c.child_id,
+      children: childrenWithEvaluations.map(c => ({
+        child_id: c.child_id,
         name: c.full_name,
         condition: c.Diagnosis ? c.Diagnosis.name : 'Not diagnosed',
         image: c.photo,
         registration_status: c.registration_status,
-        current_institution: c.currentInstitution ? c.currentInstitution.name : null
+        current_institution: c.currentInstitution ? c.currentInstitution.name : null,
+        evaluations: c.evaluations || []
       })),
       summaries: {
         totalChildren: children.length,
