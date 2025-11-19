@@ -15,12 +15,8 @@ const SpecialistSchedule = require('./SpecialistSchedule');
 const ChildRegistrationRequest = require('./ChildRegistrationRequest');
 const SpecialistRegistrationRequest = require('./SpecialistRegistrationRequest');
 const VacationRequest = require('./VacationRequest');
-const Question = require('./Question');
-const Questionnaire = require('./Questionnaire');
 const ChildAttachment = require('./ChildAttachment');
 
-const QuestionnaireAnswer = require('./QuestionnaireAnswer');
-const QuestionnaireResult = require('./QuestionnaireResult');
 const AIDonorReport = require('./AIDonorReport');
 const AIParentInteraction = require('./AIParentInteraction');
 const AIRecommendation = require('./AIRecommendation');
@@ -35,6 +31,9 @@ const Like = require('./Like');
 const Notification = require('./Notification');
 
 const Manager = require('./Manager');
+const Questionnaire = require('./Questionnaire');
+const Question = require('./Question');
+const QuestionnaireResponse = require('./QuestionnaireResponse');
 
 // ==================== Main Relations ====================
 
@@ -134,13 +133,12 @@ module.exports = {
   Donation,
   Resource,
   ResourceDiagnosis,
-  Question,
-  Questionnaire,
   ChildAttachment,
   Comment,
   Like,
   Notification,
   Manager,
-  QuestionnaireAnswer,
-  QuestionnaireResult
+  Questionnaire,
+  Question,
+  QuestionnaireResponse
 };

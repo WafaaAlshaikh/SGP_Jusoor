@@ -2,10 +2,12 @@ const Invoice = require('./Invoice');
 const Payment = require('./Payment');
 const User = require('./User');
 const Child = require('./Child');
+const Parent = require('./Parent');
 const Specialist = require('./Specialist');
 const Questionnaire = require('./Questionnaire');
-const QuestionnaireAnswer = require('./QuestionnaireAnswer');
-const QuestionnaireResult = require('./QuestionnaireResult');
+const Question = require('./Question');
+const QuestionnaireResponse = require('./QuestionnaireResponse');
+
 
 Invoice.hasMany(Payment, {
   foreignKey: 'invoice_id',
@@ -20,26 +22,23 @@ Payment.belongsTo(Invoice, {
 console.log('✅ Payment-Invoice relations established');
 
 
-// Questionnaire relationships
-Questionnaire.belongsTo(User, { foreignKey: 'parent_id', as: 'QuestionnaireParent' });
-Questionnaire.belongsTo(Child, { foreignKey: 'child_id', as: 'QuestionnaireChild' });
-Questionnaire.hasMany(QuestionnaireAnswer, { foreignKey: 'questionnaire_id', as: 'Answers' });
-Questionnaire.hasOne(QuestionnaireResult, { foreignKey: 'questionnaire_id', as: 'Result' });
+// في ملف relations.js أضف:
 
-User.hasMany(Questionnaire, { foreignKey: 'parent_id', as: 'ParentQuestionnaires' });
-Child.hasMany(Questionnaire, { foreignKey: 'child_id', as: 'ChildQuestionnaires' });
+// Questionnaire Relationships
+Questionnaire.hasMany(Question, { foreignKey: 'questionnaire_id', as: 'questions' });
+Question.belongsTo(Questionnaire, { foreignKey: 'questionnaire_id', as: 'questionnaire' });
 
-QuestionnaireAnswer.belongsTo(Questionnaire, { foreignKey: 'questionnaire_id' });
-
-QuestionnaireResult.belongsTo(Questionnaire, { foreignKey: 'questionnaire_id' });
-QuestionnaireResult.belongsTo(Specialist, { foreignKey: 'specialist_id', as: 'ReviewedBySpecialist' });
-
+// في ملف relations.js
+QuestionnaireResponse.belongsTo(Parent, { foreignKey: 'parent_id', as: 'parent' });
+Parent.hasMany(QuestionnaireResponse, { foreignKey: 'parent_id', as: 'screenings' });
 
 module.exports = {
-  Questionnaire,
-  QuestionnaireAnswer,
-  QuestionnaireResult,
   User,
   Child,
-  Specialist
+  Specialist,
+  Questionnaire,
+  Question,
+  QuestionnaireResponse,
+  Invoice,
+  Payment
 };

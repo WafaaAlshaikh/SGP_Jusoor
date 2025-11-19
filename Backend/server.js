@@ -130,7 +130,6 @@ app.use('/api/booking', require('./routes/sessionBookingRoutes'));
 app.use('/api/payments', require('./routes/paymentRoutes'));
 
 // Questionnaire
-app.use('/api/questionnaire', require('./routes/questionnaireRoutes'));
 
 // Vacations
 app.use('/api/vacations', require('./routes/vacationRoutes'));
@@ -149,6 +148,8 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 //Admin 
 app.use('/api/admin', require('./routes/adminRoutes'));
+// Questionnaire Routes
+app.use('/api/screening', require('./routes/screeningRoutes'));
 
 
 // ===========================
@@ -195,6 +196,14 @@ const startServer = async () => {
 
         await sequelize.sync();
         console.log('🔄 Models synced');
+
+        const { Question } = require('./model/index');
+const questionCount = await Question.count();
+if (questionCount === 0) {
+  const seedQuestions = require('./seeders/questionnaireSeeds');
+  await seedQuestions();
+}
+
 
         const PORT = process.env.PORT || 5000;
         server = app.listen(PORT, () =>

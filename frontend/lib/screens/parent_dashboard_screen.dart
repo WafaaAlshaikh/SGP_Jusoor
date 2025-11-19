@@ -21,6 +21,7 @@ import 'community_screen.dart';
 import 'parent_child_evaluations_screen.dart';
 import 'browse_centers_screen.dart';
 import 'daily_skills_tracker.dart';
+import 'start_screening_screen.dart';
 
 
 class ParentDashboardScreen extends StatefulWidget {
@@ -1216,16 +1217,17 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           crossAxisSpacing: 10,
           mainAxisSpacing: 10,
           children: [
-            ParentActionButton(
-              icon: Icons.assignment,
-              text: 'Initial Screening',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const QuestionnaireScreen()),
-                );
-              },
-            ),
+            // في الـ ParentDashboard حيث الـ ParentActionButton
+ParentActionButton(
+  icon: Icons.assignment,
+  text: 'Initial Screening',
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const StartScreeningScreen()),
+    );
+  },
+),
             ParentActionButton(
               icon: Icons.school,
               text: 'Browse Centers',

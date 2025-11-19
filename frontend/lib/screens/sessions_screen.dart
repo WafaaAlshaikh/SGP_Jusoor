@@ -197,6 +197,17 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
     );
   }
 
+
+  void _navigateToBookSession() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const BookSessionScreen()),
+    ).then((_) {
+      _loadAllSessions();
+    });
+  }
+
+
   void _rateSession(Session session) {
     showDialog(
       context: context,
@@ -234,30 +245,30 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
 
   void _shareSession(Session session) {
     final shareText = '''
-🎯 **جلسة علاجية - ${session.childName}**
+🎯 **Therapy Session - ${session.childName}**
 
-👦 **الطفل:** ${session.childName}
-👨‍⚕️ **الأخصائي:** ${session.specialistName}  
-🏥 **المؤسسة:** ${session.institutionName}
-📅 **التاريخ:** ${session.date}
-⏰ **الوقت:** ${session.time}
-⏳ **المدة:** ${session.duration} دقيقة
-🎯 **نوع الجلسة:** ${session.sessionType}
-📍 **المكان:** ${session.sessionLocation}
+👦 **Child:** ${session.childName}
+👨‍⚕️ **Specialist:** ${session.specialistName}  
+🏥 **Institution:** ${session.institutionName}
+📅 **Date:** ${session.date}
+⏰ **Time:** ${session.time}
+⏳ **Duration:** ${session.duration} minutes
+🎯 **Session Type:** ${session.sessionType}
+📍 **Location:** ${session.sessionLocation}
 
-${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الجلسة' :
-    session.displayStatus == 'upcoming' ? '⏳ جلسة قادمة' :
-    '📋 جلسة قيد الانتظار'}
+${session.displayStatus == 'completed' ? '✅ Session Completed' :
+    session.displayStatus == 'upcoming' ? '⏳ Upcoming Session' :
+    '📋 Pending Session'}
 ''';
 
-    Share.share(shareText, subject: 'معلومات الجلسة - ${session.childName}');
+    Share.share(shareText, subject: 'Session Information - ${session.childName}');
   }
 
   void _downloadInvoice(Session session) async {
     try {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('📄 جاري إنشاء الفاتورة...'),
+          content: Text('📄 Generating invoice...'),
           backgroundColor: Colors.blue,
         ),
       );
@@ -268,24 +279,55 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
         pw.Page(
           pageFormat: PdfPageFormat.a4,
           build: (pw.Context context) {
-            return pw.Directionality(
-              textDirection: pw.TextDirection.rtl,
-              child: pw.Padding(
-                padding: const pw.EdgeInsets.all(20),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Center(
-                      child: pw.Text(
-                        'فاتورة جلسة علاجية',
-                        style: pw.TextStyle(
-                          fontSize: 24,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
+            return pw.Padding(
+              padding: const pw.EdgeInsets.all(20),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Center(
+                    child: pw.Text(
+                      'Therapy Session Invoice',
+                      style: pw.TextStyle(
+                        fontSize: 24,
+                        fontWeight: pw.FontWeight.bold,
                       ),
                     ),
-                    pw.SizedBox(height: 20),
+                  ),
+                  pw.SizedBox(height: 20),
 
+                  pw.Container(
+                    width: double.infinity,
+                    padding: const pw.EdgeInsets.all(15),
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border.all(color: PdfColors.grey300),
+                      borderRadius: pw.BorderRadius.circular(8),
+                    ),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text(
+                          'Session Information',
+                          style: pw.TextStyle(
+                            fontSize: 18,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                        pw.SizedBox(height: 10),
+                        _buildInvoiceRow('Child:', session.childName),
+                        _buildInvoiceRow('Specialist:', session.specialistName),
+                        _buildInvoiceRow('Institution:', session.institutionName),
+                        _buildInvoiceRow('Session Type:', session.sessionType),
+                        _buildInvoiceRow('Date:', session.date),
+                        _buildInvoiceRow('Time:', session.time),
+                        _buildInvoiceRow('Duration:', '${session.duration} minutes'),
+                        _buildInvoiceRow('Location:', session.sessionLocation),
+                      ],
+                    ),
+                  ),
+
+                  pw.SizedBox(height: 20),
+
+                  if (session.sessionTypePrice > 0) ...[
                     pw.Container(
                       width: double.infinity,
                       padding: const pw.EdgeInsets.all(15),
@@ -297,73 +339,39 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
                           pw.Text(
-                            'معلومات الجلسة',
+                            'Payment Information',
                             style: pw.TextStyle(
                               fontSize: 18,
                               fontWeight: pw.FontWeight.bold,
                             ),
                           ),
                           pw.SizedBox(height: 10),
-                          _buildInvoiceRow('الطفل:', session.childName),
-                          _buildInvoiceRow('الأخصائي:', session.specialistName),
-                          _buildInvoiceRow('المؤسسة:', session.institutionName),
-                          _buildInvoiceRow('نوع الجلسة:', session.sessionType),
-                          _buildInvoiceRow('التاريخ:', session.date),
-                          _buildInvoiceRow('الوقت:', session.time),
-                          _buildInvoiceRow('المدة:', '${session.duration} دقيقة'),
-                          _buildInvoiceRow('المكان:', session.sessionLocation),
+                          _buildInvoiceRow('Session Price:', '\$${session.sessionTypePrice.toStringAsFixed(2)}'),
+                          _buildInvoiceRow('Discount:', '\$0.00'),
+                          _buildInvoiceRow('Tax:', '\$${(session.sessionTypePrice * 0.16).toStringAsFixed(2)}'),
+                          pw.Divider(),
+                          _buildInvoiceRow(
+                            'Total Amount:',
+                            '\$${(session.sessionTypePrice * 1.16).toStringAsFixed(2)}',
+                            isTotal: true,
+                          ),
                         ],
                       ),
                     ),
+                  ],
 
-                    pw.SizedBox(height: 20),
+                  pw.SizedBox(height: 20),
 
-                    if (session.sessionTypePrice > 0) ...[
-                      pw.Container(
-                        width: double.infinity,
-                        padding: const pw.EdgeInsets.all(15),
-                        decoration: pw.BoxDecoration(
-                          border: pw.Border.all(color: PdfColors.grey300),
-                          borderRadius: pw.BorderRadius.circular(8),
-                        ),
-                        child: pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
-                          children: [
-                            pw.Text(
-                              'معلومات الدفع',
-                              style: pw.TextStyle(
-                                fontSize: 18,
-                                fontWeight: pw.FontWeight.bold,
-                              ),
-                            ),
-                            pw.SizedBox(height: 10),
-                            _buildInvoiceRow('سعر الجلسة:', '\$${session.sessionTypePrice.toStringAsFixed(2)}'),
-                            _buildInvoiceRow('الخصم:', '\$0.00'),
-                            _buildInvoiceRow('الضريبة:', '\$${(session.sessionTypePrice * 0.16).toStringAsFixed(2)}'),
-                            pw.Divider(),
-                            _buildInvoiceRow(
-                              'المبلغ الإجمالي:',
-                              '\$${(session.sessionTypePrice * 1.16).toStringAsFixed(2)}',
-                              isTotal: true,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-
-                    pw.SizedBox(height: 20),
-
-                    pw.Center(
-                      child: pw.Text(
-                        'شكراً لثقتكم بنا 🌟',
-                        style: pw.TextStyle(
-                          fontSize: 14,
-                          color: PdfColors.grey600,
-                        ),
+                  pw.Center(
+                    child: pw.Text(
+                      'Thank you for your trust 🌟',
+                      style: pw.TextStyle(
+                        fontSize: 14,
+                        color: PdfColors.grey600,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             );
           },
@@ -377,12 +385,12 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('✅ تم حفظ الفاتورة بنجاح'),
+            content: const Text('✅ Invoice saved successfully'),
             backgroundColor: _successColor,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             action: SnackBarAction(
-              label: 'فتح الملف',
+              label: 'Open File',
               onPressed: () async {
                 await Share.shareXFiles([XFile(file.path)]);
               },
@@ -396,7 +404,7 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ فشل في إنشاء الفاتورة: ${e.toString()}'),
+            content: Text('❌ Failed to create invoice: ${e.toString()}'),
             backgroundColor: _errorColor,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -489,17 +497,7 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
     }
   }
 
-  void _navigateToParentApproveSessions() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const ParentApproveSessionsScreen(),
-      ),
-    ).then((_) {
-      // بعد الرجوع من شاشة الموافقة، نعيد تحميل الجلسات
-      _loadAllSessions();
-    });
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -612,15 +610,7 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
           Row(
             children: [
               Expanded(
-                child: DropdownButtonFormField<String>(
-                  value: _selectedInstitution,
-                  items: ['All', ...institutions].map((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
-                  onChanged: _onInstitutionFilterChanged,
+                child: InputDecorator(
                   decoration: InputDecoration(
                     labelText: 'Institution',
                     labelStyle: TextStyle(color: _textSecondary),
@@ -636,19 +626,25 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
                     fillColor: _backgroundColor,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedInstitution,
+                      items: ['All', ...institutions].map((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value),
+                        );
+                      }).toList(),
+                      onChanged: _onInstitutionFilterChanged,
+                      isExpanded: true,
+                      style: TextStyle(color: _textPrimary, fontSize: 14),
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: DropdownButtonFormField<String>(
-                  value: _selectedType,
-                  items: ['All', ...sessionTypes].map((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
-                  onChanged: _onTypeFilterChanged,
+                child: InputDecorator(
                   decoration: InputDecoration(
                     labelText: 'Session Type',
                     labelStyle: TextStyle(color: _textSecondary),
@@ -663,6 +659,20 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
                     filled: true,
                     fillColor: _backgroundColor,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedType,
+                      items: ['All', ...sessionTypes].map((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value),
+                        );
+                      }).toList(),
+                      onChanged: _onTypeFilterChanged,
+                      isExpanded: true,
+                      style: TextStyle(color: _textPrimary, fontSize: 14),
+                    ),
                   ),
                 ),
               ),
@@ -761,27 +771,6 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
       return _buildEmptyState(type);
     }
 
-    if (type == 'pending') {
-      return ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: sessions.length + 1,
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: OutlinedButton.icon(
-                onPressed: _navigateToParentApproveSessions,
-                icon: const Icon(Icons.how_to_reg),
-                label: const Text('Review specialist sessions waiting approval'),
-              ),
-            );
-          }
-          final session = sessions[index - 1];
-          return _buildSessionCard(session, type);
-        },
-      );
-    }
-
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: sessions.length,
@@ -791,6 +780,8 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
       },
     );
   }
+
+
 
   Widget _buildEmptyState(String type) {
     final Map<String, dynamic> emptyStates = {
@@ -859,16 +850,8 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
-            if (type == 'upcoming')
-              ElevatedButton(
-                onPressed: _navigateToBookSession,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _primaryColor,
-                  foregroundColor: Colors.white,
-                ),
-                child: Text(state['action'] as String),
-              )
-            else if (type == 'pending') ...[
+            // ✅ إصلاح: إزالة الزر الإضافي للموافقة
+            if (type == 'upcoming' || type == 'pending')
               ElevatedButton(
                 onPressed: _navigateToBookSession,
                 style: ElevatedButton.styleFrom(
@@ -877,30 +860,86 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
                 ),
                 child: Text(state['action'] as String),
               ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: _navigateToParentApproveSessions,
-                icon: const Icon(Icons.how_to_reg),
-                label: const Text('Review specialist sessions waiting approval'),
-              ),
-            ],
           ],
         ),
       ),
     );
   }
 
+  // دالة لجلب الجلسات المنتظرة موافقة الوالدين
+  // دالة لجلب الجلسات المنتظرة موافقة الوالدين
+  Future<List<dynamic>> _loadParentApprovalSessions() async {
+    try {
+      final response = await ParentService.getNewPendingSessions();
+      if (response['success'] == true) {
+        return response['data'] ?? [];
+      }
+      return [];
+    } catch (e) {
+      print('❌ Error loading parent approval sessions: $e');
+      return [];
+    }
+  }
+
+// دالة للموافقة أو الرفض
+  // دالة للموافقة أو الرفض
+  Future<void> _handleParentApproval(int sessionId, bool approve) async {
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      final response = await ParentService.approveNewSession(sessionId, approve);
+
+      if (mounted) Navigator.pop(context);
+
+      if (response['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(approve
+                ? 'Session approved successfully'
+                : 'Session rejected successfully'),
+            backgroundColor: _successColor,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+        _loadAllSessions();
+      } else {
+        throw Exception(response['message'] ?? 'Failed to process approval');
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to process request: ${e.toString()}'),
+            backgroundColor: _errorColor,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    }
+  }
+
+
   Widget _buildSessionCard(Session session, String type) {
     final bool isPaid = session.isPaid ?? false;
     final bool canCancel = type == 'upcoming' && session.status == 'Scheduled';
     final bool showPayButton = type == 'upcoming' && !isPaid && session.status == 'Scheduled';
+    final bool needsParentApproval = type == 'pending' && session.status == 'Pending Approval';
 
     return GestureDetector(
       onTap: () => _showSessionDetails(session),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         child: Card(
-          elevation: 2,
+          elevation: 3,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -916,6 +955,8 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
                     _buildStatusChip(session.displayStatus),
                     if (isPaid)
                       _buildPaymentChip('Paid', Colors.green)
+                    else if (needsParentApproval)
+                      _buildPaymentChip('Needs Approval', Colors.orange)
                     else
                       _buildPaymentChip('Pending Payment', Colors.orange),
                   ],
@@ -943,16 +984,24 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
                 const SizedBox(height: 12),
 
                 // Date, Time, and Duration
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _buildDetailChip(Icons.calendar_today, session.date),
-                    _buildDetailChip(Icons.access_time, session.time),
-                    _buildDetailChip(Icons.timer, '${session.duration} min'),
-                    _buildDetailChip(Icons.category, session.sessionType),
-                    _buildDetailChip(Icons.location_on, session.sessionLocation),
-                  ],
+                Container(
+                  height: 32,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      const SizedBox(width: 4),
+                      _buildDetailChip(Icons.calendar_today, session.date),
+                      const SizedBox(width: 8),
+                      _buildDetailChip(Icons.access_time, session.time),
+                      const SizedBox(width: 8),
+                      _buildDetailChip(Icons.timer, '${session.duration} min'),
+                      const SizedBox(width: 8),
+                      _buildDetailChip(Icons.category, session.sessionType),
+                      const SizedBox(width: 8),
+                      _buildDetailChip(Icons.location_on, session.sessionLocation),
+                      const SizedBox(width: 4),
+                    ],
+                  ),
                 ),
 
                 // Price information
@@ -981,32 +1030,130 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
                   _buildRatingRow(session.rating!),
                 ],
 
-                // Cancellation reason for cancelled sessions
-                if (canCancel || showPayButton) ...[
+                // ✅ تحسين أزرار الموافقة للجلسات المنتظرة
+                if (needsParentApproval) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.pending_actions, size: 18, color: Colors.orange),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Action Required',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orange,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'This session requires your approval to proceed',
+                          style: TextStyle(
+                            color: _textSecondary,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => _handleParentApproval(int.parse(session.sessionId), false),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _errorColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          icon: const Icon(Icons.close, size: 20),
+                          label: const Text(
+                            'Reject',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => _handleParentApproval(int.parse(session.sessionId), true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _successColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          icon: const Icon(Icons.check, size: 20),
+                          label: const Text(
+                            'Approve',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+
+                // أزرار الدفع والإلغاء للجلسات العادية
+                if ((canCancel || showPayButton) && !needsParentApproval) ...[
                   const SizedBox(height: 16),
                   Row(
                     children: [
                       if (showPayButton)
                         Expanded(
-                          child: ElevatedButton(
+                          child: ElevatedButton.icon(
                             onPressed: () => _navigateToPayment(session),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.green,
                               foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
                             ),
-                            child: const Text('Pay Now'),
+                            icon: const Icon(Icons.payment, size: 20),
+                            label: const Text(
+                              'Pay Now',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
                           ),
                         ),
                       if (showPayButton) const SizedBox(width: 8),
                       if (canCancel)
                         Expanded(
-                          child: OutlinedButton(
+                          child: OutlinedButton.icon(
                             onPressed: () => _cancelSession(session),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: Colors.red,
                               side: const BorderSide(color: Colors.red),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
                             ),
-                            child: const Text('Cancel Session'),
+                            icon: const Icon(Icons.cancel, size: 20),
+                            label: const Text(
+                              'Cancel Session',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
                           ),
                         ),
                     ],
@@ -1464,14 +1611,14 @@ ${session.displayStatus == 'completed' ? '✅ تم الانتهاء من الج�
     }
   }
 
-  void _navigateToBookSession() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const BookSessionScreen()),
-    ).then((_) {
-      _loadAllSessions();
-    });
-  }
+  // void _navigateToBookSession() {
+  //   Navigator.push(
+  //     context,
+  //     MaterialPageRoute(builder: (context) => const BookSessionScreen()),
+  //   ).then((_) {
+  //     _loadAllSessions();
+  //   });
+  // }
 
   @override
   void dispose() {

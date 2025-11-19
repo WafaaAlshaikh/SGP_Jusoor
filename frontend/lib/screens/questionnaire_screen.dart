@@ -1,760 +1,339 @@
+// screens/questionnaire/questionnaire_screen.dart
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../services/api_service.dart';
-import '../models/questionnaire_model.dart';
+import '../../services/screening_service.dart'; // ← استخدم الـ service الجديد
+import '../../models/screening_models.dart';
+import '../widgets/question_widget.dart';
+import 'result_screen.dart';
 
 class QuestionnaireScreen extends StatefulWidget {
-  final String? childId;
-  final String? childName;
+  final int childAge;
+  final String? childGender;
+  final List<ScreeningQuestion>? initialQuestions; // 🔥 جديد
+  final Map<String, dynamic>? screeningPlan; // 🔥 جديد
+  final bool isGateway; // 🔥 جديد
 
-  const QuestionnaireScreen({super.key, this.childId, this.childName});
+  const QuestionnaireScreen({
+    super.key,
+    required this.childAge,
+    this.childGender,
+     this.initialQuestions, // 🔥 جديد
+    this.screeningPlan, // 🔥 جديد
+    this.isGateway = true, // 🔥 جديد
+  });
 
   @override
   State<QuestionnaireScreen> createState() => _QuestionnaireScreenState();
 }
 
 class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
-  List<Question> _questions = [];
-  Map<String, dynamic> _responses = {};
-  bool _isLoading = true;
+  List<ScreeningQuestion> _questions = [];
+  List<ScreeningResponse> _responses = [];
   int _currentQuestionIndex = 0;
-  String _errorMessage = '';
-  String _language = 'ar';
-  double _progress = 0.0;
-  String? _currentQuestionnaireId;
-  String _currentStage = 'demographics';
+  bool _isLoading = true;
+  String _currentStep = 'gateway';
+  Map<String, dynamic>? _screeningPlan;
 
   @override
   void initState() {
     super.initState();
-    _loadQuestionsForStage('demographics');
+    _startScreening();
   }
 
-  Future<void> _loadQuestionsForStage(String stage) async {
-    try {
+  Future<void> _startScreening() async {
+  try {
+    // 🔥 إذا في أسئلة جاهزة (من بوابة)، استخدمهم مباشرة
+    if (widget.initialQuestions != null && !widget.isGateway) {
+      print('🎯 Using pre-loaded questions from gateway');
+      print('📋 Questions count: ${widget.initialQuestions!.length}');
+      print('🎯 Screening plan: ${widget.screeningPlan}');
+      
       setState(() {
-        _isLoading = true;
-        _errorMessage = '';
-        _currentStage = stage;
-      });
-
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token') ?? '';
-
-      if (token.isEmpty) {
-        setState(() {
-          _errorMessage = 'يرجى تسجيل الدخول مرة أخرى';
-          _isLoading = false;
-        });
-        return;
-      }
-
-      final questions = await ApiService.getQuestionnaireQuestions(
-        token,
-        childId: widget.childId,
-        previousAnswers: _currentStage == 'deep' ? _responses : null,
-        stage: stage,
-        language: _language,
-      );
-
-      setState(() {
-        _questions = questions;
+        _questions = widget.initialQuestions!;
+        _screeningPlan = widget.screeningPlan;
+        _currentStep = 'primary_screening'; // 🔥 غير الخطوة
         _isLoading = false;
-        _progress = _calculateProgress();
       });
-    } catch (e) {
-      print('❌ خطأ في تحميل الأسئلة: $e');
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'فشل في تحميل الأسئلة: $e';
-      });
+      return;
     }
-  }
 
-  void _saveAnswer(String questionId, dynamic answer, String category) {
+    // 🔥 إذا لا، ابدأ screening جديد (البوابة)
+    print('🎯 Starting new GATEWAY screening for age: ${widget.childAge}');
+    
+    final result = await ScreeningService.startScreening(
+      widget.childAge,
+      widget.childGender,
+    );
+    
+    if (!mounted) return;
+    
     setState(() {
-      _responses[questionId] = {
-        'answer': answer,
-        'category': category,
-        'timestamp': DateTime.now().toIso8601String(),
-      };
-      _progress = _calculateProgress();
+      _questions = (result['gateway_questions'] as List)
+          .map((q) => ScreeningQuestion.fromJson(q))
+          .toList();
+      _isLoading = false;
     });
-
-    // الانتقال التلقائي بعد حفظ الإجابة
-    if (_currentQuestionIndex < _questions.length - 1) {
-      Future.delayed(Duration(milliseconds: 400), () {
-        setState(() => _currentQuestionIndex++);
-      });
-    }
-  }
-
-  void _goToPreviousQuestion() {
-    if (_currentQuestionIndex > 0) {
-      setState(() => _currentQuestionIndex--);
-    }
-  }
-
-  void _goToNextQuestion() {
-    if (_currentQuestionIndex < _questions.length - 1) {
-      setState(() => _currentQuestionIndex++);
-    } else {
-      // انتهت أسئلة هذه المرحلة
-      if (_currentStage == 'demographics') {
-        // انتقل إلى الأسئلة العامة المشتركة
-        _currentQuestionIndex = 0;
-        _loadQuestionsForStage('general');
-      } else if (_currentStage == 'general') {
-        // انتقل إلى الأسئلة المتخصصة (حسب النتائج)
-        _currentQuestionIndex = 0;
-        _loadQuestionsForStage('deep');
-      } else {
-        // انتهت الأسئلة المتخصصة -> إرسال الاستبيان
-        _submitQuestionnaire();
-      }
-    }
-  }
-
-  Future<void> _submitQuestionnaire() async {
-    try {
-      setState(() {
-        _isLoading = true;
-      });
-
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token') ?? '';
-
-      if (token.isEmpty) {
-        _showError('يرجى تسجيل الدخول مرة أخرى');
-        return;
-      }
-
-      final result = await ApiService.submitQuestionnaireResponses(
-        token,
-        responses: _responses,
-        childId: widget.childId,
-        questionnaireId: _currentQuestionnaireId,
-        language: _language,
-      );
-
-      _showResults(result);
-    } catch (e) {
-      print('❌ خطأ في إرسال الاستبيان: $e');
-      _showError('فشل في إرسال الاستبيان: $e');
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  void _showResults(Map<String, dynamic> results) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.analytics, color: Colors.green),
-            SizedBox(width: 8),
-            Text('نتائج التقييم المبدئي'),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // مستوى الخطورة
-              if (results['risk_level'] != null)
-                _buildResultItem(
-                    'مستوى الخطورة',
-                    results['risk_level'],
-                    _getRiskColor(results['risk_level'])
-                ),
-
-              SizedBox(height: 16),
-
-              // الحالات المقترحة
-              if (results['suggested_conditions'] != null &&
-                  (results['suggested_conditions'] as List).isNotEmpty)
-                _buildSuggestedConditions(results['suggested_conditions']),
-
-              SizedBox(height: 16),
-
-              // التوصيات
-              if (results['recommendations'] != null)
-                _buildRecommendations(results['recommendations']),
-
-              SizedBox(height: 16),
-
-              // معلومات إضافية
-              if (results['questionnaire_id'] != null)
-                _buildQuestionnaireInfo(results),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context); // إغلاق النتائج
-              Navigator.pop(context); // العودة للشاشة السابقة
-            },
-            child: Text('حسناً', style: TextStyle(fontSize: 16)),
-          ),
-          if (results['questionnaire_id'] != null)
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _viewQuestionnaireDetails(results['questionnaire_id']);
-              },
-              child: Text('عرض التفاصيل', style: TextStyle(fontSize: 16)),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildResultItem(String title, String value, Color color) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: TextStyle(fontWeight: FontWeight.bold)),
-        SizedBox(height: 4),
-        Container(
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: color),
-          ),
-          child: Text(
-            value,
-            style: TextStyle(color: color, fontWeight: FontWeight.w600),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSuggestedConditions(List<dynamic> conditions) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('الحالات المقترحة', style: TextStyle(fontWeight: FontWeight.bold)),
-        SizedBox(height: 8),
-        ...conditions.map((condition) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2.0),
-          child: Row(
-            children: [
-              Icon(Icons.medical_services, size: 16, color: Colors.orange),
-              SizedBox(width: 8),
-              Expanded(child: Text('• $condition')),
-            ],
-          ),
-        )),
-      ],
-    );
-  }
-
-  Widget _buildRecommendations(Map<String, dynamic> recommendations) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('التوصيات', style: TextStyle(fontWeight: FontWeight.bold)),
-        SizedBox(height: 8),
-
-        // الإجراءات الفورية
-        if (recommendations['immediate_actions'] != null)
-          ...(recommendations['immediate_actions'] as List).take(3).map((action) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2.0),
-            child: Row(
-              children: [
-                Icon(Icons.lightbulb_outline, size: 16, color: Colors.blue),
-                SizedBox(width: 8),
-                Expanded(child: Text('• $action')),
-              ],
-            ),
-          )),
-
-        // المختصون المقترحون
-        if (recommendations['specialists'] != null &&
-            (recommendations['specialists'] as List).isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('المختصون المقترحون', style: TextStyle(fontWeight: FontWeight.bold)),
-                ...(recommendations['specialists'] as List).take(2).map((specialist) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2.0),
-                  child: Row(
-                    children: [
-                      Icon(Icons.person, size: 16, color: Colors.purple),
-                      SizedBox(width: 8),
-                      Text('• $specialist'),
-                    ],
-                  ),
-                )),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildQuestionnaireInfo(Map<String, dynamic> results) {
-    return Container(
-      padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('معلومات التقييم', style: TextStyle(fontWeight: FontWeight.bold)),
-          SizedBox(height: 4),
-          Text('رقم التقييم: ${results['questionnaire_id']}'),
-          if (results['completed_at'] != null)
-            Text('تاريخ الإكمال: ${_formatDate(results['completed_at'])}'),
-        ],
-      ),
-    );
-  }
-
-  String _formatDate(String dateString) {
-    try {
-      final date = DateTime.parse(dateString);
-      return '${date.day}/${date.month}/${date.year}';
-    } catch (e) {
-      return dateString;
-    }
-  }
-
-  void _viewQuestionnaireDetails(String questionnaireId) {
-    // يمكنك التنقل لشاشة تفاصيل الاستبيان هنا
-    print('عرض تفاصيل الاستبيان: $questionnaireId');
-  }
-
-  Color _getRiskColor(String riskLevel) {
-    switch (riskLevel.toLowerCase()) {
-      case 'high':
-        return Colors.red;
-      case 'medium':
-        return Colors.orange;
-      case 'low':
-        return Colors.green;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  double _calculateProgress() {
-    if (_questions.isEmpty) return 0.0;
-    return (_currentQuestionIndex + 1) / _questions.length;
-  }
-
-  void _showError(String message) {
+    
+  } catch (e) {
+    print('❌ Screening start failed: $e');
+    _isLoading = false; // 🔥 أزل حالة التحميل
+    if (!mounted) return;
+    
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-        duration: Duration(seconds: 4),
+        content: Text('Failed to start screening: $e'),
+        duration: const Duration(seconds: 5),
+      ),
+    );
+    
+    Navigator.pop(context);
+  }
+}
+
+
+bool _isSubmitting = false; // 🔥 أضف هذا المتغير
+
+void _submitAnswer(dynamic answer) {
+  if (_isSubmitting) {
+    print('🚫 Already submitting, ignoring duplicate press');
+    return;
+  }
+ _isSubmitting = true; // 🔥 ضع علامة أن فيه عملية جارية
+
+  final currentQuestion = _questions[_currentQuestionIndex];  
+  // 🔧 تحويل الإجابة
+  bool finalAnswer;
+  if (answer is bool) {
+    finalAnswer = answer;
+  } else if (answer is String) {
+    finalAnswer = answer.toLowerCase() == 'yes' || answer == 'true';
+  } else {
+    finalAnswer = false;
+  }
+  
+  int riskScore = finalAnswer ? currentQuestion.riskScore : 0;
+
+  print('🔍 Submitting answer: $answer -> $finalAnswer, Risk: $riskScore, Category: ${currentQuestion.category}');
+  print('🔍 Current position: $_currentQuestionIndex/${_questions.length - 1}');
+  
+  setState(() {
+    _responses.add(ScreeningResponse(
+      questionId: currentQuestion.id,
+      answer: finalAnswer,
+      riskScore: riskScore,
+      category: currentQuestion.category,
+    ));
+  });
+
+  _nextQuestion().then((_) {
+    _isSubmitting = false; // 🔥 أزل القفل بعد ما تخلص
+  });
+}
+
+Future<void> _nextQuestion() async {
+  print('🚀 _nextQuestion() started');
+  print('📊 Status: Step=$_currentStep, Index=$_currentQuestionIndex, Total=${_questions.length}');
+  
+  // 🔥 تحقق إذا هذا آخر سؤال بوابة
+  if (_currentStep == 'gateway' && _currentQuestionIndex >= _questions.length - 1) {
+    print('🎯 LAST GATEWAY QUESTION DETECTED!');
+    print('📦 Responses collected: ${_responses.length}');
+    await _processGatewayResults();
+    return;
+  }
+
+  // 🔥 تحقق إذا هذا آخر سؤال primary
+  if (_currentStep == 'primary_screening' && _currentQuestionIndex >= _questions.length - 1) {
+    print('🎯 LAST PRIMARY QUESTION DETECTED!');
+    await _processPrimaryResults();
+    return;
+  }
+
+  // إذا مو آخر سؤال، اطلع للسؤال الجاي
+  setState(() {
+    _currentQuestionIndex++;
+  });
+  
+  print('➡️ Moving to next question: ${_currentQuestionIndex + 1}');
+}
+
+Future<void> _processGatewayResults() async {
+  try {
+    print('🚀 STARTING _processGatewayResults...');
+    
+    final result = await ScreeningService.processGateway(
+      childAge: widget.childAge,
+      childGender: widget.childGender,
+      responses: _responses,
+    ).timeout(const Duration(seconds: 30)); // 🔥 أضف timeout هنا كمان
+
+    print('✅ Gateway processing completed on client side');
+    print('📋 Question count: ${result['questions']?.length ?? 0}');
+
+    if (!mounted) {
+      print('❌ Component not mounted');
+      return;
+    }
+
+    // 🔥 تحقق إذا في أسئلة
+    final questions = result['questions'] as List?;
+    if (questions == null || questions.isEmpty) {
+      throw Exception('No questions received from server');
+    }
+
+    final newQuestions = questions.map((q) => ScreeningQuestion.fromJson(q)).toList();
+    
+    print('🎯 Navigating with ${newQuestions.length} questions...');
+
+    // 🔥 جرب Navigator.push بدل pushReplacement
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => QuestionnaireScreen(
+          childAge: widget.childAge,
+          childGender: widget.childGender,
+          initialQuestions: newQuestions,
+          screeningPlan: result['screening_plan'],
+          isGateway: false,
+        ),
+      ),
+    );
+
+    print('✅ Navigation completed');
+
+  } catch (e) {
+    print('❌ _processGatewayResults error: $e');
+    _isSubmitting = false;
+    
+    if (!mounted) return;
+    
+    // 🔥 show dialog بدل snackbar
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Error'),
+        content: Text('Failed to load questions: $e'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }
+}
+  
 
-  void _toggleLanguage() {
-    setState(() {
-      _language = _language == 'ar' ? 'en' : 'ar';
-    });
-    _loadQuestionsForStage(_currentStage);
+  
+  Future<void> _processPrimaryResults() async {
+    try {
+      // حساب النقاط النهائية
+      final asdScore = _responses
+          .where((r) => r.category.contains('ASD') || 
+                        r.category.contains('social') || 
+                        r.category.contains('communication'))
+          .fold(0, (sum, response) => sum + response.riskScore);
+      
+      final adhdScore = _responses
+          .where((r) => r.category.contains('ADHD') || 
+                        r.category.contains('inattention') || 
+                        r.category.contains('hyperactivity'))
+          .fold(0, (sum, response) => sum + response.riskScore);
+
+      final finalScores = {'asd': asdScore, 'adhd': adhdScore};
+
+      // ✅ استخدم الـ service الجديد لحفظ النتائج
+      final result = await ScreeningService.saveResults(
+        childAge: widget.childAge,
+        childGender: widget.childGender,
+        screeningPlan: _screeningPlan!,
+        primaryResponses: _responses,
+        secondaryResponses: null,
+        finalScores: finalScores,
+      );
+
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ResultsScreen(results: result['results']),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
   }
+
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading && _questions.isEmpty) {
-      return _buildLoadingScreen();
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Screening')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
     }
 
-    if (_errorMessage.isNotEmpty) {
-      return _buildErrorScreen();
+    if (_currentQuestionIndex >= _questions.length) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Screening')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
     }
+
+    final currentQuestion = _questions[_currentQuestionIndex];
 
     return Scaffold(
-      appBar: _buildAppBar(),
+      appBar: AppBar(
+        title: Text(_currentStep == 'gateway' ? 'Initial Questions' : 'Screening Questions'),
+        backgroundColor: Colors.blue[700],
+        foregroundColor: Colors.white,
+      ),
       body: Column(
         children: [
-          _buildProgressSection(),
-          Expanded(
-            child: _questions.isNotEmpty
-                ? _buildQuestion(_questions[_currentQuestionIndex])
-                : _buildEmptyQuestions(),
-          ),
-        ],
-      ),
-      bottomNavigationBar: _questions.isNotEmpty ? _buildBottomNav() : null,
-    );
-  }
-
-  Widget _buildLoadingScreen() {
-    return Scaffold(
-      appBar: AppBar(title: Text('التقييم المبدئي')),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('جاري تحميل الأسئلة...'),
-            if (widget.childId != null)
-              Text('لطفل: ${widget.childName ?? "غير محدد"}'),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildErrorScreen() {
-    return Scaffold(
-      appBar: AppBar(title: Text('التقييم المبدئي')),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, color: Colors.red, size: 64),
-            SizedBox(height: 16),
-            Text(_errorMessage, textAlign: TextAlign.center),
-            SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => _loadQuestionsForStage(_currentStage),
-              child: Text('إعادة التحميل'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  AppBar _buildAppBar() {
-    return AppBar(
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('التقييم المبدئي'),
-          if (widget.childName != null)
-            Text(
-              widget.childName!,
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.normal),
-            ),
-        ],
-      ),
-      leading: IconButton(
-        icon: Icon(Icons.arrow_back),
-        onPressed: () => Navigator.pop(context),
-      ),
-      actions: [
-        IconButton(
-          icon: Icon(_language == 'ar' ? Icons.language : Icons.translate),
-          onPressed: _toggleLanguage,
-          tooltip: 'تبديل اللغة',
-        ),
-        if (_questions.isNotEmpty && _currentQuestionIndex == _questions.length - 1)
-          IconButton(
-            icon: Icon(Icons.done_all),
-            onPressed: _submitQuestionnaire,
-            tooltip: 'إرسال الاستبيان',
-          ),
-      ],
-    );
-  }
-
-  Widget _buildProgressSection() {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.blue[50],
-        border: Border(bottom: BorderSide(color: Colors.blue[100]!)),
-      ),
-      child: Column(
-        children: [
+          // Progress Bar
           LinearProgressIndicator(
-            value: _progress,
-            backgroundColor: Colors.grey[200],
-            color: Colors.blue,
-            minHeight: 8,
-            borderRadius: BorderRadius.circular(4),
+            value: (_currentQuestionIndex + 1) / _questions.length,
+            backgroundColor: Colors.grey[300],
+            valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
           ),
-          SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'السؤال ${_currentQuestionIndex + 1} من ${_questions.length}',
-                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-              ),
-              Text(
-                '${(_progress * 100).toStringAsFixed(0)}%',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blue),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuestion(Question question) {
-    final currentAnswer = _responses[question.questionId.toString()]?['answer'];
-
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // فئة السؤال
-          _buildCategoryChip(question.category),
-
-          SizedBox(height: 20),
-
-          // نص السؤال
-          Text(
-            question.questionText,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              height: 1.4,
-            ),
-          ),
-
-          SizedBox(height: 30),
-
-          // خيارات الإجابة حسب النوع
-          _buildAnswerOptions(question, currentAnswer),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCategoryChip(String category) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: _getCategoryColor(category).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _getCategoryColor(category)),
-      ),
-      child: Text(
-        category,
-        style: TextStyle(
-          color: _getCategoryColor(category),
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAnswerOptions(Question question, dynamic currentAnswer) {
-    switch (question.questionType) {
-      case 'Multiple Choice':
-        return _buildMultipleChoiceOptions(question, currentAnswer);
-      case 'Scale':
-        return _buildScaleOptions(question, currentAnswer);
-      case 'Yes/No':
-        return _buildYesNoOptions(question, currentAnswer);
-      default:
-        return _buildMultipleChoiceOptions(question, currentAnswer);
-    }
-  }
-
-  Widget _buildMultipleChoiceOptions(Question question, dynamic currentAnswer) {
-    return Column(
-      children: question.options.asMap().entries.map((entry) {
-        final index = entry.key;
-        final option = entry.value;
-
-        return Container(
-          margin: EdgeInsets.only(bottom: 8),
-          child: Card(
-            elevation: 1,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-              side: BorderSide(
-                color: currentAnswer == option
-                    ? _getCategoryColor(question.category)
-                    : Colors.transparent,
-                width: 2,
-              ),
-            ),
-            child: ListTile(
-              title: Text(
-                option,
-                style: TextStyle(fontSize: 16),
-              ),
-              leading: Radio(
-                value: option,
-                groupValue: currentAnswer,
-                onChanged: (value) => _saveAnswer(
-                    question.questionId.toString(),
-                    value,
-                    question.category
+          const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Question ${_currentQuestionIndex + 1} of ${_questions.length}',
+                  style: TextStyle(color: Colors.grey[600]),
                 ),
-              ),
-              onTap: () => _saveAnswer(
-                  question.questionId.toString(),
-                  option,
-                  question.category
-              ),
+                Text(
+                  _currentStep == 'gateway' ? 'Gateway' : 'Main Screening',
+                  style: TextStyle(
+                    color: Colors.blue[700],
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
           ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _buildScaleOptions(Question question, dynamic currentAnswer) {
-    final initialValue = (currentAnswer ?? 5).toDouble();
-
-    return Column(
-      children: [
-        Slider(
-          value: initialValue,
-          min: 0,
-          max: 10,
-          divisions: 10,
-          onChanged: (value) => _saveAnswer(
-              question.questionId.toString(),
-              value.toInt(),
-              question.category
-          ),
-        ),
-        SizedBox(height: 8),
-        Text(
-          'القيمة: ${currentAnswer ?? 5}',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        ),
-        SizedBox(height: 16),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: ['0', '2', '4', '6', '8', '10'].map((label) =>
-              Text(label, style: TextStyle(fontSize: 12, color: Colors.grey))
-          ).toList(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildYesNoOptions(Question question, dynamic currentAnswer) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: [
-        _buildOptionButton('نعم', currentAnswer == 'نعم', question),
-        _buildOptionButton('لا', currentAnswer == 'لا', question),
-      ],
-    );
-  }
-
-  Widget _buildOptionButton(String text, bool isSelected, Question question) {
-    return Expanded(
-      child: Container(
-        margin: EdgeInsets.symmetric(horizontal: 8),
-        child: ElevatedButton(
-          onPressed: () => _saveAnswer(
-              question.questionId.toString(),
-              text,
-              question.category
-          ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: isSelected
-                ? _getCategoryColor(question.category)
-                : Colors.grey[200],
-            foregroundColor: isSelected ? Colors.white : Colors.black87,
-            padding: EdgeInsets.symmetric(vertical: 16),
-          ),
-          child: Text(text, style: TextStyle(fontSize: 16)),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyQuestions() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.quiz_outlined, size: 64, color: Colors.grey),
-          SizedBox(height: 16),
-          Text('لا توجد أسئلة متاحة'),
-          SizedBox(height: 8),
-          Text(
-            'قد يكون ذلك بسبب عدم توافق عمر الطفل مع الأسئلة المتاحة',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey),
-          ),
-          SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: () => _loadQuestionsForStage(_currentStage),
-            child: Text('إعادة التحميل'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBottomNav() {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey[300]!)),
-      ),
-      child: Row(
-        children: [
-          if (_currentQuestionIndex > 0)
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _goToPreviousQuestion,
-                child: Text('السابق'),
-              ),
-            ),
-          if (_currentQuestionIndex > 0) SizedBox(width: 12),
+          const SizedBox(height: 20),
+          
+          // Question Widget
           Expanded(
-            child: ElevatedButton(
-              onPressed: _currentQuestionIndex < _questions.length - 1
-                  ? _goToNextQuestion
-                  : _submitQuestionnaire,
-              child: Text(
-                _currentQuestionIndex < _questions.length - 1
-                    ? 'التالي'
-                    : 'إنهاء التقييم',
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: QuestionWidget(
+                question: currentQuestion,
+                onAnswer: _submitAnswer,
               ),
             ),
           ),
         ],
       ),
     );
-  }
-
-  Color _getCategoryColor(String category) {
-    switch (category) {
-      case 'Attention & Focus':
-        return Colors.blue;
-      case 'Social Interaction':
-        return Colors.green;
-      case 'Communication':
-        return Colors.orange;
-      case 'Behavior Patterns':
-        return Colors.purple;
-      case 'Motor Skills':
-        return Colors.teal;
-      case 'Academic Performance':
-        return Colors.indigo;
-      case 'Daily Living Skills':
-        return Colors.brown;
-      default:
-        return Colors.grey;
-    }
   }
 }
