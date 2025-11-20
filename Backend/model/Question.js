@@ -23,18 +23,27 @@ module.exports = (sequelize, DataTypes) => {
     },
     options: {
       type: DataTypes.JSON,
-      allowNull: true // {choices: [{value: 0, text: 'نعم'}, {value: 1, text: 'لا'}]}
+      allowNull: true
+      // {choices: [{value: 0, text: 'Yes'}, {value: 1, text: 'No'}]}
     },
     scoring_rules: {
       type: DataTypes.JSON,
-      allowNull: true // {yes: 0, no: 2, critical: true}
+      allowNull: true
+      // {yes: 0, no: 2} or {threshold: 2}
     },
     age_group: {
       type: DataTypes.ENUM('16-30', '2.5-5', '6+', 'all'),
       defaultValue: 'all'
     },
     category: {
-      type: DataTypes.ENUM('autism', 'adhd_inattention', 'adhd_hyperactive', 'speech', 'general'),
+      type: DataTypes.ENUM(
+        'autism', 
+        'adhd_inattention', 
+        'adhd_hyperactive', 
+        'speech', 
+        'performance',
+        'general'
+      ),
       defaultValue: 'general'
     },
     order: {
@@ -43,15 +52,29 @@ module.exports = (sequelize, DataTypes) => {
     },
     is_critical: {
       type: DataTypes.BOOLEAN,
-      defaultValue: false
+      defaultValue: false,
+      comment: 'Critical questions for autism screening'
+    },
+    is_initial: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      comment: 'Part of initial screening phase'
     },
     depends_on_previous: {
       type: DataTypes.JSON,
-      allowNull: true // {question_id: 1, answer: 'no'}
+      allowNull: true
     }
   }, {
     tableName: 'questions',
-    timestamps: true
+    timestamps: true,
+    indexes: [
+      {
+        fields: ['age_group', 'category', 'is_initial']
+      },
+      {
+        fields: ['category', 'order']
+      }
+    ]
   });
 
   return Question;
