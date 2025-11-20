@@ -1,4 +1,3 @@
-// controllers/invoiceController.js
 const Invoice = require('../model/Invoice');
 const Session = require('../model/Session');
 const SessionType = require('../model/SessionType');
@@ -20,19 +19,16 @@ exports.getParentInvoices = async (req, res) => {
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    // جلب الفواتير فقط بدون include
     const invoices = await Invoice.findAll({
       where,
       order: [['issued_date', 'DESC']],
       offset,
       limit: parseInt(limit),
-      raw: true // ⬅️ مهم: عشان نتفادى مشاكل العلاقات
+      raw: true 
     });
 
-    // معالجة كل فاتورة على حدة
     const processedInvoices = await Promise.all(
       invoices.map(async (invoice) => {
-        // جلب بيانات الجلسة
         const session = await Session.findByPk(invoice.session_id, {
           include: [
             {
@@ -49,7 +45,6 @@ exports.getParentInvoices = async (req, res) => {
           nest: true
         });
 
-        // جلب بيانات المؤسسة
         const institution = await Institution.findByPk(invoice.institution_id, {
           attributes: ['name'],
           raw: true
@@ -86,14 +81,12 @@ exports.getParentInvoices = async (req, res) => {
   }
 };
 
-// جلب فواتير طفل محدد
 exports.getChildInvoices = async (req, res) => {
   try {
     const parentId = req.user.user_id;
     const { childId } = req.params;
     const { status, page = 1, limit = 100 } = req.query;
 
-    // التحقق من أن الـ parent يملك هذا الطفل
     const child = await Child.findOne({
       where: { 
         child_id: childId,
@@ -108,7 +101,6 @@ exports.getChildInvoices = async (req, res) => {
       });
     }
 
-    // جلب الجلسات الخاصة بهذا الطفل
     const sessions = await Session.findAll({
       where: { child_id: childId },
       attributes: ['session_id'],
@@ -141,7 +133,6 @@ exports.getChildInvoices = async (req, res) => {
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    // جلب الفواتير
     const invoices = await Invoice.findAll({
       where,
       order: [['issued_date', 'DESC']],
@@ -150,10 +141,8 @@ exports.getChildInvoices = async (req, res) => {
       raw: true
     });
 
-    // معالجة كل فاتورة على حدة
     const processedInvoices = await Promise.all(
       invoices.map(async (invoice) => {
-        // جلب بيانات الجلسة
         const session = await Session.findByPk(invoice.session_id, {
           include: [
             {
@@ -170,7 +159,6 @@ exports.getChildInvoices = async (req, res) => {
           nest: true
         });
 
-        // جلب بيانات المؤسسة
         const institution = await Institution.findByPk(invoice.institution_id, {
           attributes: ['name'],
           raw: true
@@ -207,7 +195,6 @@ exports.getChildInvoices = async (req, res) => {
   }
 };
 
-// جلب تفاصيل فاتورة محددة
 exports.getInvoiceDetails = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -215,7 +202,6 @@ exports.getInvoiceDetails = async (req, res) => {
 
     console.log('🔍 Fetching invoice details for:', { invoiceId, parentId });
 
-    // جلب الفاتورة الأساسية
     const invoice = await Invoice.findOne({
       where: {
         invoice_id: invoiceId,
@@ -231,9 +217,7 @@ exports.getInvoiceDetails = async (req, res) => {
       });
     }
 
-    // جلب جميع البيانات المرتبطة بشكل منفصل
     const [session, institution, payments] = await Promise.all([
-      // 1. بيانات الجلسة
       Session.findByPk(invoice.session_id, {
         include: [
           {
@@ -255,13 +239,11 @@ exports.getInvoiceDetails = async (req, res) => {
         nest: true
       }),
       
-      // 2. بيانات المؤسسة
       Institution.findByPk(invoice.institution_id, {
         attributes: ['name', 'contact_info'],
         raw: true
       }),
       
-      // 3. بيانات المدفوعات
       Payment.findAll({
         where: { invoice_id: invoiceId },
         attributes: ['payment_id', 'amount', 'payment_method', 'status', 'payment_date'],
@@ -269,7 +251,6 @@ exports.getInvoiceDetails = async (req, res) => {
       })
     ]);
 
-    // بناء الـ response
     const response = {
       ...invoice,
       Session: session,
@@ -294,9 +275,7 @@ exports.getInvoiceDetails = async (req, res) => {
   }
 };
 
-// إنشاء فاتورة تلقائياً عند موافقة الإدارة على الجلسة
-// controllers/invoiceController.js
-// تعديل دالة createInvoiceForSession لاستخدام السعر من الجلسة
+
 exports.createInvoiceForSession = async (sessionId, price) => {
   try {
     const session = await Session.findByPk(sessionId, {
@@ -319,7 +298,6 @@ exports.createInvoiceForSession = async (sessionId, price) => {
       throw new Error('Session not found');
     }
 
-    // استخدام السعر من SessionType
     const sessionPrice = price || session.SessionType.price;
     
     const invoiceNumber = `INV-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;

@@ -4,7 +4,6 @@
     const User = require('../model/User');
     require('dotenv').config();
 
-    // كائن لتخزين الأكواد مؤقتاً (يفضل لاحقاً حفظها في DB)
     const resetCodes = new Map();
 
     const sendResetCode = async (req, res) => {
@@ -16,16 +15,13 @@
         const user = await User.findOne({ where: { email } });
         if (!user) return res.status(404).json({ message: 'No account found with this email' });
 
-        // توليد كود عشوائي من 6 أرقام
         const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-        // تخزين الكود مؤقتاً لمدة 10 دقائق
         resetCodes.set(email, {
         code: resetCode,
         expiresAt: Date.now() + 10 * 60 * 1000
         });
 
-        // إعداد الإيميل
         const transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {

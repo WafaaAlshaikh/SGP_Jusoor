@@ -1,4 +1,3 @@
-// controllers/childController.js - Complete Updated Version
 const Child = require('../model/Child');
 const Diagnosis = require('../model/Diagnosis');
 const Session = require('../model/Session');
@@ -57,7 +56,7 @@ exports.getChildCoordinates = async (childData) => {
     return null;
     
   } catch (error) {
-    console.error('❌ خطأ في الحصول على إحداثيات الطفل:', error);
+    console.error('❌Error in obtaining the childs coordinates:', error);
     return null;
   }
 };
@@ -596,11 +595,11 @@ exports.getRecommendedInstitutions = async (
             instData.location_lat,
             instData.location_lng
           );
-          console.log(`📍 المسافة بين الطفل والمؤسسة ${instData.name}: ${distance} كم`);
+          console.log(`📍 The distance between the child and the institution ${instData.name}: ${distance} كم`);
         }
 
         if (max_distance && distance && distance > parseFloat(max_distance)) {
-          console.log(`❌ تم استبعاد المؤسسة ${instData.name} - المسافة ${distance}كم أكبر من ${max_distance}كم`);
+          console.log(`❌ The institution has been excluded ${instData.name} - Distance ${distance}km bigger than${max_distance}Km`);
           return null;
         }
 
@@ -673,7 +672,7 @@ exports.getRecommendedInstitutions = async (
       institutions: paginatedInstitutions.map(inst => ({
         ...inst,
         match_score: `${(inst.match_score * 100).toFixed(0)}%`,
-        distance: inst.distance ? `${inst.distance} كم` : 'غير محسوبة'
+        distance: inst.distance ? `${inst.distance} KM` : 'Uncalculated'
       })),
       pagination: {
         page,
@@ -859,7 +858,7 @@ exports.addChild = async (req, res) => {
     if (!full_name || !date_of_birth || !gender) {
       return res.status(400).json({ 
         success: false,
-        message: 'الاسم الكامل وتاريخ الميلاد والجنس حقول مطلوبة' 
+        message: 'Full name, date of birth, and gender are required fields' 
       });
     }
 
@@ -868,7 +867,7 @@ exports.addChild = async (req, res) => {
     if (birthDate > today) {
       return res.status(400).json({
         success: false,
-        message: 'تاريخ الميلاد لا يمكن أن يكون في المستقبل'
+        message: 'The date of birth cannot be in the future.'
       });
     }
 
@@ -876,32 +875,32 @@ exports.addChild = async (req, res) => {
     if (age > 18) {
       return res.status(400).json({
         success: false,
-        message: 'العمر يجب أن يكون أقل من 18 سنة'
+        message: 'Age must be under 18 years'
       });
     }
 
     let childCoords = null;
     if (location_lat && location_lng) {
       childCoords = { lat: parseFloat(location_lat), lng: parseFloat(location_lng) };
-      console.log('📍 تم استقبال إحداثيات مباشرة:', childCoords);
+      console.log('📍Direct coordinates were received:', childCoords);
     } else if (address || city) {
       childCoords = await GeocodingService.geocodeAddress(address || city);
-      console.log('📍 تم الحصول على إحداثيات من Geocoding:', childCoords);
+      console.log('📍Coordinates were obtained from Geocoding:', childCoords);
     }
 
     let aiAnalysis = null;
     let recommendedInstitutions = [];
 
     if (symptoms_description && symptoms_description.trim() !== '') {
-      console.log('🤖 بدء تحليل الأعراض باستخدام الذكاء الاصطناعي...');
+      console.log('🤖 Starting to analyze symptoms using artificial intelligence...');
       aiAnalysis = await AIAnalysisService.analyzeSymptoms(
         symptoms_description, 
         medical_history || ''
       );
-      console.log('✅ اكتمل تحليل الذكاء الاصطناعي:', aiAnalysis);
+      console.log('✅ The artificial intelligence analysis is complete.:', aiAnalysis);
 
       if (aiAnalysis && aiAnalysis.suggested_conditions && aiAnalysis.suggested_conditions.length > 0) {
-        console.log('🏫 البحث عن المؤسسات الموصى بها...');
+        console.log('🏫 Search for recommended institutions...');
         recommendedInstitutions = await exports.getRecommendedInstitutions(
           null,
           aiAnalysis.suggested_conditions.map(c => c.name),
@@ -944,7 +943,7 @@ exports.addChild = async (req, res) => {
 
     const response = {
       success: true,
-      message: 'تم إضافة الطفل بنجاح',
+      message: 'The child has been successfully added',
       child_id: newChild.child_id,
       child_data: {
         id: newChild.child_id,
@@ -981,10 +980,10 @@ exports.addChild = async (req, res) => {
     res.status(201).json(response);
 
   } catch (error) {
-    console.error('❌ خطأ في إضافة الطفل:', error);
+    console.error('❌ Error adding child:', error);
     res.status(500).json({ 
       success: false,
-      message: 'فشل في إضافة الطفل', 
+      message: 'Failed to add child', 
       error: error.message 
     });
   }
@@ -995,27 +994,27 @@ exports.generateNextSteps = (aiAnalysis, institutions) => {
   const steps = [];
 
   if (!aiAnalysis || !aiAnalysis.suggested_conditions || aiAnalysis.suggested_conditions.length === 0) {
-    steps.push('نوصي باستشارة أخصائي نمو الأطفال للتقييم الشامل');
+    steps.push('We recommend consulting a child development specialist for a comprehensive assessment');
     return steps;
   }
 
   const topCondition = aiAnalysis.suggested_conditions[0];
   
   if (topCondition.confidence > 0.7) {
-    steps.push(`بناءً على التحليل، نوصي بمراجعة أخصائي ${topCondition.arabic_name || topCondition.name} بشكل عاجل`);
+    steps.push(`بBased on the analysis, we recommend consulting a specialist.${topCondition.arabic_name || topCondition.name} بشكل عاجل`);
   } else if (topCondition.confidence > 0.4) {
-    steps.push(`هناك مؤشرات لـ ${topCondition.arabic_name || topCondition.name}، نوصي بالتقييم المتخصص`);
+    steps.push('There are indications of${topCondition.arabic_name || topCondition.name}، We recommend a professional assessment.');
   } else {
-    steps.push('نوصي بالمتابعة مع طبيب الأطفال للتأكد من النمو السليم');
+    steps.push('We recommend follow-up with a pediatrician to ensure proper growth.');
   }
 
   if (institutions && institutions.length > 0) {
     const topInstitution = institutions[0];
-    steps.push(`يمكنك التسجيل في "${topInstitution.name}" (${topInstitution.city}) - توافق ${topInstitution.match_score}`);
+    steps.push(`You can register in "${topInstitution.name}" (${topInstitution.city}) - agree ${topInstitution.match_score}`);
   }
 
-  steps.push('يمكنك إجراء استبيان تشخيصي مبدئي للحصول على تحليل أكثر دقة');
-  steps.push('يمكنك حجز جلسة تقييم مع أخصائي متخصص');
+  steps.push('You can take a preliminary diagnostic questionnaire to obtain a more accurate analysis.');
+  steps.push('You can book an assessment session with a specialist.');
 
   return steps;
 };
@@ -1050,7 +1049,7 @@ exports.getChild = async (req, res) => {
     if (!child) {
       return res.status(404).json({ 
         success: false,
-        message: 'الطفل غير موجود' 
+        message: 'The child is not present' 
       });
     }
 
@@ -1119,7 +1118,7 @@ exports.searchBySymptoms = async (req, res) => {
     if (!symptoms_description || symptoms_description.trim() === '') {
       return res.status(400).json({ 
         success: false,
-        message: 'وصف الأعراض مطلوب' 
+        message: 'Description of symptoms required' 
       });
     }
 
@@ -1157,7 +1156,7 @@ exports.searchBySymptoms = async (req, res) => {
     console.error('Error searching by symptoms:', error);
     res.status(500).json({ 
       success: false,
-      message: 'فشل في تحليل الأعراض', 
+      message: 'Failure to analyze symptoms', 
       error: error.message 
     });
   }

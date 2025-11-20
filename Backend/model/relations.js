@@ -22,23 +22,12 @@ Payment.belongsTo(Invoice, {
 console.log('✅ Payment-Invoice relations established');
 
 
-// في ملف relations.js أضف:
 
-// Questionnaire Relationships
-Questionnaire.hasMany(Question, { foreignKey: 'questionnaire_id', as: 'questions' });
-Question.belongsTo(Questionnaire, { foreignKey: 'questionnaire_id', as: 'questionnaire' });
-
-// في ملف relations.js
-QuestionnaireResponse.belongsTo(Parent, { foreignKey: 'parent_id', as: 'parent' });
-Parent.hasMany(QuestionnaireResponse, { foreignKey: 'parent_id', as: 'screenings' });
-
+// No relationships needed for QuestionnaireResponse - it's standalone
 module.exports = {
   User,
   Child,
   Specialist,
-  Questionnaire,
-  Question,
-  QuestionnaireResponse,
   Invoice,
   Payment
 };

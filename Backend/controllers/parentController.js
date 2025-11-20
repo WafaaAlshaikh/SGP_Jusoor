@@ -6,11 +6,10 @@ const Session = require('../model/Session');
 const AIRecommendation = require('../model/AIRecommendation');
 const Institution = require('../model/Institution');
 const ChildRegistrationRequest = require('../model/ChildRegistrationRequest');  
-const { Op } = require('sequelize'); // ⬅️ تأكد من استيراد Op
-const sequelize = require('../config/db'); // ⬅️⬅️⬅️ أضف هذا السطر!
+const { Op } = require('sequelize'); 
+const sequelize = require('../config/db');
 
 
-// controllers/parentController.js - تحديث الداشبورد
 const getParentDashboard = async (req, res) => {
   try {
     const parentId = req.user.user_id; 
@@ -60,7 +59,6 @@ const getParentDashboard = async (req, res) => {
       })
     );
 
-    // جلب طلبات الانضمام pending
     const pendingRegistrations = await ChildRegistrationRequest.count({
       where: { 
         requested_by_parent_id: parentId,
@@ -138,7 +136,6 @@ const updateParentProfile = async (req, res) => {
 
     console.log('🔄 Updating parent profile:', { parentId, ...req.body });
 
-    // 1. البحث عن Parent
     const parent = await Parent.findOne({ 
       where: { parent_id: parentId } 
     });
@@ -147,7 +144,6 @@ const updateParentProfile = async (req, res) => {
       return res.status(404).json({ message: 'Parent not found' });
     }
 
-    // 2. تحديث بيانات المستخدم في جدول Users
     await User.update(
       {
         full_name,
@@ -158,7 +154,6 @@ const updateParentProfile = async (req, res) => {
       { where: { user_id: parentId } }
     );
 
-    // 3. تحديث بيانات الوالد في جدول Parents
     await Parent.update(
       {
         address,
@@ -167,7 +162,6 @@ const updateParentProfile = async (req, res) => {
       { where: { parent_id: parentId } }
     );
 
-    // 4. جلب البيانات المحدثة
     const updatedParent = await Parent.findOne({
       where: { parent_id: parentId },
       include: [
@@ -202,7 +196,6 @@ const updateParentProfile = async (req, res) => {
 };
 
 
-// إضافة هذه الدالة لملف parentController.js
 const rescheduleSession = async (req, res) => {
   try {
     const { sessionId } = req.params;
@@ -211,13 +204,12 @@ const rescheduleSession = async (req, res) => {
 
     console.log('🔄 Rescheduling session:', { sessionId, parentId, new_date, new_time });
 
-    // 1. التأكد من أن الجلسة تابعة لأطفال الأب - استخدم 'as' keyword
     const session = await Session.findOne({
       where: { session_id: sessionId },
       include: [
         {
           model: Child,
-          as: 'child', // ⬅️⬅️⬅️ أضف هذا - استخدم نفس الـ alias من الموديل
+          as: 'child', 
           where: { parent_id: parentId },
           attributes: ['child_id']
         }
@@ -231,7 +223,6 @@ const rescheduleSession = async (req, res) => {
       });
     }
 
-    // 2. التأكد من أن الجلسة قابلة لإعادة الجدولة
     if (session.status !== 'Scheduled' && session.status !== 'Pending Approval') {
       return res.status(400).json({
         success: false,
@@ -239,7 +230,6 @@ const rescheduleSession = async (req, res) => {
       });
     }
 
-    // 3. التحقق من توفر الأخصائي في الوقت الجديد
     const conflictingSession = await Session.findOne({
       where: {
         specialist_id: session.specialist_id,
@@ -257,7 +247,6 @@ const rescheduleSession = async (req, res) => {
       });
     }
 
-    // 4. تحديث الجلسة
     await Session.update(
       {
         date: new_date,
@@ -269,22 +258,21 @@ const rescheduleSession = async (req, res) => {
       { where: { session_id: sessionId } }
     );
 
-    // 5. جلب البيانات المحدثة - استخدم 'as' في جميع العلاقات
     const updatedSession = await Session.findByPk(sessionId, {
       include: [
         {
           model: Child,
-          as: 'child', // ⬅️⬅️⬅️
+          as: 'child', 
           attributes: ['full_name']
         },
         {
           model: User,
-          as: 'specialist', // ⬅️⬅️⬅️
+          as: 'specialist', 
           attributes: ['full_name']
         },
         {
           model: Institution,
-          as: 'institution', // ⬅️⬅️⬅️
+          as: 'institution',
           attributes: ['name']
         }
       ]
@@ -322,14 +310,12 @@ const rescheduleSession = async (req, res) => {
 };
 
 
-// الحصول على تقييمات أطفال الوالد
 const getChildEvaluations = async (req, res) => {
   try {
     const parentId = req.user.user_id;
 
     console.log('🔍 Fetching evaluations for parent:', parentId);
 
-    // استعلام SQL محسن
     const query = `
       SELECT 
         e.evaluation_id,
@@ -357,7 +343,6 @@ const getChildEvaluations = async (req, res) => {
       type: sequelize.QueryTypes.SELECT
     });
 
-    // التأكد من أن evaluations هو array
     if (!Array.isArray(evaluations)) {
       console.error('❌ Evaluations is not an array:', typeof evaluations, evaluations);
       return res.status(500).json({
@@ -367,7 +352,6 @@ const getChildEvaluations = async (req, res) => {
     }
 
     console.log('📊 Evaluations found:', evaluations.length);
-    // Debug: طباعة أول evaluation لفحص progress_score
     if (evaluations && evaluations.length > 0) {
       console.log('🔍 Sample evaluation progress_score:', {
         raw: evaluations[0].progress_score,
@@ -376,19 +360,14 @@ const getChildEvaluations = async (req, res) => {
       });
     }
 
-    // معالجة البيانات
     const processedEvaluations = evaluations.map(evaluation => {
-      // تحويل progress_score بشكل صحيح من DECIMAL
       let progressScore = evaluation.progress_score;
       if (progressScore != null) {
-        // إذا كان string (من MySQL DECIMAL)، حوّله إلى number
         if (typeof progressScore === 'string') {
           progressScore = parseFloat(progressScore);
         } else if (typeof progressScore === 'object' && progressScore.toString) {
-          // إذا كان Decimal object من mysql2
           progressScore = parseFloat(progressScore.toString());
         }
-        // تأكد من أنه رقم صحيح
         if (isNaN(progressScore)) {
           progressScore = null;
         }
@@ -425,7 +404,6 @@ const getChildEvaluations = async (req, res) => {
   }
 };
 
-// ⬇️⬇️⬇️ التصدير الصحيح ⬇️⬇️⬇️
 module.exports = { 
   getParentDashboard,
   updateParentProfile,

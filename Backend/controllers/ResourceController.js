@@ -6,7 +6,6 @@ exports.getParentResources = async (req, res) => {
   try {
     const parentId = req.user.user_id;
 
-    // 1. جلب جميع تشخيصات أطفال الوالد
     const children = await Child.findAll({ where: { parent_id: parentId }});
     const diagnosisIds = children.map(c => c.diagnosis_id);
 

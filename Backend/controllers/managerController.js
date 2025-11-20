@@ -4,12 +4,10 @@ const User = require('../model/User');
 const Notification = require('../model/Notification');
 const { Op } = require('sequelize');
 
-// ✅ جلب أنواع الجلسات المعلقة للموافقة
 exports.getPendingSessionTypes = async (req, res) => {
   try {
     const managerId = req.user.user_id;
 
-    // التحقق من أن المستخدم مدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId, is_active: true }
     });
@@ -21,7 +19,6 @@ exports.getPendingSessionTypes = async (req, res) => {
       });
     }
 
-    // جلب أنواع الجلسات المعلقة في نفس المؤسسة
     const pendingSessionTypes = await SessionType.findAll({
       where: {
         institution_id: manager.institution_id,
@@ -30,7 +27,6 @@ exports.getPendingSessionTypes = async (req, res) => {
       order: [['session_type_id', 'DESC']]
     });
 
-    // جلب معلومات المختصين الذين أنشأوا أنواع الجلسات
     const sessionTypesWithSpecialist = await Promise.all(
       pendingSessionTypes.map(async (st) => {
         const sessionTypeData = st.toJSON();
@@ -61,14 +57,12 @@ exports.getPendingSessionTypes = async (req, res) => {
   }
 };
 
-// ✅ الموافقة على نوع جلسة
 exports.approveSessionType = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     const { session_type_id } = req.params;
     const { notes } = req.body;
 
-    // التحقق من أن المستخدم مدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId, is_active: true }
     });
@@ -80,7 +74,6 @@ exports.approveSessionType = async (req, res) => {
       });
     }
 
-    // جلب نوع الجلسة
     const sessionType = await SessionType.findOne({
       where: {
         session_type_id,
@@ -96,12 +89,10 @@ exports.approveSessionType = async (req, res) => {
       });
     }
 
-    // الموافقة على نوع الجلسة
     await sessionType.update({
       approval_status: 'Approved'
     });
 
-    // إرسال إشعار للمختص الذي أنشأ نوع الجلسة
     if (sessionType.created_by_specialist_id) {
       await Notification.create({
         user_id: sessionType.created_by_specialist_id,
@@ -129,14 +120,12 @@ exports.approveSessionType = async (req, res) => {
   }
 };
 
-// ✅ رفض نوع جلسة
 exports.rejectSessionType = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     const { session_type_id } = req.params;
     const { reason } = req.body;
 
-    // التحقق من أن المستخدم مدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId, is_active: true }
     });
@@ -148,7 +137,6 @@ exports.rejectSessionType = async (req, res) => {
       });
     }
 
-    // جلب نوع الجلسة
     const sessionType = await SessionType.findOne({
       where: {
         session_type_id,
@@ -164,12 +152,10 @@ exports.rejectSessionType = async (req, res) => {
       });
     }
 
-    // رفض نوع الجلسة
     await sessionType.update({
       approval_status: 'Rejected'
     });
 
-    // إرسال إشعار للمختص الذي أنشأ نوع الجلسة
     if (sessionType.created_by_specialist_id) {
       await Notification.create({
         user_id: sessionType.created_by_specialist_id,

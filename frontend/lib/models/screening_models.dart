@@ -1,117 +1,108 @@
 // models/screening_models.dart
 class ScreeningSession {
-  final String? sessionId;
-  final int childAge;
+  final String sessionId;
+  final int childAgeMonths;
   final String? childGender;
-  final String primaryType;
-  
+  final Map<String, dynamic> responses;
+  final Map<String, dynamic> scores;
+  final Map<String, dynamic> results;
+  final DateTime? completedAt;
+
   ScreeningSession({
-    this.sessionId,
-    required this.childAge,
+    required this.sessionId,
+    required this.childAgeMonths,
     this.childGender,
-    required this.primaryType,
+    required this.responses,
+    required this.scores,
+    required this.results,
+    this.completedAt,
   });
+
+  factory ScreeningSession.fromJson(Map<String, dynamic> json) {
+    return ScreeningSession(
+      sessionId: json['session_id'],
+      childAgeMonths: json['child_age_months'],
+      childGender: json['child_gender'],
+      responses: json['responses'] ?? {},
+      scores: json['scores'] ?? {},
+      results: json['results'] ?? {},
+      completedAt: json['completed_at'] != null
+          ? DateTime.parse(json['completed_at'])
+          : null,
+    );
+  }
 }
 
-// models/screening_models.dart
 class ScreeningQuestion {
   final int id;
-  final String questionText;
-  final String questionType;
+  final String text;
+  final String type;
   final Map<String, dynamic>? options;
+  final bool isCritical;
   final String category;
-  final bool isGateway;
   final int order;
-  final int riskScore;
-  
+
   ScreeningQuestion({
     required this.id,
-    required this.questionText,
-    required this.questionType,
+    required this.text,
+    required this.type,
     this.options,
+    required this.isCritical,
     required this.category,
-    required this.isGateway,
     required this.order,
-    required this.riskScore,
   });
 
   factory ScreeningQuestion.fromJson(Map<String, dynamic> json) {
     return ScreeningQuestion(
-      id: json['id'] ?? 0,
-      questionText: json['question_text'] ?? '',
-      questionType: json['question_type'] ?? 'yes_no',
+      id: json['id'],
+      text: json['text'],
+      type: json['type'],
       options: json['options'],
-      category: json['category'] ?? '',
-      isGateway: _parseBool(json['is_gateway']), // 🔧 أصلح هنا
+      isCritical: json['is_critical'] ?? false,
+      category: json['category'] ?? 'general',
       order: json['order'] ?? 0,
-      riskScore: json['risk_score'] ?? 0,
     );
   }
 
-  // 🔧 دالة مساعدة لتحويل أي قيمة لـ boolean
-  static bool _parseBool(dynamic value) {
-    if (value == null) return false;
-    if (value is bool) return value;
-    if (value is String) {
-      return value.toLowerCase() == 'true' || value == '1';
+  List<dynamic> get choices {
+    if (options != null && options!['choices'] != null) {
+      return options!['choices'];
     }
-    if (value is int) {
-      return value == 1;
-    }
-    return false;
+    return [];
   }
 }
 
-
-// models/screening_models.dart
-class ScreeningResponse {
-  final int questionId;
-  final bool answer; // تأكد إنه bool
-  final int riskScore;
-  final String category;
-  
-  ScreeningResponse({
-    required this.questionId,
-    required this.answer,
-    required this.riskScore,
-    required this.category,
-  });
-
-  // إذا كنت تحتاج fromJson
-  factory ScreeningResponse.fromJson(Map<String, dynamic> json) {
-    return ScreeningResponse(
-      questionId: json['question_id'] ?? 0,
-      answer: _parseBool(json['answer']), // 🔧 أصلح هنا
-      riskScore: json['risk_score'] ?? 0,
-      category: json['category'] ?? '',
-    );
-  }
-
-  static bool _parseBool(dynamic value) {
-    if (value == null) return false;
-    if (value is bool) return value;
-    if (value is String) {
-      return value.toLowerCase() == 'true' || value == '1';
-    }
-    if (value is int) {
-      return value == 1;
-    }
-    return false;
-  }
-}
-
-class ScreeningResult {
-  final Map<String, String> riskLevels;
-  final Map<String, int> scores;
+class ScreeningResults {
+  final String autismRisk;
+  final String adhdRisk;
+  final String speechDelay;
   final List<String> recommendations;
   final List<String> nextSteps;
-  final String screeningId;
-  
-  ScreeningResult({
-    required this.riskLevels,
-    required this.scores,
+  final Map<String, dynamic> scores;
+
+  ScreeningResults({
+    required this.autismRisk,
+    required this.adhdRisk,
+    required this.speechDelay,
     required this.recommendations,
     required this.nextSteps,
-    required this.screeningId,
+    required this.scores,
   });
+
+  factory ScreeningResults.fromJson(Map<String, dynamic> json) {
+    return ScreeningResults(
+      autismRisk: json['autism_risk'] ?? 'low',
+      adhdRisk: json['adhd_risk'] ?? 'none',
+      speechDelay: json['speech_delay'] ?? 'none',
+      recommendations: List<String>.from(json['recommendations'] ?? []),
+      nextSteps: List<String>.from(json['next_steps'] ?? []),
+      scores: json['scores'] ?? {},
+    );
+  }
+
+  String get overallRisk {
+    if (autismRisk == 'high' || adhdRisk == 'high') return 'high';
+    if (autismRisk == 'medium' || adhdRisk == 'medium' || speechDelay == 'significant') return 'medium';
+    return 'low';
+  }
 }

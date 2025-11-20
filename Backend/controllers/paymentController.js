@@ -1,4 +1,3 @@
-// controllers/paymentController.js
 const Payment = require('../model/Payment');
 const Invoice = require('../model/Invoice');
 const Session = require('../model/Session');
@@ -16,7 +15,6 @@ exports.processPayment = async (req, res) => {
 
     console.log(`💳 Processing payment: invoice_id=${invoice_id}, parent_id=${parentId}, method=${payment_method}`);
 
-    // أولاً: تحقق من وجود الفاتورة بدون شروط
     const invoiceCheck = await Invoice.findByPk(invoice_id);
     
     if (!invoiceCheck) {
@@ -29,7 +27,6 @@ exports.processPayment = async (req, res) => {
 
     console.log(`📄 Invoice found: id=${invoiceCheck.invoice_id}, status=${invoiceCheck.status}, parent_id=${invoiceCheck.parent_id}`);
 
-    // ثانياً: تحقق من الحالة
     if (invoiceCheck.status === 'Paid') {
       console.log(`⚠️ Invoice ${invoice_id} is already paid`);
       return res.status(400).json({ 
@@ -38,7 +35,6 @@ exports.processPayment = async (req, res) => {
       });
     }
 
-    // ثالثاً: تحقق من parent_id
     if (invoiceCheck.parent_id !== parentId) {
       console.log(`❌ Parent ID mismatch: invoice.parent_id=${invoiceCheck.parent_id}, user.parent_id=${parentId}`);
       return res.status(403).json({ 
@@ -47,12 +43,11 @@ exports.processPayment = async (req, res) => {
       });
     }
 
-    // الآن جلب الفاتورة مع Session
     const invoice = await Invoice.findOne({
       where: {
         invoice_id,
         parent_id: parentId,
-        status: { [Op.in]: ['Pending', 'Overdue', 'Draft'] } // ⬅️ إضافة Draft
+        status: { [Op.in]: ['Pending', 'Overdue', 'Draft'] } 
       },
       include: [{
         model: Session,
@@ -72,9 +67,8 @@ exports.processPayment = async (req, res) => {
 
     console.log(`✅ Invoice ready for payment: ${invoice_id}`);
 
-    // تطبيع اسم طريقة الدفع (تقبل underscore أو مسافات)
     const normalizedPaymentMethod = payment_method
-      .replace(/_/g, ' ')  // استبدال underscore بمسافة
+      .replace(/_/g, ' ')  
       .split(' ')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join(' ');
@@ -85,18 +79,16 @@ exports.processPayment = async (req, res) => {
 
     switch (normalizedPaymentMethod) {
       case 'Credit Card':
-        // استخدام PaymentGateway Test Mode
         paymentResult = await PaymentGateway.processTestCreditCardPayment(invoice.total_amount, {
           card_number: payment_details?.card_number || '4242424242424242', // default test card
           card_holder: payment_details?.card_holder || 'Test User',
           session_id: invoice.session_id,
           parent_id: parentId
         });
-        // تحويل الرد لصيغة متوافقة
         if (paymentResult.success) {
-          paymentResult.gateway = 'Demo Mode'; // ⬅️ اختصار للحفظ في قاعدة البيانات
+          paymentResult.gateway = 'Demo Mode'; 
           paymentResult.transactionId = paymentResult.transaction_id;
-          paymentResult.cleanMethod = 'Credit Card'; // ⬅️ القيمة النظيفة للـ ENUM
+          paymentResult.cleanMethod = 'Credit Card'; 
         }
         break;
       case 'Cash':
@@ -107,7 +99,7 @@ exports.processPayment = async (req, res) => {
         if (paymentResult.success) {
           paymentResult.gateway = 'Cash';
           paymentResult.transactionId = paymentResult.transaction_id;
-          paymentResult.cleanMethod = 'Cash'; // ⬅️ القيمة النظيفة للـ ENUM
+          paymentResult.cleanMethod = 'Cash'; 
         }
         break;
       case 'Bank Transfer':
@@ -121,7 +113,7 @@ exports.processPayment = async (req, res) => {
         if (paymentResult.success) {
           paymentResult.gateway = 'Bank';
           paymentResult.transactionId = paymentResult.transaction_id;
-          paymentResult.cleanMethod = 'Bank Transfer'; // ⬅️ القيمة النظيفة للـ ENUM
+          paymentResult.cleanMethod = 'Bank Transfer'; 
         }
         break;
       default:
@@ -137,7 +129,7 @@ exports.processPayment = async (req, res) => {
       const payment = await Payment.create({
         invoice_id: invoice.invoice_id,
         amount: invoice.total_amount,
-        payment_method: paymentResult.cleanMethod || normalizedPaymentMethod, // ⬅️ استخدام cleanMethod
+        payment_method: paymentResult.cleanMethod || normalizedPaymentMethod, 
         payment_gateway: paymentResult.gateway,
         transaction_id: paymentResult.transactionId,
         status: 'Completed',
@@ -169,7 +161,7 @@ exports.processPayment = async (req, res) => {
       await Payment.create({
         invoice_id: invoice.invoice_id,
         amount: invoice.total_amount,
-        payment_method: paymentResult.cleanMethod || normalizedPaymentMethod, // ⬅️ استخدام cleanMethod
+        payment_method: paymentResult.cleanMethod || normalizedPaymentMethod, 
         status: 'Failed',
         gateway_response: JSON.stringify(paymentResult),
         payment_date: new Date()
@@ -183,7 +175,6 @@ exports.processPayment = async (req, res) => {
   }
 };
 
-// 🟢 Stripe Payment
 const processCreditCardPayment = async ({ amount, card_token, invoice_number }) => {
   try {
     const amountInCents = Math.round(amount * 100);
@@ -207,7 +198,6 @@ const processCreditCardPayment = async ({ amount, card_token, invoice_number }) 
   }
 };
 
-// 🟢 Cash Payment
 const processCashPayment = async (paymentData) => {
   await new Promise(resolve => setTimeout(resolve, 1000));
   return {
@@ -218,7 +208,6 @@ const processCashPayment = async (paymentData) => {
   };
 };
 
-// 🟢 Bank Transfer Payment
 const processBankTransferPayment = async (paymentData) => {
   await new Promise(resolve => setTimeout(resolve, 1500));
   return {
@@ -235,7 +224,6 @@ const processBankTransferPayment = async (paymentData) => {
   };
 };
 
-// في controllers/paymentController.js - أضف هذه الدالة
 exports.processPaymentSuccess = async (req, res) => {
   try {
     const { session_id, payment_id, transaction_id } = req.body;
@@ -243,7 +231,6 @@ exports.processPaymentSuccess = async (req, res) => {
 
     console.log('✅ Payment success confirmation:', { session_id, payment_id, transaction_id });
 
-    // التحقق من أن الجلسة تابعة للوالد
     const session = await Session.findOne({
       where: { session_id: session_id },
       include: [
@@ -263,17 +250,15 @@ exports.processPaymentSuccess = async (req, res) => {
       });
     }
 
-    // تحديث حالة الجلسة إلى مدفوعة
     await Session.update({
       is_paid: true,
       payment_status: 'Paid',
       payment_date: new Date(),
-      status: 'Scheduled' // تأكيد الجلسة بعد الدفع
+      status: 'Scheduled' 
     }, {
       where: { session_id: session_id }
     });
 
-    // تحديث الفاتورة إذا كانت موجودة
     await Invoice.update({
       status: 'Paid',
       paid_date: new Date()
@@ -296,7 +281,6 @@ exports.processPaymentSuccess = async (req, res) => {
   }
 };
 
-// 🏦 الحصول على تفاصيل التحويل البنكي
 exports.getBankDetails = async (req, res) => {
   try {
     const bankDetails = {
@@ -323,7 +307,6 @@ exports.getBankDetails = async (req, res) => {
   }
 };
 
-// 📋 طرق الدفع المتاحة
 exports.getPaymentMethods = async (req, res) => {
   try {
     const { invoice_id } = req.query;
@@ -344,7 +327,7 @@ exports.getPaymentMethods = async (req, res) => {
         description: 'Pay securely with your credit or debit card',
         icon: 'credit_card',
         supported_cards: ['visa', 'mastercard', 'amex'],
-        processing_fee: 0.02, // 2%
+        processing_fee: 0.02, 
         estimated_total: invoiceAmount * 1.02,
         available: true,
         features: ['Instant confirmation', 'Secure payment', 'Digital receipt']
@@ -391,7 +374,6 @@ exports.getPaymentMethods = async (req, res) => {
   }
 };
 
-// 💳 إنشاء توكن للبطاقة
 exports.createCardToken = async (req, res) => {
   try {
     const { card_number, expiry_month, expiry_year, cvv, card_holder } = req.body;
@@ -431,7 +413,6 @@ const getCardType = (number) => {
   return 'unknown';
 };
 
-// استرجاع المبلغ
 exports.processRefund = async (req, res) => {
   try {
     const { sessionId } = req.params;
@@ -515,7 +496,6 @@ const simulateRefund = async (refundData) => {
   }
 };
 
-// سجل المدفوعات
 exports.getPaymentHistory = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -580,7 +560,7 @@ exports.getPaymentHistory = async (req, res) => {
   }
 };
 
-// جلب فواتير ولي الأمر
+
 exports.getParentInvoices = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -607,7 +587,7 @@ exports.getParentInvoices = async (req, res) => {
   }
 };
 
-// جلب تفاصيل فاتورة محددة
+
 exports.getInvoiceDetails = async (req, res) => {
   try {
     const { invoiceId } = req.params;

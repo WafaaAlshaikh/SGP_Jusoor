@@ -1,13 +1,11 @@
 const { Evaluation, Child, Specialist, User, Parent } = require('../model');
 const sequelize = require('../config/db');
 
-// ✅ الحصول على جميع تقييمات الأخصائي الحالي باستخدام SQL مباشرة
 const getMyEvaluations = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
     console.log('🔍 Fetching evaluations for specialist:', specialistId);
 
-    // استعلام SQL مباشر يتجنب مشاكل العلاقات
     const query = `
       SELECT 
         e.evaluation_id,
@@ -62,7 +60,6 @@ const getMyEvaluations = async (req, res) => {
   }
 };
 
-// ✅ تحديث تقييم
 const updateEvaluation = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
@@ -71,7 +68,6 @@ const updateEvaluation = async (req, res) => {
 
     console.log('✏️ Update request:', { evaluation_id, specialistId, body: req.body });
 
-    // استخدام SQL مباشرة
     const updateQuery = `
       UPDATE Evaluations 
       SET evaluation_type = ?, notes = ?, progress_score = ?
@@ -115,7 +111,6 @@ const updateEvaluation = async (req, res) => {
   }
 };
 
-// ✅ حذف تقييم
 const deleteEvaluation = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
@@ -123,7 +118,6 @@ const deleteEvaluation = async (req, res) => {
 
     console.log('🗑️ Delete request:', { evaluation_id, specialistId });
 
-    // استخدام SQL مباشرة
     const [result] = await sequelize.query(
       'DELETE FROM Evaluations WHERE evaluation_id = ? AND specialist_id = ?',
       {
@@ -152,7 +146,6 @@ const deleteEvaluation = async (req, res) => {
   }
 };
 
-// ✅ الحصول على تقييم محدد
 const getEvaluationById = async (req, res) => {
   try {
     const specialistId = req.user.user_id;

@@ -1,38 +1,43 @@
-// models/QuestionnaireResponse.js
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/db');
+module.exports = (sequelize, DataTypes) => {
+  const QuestionnaireResponse = sequelize.define('QuestionnaireResponse', {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true
+    },
+    session_id: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true
+    },
+    child_age_months: {
+      type: DataTypes.INTEGER,
+      allowNull: false
+    },
+    child_gender: {
+      type: DataTypes.ENUM('male', 'female'),
+      allowNull: true
+    },
+    responses: {
+      type: DataTypes.JSON,
+      allowNull: false // {question_id: {answer: 'no', score: 2}, ...}
+    },
+    scores: {
+      type: DataTypes.JSON,
+      allowNull: false // {autism: {total: 8, critical: 2}, adhd: {...}, speech: {...}}
+    },
+    results: {
+      type: DataTypes.JSON,
+      allowNull: false // {autism_risk: 'high', recommendations: ['...']}
+    },
+    completed_at: {
+      type: DataTypes.DATE,
+      allowNull: true
+    }
+  }, {
+    tableName: 'questionnaire_responses',
+    timestamps: true
+  });
 
-const QuestionnaireResponse = sequelize.define('QuestionnaireResponse', {
-  id: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    autoIncrement: true
-  },
-  parent_id: {
-    type: DataTypes.BIGINT.UNSIGNED,
-    allowNull: false
-  },
-  // إزالة child_id لأنو ما بنعرف الطفل
-  child_age: {
-    type: DataTypes.INTEGER,
-    allowNull: false
-  },
-  child_gender: {
-    type: DataTypes.ENUM('male', 'female'),
-    allowNull: true
-  },
-  questionnaire_type: {
-    type: DataTypes.ENUM('ASD', 'ADHD', 'COMBINED'),
-    allowNull: false
-  },
-  responses: DataTypes.JSON, // {question_id: answer, ...}
-  scores: DataTypes.JSON, // {asd_score: 5, adhd_score: 3, ...}
-  result: DataTypes.JSON, // {risk_level: 'high', recommendations: []}
-  screening_path: DataTypes.JSON, // المسار الذي سلكه المستخدم
-  is_anonymous: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: true
-  }
-});
-
-module.exports = QuestionnaireResponse;
+  return QuestionnaireResponse;
+};

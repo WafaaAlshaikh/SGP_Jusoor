@@ -1,4 +1,5 @@
 const sequelize = require('../config/db');
+const { DataTypes } = require('sequelize');  
 
 const User = require('./User');
 const Parent = require('./Parent');
@@ -31,11 +32,22 @@ const Like = require('./Like');
 const Notification = require('./Notification');
 
 const Manager = require('./Manager');
-const Questionnaire = require('./Questionnaire');
-const Question = require('./Question');
-const QuestionnaireResponse = require('./QuestionnaireResponse');
+const Questionnaire = require('./Questionnaire')(sequelize, DataTypes);
+const Question = require('./Question')(sequelize, DataTypes);
+const QuestionnaireResponse = require('./QuestionnaireResponse')(sequelize, DataTypes);
 
 // ==================== Main Relations ====================
+
+Questionnaire.hasMany(Question, { 
+  foreignKey: 'questionnaire_id',
+  as: 'questions'
+});
+
+Question.belongsTo(Questionnaire, { 
+  foreignKey: 'questionnaire_id', 
+  as: 'questionnaire'
+});
+
 
 // User relationships
 User.hasOne(Parent, { foreignKey: 'parent_id' });

@@ -92,10 +92,9 @@ exports.getInstitutionReviews = async (req, res) => {
   }
 };
 
-// Create a new review
 exports.createReview = async (req, res) => {
   try {
-    const userId = req.user.user_id; // ✅ تغيير من userId إلى user_id
+    const userId = req.user.user_id; 
     const { institutionId } = req.params;
     const {
       rating,
@@ -285,10 +284,8 @@ exports.markReviewHelpful = async (req, res) => {
     });
 
     if (existingVote) {
-      // Update vote
       await existingVote.update({ is_helpful: isHelpful });
     } else {
-      // Create new vote
       await ReviewHelpful.create({
         review_id: reviewId,
         user_id: userId,
@@ -296,7 +293,7 @@ exports.markReviewHelpful = async (req, res) => {
       });
     }
 
-    // Update helpful counts
+
     const helpfulCount = await ReviewHelpful.count({
       where: { review_id: reviewId, is_helpful: true }
     });
@@ -328,7 +325,7 @@ exports.markReviewHelpful = async (req, res) => {
   }
 };
 
-// Helper function to update institution rating
+
 async function updateInstitutionRating(institutionId) {
   try {
     const stats = await sequelize.query(`

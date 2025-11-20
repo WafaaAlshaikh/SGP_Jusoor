@@ -1,27 +1,38 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/db');
+module.exports = (sequelize, DataTypes) => {
+  const Questionnaire = sequelize.define('Questionnaire', {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true
+    },
+    title: {
+      type: DataTypes.STRING,
+      allowNull: false
+    },
+    description: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
+    min_age_months: {
+      type: DataTypes.INTEGER,
+      allowNull: false
+    },
+    max_age_months: {
+      type: DataTypes.INTEGER,
+      allowNull: false
+    },
+    type: {
+      type: DataTypes.ENUM('autism', 'adhd', 'speech', 'general'),
+      allowNull: false
+    },
+    is_active: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true
+    }
+  }, {
+    tableName: 'questionnaires',
+    timestamps: true
+  });
 
-const Questionnaire = sequelize.define('Questionnaire', {
-  id: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    autoIncrement: true
-  },
-  title: {
-    type: DataTypes.STRING,
-    allowNull: false
-  },
-  description: DataTypes.TEXT,
-  type: {
-    type: DataTypes.ENUM('ASD', 'ADHD', 'COMBINED', 'GATEWAY'),
-    allowNull: false
-  },
-  min_age: DataTypes.INTEGER,
-  max_age: DataTypes.INTEGER,
-  is_active: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: true
-  }
-});
-
-module.exports = Questionnaire;
+  return Questionnaire;
+};
