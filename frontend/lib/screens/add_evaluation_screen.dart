@@ -22,14 +22,18 @@ class _AddEvaluationScreenState extends State<AddEvaluationScreen> {
   String evaluationType = 'Initial';
   String notes = '';
   double progressScore = 50;
-  DateTime selectedDate = DateTime.now(); // تاريخ اليوم كقيمة افتراضية
+  DateTime selectedDate = DateTime.now();
   File? selectedFile;
 
   List<dynamic> childrenList = [];
   bool isLoading = false;
   bool isInitialLoading = true;
 
-  // قائمة بالملاحظات السريعة
+  // 🔥 متغيرات جديدة للـ AI Analysis
+  List<String> analyzedSessions = [];
+  String? aiAnalysisMessage;
+  bool showAIResults = false;
+
   final List<String> quickNotes = [
     'Good progress in communication',
     'Needs more practice with social skills',
@@ -97,7 +101,6 @@ class _AddEvaluationScreenState extends State<AddEvaluationScreen> {
     }
   }
 
-  // إضافة ملاحظة سريعة
   void _addQuickNote(String note) {
     setState(() {
       if (notes.isNotEmpty) {
@@ -114,6 +117,10 @@ class _AddEvaluationScreenState extends State<AddEvaluationScreen> {
     setState(() {
       notes = '';
       _notesController.clear();
+      // إخفاء نتائج AI عند مسح الملاحظات
+      showAIResults = false;
+      analyzedSessions = [];
+      aiAnalysisMessage = null;
     });
   }
 
@@ -137,10 +144,12 @@ class _AddEvaluationScreenState extends State<AddEvaluationScreen> {
     );
   }
 
+  // 🔥 دالة جديدة لحفظ التقييم مع معالجة AI Analysis
   void saveEvaluation() async {
     if (_formKey.currentState!.validate() && selectedChildId != null) {
       setState(() {
         isLoading = true;
+        showAIResults = false;
       });
 
       try {
@@ -157,18 +166,53 @@ class _AddEvaluationScreenState extends State<AddEvaluationScreen> {
           'notes': notes,
           'progress_score': progressScore,
           'attachment': attachmentName,
-          'created_at': selectedDate.toIso8601String(), // إرسال التاريخ المختار
+          'created_at': selectedDate.toIso8601String(),
         };
 
         final result = await EvaluationService.addEvaluation(evaluationData);
-        _showSuccessSnackBar('✅ ${result['message']}');
+
+        // 🔥 معالجة نتائج AI Analysis
+        if (result['data'] != null) {
+          final data = result['data'];
+
+          setState(() {
+            analyzedSessions = data['analyzed_sessions'] != null
+                ? List<String>.from(data['analyzed_sessions'])
+                : [];
+            aiAnalysisMessage = data['ai_analysis'];
+            showAIResults = analyzedSessions.isNotEmpty;
+          });
+        }
+
+        // 🔥 عرض رسالة نجاح مع معلومات AI
+        String successMessage = '✅ ${result['message']}';
+
+        if (result['auto_scheduling'] != null) {
+          final autoScheduling = result['auto_scheduling'];
+          final scheduledCount = autoScheduling['scheduled_sessions'] ?? 0;
+          final failedCount = autoScheduling['failed_sessions'] ?? 0;
+
+          successMessage += '\n📅 $scheduledCount session(s) scheduled, $failedCount session(s) failed';
+        }
+
+        _showSuccessSnackBar(successMessage);
+
         await ActivityService.addActivity(
-            'Evaluation added for ${selectedChild}',
+            'Evaluation added for $selectedChild',
             'evaluation'
         );
 
-        // تنظيف الحقول مع الاحتفاظ بالتاريخ الحالي
-        _resetForm();
+        // 🔥 عرض dialog مع نتائج AI إذا كانت موجودة
+        if (showAIResults && result['auto_scheduling'] != null) {
+          _showAIResultsDialog(result['auto_scheduling']);
+        }
+
+        // تنظيف الحقول بعد 2 ثانية لإعطاء وقت لقراءة النتائج
+        Future.delayed(Duration(seconds: 2), () {
+          if (mounted) {
+            _resetForm();
+          }
+        });
 
       } catch (e) {
         _showErrorSnackBar('❌ Error: $e');
@@ -182,6 +226,334 @@ class _AddEvaluationScreenState extends State<AddEvaluationScreen> {
     }
   }
 
+  // 🔥 Dialog جديد لعرض نتائج AI Analysis
+  void _showAIResultsDialog(Map<String, dynamic> autoScheduling) {
+    final scheduledSessions = autoScheduling['details']['scheduled'] ?? [];
+    final failedSessions = autoScheduling['details']['failed'] ?? [];
+    final sessionTypes = autoScheduling['session_types'] ?? [];
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.psychology_rounded,
+                  color: Colors.blue[700],
+                  size: 24,
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'AI Analysis & Auto-Scheduling',
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (aiAnalysisMessage != null) ...[
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue[100]!),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline,
+                            color: Colors.blue[700], size: 20),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            aiAnalysisMessage!,
+                            style: TextStyle(
+                              color: Colors.blue[900],
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                ],
+
+                // 🔥 الجلسات المجدولة بنجاح
+                if (scheduledSessions.isNotEmpty) ...[
+                  Text(
+                    '✅ Successfully Scheduled Sessions:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green[700],
+                      fontSize: 16,
+                    ),
+                  ),
+                  SizedBox(height: 12),
+                  ...scheduledSessions.map((session) {
+                    // 🔥 الحصول على اسم الجلسة من session_type_id
+                    String sessionName = _getSessionName(session['session_type_id'], sessionTypes);
+
+                    return Container(
+                      margin: EdgeInsets.only(bottom: 8),
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.green[50]!,
+                            Colors.green[100]!,
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.green[200]!),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.green,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.check,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                              ),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  sessionName,
+                                  style: TextStyle(
+                                    color: Colors.green[900],
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 8),
+                          // 🔥 تفاصيل الجلسة
+                          _buildSessionDetail('📅 Date', session['date']),
+                          _buildSessionDetail('⏰ Time', session['time']),
+                          _buildSessionDetail('👨‍⚕️ Specialist', session['specialist_name'] ?? 'Unknown'),
+                           //_buildSessionDetail('🏢 Institution ID', '${session['institution_id']}'),
+                          _buildSessionDetail('📍 Type', session['session_type'] ?? 'Onsite'),
+                          _buildSessionDetail('📊 Status', session['status'] ?? 'Scheduled'),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  SizedBox(height: 16),
+                ],
+
+                // 🔥 الجلسات التي فشل جدولتها
+                if (failedSessions.isNotEmpty) ...[
+                  Text(
+                    '❌ Failed to Schedule:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange[700],
+                      fontSize: 16,
+                    ),
+                  ),
+                  SizedBox(height: 12),
+                  ...failedSessions.map((failedSession) {
+                    return Container(
+                      margin: EdgeInsets.only(bottom: 8),
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.orange[50]!,
+                            Colors.orange[100]!,
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.orange[200]!),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.orange,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.warning,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  failedSession['session_name'] ?? 'Unknown Session',
+                                  style: TextStyle(
+                                    color: Colors.orange[900],
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  failedSession['reason'] ?? 'Unknown reason',
+                                  style: TextStyle(
+                                    color: Colors.orange[700],
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  SizedBox(height: 8),
+                  Container(
+                    padding: EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.orange[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Note: You can manually schedule these sessions later',
+                      style: TextStyle(
+                        color: Colors.orange[800],
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                ],
+
+                // 🔥 حالة عدم وجود جلسات محددة
+                if (analyzedSessions.isEmpty && scheduledSessions.isEmpty && failedSessions.isEmpty) ...[
+                  Container(
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, color: Colors.grey[600]),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'No specific sessions were identified from the evaluation notes.',
+                            style: TextStyle(
+                              color: Colors.grey[700],
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text(
+                'Close',
+                style: TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // 🔥 دالة مساعدة لعرض تفاصيل الجلسة
+  Widget _buildSessionDetail(String label, String value) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Text(
+            '$label: ',
+            style: TextStyle(
+              color: Colors.green[700],
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                color: Colors.green[600],
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🔥 دالة للحصول على اسم الجلسة من الـ ID
+  String _getSessionName(int sessionTypeId, List<dynamic> sessionTypes) {
+    // إذا كان عندنا session_types في الـ response، نستخدمها
+    if (sessionTypes.isNotEmpty && sessionTypeId <= sessionTypes.length) {
+      return sessionTypes[sessionTypeId - 1] ?? 'Session $sessionTypeId';
+    }
+
+    // إذا ما في، نستخدم mapping يدوي
+    final sessionMap = {
+      1: 'Speech Therapy',
+      2: 'Occupational Therapy',
+      3: 'Behavioral Therapy',
+      4: 'Initial Assessment',
+      5: 'Psychological Support'
+    };
+
+    return sessionMap[sessionTypeId] ?? 'Session $sessionTypeId';
+  }
+
   void _resetForm() {
     _formKey.currentState!.reset();
     setState(() {
@@ -191,7 +563,9 @@ class _AddEvaluationScreenState extends State<AddEvaluationScreen> {
       notes = '';
       progressScore = 50;
       selectedFile = null;
-      // لا نعيد ضبط التاريخ، نبقيه كما هو
+      analyzedSessions = [];
+      aiAnalysisMessage = null;
+      showAIResults = false;
     });
     _notesController.clear();
   }
@@ -456,7 +830,6 @@ class _AddEvaluationScreenState extends State<AddEvaluationScreen> {
                 title: "Notes & Observations",
                 child: Column(
                   children: [
-                    // الملاحظات السريعة
                     Container(
                       padding: EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -511,7 +884,6 @@ class _AddEvaluationScreenState extends State<AddEvaluationScreen> {
 
                     SizedBox(height: 16),
 
-                    // حقل النص
                     TextFormField(
                       controller: _notesController,
                       maxLines: 6,
@@ -525,7 +897,6 @@ class _AddEvaluationScreenState extends State<AddEvaluationScreen> {
 
                     SizedBox(height: 12),
 
-                    // أزرار التحكم
                     Row(
                       children: [
                         ElevatedButton.icon(

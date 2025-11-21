@@ -30,9 +30,16 @@ class _ScreeningResultsScreenState extends State<ScreeningResultsScreen> {
         title: const Text('Screening Results'),
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.textWhite,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            Navigator.pop(context);
+          },
+          tooltip: 'Back to Dashboard',
+        ),
         automaticallyImplyLeading: false,
         actions: [
-          if (widget.results.enhancedAnalysis != null && 
+          if (widget.results.enhancedAnalysis != null &&
               widget.results.enhancedAnalysis!.success)
             IconButton(
               icon: Icon(_showEnhancedAnalysis ? Icons.visibility : Icons.visibility_off),
@@ -50,12 +57,7 @@ class _ScreeningResultsScreenState extends State<ScreeningResultsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (_showEnhancedAnalysis && 
-                widget.results.enhancedAnalysis != null && 
-                widget.results.enhancedAnalysis!.success)
-              _buildEnhancedAnalysisSection(),
-            
-            // Overall Risk Card
+            // Overall Risk Card - Most Important First
             _buildOverallRiskCard(),
             const SizedBox(height: 20),
 
@@ -65,33 +67,14 @@ class _ScreeningResultsScreenState extends State<ScreeningResultsScreen> {
 
             const SizedBox(height: 20),
 
-            // AI Recommendations (REPLACED static recommendations)
-            if (_hasAIRecommendations())
-              _buildAIRecommendationsCard(),
-            const SizedBox(height: 20),
+            // Enhanced Analysis Toggle Section
+            if (_showEnhancedAnalysis &&
+                widget.results.enhancedAnalysis != null &&
+                widget.results.enhancedAnalysis!.success)
+              _buildEnhancedAnalysisSection(),
 
             // Detailed Results by Category
-            const Text(
-              'Detailed Results',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textDark,
-              ),
-            ),
-            const SizedBox(height: 15),
-
-            ...widget.results.riskLevels.entries.map((entry) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 15.0),
-                child: _buildResultCard(
-                  title: _getCategoryTitle(entry.key),
-                  riskLevel: entry.value,
-                  color: _getRiskColor(entry.value),
-                  category: entry.key,
-                ),
-              );
-            }),
+            _buildDetailedResultsSection(),
 
             const SizedBox(height: 20),
 
@@ -107,7 +90,7 @@ class _ScreeningResultsScreenState extends State<ScreeningResultsScreen> {
 
             const SizedBox(height: 20),
 
-            // Smart Next Steps (REPLACED static next steps)
+            // Smart Next Steps
             if (widget.results.enhancedAnalysis?.nextSteps != null &&
                 widget.results.enhancedAnalysis!.nextSteps.isNotEmpty)
               _buildSmartNextStepsCard(),
@@ -118,9 +101,15 @@ class _ScreeningResultsScreenState extends State<ScreeningResultsScreen> {
             if (widget.scores != null)
               _buildScoresCard(),
 
+            const SizedBox(height: 20),
+
+            // AI Recommendations - MOVED TO BOTTOM
+            if (_hasAIRecommendations())
+              _buildAIRecommendationsCard(),
+
             const SizedBox(height: 30),
 
-            // Action Buttons - Next Steps Button is now the main action
+            // Action Buttons
             _buildActionButtons(),
           ],
         ),
@@ -128,54 +117,48 @@ class _ScreeningResultsScreenState extends State<ScreeningResultsScreen> {
     );
   }
 
-  // screens/screening_results_screen.dart - التصحيحات فقط
+  // Sections organized for better visual flow
 
-// ... باقي الكود كما هو ...
-
-bool _hasAIRecommendations() {
-  final enhanced = widget.results.enhancedAnalysis;
-  if (enhanced == null || !enhanced.success) return false;
-  
-  // Check if we have recommendations in enhanced analysis
-  if (enhanced.recommendations != null && enhanced.recommendations!.isNotEmpty) {
-    return true;
+  Widget _buildDetailedResultsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Detailed Results',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textDark,
+          ),
+        ),
+        const SizedBox(height: 15),
+        ...widget.results.riskLevels.entries.map((entry) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 15.0),
+            child: _buildCategoryResultCard(
+              title: _getCategoryTitle(entry.key),
+              riskLevel: entry.value,
+              color: _getRiskColor(entry.value),
+              category: entry.key,
+            ),
+          );
+        }),
+      ],
+    );
   }
-  
-  // Check if we have recommendations in aiAnalysis
-  if (enhanced.aiAnalysis?.recommendations != null && 
-      enhanced.aiAnalysis!.recommendations!.isNotEmpty) {
-    return true;
-  }
-  
-  return false;
-}
-
-List<String> _getAIRecommendations() {
-  final enhanced = widget.results.enhancedAnalysis;
-  if (enhanced == null) return [];
-  
-  // Try to get from enhanced analysis first
-  if (enhanced.recommendations != null && enhanced.recommendations!.isNotEmpty) {
-    return enhanced.recommendations!;
-  }
-  
-  // Then try from aiAnalysis
-  if (enhanced.aiAnalysis?.recommendations != null && 
-      enhanced.aiAnalysis!.recommendations!.isNotEmpty) {
-    return enhanced.aiAnalysis!.recommendations!;
-  }
-  
-  return [];
-}
 
   Widget _buildEnhancedAnalysisSection() {
     final enhanced = widget.results.enhancedAnalysis!;
-    
+
     return Column(
       children: [
         Card(
-          color: AppColors.accent1,
-          elevation: 4,
+          color: AppColors.accent1.withOpacity(0.05),
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: AppColors.accent1.withOpacity(0.3)),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
@@ -183,7 +166,7 @@ List<String> _getAIRecommendations() {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.psychology, color: AppColors.primary),
+                    Icon(Icons.psychology, color: AppColors.accent1),
                     const SizedBox(width: 8),
                     const Text(
                       'AI Enhanced Analysis',
@@ -207,10 +190,10 @@ List<String> _getAIRecommendations() {
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 15),
 
                 // AI Suggested Conditions
-                if (enhanced.aiAnalysis != null && 
+                if (enhanced.aiAnalysis != null &&
                     enhanced.aiAnalysis!.suggestedConditions.isNotEmpty)
                   _buildAISuggestedConditions(enhanced.aiAnalysis!),
 
@@ -228,261 +211,6 @@ List<String> _getAIRecommendations() {
     );
   }
 
-  // AI Suggested Conditions
-  Widget _buildAISuggestedConditions(AIAnalysis aiAnalysis) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'AI Suggested Conditions:',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textDark,
-          ),
-        ),
-        const SizedBox(height: 8),
-        ...aiAnalysis.suggestedConditions.map((condition) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4.0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                margin: const EdgeInsets.only(top: 6, right: 8),
-                decoration: BoxDecoration(
-                  color: _getConfidenceColor(condition.confidence),
-                  shape: BoxShape.circle,
-                ),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      condition.name,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textDark,
-                      ),
-                    ),
-                    Text(
-                      'Confidence: ${condition.confidence}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textGray,
-                      ),
-                    ),
-                    if (condition.matchingKeywords.isNotEmpty)
-                      Text(
-                        'Keywords: ${condition.matchingKeywords.join(', ')}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textLight,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        )),
-      ],
-    );
-  }
-
-  // Recommended Institutions
-  Widget _buildRecommendedInstitutions(List<dynamic> institutions) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Recommended Centers:',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textDark,
-          ),
-        ),
-        const SizedBox(height: 8),
-        ...institutions.take(3).map((institution) {
-          final inst = Map<String, dynamic>.from(institution);
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4.0),
-            child: Card(
-              margin: EdgeInsets.zero,
-              elevation: 1,
-              color: AppColors.surface,
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Row(
-                  children: [
-                    Icon(Icons.location_on, color: AppColors.primary, size: 16),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            inst['name'] ?? 'Unknown Center',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.textDark,
-                            ),
-                          ),
-                          Text(
-                            '${inst['city'] ?? ''} • Match: ${inst['match_score'] ?? 'N/A'}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textGray,
-                            ),
-                          ),
-                          if (inst['matching_specialties'] != null)
-                            Text(
-                              'Specialties: ${(inst['matching_specialties'] as List).join(', ')}',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: AppColors.textLight,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }),
-        if (institutions.length > 3)
-          Padding(
-            padding: const EdgeInsets.only(top: 4.0),
-            child: Text(
-              '+ ${institutions.length - 3} more centers available',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.primary,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  // AI Recommendations Card (REPLACES static recommendations)
-  Widget _buildAIRecommendationsCard() {
-    final recommendations = _getAIRecommendations();
-    
-    return Card(
-      elevation: 3,
-      color: AppColors.surface,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.recommend, color: AppColors.primary),
-                const SizedBox(width: 8),
-                const Text(
-                  'AI Recommendations',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textDark,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            ...recommendations.map((recommendation) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 5.0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.arrow_forward, color: AppColors.primary, size: 20),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      recommendation,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        color: AppColors.textDark,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            )),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Smart Next Steps Card (REPLACES static next steps)
-  Widget _buildSmartNextStepsCard() {
-    final nextSteps = widget.results.enhancedAnalysis!.nextSteps;
-    
-    return Card(
-      elevation: 3,
-      color: AppColors.surface,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.auto_awesome, color: AppColors.primary),
-                const SizedBox(width: 8),
-                const Text(
-                  'Smart Next Steps',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textDark,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            ...nextSteps.map((step) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 5.0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    _getStepIcon(step),
-                    color: _getStepColor(step),
-                    size: 20,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      step,
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: _getStepColor(step),
-                        fontWeight: _getStepFontWeight(step),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            )),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildOverallRiskCard() {
     final overallRisk = widget.results.overallRisk;
     final color = _getRiskColor(overallRisk);
@@ -491,16 +219,27 @@ List<String> _getAIRecommendations() {
     return Card(
       color: color.withOpacity(0.1),
       elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           children: [
-            Icon(
-              _getRiskIcon(overallRisk),
-              size: 60,
-              color: color,
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                _getRiskIcon(overallRisk),
+                size: 40,
+                color: color,
+              ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 15),
             Text(
               _getRiskTitle(overallRisk),
               style: TextStyle(
@@ -513,14 +252,19 @@ List<String> _getAIRecommendations() {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16, color: AppColors.textDark),
+              style: const TextStyle(
+                fontSize: 16,
+                color: AppColors.textDark,
+                height: 1.4,
+              ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 15),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: color.withOpacity(0.3)),
               ),
               child: Text(
                 'Confidence: ${widget.results.confidenceLevel.toUpperCase()}',
@@ -539,8 +283,12 @@ List<String> _getAIRecommendations() {
 
   Widget _buildPrimaryConcernCard() {
     return Card(
-      color: AppColors.warning.withOpacity(0.1),
-      elevation: 3,
+      color: AppColors.warning.withOpacity(0.05),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: AppColors.warning.withOpacity(0.3)),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -548,8 +296,16 @@ List<String> _getAIRecommendations() {
           children: [
             Row(
               children: [
-                Icon(Icons.priority_high, color: AppColors.warning),
-                const SizedBox(width: 8),
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.priority_high, color: AppColors.warning, size: 18),
+                ),
+                const SizedBox(width: 12),
                 const Text(
                   'Primary Concern',
                   style: TextStyle(
@@ -560,13 +316,20 @@ List<String> _getAIRecommendations() {
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            Text(
-              widget.results.primaryConcernLabel,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textDark,
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                widget.results.primaryConcernLabel,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textDark,
+                ),
               ),
             ),
             if (widget.results.secondaryConcern != null) ...[
@@ -585,28 +348,31 @@ List<String> _getAIRecommendations() {
     );
   }
 
-  Widget _buildResultCard({
+  Widget _buildCategoryResultCard({
     required String title,
     required String riskLevel,
     required Color color,
     required String category,
   }) {
     return Card(
-      elevation: 2,
+      elevation: 1,
       color: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Row(
           children: [
             Container(
-              width: 10,
+              width: 6,
               height: 60,
               decoration: BoxDecoration(
                 color: color,
-                borderRadius: BorderRadius.circular(5),
+                borderRadius: BorderRadius.circular(3),
               ),
             ),
-            const SizedBox(width: 15),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -614,12 +380,12 @@ List<String> _getAIRecommendations() {
                   Text(
                     title,
                     style: const TextStyle(
-                      fontSize: 18,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textDark,
                     ),
                   ),
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 6),
                   Text(
                     _getRiskDescription(riskLevel),
                     style: TextStyle(
@@ -629,7 +395,7 @@ List<String> _getAIRecommendations() {
                   ),
                   if (widget.scores != null && widget.scores![category] != null)
                     Padding(
-                      padding: const EdgeInsets.only(top: 5.0),
+                      padding: const EdgeInsets.only(top: 6.0),
                       child: Text(
                         _getScoreText(category, widget.scores![category]),
                         style: TextStyle(
@@ -642,14 +408,19 @@ List<String> _getAIRecommendations() {
                 ],
               ),
             ),
-            Chip(
-              backgroundColor: color.withOpacity(0.2),
-              label: Text(
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: color.withOpacity(0.3)),
+              ),
+              child: Text(
                 riskLevel.toUpperCase(),
                 style: TextStyle(
                   color: color,
                   fontWeight: FontWeight.bold,
-                  fontSize: 12,
+                  fontSize: 11,
                 ),
               ),
             ),
@@ -659,10 +430,15 @@ List<String> _getAIRecommendations() {
     );
   }
 
-  Widget _buildRedFlagsCard() {
+  Widget _buildAIRecommendationsCard() {
+    final recommendations = _getAIRecommendations();
+
     return Card(
-      color: AppColors.error.withOpacity(0.1),
-      elevation: 3,
+      elevation: 2,
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -670,8 +446,94 @@ List<String> _getAIRecommendations() {
           children: [
             Row(
               children: [
-                Icon(Icons.flag, color: AppColors.error),
-                const SizedBox(width: 8),
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.recommend, color: AppColors.primary, size: 18),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'AI Recommendations',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textDark,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ...recommendations.asMap().entries.map((entry) {
+              final index = entry.key;
+              final recommendation = entry.value;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: index == 0 ? AppColors.primary.withOpacity(0.05) : AppColors.surface,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: index == 0 ? AppColors.primary.withOpacity(0.2) : Colors.transparent,
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.arrow_forward,
+                      color: index == 0 ? AppColors.primary : AppColors.textGray,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        recommendation,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textDark,
+                          fontWeight: index == 0 ? FontWeight.w600 : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRedFlagsCard() {
+    return Card(
+      color: AppColors.error.withOpacity(0.05),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: AppColors.error.withOpacity(0.3)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.flag, color: AppColors.error, size: 18),
+                ),
+                const SizedBox(width: 12),
                 const Text(
                   'Red Flags',
                   style: TextStyle(
@@ -682,15 +544,23 @@ List<String> _getAIRecommendations() {
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             ...widget.results.redFlags.map((flag) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4.0),
+              padding: const EdgeInsets.symmetric(vertical: 6.0),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(Icons.warning, color: AppColors.error, size: 16),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(flag, style: TextStyle(color: AppColors.textDark))),
+                  Expanded(
+                    child: Text(
+                      flag,
+                      style: TextStyle(
+                        color: AppColors.textDark,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             )),
@@ -702,8 +572,12 @@ List<String> _getAIRecommendations() {
 
   Widget _buildPositiveIndicatorsCard() {
     return Card(
-      color: AppColors.success.withOpacity(0.1),
-      elevation: 3,
+      color: AppColors.success.withOpacity(0.05),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: AppColors.success.withOpacity(0.3)),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -711,8 +585,16 @@ List<String> _getAIRecommendations() {
           children: [
             Row(
               children: [
-                Icon(Icons.thumb_up, color: AppColors.success),
-                const SizedBox(width: 8),
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.thumb_up, color: AppColors.success, size: 18),
+                ),
+                const SizedBox(width: 12),
                 const Text(
                   'Positive Indicators',
                   style: TextStyle(
@@ -723,15 +605,90 @@ List<String> _getAIRecommendations() {
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             ...widget.results.positiveIndicators.map((indicator) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4.0),
+              padding: const EdgeInsets.symmetric(vertical: 6.0),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(Icons.check_circle, color: AppColors.success, size: 16),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(indicator, style: TextStyle(color: AppColors.textDark))),
+                  Expanded(
+                    child: Text(
+                      indicator,
+                      style: TextStyle(
+                        color: AppColors.textDark,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSmartNextStepsCard() {
+    final nextSteps = widget.results.enhancedAnalysis!.nextSteps;
+
+    return Card(
+      elevation: 2,
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: AppColors.accent1.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.auto_awesome, color: AppColors.accent1, size: 18),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Smart Next Steps',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textDark,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ...nextSteps.map((step) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    _getStepIcon(step),
+                    color: _getStepColor(step),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      step,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: _getStepColor(step),
+                        fontWeight: _getStepFontWeight(step),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             )),
@@ -743,22 +700,40 @@ List<String> _getAIRecommendations() {
 
   Widget _buildScoresCard() {
     return Card(
-      color: AppColors.accent1,
+      color: AppColors.accent1.withOpacity(0.05),
       elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: AppColors.accent1.withOpacity(0.3)),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Score Summary',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textDark,
-              ),
+            Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: AppColors.accent1.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.assessment, color: AppColors.accent1, size: 18),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Score Summary',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textDark,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             ...widget.scores!.entries.map((entry) {
               if (entry.value is Map) {
                 return _buildScoreRow(entry.key, entry.value);
@@ -773,7 +748,7 @@ List<String> _getAIRecommendations() {
 
   Widget _buildScoreRow(String category, Map<String, dynamic> scoreData) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.symmetric(vertical: 10.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -785,12 +760,19 @@ List<String> _getAIRecommendations() {
               color: AppColors.textDark,
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            _formatScoreData(scoreData),
-            style: TextStyle(
-              fontSize: 13,
-              color: AppColors.textGray,
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              _formatScoreData(scoreData),
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.textGray,
+              ),
             ),
           ),
         ],
@@ -801,7 +783,7 @@ List<String> _getAIRecommendations() {
   Widget _buildActionButtons() {
     return Column(
       children: [
-        // Main Next Steps Button (replaces the old "Add Child" button)
+        // Main Next Steps Button
         SizedBox(
           width: double.infinity,
           height: 50,
@@ -825,43 +807,14 @@ List<String> _getAIRecommendations() {
           ),
         ),
         const SizedBox(height: 12),
-        
+
         // Home Button
-        SizedBox(
-          width: double.infinity,
-          height: 50,
-          child: ElevatedButton.icon(
-            onPressed: () {
-              Navigator.popUntil(context, (route) => route.isFirst);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.textWhite,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            icon: const Icon(Icons.home),
-            label: const Text(
-              'Back to Home',
-              style: TextStyle(fontSize: 16),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        
-        // Share Button
         SizedBox(
           width: double.infinity,
           height: 50,
           child: OutlinedButton.icon(
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Share functionality coming soon'),
-                  backgroundColor: AppColors.info,
-                ),
-              );
+              Navigator.popUntil(context, (route) => route.isFirst);
             },
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.primary,
@@ -870,9 +823,9 @@ List<String> _getAIRecommendations() {
               ),
               side: BorderSide(color: AppColors.primary),
             ),
-            icon: const Icon(Icons.share),
+            icon: const Icon(Icons.home),
             label: const Text(
-              'Share Results',
+              'Back to Home',
               style: TextStyle(fontSize: 16),
             ),
           ),
@@ -881,35 +834,186 @@ List<String> _getAIRecommendations() {
     );
   }
 
+  // AI Suggested Conditions
+  Widget _buildAISuggestedConditions(AIAnalysis aiAnalysis) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'AI Suggested Conditions:',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textDark,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ...aiAnalysis.suggestedConditions.map((condition) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6.0),
+          child: Card(
+            margin: EdgeInsets.zero,
+            elevation: 1,
+            color: AppColors.surface,
+            child: Padding(
+              padding: const EdgeInsets.all(10.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    margin: const EdgeInsets.only(top: 6, right: 10),
+                    decoration: BoxDecoration(
+                      color: _getConfidenceColor(condition.confidence),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          condition.name,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.textDark,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Confidence: ${condition.confidence}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textGray,
+                          ),
+                        ),
+                        if (condition.matchingKeywords.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4.0),
+                            child: Text(
+                              'Keywords: ${condition.matchingKeywords.join(', ')}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textLight,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        )),
+      ],
+    );
+  }
+
+  // Recommended Institutions
+  Widget _buildRecommendedInstitutions(List<dynamic> institutions) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Recommended Centers:',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textDark,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ...institutions.take(3).map((institution) {
+          final inst = Map<String, dynamic>.from(institution);
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6.0),
+            child: Card(
+              margin: EdgeInsets.zero,
+              elevation: 1,
+              color: AppColors.surface,
+              child: Padding(
+                padding: const EdgeInsets.all(10.0),
+                child: Row(
+                  children: [
+                    Icon(Icons.location_on, color: AppColors.primary, size: 16),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            inst['name'] ?? 'Unknown Center',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textDark,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${inst['city'] ?? ''} • Match: ${inst['match_score'] ?? 'N/A'}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textGray,
+                            ),
+                          ),
+                          if (inst['matching_specialties'] != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4.0),
+                              child: Text(
+                                'Specialties: ${(inst['matching_specialties'] as List).join(', ')}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textLight,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }),
+        if (institutions.length > 3)
+          Padding(
+            padding: const EdgeInsets.only(top: 6.0),
+            child: Text(
+              '+ ${institutions.length - 3} more centers available',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppColors.primary,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   void _handleNextStepsAction(ScreeningResults results) {
-    // Always navigate to Add Child with screening data
     _navigateToAddChildWithScreeningData(results);
   }
 
   void _navigateToAddChildWithScreeningData(ScreeningResults results) {
     final enhancedAnalysis = results.enhancedAnalysis;
-    
-    // Prepare data for Add Child
+
     final Map<String, dynamic> prefilledData = {
       'from_screening': true,
       'screening_session_id': widget.sessionId,
       'screening_results': results.toJson(),
-      
-      // Medical data
       'suspected_condition': results.primaryConcernLabel,
       'symptoms_description': _generateSymptomsFromScreening(results),
-      
-      // AI analysis
       'ai_analysis': enhancedAnalysis?.aiAnalysis?.toJson(),
-      
-      // Recommended institutions
       'recommended_institutions': enhancedAnalysis?.recommendedInstitutions ?? [],
-      
-      // Additional notes
       'screening_notes': _generateScreeningNotes(results),
     };
 
-    // Navigate to Add Child screen
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -922,25 +1026,25 @@ List<String> _getAIRecommendations() {
 
   String _generateSymptomsFromScreening(ScreeningResults results) {
     String symptoms = 'Initial screening results indicate:\n\n';
-    
+
     if (results.primaryConcern != null) {
       symptoms += '• Primary indicator: ${results.primaryConcernLabel}\n';
     }
-    
+
     if (results.riskLevels.isNotEmpty) {
       symptoms += '• Risk levels:\n';
       results.riskLevels.forEach((key, value) {
         symptoms += '   - ${_getCategoryTitle(key)}: $value\n';
       });
     }
-    
+
     if (results.redFlags.isNotEmpty) {
       symptoms += '• Warning signs:\n';
       for (var flag in results.redFlags) {
         symptoms += '   - $flag\n';
       }
     }
-    
+
     if (results.scores.isNotEmpty) {
       symptoms += '\n• Detailed results:\n';
       results.scores.forEach((key, value) {
@@ -949,13 +1053,47 @@ List<String> _getAIRecommendations() {
         }
       });
     }
-    
+
     return symptoms;
   }
 
   String _generateScreeningNotes(ScreeningResults results) {
     return 'This data was automatically generated from the initial screening. '
-         'Please review the information and verify its accuracy before submitting.';
+        'Please review the information and verify its accuracy before submitting.';
+  }
+
+  // Helper Methods
+
+  bool _hasAIRecommendations() {
+    final enhanced = widget.results.enhancedAnalysis;
+    if (enhanced == null || !enhanced.success) return false;
+
+    if (enhanced.recommendations != null && enhanced.recommendations!.isNotEmpty) {
+      return true;
+    }
+
+    if (enhanced.aiAnalysis?.recommendations != null &&
+        enhanced.aiAnalysis!.recommendations!.isNotEmpty) {
+      return true;
+    }
+
+    return false;
+  }
+
+  List<String> _getAIRecommendations() {
+    final enhanced = widget.results.enhancedAnalysis;
+    if (enhanced == null) return [];
+
+    if (enhanced.recommendations != null && enhanced.recommendations!.isNotEmpty) {
+      return enhanced.recommendations!;
+    }
+
+    if (enhanced.aiAnalysis?.recommendations != null &&
+        enhanced.aiAnalysis!.recommendations!.isNotEmpty) {
+      return enhanced.aiAnalysis!.recommendations!;
+    }
+
+    return [];
   }
 
   Color _getNextStepsButtonColor(ScreeningResults results) {
@@ -977,8 +1115,6 @@ List<String> _getAIRecommendations() {
   String _getNextStepsButtonText(ScreeningResults results) {
     return 'Next Steps: Add Child for Follow-up';
   }
-
-  // Helper Methods
 
   Color _getUrgencyColor(String urgency) {
     switch (urgency.toLowerCase()) {
@@ -1027,7 +1163,9 @@ List<String> _getAIRecommendations() {
       case 'speech':
         return 'Speech/Language';
       default:
-        return category.toUpperCase();
+        return category.split('_').map((word) =>
+        word[0].toUpperCase() + word.substring(1)
+        ).join(' ');
     }
   }
 

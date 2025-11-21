@@ -5,7 +5,8 @@ const authMiddleware = require('../middleware/authMiddleware');
 const multer = require('multer');
 const path = require('path');
 const PDFDocument = require('pdfkit');
-
+const aiAnalysisService = require('../services/aiAnalysisServiceAddEvaluation');
+const AutoSchedulingService = require('../services/autoSchedulingService');
 // ✅ استيراد sequelize من ملف config
 const sequelize = require('../config/db');
 
@@ -88,13 +89,12 @@ router.get('/children', authMiddleware, async (req, res) => {
   }
 });
 
-// ✅ 2. API لإضافة التقييم (باستخدام التوكن)
+// في evaluationRoutes.js - إصلاح الجزء المتعلق بالـ auto_scheduling
 router.post('/add', authMiddleware, async (req, res) => {
   try {
     const specialistId = req.user.user_id;
     const { child_id, evaluation_type, notes, progress_score, attachment, created_at } = req.body;
     
-    // تحقق من البيانات المطلوبة
     if (!child_id || !evaluation_type) {
       return res.status(400).json({
         success: false,
@@ -102,7 +102,6 @@ router.post('/add', authMiddleware, async (req, res) => {
       });
     }
     
-    // تحقق إذا كان المستخدم أخصائي
     if (req.user.role !== 'Specialist') {
       return res.status(403).json({
         success: false,
@@ -110,7 +109,6 @@ router.post('/add', authMiddleware, async (req, res) => {
       });
     }
 
-    // تحقق إذا كان الأخصائي موجود في جدول Specialists
     const specialist = await Specialist.findByPk(specialistId);
     if (!specialist) {
       return res.status(404).json({
@@ -119,10 +117,44 @@ router.post('/add', authMiddleware, async (req, res) => {
       });
     }
 
-    // استخدام التاريخ المختار من المستخدم أو التاريخ الحالي إذا لم يتم اختيار تاريخ
     const evaluationDate = created_at ? new Date(created_at) : new Date();
 
-    // أنشئ التقييم
+    let analyzedSessions = [];
+    let aiAnalysis = null;
+    let scheduledSessions = [];
+    let failedSessions = [];
+
+    if (specialist.specialization === 'general' && notes) {
+      const child = await Child.findByPk(child_id);
+      
+      if (child && child.current_institution_id) {
+        analyzedSessions = await aiAnalysisService.analyzeEvaluationNotes(
+          notes, 
+          child.current_institution_id
+        );
+        
+        aiAnalysis = `AI analysis completed. Required sessions: ${analyzedSessions.join(', ')}`;
+        
+        if (analyzedSessions.length > 0) {
+          const schedulingResult = await AutoSchedulingService.findAvailableSessions(
+            parseInt(child_id),
+            analyzedSessions,
+            child.current_institution_id
+          );
+          
+          scheduledSessions = schedulingResult.scheduled;
+          failedSessions = schedulingResult.failed;
+          
+          // حفظ الجلسات المجدولة فقط
+          for (const sessionData of scheduledSessions) {
+            await Session.create(sessionData);
+          }
+        }
+      } else {
+        console.log('Child not found or no institution assigned');
+      }
+    }
+
     const newEvaluation = await Evaluation.create({
       child_id: parseInt(child_id),
       specialist_id: specialistId,
@@ -130,15 +162,77 @@ router.post('/add', authMiddleware, async (req, res) => {
       notes: notes || '',
       progress_score: progress_score || 0,
       attachment: attachment || null,
+      analyzed_sessions: analyzedSessions,
+      ai_analysis: aiAnalysis,
+      auto_scheduled: scheduledSessions.length > 0,
       created_at: evaluationDate
     });
     
-    res.status(201).json({
+    const response = {
       success: true,
       message: 'Evaluation added successfully!',
       data: newEvaluation
-    });
+    };
+
+    // ✅ التصحيح: معلومات مبسطة بدون استخدام sessionTypes
+    if (analyzedSessions.length > 0) {
+      response.auto_scheduling = {
+        message: `Auto-scheduling completed`,
+        scheduled_sessions: scheduledSessions.length,
+        failed_sessions: failedSessions.length,
+        session_types: analyzedSessions,
+        details: {
+          scheduled: scheduledSessions,
+          failed: failedSessions
+        }
+      };
+    }
+
+    res.status(201).json(response);
     
+  } catch (error) {
+    console.error('Error in add evaluation:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+// إضافة route جديدة
+router.get('/:evaluation_id/analysis', authMiddleware, async (req, res) => {
+  try {
+    const { evaluation_id } = req.params;
+    const specialistId = req.user.user_id;
+
+    const evaluation = await Evaluation.findOne({
+      where: {
+        evaluation_id: parseInt(evaluation_id),
+        specialist_id: specialistId
+      },
+      include: [
+        {
+          model: Child,
+          attributes: ['child_id', 'full_name']
+        }
+      ]
+    });
+
+    if (!evaluation) {
+      return res.status(404).json({
+        success: false,
+        error: 'Evaluation not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        analyzed_sessions: evaluation.analyzed_sessions,
+        ai_analysis: evaluation.ai_analysis,
+        auto_scheduled: evaluation.auto_scheduled,
+        notes: evaluation.notes
+      }
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -146,7 +240,6 @@ router.post('/add', authMiddleware, async (req, res) => {
     });
   }
 });
-
 // إعداد multer لرفع الملفات
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
