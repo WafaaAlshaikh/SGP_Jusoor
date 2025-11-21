@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/screening_service.dart';
 import '../models/screening_models.dart';
 import 'screening_question_screen.dart';
+import '../theme/app_colors.dart';
 
 class StartScreeningScreen extends StatefulWidget {
   const StartScreeningScreen({Key? key}) : super(key: key);
@@ -45,8 +46,8 @@ class _StartScreeningScreenState extends State<StartScreeningScreen> {
           final questionsData = response['questions'];
           final sessionId = response['session_id'];
           final progress = response['progress'] ?? 0;
-          final phase = response['phase']; // NEW
-          final message = response['message']; // NEW
+          final phase = response['phase'];
+          final message = response['message'];
 
           print('📋 Session: $sessionId');
           print('📋 Phase: $phase');
@@ -64,7 +65,7 @@ class _StartScreeningScreenState extends State<StartScreeningScreen> {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(message),
-                  backgroundColor: Colors.green,
+                  backgroundColor: AppColors.success,
                   duration: const Duration(seconds: 2),
                 ),
               );
@@ -109,12 +110,13 @@ class _StartScreeningScreenState extends State<StartScreeningScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Error'),
-        content: Text(message),
+        title: const Text('Error', style: TextStyle(color: AppColors.error)),
+        content: Text(message, style: const TextStyle(color: AppColors.textDark)),
+        backgroundColor: AppColors.surface,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
+            child: const Text('OK', style: TextStyle(color: AppColors.primary)),
           ),
         ],
       ),
@@ -138,10 +140,19 @@ class _StartScreeningScreenState extends State<StartScreeningScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Initial Screening'),
-        backgroundColor: Colors.blue[700],
-        foregroundColor: Colors.white,
+        title: const Text(
+          'Initial Screening',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppColors.textWhite,
+          ),
+        ),
+        backgroundColor: AppColors.primary,
+        elevation: 0,
+        centerTitle: true,
+        iconTheme: const IconThemeData(color: AppColors.textWhite),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
@@ -150,136 +161,200 @@ class _StartScreeningScreenState extends State<StartScreeningScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 20),
-              const Text(
-                'Child Information',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue,
+              // Header Section
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Child Information',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Please provide basic information about your child to start the developmental screening.',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: AppColors.textGray,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 10),
-              const Text(
-                'Please provide basic information about your child to start the developmental screening.',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey,
-                ),
-              ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 24),
 
               // Age Input
-              TextFormField(
-                controller: _ageController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Child Age (in months)',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.cake),
-                  hintText: 'e.g., 24 for 2 years old',
-                  helperText: 'Enter age between 16-180 months',
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter child age';
-                  }
-                  final age = int.tryParse(value);
-                  if (age == null || age < 16 || age > 180) {
-                    return 'Please enter a valid age (16-180 months)';
-                  }
-                  return null;
-                },
-                onChanged: (value) {
-                  setState(() {}); // Refresh to show age group info
-                },
+                child: TextFormField(
+                  controller: _ageController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Child Age (in months)',
+                    labelStyle: TextStyle(color: AppColors.textDark),
+                    border: OutlineInputBorder(
+                      borderSide: BorderSide.none,
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
+                    ),
+                    filled: true,
+                    fillColor: AppColors.surface,
+                    prefixIcon: Icon(Icons.cake, color: AppColors.primary),
+                    hintText: 'e.g., 24 for 2 years old',
+                    helperText: 'Enter age between 16-180 months',
+                    helperStyle: TextStyle(color: AppColors.textGray),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter child age';
+                    }
+                    final age = int.tryParse(value);
+                    if (age == null || age < 16 || age > 180) {
+                      return 'Please enter a valid age (16-180 months)';
+                    }
+                    return null;
+                  },
+                  onChanged: (value) {
+                    setState(() {});
+                  },
+                ),
               ),
 
               // Age Group Info
               if (_ageController.text.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8.0),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.blue[50],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue[200]!),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _getAgeGroupInfo(_ageController.text),
-                            style: TextStyle(
-                              color: Colors.blue[900],
-                              fontSize: 14,
-                            ),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  margin: const EdgeInsets.only(top: 8.0),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.accent1,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.primaryLight),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: AppColors.primary, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _getAgeGroupInfo(_ageController.text),
+                          style: const TextStyle(
+                            color: AppColors.primaryDark,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
 
               const SizedBox(height: 20),
 
               // Gender Dropdown
-              DropdownButtonFormField<String>(
-                value: _selectedGender,
-                decoration: const InputDecoration(
-                  labelText: 'Child Gender (Optional)',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.person),
-                ),
-                items: _genders.map((gender) {
-                  return DropdownMenuItem(
-                    value: gender,
-                    child: Text(
-                      gender == 'male' ? 'Male' : 'Female',
-                      style: const TextStyle(fontSize: 16),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
                     ),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedGender = value;
-                  });
-                },
+                  ],
+                ),
+                child: DropdownButtonFormField<String>(
+                  value: _selectedGender,
+                  decoration: const InputDecoration(
+                    labelText: 'Child Gender (Optional)',
+                    labelStyle: TextStyle(color: AppColors.textDark),
+                    border: OutlineInputBorder(
+                      borderSide: BorderSide.none,
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
+                    ),
+                    filled: true,
+                    fillColor: AppColors.surface,
+                    prefixIcon: Icon(Icons.person, color: AppColors.primary),
+                  ),
+                  dropdownColor: AppColors.surface,
+                  style: const TextStyle(color: AppColors.textDark, fontSize: 16),
+                  items: _genders.map((gender) {
+                    return DropdownMenuItem(
+                      value: gender,
+                      child: Text(
+                        gender == 'male' ? 'Male' : 'Female',
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedGender = value;
+                    });
+                  },
+                ),
               ),
               const SizedBox(height: 30),
 
-              // Information Cards
-              const Text(
-                'What We Screen For:',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+              // Information Cards Section
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8.0),
+                child: Text(
+                  'What We Screen For:',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textDark,
+                  ),
                 ),
               ),
-              const SizedBox(height: 15),
 
               _buildInfoCard(
                 icon: Icons.psychology,
                 title: 'Autism Screening',
                 description: 'M-CHAT for ages 16-30 months\nEarly detection of autism spectrum signs',
-                color: Colors.orange[100]!,
+                color: AppColors.accent1,
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               _buildInfoCard(
                 icon: Icons.record_voice_over,
                 title: 'Speech Development',
                 description: 'Language milestones for ages 2.5-5 years\nExpressive and receptive language skills',
-                color: Colors.green[100]!,
+                color: AppColors.accent2,
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               _buildInfoCard(
                 icon: Icons.directions_run,
                 title: 'ADHD Screening',
                 description: 'Vanderbilt scale for children 6+ years\nInattention and hyperactivity assessment',
-                color: Colors.purple[100]!,
+                color: AppColors.accent3,
               ),
               const SizedBox(height: 30),
 
@@ -287,21 +362,22 @@ class _StartScreeningScreenState extends State<StartScreeningScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.amber[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.amber[200]!),
+                  color: AppColors.warning.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.warning.withOpacity(0.3)),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info, color: Colors.amber[800]),
+                    Icon(Icons.info, color: AppColors.warning, size: 20),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         'This screening adapts to your answers. You may be asked 5-30 questions depending on the results. The assessment takes 5-15 minutes.',
                         style: TextStyle(
-                          color: Colors.amber[900],
+                          color: AppColors.warning,
                           fontSize: 14,
+                          height: 1.4,
                         ),
                       ),
                     ),
@@ -313,16 +389,18 @@ class _StartScreeningScreenState extends State<StartScreeningScreen> {
               // Start Button
               SizedBox(
                 width: double.infinity,
-                height: 50,
+                height: 56,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _startScreening,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue[700],
-                    foregroundColor: Colors.white,
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.textWhite,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    disabledBackgroundColor: Colors.grey[300],
+                    elevation: 2,
+                    shadowColor: AppColors.primary.withOpacity(0.3),
+                    disabledBackgroundColor: AppColors.textLight,
                   ),
                   child: _isLoading
                       ? const SizedBox(
@@ -330,12 +408,22 @@ class _StartScreeningScreenState extends State<StartScreeningScreen> {
                     width: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation(Colors.white),
+                      valueColor: AlwaysStoppedAnimation(AppColors.textWhite),
                     ),
                   )
-                      : const Text(
-                    'Start Screening',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      : const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Start Screening',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Icon(Icons.arrow_forward, size: 20),
+                    ],
                   ),
                 ),
               ),
@@ -353,16 +441,32 @@ class _StartScreeningScreenState extends State<StartScreeningScreen> {
     required String description,
     required Color color,
   }) {
-    return Card(
-      color: color,
-      elevation: 2,
+    return Container(
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 40, color: Colors.blue[700]),
-            const SizedBox(width: 15),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, size: 24, color: AppColors.primary),
+            ),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -372,12 +476,17 @@ class _StartScreeningScreenState extends State<StartScreeningScreen> {
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
+                      color: AppColors.textDark,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Text(
                     description,
-                    style: const TextStyle(fontSize: 13),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textGray,
+                      height: 1.4,
+                    ),
                   ),
                 ],
               ),

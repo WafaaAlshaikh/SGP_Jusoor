@@ -1,7 +1,14 @@
 const { Questionnaire, Question, QuestionnaireResponse, sequelize } = require('../model/index');
 const { Op } = require('sequelize');
+const EnhancedScreeningController = require('./enhancedScreeningController');
+const jwt = require('jsonwebtoken');
+const User = require('../model/User'); 
 
 class ScreeningController {
+
+  constructor() {
+    this.enhancedScreening = new EnhancedScreeningController();
+  }
   
   // ========== MAIN METHODS ==========
   
@@ -59,113 +66,113 @@ class ScreeningController {
     }
   }
 
-  async submitAnswer(req, res) {
-    try {
-      const { session_id, question_id, answer } = req.body;
+  // async submitAnswer(req, res) {
+  //   try {
+  //     const { session_id, question_id, answer } = req.body;
       
-      console.log('📨 SUBMIT ANSWER:', { session_id, question_id, answer });
+  //     console.log('📨 SUBMIT ANSWER:', { session_id, question_id, answer });
       
-      if (!session_id || !question_id || answer === undefined) {
-        return res.status(400).json({
-          success: false,
-          message: 'Session ID, question ID and answer are required'
-        });
-      }
+  //     if (!session_id || !question_id || answer === undefined) {
+  //       return res.status(400).json({
+  //         success: false,
+  //         message: 'Session ID, question ID and answer are required'
+  //       });
+  //     }
 
-      const response = await QuestionnaireResponse.findOne({ where: { session_id } });
+  //     const response = await QuestionnaireResponse.findOne({ where: { session_id } });
       
-      if (!response) {
-        return res.status(404).json({
-          success: false,
-          message: 'Screening session not found'
-        });
-      }
+  //     if (!response) {
+  //       return res.status(404).json({
+  //         success: false,
+  //         message: 'Screening session not found'
+  //       });
+  //     }
 
-      const questionIdNum = parseInt(question_id);
-      const currentResponses = response.responses || {};
+  //     const questionIdNum = parseInt(question_id);
+  //     const currentResponses = response.responses || {};
       
-      // Save answer
-      const updatedResponses = Object.assign({}, currentResponses, {
-        [questionIdNum]: {
-          answer,
-          timestamp: new Date()
-        }
-      });
+  //     // Save answer
+  //     const updatedResponses = Object.assign({}, currentResponses, {
+  //       [questionIdNum]: {
+  //         answer,
+  //         timestamp: new Date()
+  //       }
+  //     });
 
-      await response.update({ responses: updatedResponses });
+  //     await response.update({ responses: updatedResponses });
 
-      const answeredCount = Object.keys(updatedResponses).length;
-      console.log('✅ ANSWER SAVED - Total:', answeredCount);
+  //     const answeredCount = Object.keys(updatedResponses).length;
+  //     console.log('✅ ANSWER SAVED - Total:', answeredCount);
 
-      // Calculate current scores
-      const currentScores = await this.calculateCurrentScores(
-        response.child_age_months,
-        updatedResponses
-      );
+  //     // Calculate current scores
+  //     const currentScores = await this.calculateCurrentScores(
+  //       response.child_age_months,
+  //       updatedResponses
+  //     );
 
-      await response.update({ scores: currentScores });
+  //     await response.update({ scores: currentScores });
 
-      // Determine next step
-      const nextStep = await this.determineNextStep(
-        response.child_age_months,
-        updatedResponses,
-        currentScores,
-        response.screening_phase
-      );
+  //     // Determine next step
+  //     const nextStep = await this.determineNextStep(
+  //       response.child_age_months,
+  //       updatedResponses,
+  //       currentScores,
+  //       response.screening_phase
+  //     );
 
-      if (nextStep.completed) {
-        // Calculate final results
-        console.log('🎉 SCREENING COMPLETED');
-        const finalResults = await this.calculateFinalResults(
-          response.child_age_months,
-          updatedResponses,
-          currentScores
-        );
+  //     if (nextStep.completed) {
+  //       // Calculate final results
+  //       console.log('🎉 SCREENING COMPLETED');
+  //       const finalResults = await this.calculateFinalResults(
+  //         response.child_age_months,
+  //         updatedResponses,
+  //         currentScores
+  //       );
 
-        await response.update({
-          results: finalResults,
-          completed_at: new Date()
-        });
+  //       await response.update({
+  //         results: finalResults,
+  //         completed_at: new Date()
+  //       });
 
-        return res.json({
-          success: true,
-          completed: true,
-          results: finalResults,
-          scores: currentScores,
-          progress: 100
-        });
-      }
+  //       return res.json({
+  //         success: true,
+  //         completed: true,
+  //         results: finalResults,
+  //         scores: currentScores,
+  //         progress: 100
+  //       });
+  //     }
 
-      // Update phase if needed
-      if (nextStep.new_phase) {
-        await response.update({ screening_phase: nextStep.new_phase });
-      }
+  //     // Update phase if needed
+  //     if (nextStep.new_phase) {
+  //       await response.update({ screening_phase: nextStep.new_phase });
+  //     }
 
-      // Calculate progress
-      const progress = this.calculateDynamicProgress(
-        response.child_age_months,
-        updatedResponses,
-        nextStep.new_phase || response.screening_phase
-      );
+  //     // Calculate progress
+  //     const progress = this.calculateDynamicProgress(
+  //       response.child_age_months,
+  //       updatedResponses,
+  //       nextStep.new_phase || response.screening_phase
+  //     );
 
-      console.log('➡️ NEXT QUESTION:', nextStep.next_question.id, '- Phase:', nextStep.new_phase || response.screening_phase);
+  //     console.log('➡️ NEXT QUESTION:', nextStep.next_question.id, '- Phase:', nextStep.new_phase || response.screening_phase);
 
-      res.json({
-        success: true,
-        completed: false,
-        next_question: nextStep.next_question,
-        phase: nextStep.new_phase || response.screening_phase,
-        phase_message: nextStep.phase_message,
-        progress: progress,
-        answered_questions: answeredCount,
-        current_scores: currentScores
-      });
+  //     res.json({
+  //       success: true,
+  //       completed: false,
+  //       next_question: nextStep.next_question,
+  //       phase: nextStep.new_phase || response.screening_phase,
+  //       phase_message: nextStep.phase_message,
+  //       progress: progress,
+  //       answered_questions: answeredCount,
+  //       current_scores: currentScores
+  //     });
 
-    } catch (error) {
-      console.error('❌ SUBMIT ERROR:', error);
-      res.status(500).json({ success: false, message: 'Failed to save answer' });
-    }
-  }
+  //   } catch (error) {
+  //     console.error('❌ SUBMIT ERROR:', error);
+  //     res.status(500).json({ success: false, message: 'Failed to save answer' });
+  //   }
+  // }
 
   // ========== HELPER METHODS ==========
 
@@ -595,43 +602,43 @@ class ScreeningController {
     return 8;
   }
 
-  async getResults(req, res) {
-    try {
-      const { session_id } = req.params;
+  // async getResults(req, res) {
+  //   try {
+  //     const { session_id } = req.params;
       
-      const response = await QuestionnaireResponse.findOne({ where: { session_id } });
+  //     const response = await QuestionnaireResponse.findOne({ where: { session_id } });
       
-      if (!response) {
-        return res.status(404).json({ success: false, message: 'Results not found' });
-      }
+  //     if (!response) {
+  //       return res.status(404).json({ success: false, message: 'Results not found' });
+  //     }
 
-      if (!response.completed_at) {
-        const results = await this.calculateFinalResults(
-          response.child_age_months,
-          response.responses,
-          response.scores
-        );
+  //     if (!response.completed_at) {
+  //       const results = await this.calculateFinalResults(
+  //         response.child_age_months,
+  //         response.responses,
+  //         response.scores
+  //       );
 
-        await response.update({
-          results: results,
-          completed_at: new Date()
-        });
-      }
+  //       await response.update({
+  //         results: results,
+  //         completed_at: new Date()
+  //       });
+  //     }
 
-      res.json({
-        success: true,
-        results: response.results,
-        scores: response.scores,
-        child_age_months: response.child_age_months,
-        child_gender: response.child_gender,
-        completed_at: response.completed_at
-      });
+  //     res.json({
+  //       success: true,
+  //       results: response.results,
+  //       scores: response.scores,
+  //       child_age_months: response.child_age_months,
+  //       child_gender: response.child_gender,
+  //       completed_at: response.completed_at
+  //     });
       
-    } catch (error) {
-      console.error('❌ GET RESULTS ERROR:', error);
-      res.status(500).json({ success: false, message: 'Failed to get results' });
-    }
-  }
+  //   } catch (error) {
+  //     console.error('❌ GET RESULTS ERROR:', error);
+  //     res.status(500).json({ success: false, message: 'Failed to get results' });
+  //   }
+  // }
 
   async getScreeningStats(req, res) {
     try {
@@ -710,6 +717,262 @@ class ScreeningController {
     });
 
     return question;
+  }
+
+
+  // ========== ENHANCED SUBMIT ANSWER ==========
+async submitAnswer(req, res) {
+  try {
+    const { session_id, question_id, answer } = req.body;
+    
+    console.log('📨 SUBMIT ANSWER:', { session_id, question_id, answer });
+    
+    if (!session_id || !question_id || answer === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'Session ID, question ID and answer are required'
+      });
+    }
+
+    const response = await QuestionnaireResponse.findOne({ where: { session_id } });
+    
+    if (!response) {
+      return res.status(404).json({
+        success: false,
+        message: 'Screening session not found'
+      });
+    }
+
+    const questionIdNum = parseInt(question_id);
+    const currentResponses = response.responses || {};
+    
+    // Save answer
+    const updatedResponses = Object.assign({}, currentResponses, {
+      [questionIdNum]: {
+        answer,
+        timestamp: new Date()
+      }
+    });
+
+    await response.update({ responses: updatedResponses });
+
+    const answeredCount = Object.keys(updatedResponses).length;
+    console.log('✅ ANSWER SAVED - Total:', answeredCount);
+
+    // Calculate current scores
+    const currentScores = await this.calculateCurrentScores(
+      response.child_age_months,
+      updatedResponses
+    );
+
+    await response.update({ scores: currentScores });
+
+    // Determine next step
+    const nextStep = await this.determineNextStep(
+      response.child_age_months,
+      updatedResponses,
+      currentScores,
+      response.screening_phase
+    );
+
+    if (nextStep.completed) {
+      // Calculate final results
+      console.log('🎉 SCREENING COMPLETED');
+      const finalResults = await this.calculateFinalResults(
+        response.child_age_months,
+        updatedResponses,
+        currentScores
+      );
+
+      // ✅ GET PARENT LOCATION FROM TOKEN
+      let parentLocation = {};
+      try {
+        const token = req.headers.authorization?.split(' ')[1];
+        if (token) {
+          const decoded = jwt.verify(token, process.env.JWT_SECRET);
+          const parentUser = await User.findByPk(decoded.user_id);
+          if (parentUser) {
+            parentLocation = {
+              lat: parentUser.location_lat,
+              lng: parentUser.location_lng,
+              city: parentUser.city,
+              address: parentUser.location_address
+            };
+            console.log('📍 Parent location from token:', parentLocation);
+          }
+        }
+      } catch (tokenError) {
+        console.log('⚠️ Could not get parent location from token:', tokenError.message);
+      }
+
+      // ENHANCED: Add AI analysis and recommendations
+      let enhancedAnalysis = null;
+      try {
+        enhancedAnalysis = await this.enhancedScreening.analyzeScreeningResults(
+          finalResults,
+          response.child_age_months,
+          {
+            city: response.city || '',
+            address: response.address || ''
+          },
+          parentLocation // ✅ نمرر موقع الأب
+        );
+        
+        // Merge enhanced analysis with final results
+        finalResults.enhanced_analysis = enhancedAnalysis;
+        
+      } catch (enhancedError) {
+        console.error('❌ Enhanced analysis failed, using basic results:', enhancedError);
+        finalResults.enhanced_analysis = {
+          success: false,
+          error: enhancedError.message
+        };
+      }
+
+      await response.update({
+        results: finalResults,
+        completed_at: new Date()
+      });
+
+      return res.json({
+        success: true,
+        completed: true,
+        results: finalResults,
+        scores: currentScores,
+        progress: 100,
+        // Include enhanced analysis in response
+        enhanced_analysis: enhancedAnalysis
+      });
+    }
+
+    // Update phase if needed
+    if (nextStep.new_phase) {
+      await response.update({ screening_phase: nextStep.new_phase });
+    }
+
+    // Calculate progress
+    const progress = this.calculateDynamicProgress(
+      response.child_age_months,
+      updatedResponses,
+      nextStep.new_phase || response.screening_phase
+    );
+
+    console.log('➡️ NEXT QUESTION:', nextStep.next_question.id, '- Phase:', nextStep.new_phase || response.screening_phase);
+
+    res.json({
+      success: true,
+      completed: false,
+      next_question: nextStep.next_question,
+      phase: nextStep.new_phase || response.screening_phase,
+      phase_message: nextStep.phase_message,
+      progress: progress,
+      answered_questions: answeredCount,
+      current_scores: currentScores
+    });
+
+  } catch (error) {
+    console.error('❌ SUBMIT ERROR:', error);
+    res.status(500).json({ success: false, message: 'Failed to save answer' });
+  }
+}
+
+  // ========== ENHANCED GET RESULTS ==========
+  async getResults(req, res) {
+    try {
+      const { session_id } = req.params;
+      
+      const response = await QuestionnaireResponse.findOne({ where: { session_id } });
+      
+      if (!response) {
+        return res.status(404).json({ success: false, message: 'Results not found' });
+      }
+
+      if (!response.completed_at) {
+        const results = await this.calculateFinalResults(
+          response.child_age_months,
+          response.responses,
+          response.scores
+        );
+
+        // ENHANCED: Add AI analysis if not already present
+        if (!results.enhanced_analysis) {
+          try {
+            const enhancedAnalysis = await this.enhancedScreening.analyzeScreeningResults(
+              results,
+              response.child_age_months,
+              {
+                city: response.city || '',
+                address: response.address || ''
+              }
+            );
+            results.enhanced_analysis = enhancedAnalysis;
+          } catch (error) {
+            console.error('❌ Enhanced analysis in getResults failed:', error);
+            results.enhanced_analysis = { success: false, error: error.message };
+          }
+        }
+
+        await response.update({
+          results: results,
+          completed_at: new Date()
+        });
+      }
+
+      res.json({
+        success: true,
+        results: response.results,
+        scores: response.scores,
+        child_age_months: response.child_age_months,
+        child_gender: response.child_gender,
+        completed_at: response.completed_at
+      });
+      
+    } catch (error) {
+      console.error('❌ GET RESULTS ERROR:', error);
+      res.status(500).json({ success: false, message: 'Failed to get results' });
+    }
+  }
+
+  // ========== NEW: GET ENHANCED RECOMMENDATIONS ==========
+  async getEnhancedRecommendations(req, res) {
+    try {
+      const { session_id } = req.params;
+
+      const response = await QuestionnaireResponse.findOne({ 
+        where: { session_id } 
+      });
+
+      if (!response) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Screening session not found' 
+        });
+      }
+
+      if (!response.completed_at) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Screening not completed yet' 
+        });
+      }
+
+      // Get enhanced analysis
+      const enhancedAnalysis = await this.enhancedScreening.enhanceScreeningResults(session_id);
+
+      res.json({
+        success: true,
+        session_id,
+        enhanced_recommendations: enhancedAnalysis,
+        screening_completed: response.completed_at
+      });
+
+    } catch (error) {
+      console.error('❌ GET ENHANCED RECOMMENDATIONS ERROR:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to get enhanced recommendations' 
+      });
+    }
   }
 }
 

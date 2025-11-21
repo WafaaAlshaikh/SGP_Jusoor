@@ -12,7 +12,13 @@ enum ChildFormStep { basicInfo, medicalInfo, selectInstitution, confirmation }
 
 class ChildFormDialog extends StatefulWidget {
   final Child? child;
-  const ChildFormDialog({super.key, this.child});
+  final Map<String, dynamic>? screeningData; // جديد
+  
+  const ChildFormDialog({
+    super.key, 
+    this.child,
+    this.screeningData, // جديد
+  });
 
   @override
   State<ChildFormDialog> createState() => _ChildFormDialogState();
@@ -193,6 +199,45 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
     super.initState();
     _initializeForm();
     _loadDiagnoses();
+    _processScreeningData(); 
+  }
+
+  void _processScreeningData() {
+    if (widget.screeningData == null) return;
+    
+    print('🎯 Processing screening data in Child Form');
+    final screeningData = widget.screeningData!;
+    
+    // تعبئة الحقول تلقائياً
+    if (screeningData['suspected_condition'] != null) {
+      _suspectedCondition = screeningData['suspected_condition'].toString();
+    }
+    
+    if (screeningData['symptoms_description'] != null) {
+      _symptomsDescription = screeningData['symptoms_description'].toString();
+    }
+    
+    // تعبئة المؤسسات الموصى بها
+    if (screeningData['recommended_institutions'] != null) {
+      _recommendedInstitutions = screeningData['recommended_institutions'];
+      print('   - Loaded ${_recommendedInstitutions.length} recommended institutions from screening');
+    }
+    
+    // إذا كان من screening، نذهب مباشرة للخطوة الطبية
+    if (screeningData['from_screening'] == true) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        setState(() {
+          _currentStep = ChildFormStep.medicalInfo;
+        });
+        
+        // إذا كان هناك تحليل AI، نفعله تلقائياً
+        if (_symptomsDescription.isNotEmpty) {
+          Future.delayed(Duration(seconds: 1), () {
+            _analyzeMedicalCondition();
+          });
+        }
+      });
+    }
   }
 
   void _initializeForm() {
@@ -583,6 +628,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
   }
 
   Widget _buildInstitutionSelectionStep() {
+    final hasScreeningRecommendations = widget.screeningData != null;
+    
     final safeInstitutions = _safeConvertInstitutions(_recommendedInstitutions);
 
     String _searchFilter = '';

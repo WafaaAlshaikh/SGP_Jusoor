@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/screening_service.dart';
 import '../models/screening_models.dart';
 import 'screening_results_screen.dart';
+import '../theme/app_colors.dart';
 
 class ScreeningQuestionScreen extends StatefulWidget {
   final String sessionId;
@@ -56,9 +57,9 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.info_outline, color: Colors.white),
+            Icon(Icons.info_outline, color: AppColors.textWhite),
             SizedBox(width: 8),
-            Expanded(child: Text(message)),
+            Expanded(child: Text(message, style: TextStyle(color: AppColors.textWhite))),
           ],
         ),
         backgroundColor: _getPhaseColor(),
@@ -162,24 +163,28 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
     showDialog(
       context: context,
       builder: (context) => Dialog(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.error_outline, size: 64, color: Colors.orange),
+              Icon(Icons.error_outline, size: 64, color: AppColors.warning),
               SizedBox(height: 16),
               Text(
                 'Oops!',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 20, 
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textDark,
+                ),
               ),
               SizedBox(height: 8),
               Text(
                 message,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+                style: TextStyle(fontSize: 16, color: AppColors.textGray),
               ),
               SizedBox(height: 20),
               SizedBox(
@@ -187,8 +192,8 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(context),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    foregroundColor: Colors.white,
+                    backgroundColor: AppColors.warning,
+                    foregroundColor: AppColors.textWhite,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -211,10 +216,10 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
       duration: Duration(milliseconds: 300),
       margin: EdgeInsets.symmetric(vertical: 6),
       decoration: BoxDecoration(
-        color: isSelected ? _getPhaseColor().withOpacity(0.1) : Colors.white,
+        color: isSelected ? _getPhaseColor().withOpacity(0.1) : AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isSelected ? _getPhaseColor() : Colors.grey[300]!,
+          color: isSelected ? _getPhaseColor() : AppColors.accent3,
           width: isSelected ? 2 : 1,
         ),
         boxShadow: isSelected ? [
@@ -232,22 +237,37 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
         ],
       ),
       child: ListTile(
-        leading: Icon(
-          icon,
-          color: isSelected ? _getPhaseColor() : Colors.grey[600],
-          size: 24,
+        leading: Container(
+          padding: EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: isSelected ? _getPhaseColor().withOpacity(0.1) : AppColors.accent1,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            icon,
+            color: isSelected ? _getPhaseColor() : AppColors.primary,
+            size: 20,
+          ),
         ),
         title: Text(
           choice['text']?.toString() ?? 'No text',
           style: TextStyle(
             fontSize: 16,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-            color: isSelected ? _getPhaseColor() : Colors.grey[800],
+            color: isSelected ? _getPhaseColor() : AppColors.textDark,
           ),
         ),
-        trailing: isSelected ? Icon(
-          Icons.check_circle,
-          color: _getPhaseColor(),
+        trailing: isSelected ? Container(
+          padding: EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: _getPhaseColor(),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            Icons.check,
+            color: AppColors.textWhite,
+            size: 16,
+          ),
         ) : null,
         onTap: () {
           setState(() {
@@ -302,11 +322,11 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
+          Icon(Icons.error_outline, size: 64, color: AppColors.textLight),
           SizedBox(height: 16),
           Text(
             'No options available',
-            style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+            style: TextStyle(fontSize: 18, color: AppColors.textGray),
           ),
         ],
       ),
@@ -335,17 +355,21 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.error_outline, size: 80, color: Colors.red[300]),
+          Icon(Icons.error_outline, size: 80, color: AppColors.error),
           SizedBox(height: 20),
           Text(
             'No questions available',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey[800]),
+            style: TextStyle(
+              fontSize: 20, 
+              fontWeight: FontWeight.bold, 
+              color: AppColors.textDark
+            ),
           ),
           SizedBox(height: 12),
           Text(
             'Please try starting the screening again',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+            style: TextStyle(fontSize: 16, color: AppColors.textGray),
           ),
           SizedBox(height: 24),
           ElevatedButton.icon(
@@ -353,8 +377,8 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
             icon: Icon(Icons.arrow_back),
             label: Text('Go Back'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.textWhite,
               padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
@@ -380,41 +404,63 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
   Color _getPhaseColor() {
     switch (_currentPhase) {
       case 'initial':
-        return Color(0xFF4F6BED);
+        return AppColors.primary;
       case 'detailed':
-        return Color(0xFFFF6B35);
+        return AppColors.info;
       case 'performance':
-        return Color(0xFF9C27B0);
+        return AppColors.primaryLight;
       default:
-        return Color(0xFF4F6BED);
+        return AppColors.primary;
     }
   }
 
   Widget _buildProgressIndicator() {
-    return Column(
-      children: [
-        LinearProgressIndicator(
-          value: _progress / 100,
-          backgroundColor: Colors.grey[200],
-          color: _getPhaseColor(),
-          minHeight: 8,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Progress',
-              style: TextStyle(fontSize: 14, color: Colors.grey[600], fontWeight: FontWeight.w500),
-            ),
-            Text(
-              '$_progress%',
-              style: TextStyle(fontSize: 14, color: _getPhaseColor(), fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      ],
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Progress',
+                style: TextStyle(
+                  fontSize: 14, 
+                  color: AppColors.textGray, 
+                  fontWeight: FontWeight.w500
+                ),
+              ),
+              Text(
+                '$_progress%',
+                style: TextStyle(
+                  fontSize: 14, 
+                  color: _getPhaseColor(), 
+                  fontWeight: FontWeight.bold
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          LinearProgressIndicator(
+            value: _progress / 100,
+            backgroundColor: AppColors.accent1,
+            color: _getPhaseColor(),
+            minHeight: 8,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ],
+      ),
     );
   }
 
@@ -424,7 +470,7 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            _getPhaseColor().withOpacity(0.8),
+            _getPhaseColor().withOpacity(0.9),
             _getPhaseColor(),
           ],
           begin: Alignment.topLeft,
@@ -442,12 +488,12 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.assessment_outlined, size: 16, color: Colors.white),
+          Icon(Icons.assessment_outlined, size: 16, color: AppColors.textWhite),
           SizedBox(width: 6),
           Text(
             _getPhaseLabel(),
             style: TextStyle(
-              color: Colors.white,
+              color: AppColors.textWhite,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -460,54 +506,68 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
   Widget _buildQuestionHeader() {
     final currentQuestion = _questions[_currentQuestionIndex];
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Question ${_totalAnswered + 1}',
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.grey[600],
-            fontWeight: FontWeight.w500,
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: Offset(0, 2),
           ),
-        ),
-        SizedBox(height: 8),
-        Text(
-          currentQuestion.text,
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-            color: Colors.grey[900],
-            height: 1.3,
-          ),
-        ),
-        SizedBox(height: 12),
-        if (currentQuestion.isCritical)
-          Container(
-            padding: EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.orange[50],
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.orange[200]!),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Question ${_totalAnswered + 1}',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textGray,
+              fontWeight: FontWeight.w500,
             ),
-            child: Row(
-              children: [
-                Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Important question for accurate assessment',
-                    style: TextStyle(
-                      color: Colors.orange[800],
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
+          ),
+          SizedBox(height: 12),
+          Text(
+            currentQuestion.text,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textDark,
+              height: 1.4,
+            ),
+          ),
+          SizedBox(height: 16),
+          if (currentQuestion.isCritical)
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 20),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Important question for accurate assessment',
+                      style: TextStyle(
+                        color: AppColors.warning,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -515,11 +575,13 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
   Widget build(BuildContext context) {
     if (_hasError || _questions.isEmpty) {
       return Scaffold(
-        backgroundColor: Colors.grey[50],
+        backgroundColor: AppColors.background,
         appBar: AppBar(
-          title: Text('Screening'),
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.grey[800],
+          title: Text(
+            'Screening',
+            style: TextStyle(color: AppColors.textWhite),
+          ),
+          backgroundColor: AppColors.primary,
           elevation: 0,
           centerTitle: true,
         ),
@@ -528,20 +590,19 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(
           _getPhaseLabel(),
           style: TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: 18,
+            color: AppColors.textWhite,
           ),
         ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.grey[800],
-        elevation: 2,
+        backgroundColor: AppColors.primary,
+        elevation: 0,
         centerTitle: true,
-        shadowColor: Colors.black12,
       ),
       body: SafeArea(
         child: Padding(
@@ -554,7 +615,7 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
               SizedBox(height: 20),
               
               // Phase Badge
-              _buildPhaseBadge(),
+              Center(child: _buildPhaseBadge()),
               SizedBox(height: 24),
 
               // Question Header
@@ -581,11 +642,11 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
                       : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _getPhaseColor(),
-                    foregroundColor: Colors.white,
+                    foregroundColor: AppColors.textWhite,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    disabledBackgroundColor: Colors.grey[300],
+                    disabledBackgroundColor: AppColors.textLight,
                     elevation: 2,
                     shadowColor: _getPhaseColor().withOpacity(0.3),
                   ),
@@ -595,7 +656,7 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
                           width: 24,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation(Colors.white),
+                            valueColor: AlwaysStoppedAnimation(AppColors.textWhite),
                           ),
                         )
                       : Row(

@@ -113,4 +113,27 @@ class ScreeningService {
         return (answeredCount * 5).clamp(0, 100);
     }
   }
+
+  static Future<Map<String, dynamic>> getEnhancedRecommendations(String sessionId) async {
+    try {
+      print('🤖 Getting enhanced recommendations for session: $sessionId');
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/$sessionId/enhanced-recommendations'),
+      ).timeout(const Duration(seconds: 30));
+
+      print('📡 Enhanced response status: ${response.statusCode}');
+      print('📄 Enhanced response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data;
+      } else {
+        throw Exception('Failed to get enhanced recommendations: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('💥 Get enhanced recommendations error: $e');
+      throw Exception('Network error: $e');
+    }
+  }
 }

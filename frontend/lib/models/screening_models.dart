@@ -34,6 +34,19 @@ class ScreeningSession {
           : null,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'session_id': sessionId,
+      'child_age_months': childAgeMonths,
+      'child_gender': childGender,
+      'phase': phase,
+      'responses': responses,
+      'scores': scores,
+      'results': results,
+      'completed_at': completedAt?.toIso8601String(),
+    };
+  }
 }
 
 class ScreeningQuestion {
@@ -73,6 +86,18 @@ class ScreeningQuestion {
     }
     return [];
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'text': text,
+      'type': type,
+      'options': options,
+      'is_critical': isCritical,
+      'category': category,
+      'order': order,
+    };
+  }
 }
 
 class ScreeningResults {
@@ -85,6 +110,7 @@ class ScreeningResults {
   final List<String> redFlags; // NEW
   final List<String> positiveIndicators; // NEW
   final Map<String, dynamic> scores;
+  final EnhancedAnalysis? enhancedAnalysis;
 
   // Keep backward compatibility
   String get autismRisk => riskLevels['autism'] ?? 'low';
@@ -101,6 +127,7 @@ class ScreeningResults {
     required this.redFlags,
     required this.positiveIndicators,
     required this.scores,
+    this.enhancedAnalysis,
   });
 
   factory ScreeningResults.fromJson(Map<String, dynamic> json) {
@@ -122,6 +149,11 @@ class ScreeningResults {
       };
     }
 
+    EnhancedAnalysis? enhancedAnalysis;
+    if (json['enhanced_analysis'] != null) {
+      enhancedAnalysis = EnhancedAnalysis.fromJson(json['enhanced_analysis']);
+    }
+
     return ScreeningResults(
       primaryConcern: json['primary_concern'],
       secondaryConcern: json['secondary_concern'],
@@ -132,6 +164,7 @@ class ScreeningResults {
       redFlags: List<String>.from(json['red_flags'] ?? []),
       positiveIndicators: List<String>.from(json['positive_indicators'] ?? []),
       scores: json['scores'] ?? {},
+      enhancedAnalysis: enhancedAnalysis,
     );
   }
 
@@ -156,5 +189,141 @@ class ScreeningResults {
       default:
         return primaryConcern!;
     }
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'primary_concern': primaryConcern,
+      'secondary_concern': secondaryConcern,
+      'confidence_level': confidenceLevel,
+      'risk_levels': riskLevels,
+      'recommendations': recommendations,
+      'next_steps': nextSteps,
+      'red_flags': redFlags,
+      'positive_indicators': positiveIndicators,
+      'scores': scores,
+      'enhanced_analysis': enhancedAnalysis?.toJson(),
+    };
+  }
+}
+
+class EnhancedAnalysis {
+  final bool success;
+  final AIAnalysis? aiAnalysis;
+  final List<dynamic> recommendedInstitutions;
+  final List<String> nextSteps;
+  final Map<String, dynamic> screeningSummary;
+  final String urgencyLevel;
+  final String? error;
+  final List<String>? recommendations; // NEW: Added recommendations field
+
+  EnhancedAnalysis({
+    required this.success,
+    this.aiAnalysis,
+    required this.recommendedInstitutions,
+    required this.nextSteps,
+    required this.screeningSummary,
+    required this.urgencyLevel,
+    this.error,
+    this.recommendations, // NEW
+  });
+
+  factory EnhancedAnalysis.fromJson(Map<String, dynamic> json) {
+    AIAnalysis? aiAnalysis;
+    if (json['ai_analysis'] != null) {
+      aiAnalysis = AIAnalysis.fromJson(json['ai_analysis']);
+    }
+
+    return EnhancedAnalysis(
+      success: json['success'] ?? false,
+      aiAnalysis: aiAnalysis,
+      recommendedInstitutions: List<dynamic>.from(json['recommended_institutions'] ?? []),
+      nextSteps: List<String>.from(json['next_steps'] ?? []),
+      screeningSummary: Map<String, dynamic>.from(json['screening_summary'] ?? {}),
+      urgencyLevel: json['urgency_level'] ?? 'routine',
+      error: json['error'],
+      recommendations: List<String>.from(json['recommendations'] ?? []), // NEW
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'success': success,
+      'ai_analysis': aiAnalysis?.toJson(),
+      'recommended_institutions': recommendedInstitutions,
+      'next_steps': nextSteps,
+      'screening_summary': screeningSummary,
+      'urgency_level': urgencyLevel,
+      'error': error,
+      'recommendations': recommendations, // NEW
+    };
+  }
+}
+
+// NEW: AI Analysis Model
+class AIAnalysis {
+  final List<SuggestedCondition> suggestedConditions;
+  final String riskLevel;
+  final List<String> analyzedKeywords;
+  final String source;
+  final List<String>? recommendations; // NEW: Added recommendations field
+
+  AIAnalysis({
+    required this.suggestedConditions,
+    required this.riskLevel,
+    required this.analyzedKeywords,
+    required this.source,
+    this.recommendations, // NEW
+  });
+
+  factory AIAnalysis.fromJson(Map<String, dynamic> json) {
+    return AIAnalysis(
+      suggestedConditions: List<SuggestedCondition>.from(
+        (json['suggested_conditions'] ?? []).map((x) => SuggestedCondition.fromJson(x))
+      ),
+      riskLevel: json['risk_level'] ?? 'unknown',
+      analyzedKeywords: List<String>.from(json['analyzed_keywords'] ?? []),
+      source: json['source'] ?? 'unknown',
+      recommendations: List<String>.from(json['recommendations'] ?? []), // NEW
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'suggested_conditions': suggestedConditions.map((e) => e.toJson()).toList(),
+      'risk_level': riskLevel,
+      'analyzed_keywords': analyzedKeywords,
+      'source': source,
+      'recommendations': recommendations, // NEW
+    };
+  }
+}
+
+// NEW: Suggested Condition Model
+class SuggestedCondition {
+  final String name;
+  final String confidence;
+  final List<String> matchingKeywords;
+
+  SuggestedCondition({
+    required this.name,
+    required this.confidence,
+    required this.matchingKeywords,
+  });
+
+  factory SuggestedCondition.fromJson(Map<String, dynamic> json) {
+    return SuggestedCondition(
+      name: json['name'] ?? '',
+      confidence: json['confidence'] ?? '0%',
+      matchingKeywords: List<String>.from(json['matching_keywords'] ?? []),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'confidence': confidence,
+      'matching_keywords': matchingKeywords,
+    };
   }
 }

@@ -180,4 +180,9 @@ router.post('/debug/simulate', async (req, res) => {
   }
 });
 
+// NEW: Enhanced recommendations route
+router.get('/:session_id/enhanced-recommendations', (req, res) => {
+  screeningController.getEnhancedRecommendations(req, res);
+});
+
 module.exports = router;
