@@ -49,6 +49,119 @@ const getChildrenCount = async (req, res) => {
   }
 };
 
+// ✅ جلب الأوقات المتاحة حسب جدول المختص
+const getAvailableSlots = async (req, res) => {
+  try {
+    const specialistId = req.user.user_id;
+    const { date } = req.query; // التاريخ المطلوب (YYYY-MM-DD)
+
+    if (!date) {
+      return res.status(400).json({
+        success: false,
+        message: 'التاريخ مطلوب'
+      });
+    }
+
+    // 1️⃣ جلب جدول المختص
+    const SpecialistSchedule = require('../model/SpecialistSchedule');
+    const schedules = await SpecialistSchedule.findAll({
+      where: { specialist_id: specialistId },
+      attributes: ['day_of_week', 'start_time', 'end_time']
+    });
+
+    if (schedules.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: 'لا يوجد جدول مخصص للمختص',
+        data: []
+      });
+    }
+
+    // 2️⃣ تحديد يوم الأسبوع للتاريخ المطلوب
+    const targetDate = new Date(date);
+    const dayOfWeek = targetDate.toLocaleDateString('en-US', { weekday: 'long' });
+
+    // 3️⃣ البحث عن الجدول المناسب ليوم الأسبوع
+    const daySchedule = schedules.find(schedule => 
+      schedule.day_of_week === dayOfWeek
+    );
+
+    if (!daySchedule) {
+      return res.status(200).json({
+        success: true,
+        message: 'لا يوجد جدول عمل في هذا اليوم',
+        data: []
+      });
+    }
+
+    // 4️⃣ توليد الأوقات المتاحة (كل 30 دقيقة)
+    const availableSlots = generateTimeSlots(
+      daySchedule.start_time,
+      daySchedule.end_time
+    );
+
+    // 5️⃣ استبعاد الأوقات المحجوزة
+    const bookedSessions = await Session.findAll({
+      where: {
+        specialist_id: specialistId,
+        date: date,
+        status: {
+          [Op.notIn]: ['Cancelled', 'Rejected', 'Completed']
+        }
+      },
+      attributes: ['time']
+    });
+
+    const bookedTimes = bookedSessions.map(session => {
+      const time = session.time;
+      return time.substring(0, 5); // نأخذ فقط HH:MM
+    });
+
+    const filteredSlots = availableSlots.filter(slot => 
+      !bookedTimes.includes(slot)
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'تم جلب الأوقات المتاحة بنجاح',
+      data: {
+        date: date,
+        day_of_week: dayOfWeek,
+        available_slots: filteredSlots,
+        total_available: filteredSlots.length
+      }
+    });
+
+  } catch (err) {
+    console.error('Error in getAvailableSlots:', err);
+    res.status(500).json({
+      success: false,
+      message: 'خطأ في جلب الأوقات المتاحة',
+      error: err.message
+    });
+  }
+};
+
+// ✅ دالة مساعدة لتوليد الأوقات
+const generateTimeSlots = (startTime, endTime) => {
+  const slots = [];
+  const start = new Date(`1970-01-01T${startTime}`);
+  const end = new Date(`1970-01-01T${endTime}`);
+
+  let current = new Date(start);
+  
+  while (current < end) {
+    const hours = current.getHours().toString().padStart(2, '0');
+    const minutes = current.getMinutes().toString().padStart(2, '0');
+    slots.push(`${hours}:${minutes}`);
+    
+    // إضافة 30 دقيقة
+    current.setMinutes(current.getMinutes() + 30);
+  }
+
+  return slots;
+};
+
 // ✅ 3. إضافة جلسة جديدة
 const addSession = async (req, res) => {
   try {
@@ -594,7 +707,7 @@ const addSessionsForChildren = async (req, res) => {
       });
     }
 
-    // 4️⃣ التحقق من عدم وجود تعارض في المواعيد
+    // 4️⃣ 🔥🔥🔥 التحقق من أن الوقت متاح في جدول المختص 🔥🔥🔥
     const sessionDateTime = new Date(`${date}T${time}`);
     if (sessionDateTime < new Date()) {
       return res.status(400).json({ 
@@ -603,19 +716,52 @@ const addSessionsForChildren = async (req, res) => {
       });
     }
 
+    // 🔥 التحقق من جدول المختص
+    const dayOfWeek = sessionDateTime.toLocaleDateString('en-US', { weekday: 'long' });
+    const SpecialistSchedule = require('../model/SpecialistSchedule');
+    
+    const specialistSchedule = await SpecialistSchedule.findOne({
+      where: {
+        specialist_id: specialistId,
+        day_of_week: dayOfWeek
+      }
+    });
+
+    if (!specialistSchedule) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'لا يوجد جدول عمل للمختص في هذا اليوم' 
+      });
+    }
+
+    // 🔥 التحقق من أن الوقت ضمن ساعات العمل
+    const sessionTime = time.substring(0, 5); // نأخذ HH:MM فقط
+    const scheduleStart = specialistSchedule.start_time.substring(0, 5);
+    const scheduleEnd = specialistSchedule.end_time.substring(0, 5);
+
+    if (sessionTime < scheduleStart || sessionTime >= scheduleEnd) {
+      return res.status(400).json({ 
+        success: false,
+        message: `الوقت المحدد خارج ساعات العمل (${scheduleStart} - ${scheduleEnd})` 
+      });
+    }
+
+    // 🔥 التحقق من أن الوقت غير محجوز مسبقاً
     const conflictSessions = await Session.findAll({
       where: {
         specialist_id: specialistId,
         date,
-        time,
-        status: { [Op.notIn]: ['Cancelled', 'Rejected', 'Completed'] }
+        time: { [Op.like]: `${sessionTime}%` }, // مطابقة الوقت
+        status: { 
+          [Op.notIn]: ['Cancelled', 'Rejected', 'Completed', 'Pending Approval'] 
+        }
       }
     });
 
     if (conflictSessions.length > 0) {
       return res.status(400).json({ 
         success: false,
-        message: 'لديك جلسة أخرى في نفس الوقت' 
+        message: 'هذا الوقت محجوز مسبقاً' 
       });
     }
 
@@ -631,7 +777,7 @@ const addSessionsForChildren = async (req, res) => {
         institution_id: specialist.institution_id,
         session_type_id,
         date,
-        time,
+        time: `${sessionTime}:00`, // نتأكد من التنسيق
         session_type,
         status: 'Pending Approval', // بانتظار موافقة الأهل
         parent_approved: null, // null = بانتظار الموافقة
@@ -646,7 +792,7 @@ const addSessionsForChildren = async (req, res) => {
         const notification = await Notification.create({
           user_id: child.Parent.parent_id,
           title: 'طلب موافقة على جلسة جديدة',
-          message: `تم إنشاء جلسة جديدة لطفلك ${child.full_name} في ${date} الساعة ${time}. يرجى الموافقة أو الرفض.`,
+          message: `تم إنشاء جلسة جديدة لطفلك ${child.full_name} في ${date} الساعة ${sessionTime}. يرجى الموافقة أو الرفض.`,
           type: 'session_update',
           related_id: session.session_id,
           is_read: false
@@ -771,5 +917,6 @@ module.exports = {
   getEligibleChildren,
   getAvailableSessionTypes,
   addSessionsForChildren,
-  addSessionType
+  addSessionType,
+  getAvailableSlots 
 };

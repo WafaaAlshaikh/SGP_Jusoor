@@ -4,7 +4,7 @@ import '../services/specialist_api.dart';
 import '../theme/app_colors.dart';
 
 class AddSessionScreen extends StatefulWidget {
-  const AddSessionScreen({Key? key}) : super(key: key);
+  const AddSessionScreen({super.key});
 
   @override
   State<AddSessionScreen> createState() => _AddSessionScreenState();
@@ -14,20 +14,19 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
   // Data
   List<dynamic> eligibleChildren = [];
   List<dynamic> sessionTypes = [];
+  List<String> availableSlots = [];
   bool isLoadingChildren = true;
   bool isLoadingSessionTypes = true;
+  bool isLoadingSlots = false;
   String? errorMessage;
 
   // Selected values
   Set<int> selectedChildIds = {};
   int? selectedSessionTypeId;
   DateTime? selectedDate;
-  TimeOfDay? selectedTime;
-  String sessionType = 'Onsite'; // Online or Onsite
+  String? selectedTime;
+  String sessionType = 'Onsite';
   TextEditingController notesController = TextEditingController();
-
-  // Filter
-  String? selectedCondition;
 
   @override
   void initState() {
@@ -49,6 +48,8 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
   }
 
   Future<void> _loadEligibleChildren() async {
+    if (!mounted) return;
+    
     setState(() {
       isLoadingChildren = true;
       errorMessage = null;
@@ -56,6 +57,8 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
 
     try {
       final response = await SpecialistService.getEligibleChildren();
+      if (!mounted) return;
+      
       if (response['success'] == true) {
         setState(() {
           eligibleChildren = response['data'] ?? [];
@@ -68,6 +71,7 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
         });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         errorMessage = 'Error loading children: ${e.toString()}';
         isLoadingChildren = false;
@@ -76,14 +80,16 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
   }
 
   Future<void> _loadSessionTypes() async {
+    if (!mounted) return;
+    
     setState(() {
       isLoadingSessionTypes = true;
     });
 
     try {
-      final response = await SpecialistService.getAvailableSessionTypes(
-        condition: selectedCondition,
-      );
+      final response = await SpecialistService.getAvailableSessionTypes();
+      if (!mounted) return;
+      
       if (response['success'] == true) {
         setState(() {
           sessionTypes = response['data'] ?? [];
@@ -95,8 +101,45 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
         });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         isLoadingSessionTypes = false;
+      });
+    }
+  }
+
+  Future<void> _loadAvailableSlots() async {
+    if (selectedDate == null) return;
+    if (!mounted) return;
+
+    setState(() {
+      isLoadingSlots = true;
+    });
+
+    try {
+      final dateStr = DateFormat('yyyy-MM-dd').format(selectedDate!);
+      final response = await SpecialistService.getAvailableSlots(dateStr);
+      if (!mounted) return;
+      
+      if (response['success'] == true) {
+        setState(() {
+          availableSlots = List<String>.from(response['data']['available_slots'] ?? []);
+          selectedTime = null; // إعادة تعيين الوقت المختار
+          isLoadingSlots = false;
+        });
+      } else {
+        setState(() {
+          availableSlots = [];
+          selectedTime = null;
+          isLoadingSlots = false;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        availableSlots = [];
+        selectedTime = null;
+        isLoadingSlots = false;
       });
     }
   }
@@ -124,10 +167,11 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
 
     // Format date and time
     final dateStr = DateFormat('yyyy-MM-dd').format(selectedDate!);
-    final timeStr = '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}:00';
+    // الوقت مختار مسبقاً من القائمة فلا نحتاج لتحويله
 
     try {
       // Show loading dialog
+      if (!mounted) return;
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -140,24 +184,26 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
         childIds: selectedChildIds.toList(),
         sessionTypeId: selectedSessionTypeId!,
         date: dateStr,
-        time: timeStr,
+        time: '$selectedTime:00', // نضيف الثواني
         sessionType: sessionType,
         notes: notesController.text.isNotEmpty ? notesController.text : null,
       );
 
       // Close loading dialog
-      Navigator.of(context).pop();
+      if (mounted) Navigator.of(context).pop();
 
       if (response['success'] == true) {
         _showSuccess('Sessions created successfully. Approval requests sent to parents');
         // Reset form
-        setState(() {
-          selectedChildIds.clear();
-          selectedSessionTypeId = null;
-          selectedDate = null;
-          selectedTime = null;
-          notesController.clear();
-        });
+        if (mounted) {
+          setState(() {
+            selectedChildIds.clear();
+            selectedSessionTypeId = null;
+            selectedDate = null;
+            selectedTime = null;
+            notesController.clear();
+          });
+        }
         // Navigate back after 2 seconds
         Future.delayed(const Duration(seconds: 2), () {
           if (mounted) Navigator.of(context).pop();
@@ -173,6 +219,7 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
   }
 
   void _showError(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -183,6 +230,7 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
   }
 
   void _showSuccess(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -479,38 +527,73 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
                 firstDate: DateTime.now(),
                 lastDate: DateTime.now().add(const Duration(days: 365)),
               );
-              if (date != null) {
+              if (date != null && mounted) {
                 setState(() {
                   selectedDate = date;
+                  selectedTime = null; // إعادة تعيين الوقت عند تغيير التاريخ
                 });
+                await _loadAvailableSlots();
               }
             },
           ),
           const Divider(),
-          // Time picker
+          
+          // Time selection
           ListTile(
             leading: const Icon(Icons.access_time, color: AppColors.primary),
-            title: const Text('Time'),
-            subtitle: Text(
-              selectedTime != null
-                  ? '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}'
-                  : 'Select time',
-            ),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-            onTap: () async {
-              final time = await showTimePicker(
-                context: context,
-                initialTime: TimeOfDay.now(),
-              );
-              if (time != null) {
-                setState(() {
-                  selectedTime = time;
-                });
-              }
-            },
+            title: const Text('Available Times'),
+            subtitle: _buildTimeSelection(),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTimeSelection() {
+    if (selectedDate == null) {
+      return const Text(
+        'Please select a date first',
+        style: TextStyle(color: AppColors.textGray),
+      );
+    }
+
+    if (isLoadingSlots) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8.0),
+        child: SizedBox(
+          height: 20,
+          width: 20,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+
+    if (availableSlots.isEmpty) {
+      return const Text(
+        'No available slots for this date',
+        style: TextStyle(color: AppColors.error),
+      );
+    }
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: availableSlots.map((slot) {
+        final isSelected = selectedTime == slot;
+        return ChoiceChip(
+          label: Text(slot),
+          selected: isSelected,
+          onSelected: (selected) {
+            setState(() {
+              selectedTime = selected ? slot : null;
+            });
+          },
+          selectedColor: AppColors.primary,
+          labelStyle: TextStyle(
+            color: isSelected ? Colors.white : AppColors.textDark,
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -582,4 +665,3 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
     );
   }
 }
-

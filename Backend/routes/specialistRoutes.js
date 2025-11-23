@@ -10,8 +10,10 @@ const {
   getEligibleChildren,
   getAvailableSessionTypes,
   addSessionsForChildren,
-  addSessionType
+  addSessionType,
+  getAvailableSlots
 } = require('../controllers/specialistController');
+
 
 // 🔒 كل الرُتب بس للأخصائيين (تحقق من الـ role)
 const specialistOnly = (req, res, next) => {
@@ -24,6 +26,7 @@ const { getProfileInfo } = require('../controllers/specialistController');
 // 🔹 احصائيات
 router.get('/upcoming-sessions', authMiddleware, specialistOnly, getUpcomingSessionsCount);
 router.get('/children-count', authMiddleware, specialistOnly, getChildrenCount);
+router.get('/available-slots', authMiddleware, getAvailableSlots);
 
 
 // endpoint لجلب بيانات الملف الشخصي
