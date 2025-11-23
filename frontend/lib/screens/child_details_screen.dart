@@ -664,7 +664,7 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
   Widget _buildProfessionalAnalysis(Map<String, dynamic>? analysis) {
     if (analysis == null) return SizedBox();
 
-    // 🔥 التحقق إذا كان initial plan أو comprehensive analysis
+    // 🔥 التحقق من نوع التحليل
     final bool isInitialPlan = _progressAnalysis?['analysis_type'] == 'initial_plan';
 
     return Card(
@@ -680,7 +680,7 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
                 Icon(Icons.psychology, color: Colors.purple, size: 24),
                 SizedBox(width: 12),
                 Text(
-                  isInitialPlan ? 'Initial Treatment Plan' : 'Professional Analysis', // ⬅️ عنوان مختلف
+                  isInitialPlan ? 'Initial Treatment Plan' : 'Professional Analysis',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -691,8 +691,39 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
             ),
             SizedBox(height: 16),
 
+            // 🔥 قسم Next Session - يظهر دائماً إذا كانت البيانات متوفرة
+            if (analysis['next_session'] != null)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Next Session',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+                  ),
+                  SizedBox(height: 8),
+                  _buildNextSessionCard(analysis['next_session']),
+                  SizedBox(height: 16),
+                ],
+              ),
+
+            // 🔥 قسم Next Evaluation - يظهر دائماً إذا كانت البيانات متوفرة
+            if (analysis['next_evaluation'] != null)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Next Evaluation',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+                  ),
+                  SizedBox(height: 8),
+                  _buildNextEvaluationCard(analysis['next_evaluation']),
+                  SizedBox(height: 16),
+                ],
+              ),
+
+            // العرض العادي بناءً على نوع التحليل
             if (isInitialPlan)
-              _buildInitialPlan(analysis) // ⬅️ عرض الـ initial plan
+              _buildInitialPlanContent(analysis) // ⬅️ محتوى الـ initial plan بدون next session
             else
               _buildComprehensiveAnalysis(analysis), // ⬅️ العرض العادي
           ],
@@ -701,6 +732,165 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
     );
   }
 
+  Widget _buildInitialPlanContent(Map<String, dynamic> analysis) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Baseline Assessment
+        if (analysis['baseline_assessment'] != null)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Baseline Assessment',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+              ),
+              SizedBox(height: 8),
+              _buildAssessmentSection(analysis['baseline_assessment']),
+              SizedBox(height: 16),
+            ],
+          ),
+
+        // Treatment Goals
+        if (analysis['treatment_goals'] != null)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Treatment Goals',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+              ),
+              SizedBox(height: 8),
+              _buildTreatmentGoals(analysis['treatment_goals']),
+              SizedBox(height: 16),
+            ],
+          ),
+
+        // Recommended Schedule
+        if (analysis['recommended_schedule'] != null)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Recommended Schedule',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+              ),
+              SizedBox(height: 8),
+              _buildScheduleCard(analysis['recommended_schedule']),
+              SizedBox(height: 16),
+            ],
+          ),
+
+        // Focus Areas
+        if (analysis['initial_focus_areas'] != null && (analysis['initial_focus_areas'] as List).isNotEmpty)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Initial Focus Areas',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+              ),
+              SizedBox(height: 8),
+              ...(analysis['initial_focus_areas'] as List).map((area) => _buildFocusAreaCard(area)),
+              SizedBox(height: 16),
+            ],
+          ),
+
+        // Parent Instructions
+        if (analysis['parent_instructions'] != null)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Parent Instructions',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+              ),
+              SizedBox(height: 8),
+              _buildParentInstructions(analysis['parent_instructions']),
+              SizedBox(height: 16),
+            ],
+          ),
+
+        // Success Indicators
+        if (analysis['success_indicators'] != null)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Success Indicators',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+              ),
+              SizedBox(height: 8),
+              _buildSuccessIndicators(analysis['success_indicators']),
+            ],
+          ),
+      ],
+    );
+  }
+  Widget _buildNextSessionCard(Map<String, dynamic> nextSession) {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.green[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.calendar_today, color: Colors.green, size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Suggested Date: ${nextSession['suggested_date'] ?? 'N/A'}',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green[800]),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+
+          if (nextSession['focus_areas'] != null && (nextSession['focus_areas'] as List).isNotEmpty)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Focus Areas:',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                SizedBox(height: 4),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: (nextSession['focus_areas'] as List).map((area) => Chip(
+                    label: Text(area.toString()),
+                    backgroundColor: Colors.green[100],
+                    labelStyle: TextStyle(fontSize: 12),
+                  )).toList(),
+                ),
+                SizedBox(height: 8),
+              ],
+            ),
+
+          if (nextSession['preparation'] != null)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Preparation:',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  nextSession['preparation'].toString(),
+                  style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
 // 🔥 دالة جديدة لعرض الـ Initial Plan
   Widget _buildInitialPlan(Map<String, dynamic> analysis) {
     return Column(

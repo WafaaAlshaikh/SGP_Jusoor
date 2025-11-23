@@ -279,8 +279,13 @@ Be extremely specific and base all observations on actual data from the notes an
   /**
    * إنشاء خطة أولية للطفل الجديد - مع تنسيق محسّن
    */
-  static async generateInitialPlan(childData, firstEvaluation, specialistInfo) {
-    const prompt = `You are a ${specialistInfo.specialization} specialist creating an initial treatment plan for a new child.
+// services/analysisService.js
+
+/**
+ * إنشاء خطة أولية للطفل الجديد - مع تنسيق محسّن
+ */
+static async generateInitialPlan(childData, firstEvaluation, specialistInfo) {
+  const prompt = `You are a ${specialistInfo.specialization} specialist creating an initial treatment plan for a new child.
 
 **CHILD INFORMATION:**
 - Name: ${childData.full_name}
@@ -294,6 +299,10 @@ Be extremely specific and base all observations on actual data from the notes an
 - Score: ${firstEvaluation.progress_score}/100
 - Notes: ${firstEvaluation.notes || 'No detailed notes provided'}
 - Type: ${firstEvaluation.evaluation_type}
+
+**IMPORTANT DISTINCTION:**
+- "next_session" = Next therapy session (should be within 3-7 days from current date)
+- "next_evaluation" = Next formal assessment/re-evaluation (should be after 3-4 weeks)
 
 **YOUR TASK:**
 Create a detailed initial treatment plan in STRUCTURED JSON format. Return ONLY valid JSON without markdown or code blocks.
@@ -335,8 +344,13 @@ Create a detailed initial treatment plan in STRUCTURED JSON format. Return ONLY 
       "expected_progress": "What to expect in first month"
     }
   ],
+  "next_session": {
+    "suggested_date": "2025-11-26", // ⬅️ MUST be within 3-7 days (next therapy session)
+    "focus_areas": ["Area 1", "Area 2"],
+    "preparation": "What to prepare for next session"
+  },
   "next_evaluation": {
-    "suggested_date": "Calculate from ${new Date(firstEvaluation.created_at).toLocaleDateString()}",
+    "suggested_date": "2025-12-23", // ⬅️ Formal re-assessment after 3-4 weeks
     "what_to_assess": ["Aspect 1", "Aspect 2"],
     "expected_improvements": ["Expected change 1", "Expected change 2"]
   },
@@ -357,49 +371,53 @@ Create a detailed initial treatment plan in STRUCTURED JSON format. Return ONLY 
     "week_4": ["Expected milestone"],
     "month_3": ["Expected milestone"]
   }
-}`;
+}
 
+Calculate dates based on current date: ${new Date().toISOString().split('T')[0]}
+- Next session: 3-7 days from now
+- Next evaluation: 3-4 weeks from now`;
+
+  try {
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.1-8b-instant',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an experienced specialist. Return ONLY valid JSON without markdown.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.4,
+      max_tokens: 2500
+    });
+
+    const rawResponse = completion.choices[0]?.message?.content || '{}';
+    
+    let cleanedResponse = rawResponse.trim();
+    cleanedResponse = cleanedResponse.replace(/```json\n?/g, '');
+    cleanedResponse = cleanedResponse.replace(/```\n?/g, '');
+    cleanedResponse = cleanedResponse.trim();
+    
     try {
-      const completion = await groq.chat.completions.create({
-        model: 'llama-3.1-8b-instant',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an experienced specialist. Return ONLY valid JSON without markdown.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature: 0.4,
-        max_tokens: 2500
-      });
-
-      const rawResponse = completion.choices[0]?.message?.content || '{}';
-      
-      let cleanedResponse = rawResponse.trim();
-      cleanedResponse = cleanedResponse.replace(/```json\n?/g, '');
-      cleanedResponse = cleanedResponse.replace(/```\n?/g, '');
-      cleanedResponse = cleanedResponse.trim();
-      
-      try {
-        return JSON.parse(cleanedResponse);
-      } catch (parseError) {
-        console.error('JSON Parse Error:', parseError);
-        return {
-          baseline_assessment: {
-            initial_score_interpretation: rawResponse
-          },
-          error: "Failed to parse AI response as JSON"
-        };
-      }
-      
-    } catch (error) {
-      console.error('Groq API Error:', error);
-      throw new Error('Failed to generate initial plan');
+      return JSON.parse(cleanedResponse);
+    } catch (parseError) {
+      console.error('JSON Parse Error:', parseError);
+      return {
+        baseline_assessment: {
+          initial_score_interpretation: rawResponse
+        },
+        error: "Failed to parse AI response as JSON"
+      };
     }
+    
+  } catch (error) {
+    console.error('Groq API Error:', error);
+    throw new Error('Failed to generate initial plan');
   }
+}
 
   /**
    * حساب العمر من تاريخ الميلاد
