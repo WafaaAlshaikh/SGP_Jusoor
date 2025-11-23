@@ -6,7 +6,7 @@ const dotenv = require('dotenv');
 const sequelize = require('./config/db');
 const path = require('path');
 const fs = require('fs');
-
+const progressAnalysisRoutes = require('./routes/progressAnalysisRoutes');
 dotenv.config();
 
 // MODELS
@@ -99,6 +99,7 @@ app.use('/api/children', require('./routes/childRoutes'));
 app.use('/api/specialist', require('./routes/specialistRoutes'));
 app.use('/api/specialist', require('./routes/specialistSessionRoutes'));
 app.use('/api/specialist', require('./routes/specialistChildrenRoutes'));
+app.use('/api/specialist', progressAnalysisRoutes);
 app.use('/api/specialist/approval', require('./routes/specialistApprovalRoutes'));
 
 // Manager

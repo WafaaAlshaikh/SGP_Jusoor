@@ -2,7 +2,8 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
 import '../services/specialist_children_service.dart';
-
+import '../services/progress_analysis_service.dart';
+import 'comparison_analysis_screen.dart';
 class ChildDetailsScreen extends StatefulWidget {
   final int childId;
   final String childName;
@@ -22,14 +23,10 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
   bool isLoading = true;
   String errorMessage = '';
 
-  // Comparison System State
-  List<dynamic> _selectedEvaluationsForComparison = [];
-  bool _comparisonMode = false;
-  Map<String, dynamic>? _comparisonResults;
-  DateTime? _startDate;
-  DateTime? _endDate;
-  String _comparisonType = 'select_manually';
-  List<dynamic> _allEvaluationsInPeriod = [];
+  // Progress Analysis State
+  Map<String, dynamic>? _progressAnalysis;
+  bool _isAnalyzing = false;
+  String _analysisError = '';
 
   @override
   void initState() {
@@ -42,6 +39,7 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
       setState(() {
         isLoading = true;
         errorMessage = '';
+        _analysisError = '';
       });
 
       final response = await SpecialistChildrenService.getChildDetails(widget.childId);
@@ -66,10 +64,34 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
     }
   }
 
+  // 🔥 دالة لتحميل التحليل الشامل
+  Future<void> _loadComprehensiveAnalysis() async {
+    try {
+      setState(() {
+        _isAnalyzing = true;
+        _analysisError = '';
+      });
+
+      final analysis = await ProgressAnalysisService.analyzeChildProgress(widget.childId);
+
+      setState(() {
+        _progressAnalysis = analysis;
+      });
+    } catch (e) {
+      setState(() {
+        _analysisError = e.toString().replaceAll('Exception: ', '');
+      });
+    } finally {
+      setState(() {
+        _isAnalyzing = false;
+      });
+    }
+  }
+
   // Helper Functions
   List<dynamic> _safeList(dynamic list) => list is List ? list : [];
   Map<String, dynamic> _safeMap(dynamic map) => map is Map<String, dynamic> ? map : {};
-  String _safeString(dynamic value) => value?.toString() ?? '';
+  String _safeString(dynamic value) => value?.toString() ?? 'N/A';
 
   double _safeDouble(dynamic value) {
     if (value == null) return 0.0;
@@ -81,7 +103,7 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
 
   String _formatDate(String date) {
     try {
-      if (date.isEmpty) return date;
+      if (date.isEmpty || date == 'N/A') return date;
       final dateTime = DateTime.parse(date);
       return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
     } catch (e) {
@@ -89,1018 +111,167 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
     }
   }
 
-  // ========== COMPARISON SYSTEM ==========
-
-  void _startComparison(String type) {
-    setState(() {
-      _comparisonMode = true;
-      _comparisonType = type;
-      _selectedEvaluationsForComparison.clear();
-      _comparisonResults = null;
-      _allEvaluationsInPeriod.clear();
-
-      // Set date ranges for automatic comparisons
-      final now = DateTime.now();
-      switch (type) {
-        case 'last_month':
-          _startDate = DateTime(now.year, now.month - 1, 1);
-          _endDate = DateTime(now.year, now.month, 0);
-          break;
-        case 'last_3_months':
-          _startDate = DateTime(now.year, now.month - 3, 1);
-          _endDate = now;
-          break;
-        case 'date_range':
-        // Will be set by date picker
-          break;
-      }
-    });
-
-    if (type != 'select_manually') {
-      _performAutoComparison();
-    }
-  }
-
-  Future<void> _showDateRangePicker() async {
-    final DateTime now = DateTime.now();
-    final DateTime firstAllowed = DateTime(now.year - 5);
-    final DateTime lastAllowed = now;
-
-    final DateTimeRange? picked = await showDateRangePicker(
-      context: context,
-      firstDate: firstAllowed,
-      lastDate: lastAllowed,
-      initialDateRange: _startDate != null && _endDate != null
-          ? DateTimeRange(start: _startDate!, end: _endDate!)
-          : null,
-      helpText: 'Select evaluation date range',
-      saveText: 'Apply',
-    );
-
-    if (picked != null) {
-      setState(() {
-        _comparisonMode = true;
-        _comparisonType = 'date_range';
-        _selectedEvaluationsForComparison.clear();
-        _comparisonResults = null;
-        _allEvaluationsInPeriod.clear();
-        _startDate = DateTime(picked.start.year, picked.start.month, picked.start.day);
-        _endDate = DateTime(picked.end.year, picked.end.month, picked.end.day);
-      });
-
-      _performAutoComparison();
-    }
-  }
-
-  void _performAutoComparison() {
-    final evaluations = _safeList(childData?['evaluations']);
-    if (evaluations.isEmpty) return;
-
-    List<dynamic> filteredEvaluations = [];
-
-    switch (_comparisonType) {
-      case 'last_month':
-      case 'last_3_months':
-      case 'date_range':
-        if (_startDate != null && _endDate != null) {
-          filteredEvaluations = evaluations.where((eval) {
-            try {
-              final evalDate = DateTime.parse(_safeString(eval['created_at']));
-              return evalDate.isAfter(_startDate!.subtract(Duration(days: 1))) &&
-                  evalDate.isBefore(_endDate!.add(Duration(days: 1)));
-            } catch (e) {
-              return false;
-            }
-          }).toList();
-        }
-        break;
-      case 'select_manually':
-        return;
-    }
-
-    if (filteredEvaluations.length >= 2) {
-      // Sort evaluations chronologically
-      filteredEvaluations.sort((a, b) {
-        try {
-          final dateA = DateTime.parse(_safeString(a['created_at']));
-          final dateB = DateTime.parse(_safeString(b['created_at']));
-          return dateA.compareTo(dateB);
-        } catch (e) {
-          return 0;
-        }
-      });
-
-      setState(() {
-        _selectedEvaluationsForComparison = [
-          filteredEvaluations.first,
-          filteredEvaluations.last
-        ];
-        _allEvaluationsInPeriod = filteredEvaluations;
-      });
-
-      _performComprehensiveComparison();
-    }
-  }
-
-  void _toggleEvaluationSelection(dynamic evaluation) {
-    setState(() {
-      if (_selectedEvaluationsForComparison.contains(evaluation)) {
-        _selectedEvaluationsForComparison.remove(evaluation);
-      } else {
-        if (_selectedEvaluationsForComparison.length < 2) {
-          _selectedEvaluationsForComparison.add(evaluation);
-        }
-      }
-
-      // Auto-compare when 2 evaluations are selected
-      if (_selectedEvaluationsForComparison.length == 2) {
-        _performComprehensiveComparison();
-      } else {
-        _comparisonResults = null;
-      }
-    });
-  }
-
-  void _performComprehensiveComparison() {
-    if (_selectedEvaluationsForComparison.length != 2) return;
-
-    // Sort evaluations chronologically
-    final sortedEvaluations = List.from(_selectedEvaluationsForComparison)
-      ..sort((a, b) {
-        try {
-          final dateA = DateTime.parse(_safeString(a['created_at']));
-          final dateB = DateTime.parse(_safeString(b['created_at']));
-          return dateA.compareTo(dateB);
-        } catch (e) {
-          return 0;
-        }
-      });
-
-    final firstEval = _safeMap(sortedEvaluations[0]);
-    final secondEval = _safeMap(sortedEvaluations[1]);
-
-    final comparison = _createComprehensiveComparisonReport(firstEval, secondEval);
-    setState(() {
-      _comparisonResults = comparison;
-    });
-  }
-
-  Map<String, dynamic> _createComprehensiveComparisonReport(
-      Map<String, dynamic> firstEval,
-      Map<String, dynamic> secondEval
-      ) {
-    // Basic score analysis
-    final firstScore = _safeDouble(firstEval['progress_score']) ?? 0.0;
-    final secondScore = _safeDouble(secondEval['progress_score']) ?? 0.0;
-    final scoreDifference = secondScore - firstScore;
-    final percentageChange = firstScore > 0 ? (scoreDifference / firstScore) * 100 : 0.0;
-
-    // Date and period analysis
-    final firstDate = DateTime.parse(_safeString(firstEval['created_at']));
-    final secondDate = DateTime.parse(_safeString(secondEval['created_at']));
-    final daysBetween = secondDate.difference(firstDate).inDays;
-    final monthsBetween = daysBetween / 30.0;
-
-    // Comprehensive analyses
-    final domainAnalysis = _analyzeDomainsComprehensively(firstEval, secondEval);
-    final progressMetrics = _calculateProgressMetrics(firstScore, secondScore, daysBetween);
-    final overallAssessment = _createOverallAssessment(
-        scoreDifference,
-        domainAnalysis,
-        progressMetrics,
-        daysBetween
-    );
-    final periodAnalysis = _analyzeAllEvaluationsInPeriod(_allEvaluationsInPeriod);
-    final recommendations = _generateComprehensiveRecommendations(
-        overallAssessment,
-        domainAnalysis,
-        progressMetrics,
-        periodAnalysis
-    );
-
-    return {
-      // Basic Information
-      'firstEvaluation': firstEval,
-      'secondEvaluation': secondEval,
-      'firstDate': _formatDate(firstDate.toString()),
-      'secondDate': _formatDate(secondDate.toString()),
-      'period': '$daysBetween days (${monthsBetween.toStringAsFixed(1)} months)',
-
-      // Score Analysis
-      'scoreAnalysis': {
-        'firstScore': firstScore,
-        'secondScore': secondScore,
-        'absoluteChange': scoreDifference,
-        'percentageChange': percentageChange,
-        'monthlyRate': progressMetrics['monthlyImprovementRate'],
-        'weeklyRate': progressMetrics['weeklyImprovementRate'],
-      },
-
-      // Domain Analysis
-      'domainAnalysis': domainAnalysis,
-
-      // Progress Metrics
-      'progressMetrics': progressMetrics,
-
-      // Overall Assessment
-      'overallAssessment': overallAssessment,
-
-      // Period Analysis
-      'periodAnalysis': periodAnalysis,
-
-      // Recommendations
-      'recommendations': recommendations,
-
-      // Detailed Insights
-      'detailedInsights': _generateDetailedInsights(domainAnalysis, progressMetrics),
-
-      // Additional Data
-      'allEvaluationsCount': _allEvaluationsInPeriod.length,
-      'evaluationsInPeriod': _allEvaluationsInPeriod,
-    };
-  }
-
-  // ========== ANALYSIS METHODS ==========
-
-  Map<String, dynamic> _analyzeDomainsComprehensively(
-      Map<String, dynamic> firstEval,
-      Map<String, dynamic> secondEval
-      ) {
-    final firstDomains = _safeList(firstEval['assessment_domains'] ?? firstEval['domains']);
-    final secondDomains = _safeList(secondEval['assessment_domains'] ?? secondEval['domains']);
-
-    // ✅ تحقق إذا ما في domains نهائياً
-    if (firstDomains.isEmpty && secondDomains.isEmpty) {
-      return _createFallbackDomainAnalysis(firstEval, secondEval);
-    }
-
-    final domainChanges = <Map<String, dynamic>>[];
-    final improvedDomains = <Map<String, dynamic>>[];
-    final declinedDomains = <Map<String, dynamic>>[];
-    final stableDomains = <Map<String, dynamic>>[];
-    final newDomains = <Map<String, dynamic>>[];
-    final removedDomains = <Map<String, dynamic>>[];
-
-    // Create domain maps for easy lookup
-    final firstDomainMap = <String, Map<String, dynamic>>{};
-    final secondDomainMap = <String, Map<String, dynamic>>{};
-
-    for (final domain in firstDomains) {
-      final domainMap = _safeMap(domain);
-      final domainName = _safeString(domainMap['name'] ?? domainMap['domain_name'] ?? domainMap['title']);
-      if (domainName.isNotEmpty) {
-        firstDomainMap[domainName] = domainMap;
-      }
-    }
-
-    for (final domain in secondDomains) {
-      final domainMap = _safeMap(domain);
-      final domainName = _safeString(domainMap['name'] ?? domainMap['domain_name'] ?? domainMap['title']);
-      if (domainName.isNotEmpty) {
-        secondDomainMap[domainName] = domainMap;
-      }
-    }
-
-    // Compare domains that exist in both evaluations
-    for (final entry in firstDomainMap.entries) {
-      final domainName = entry.key;
-      final firstDomain = entry.value;
-      final secondDomain = secondDomainMap[domainName];
-
-      if (secondDomain != null) {
-        final firstScore = _safeDouble(firstDomain['score'] ?? firstDomain['progress_score']) ?? 0.0;
-        final secondScore = _safeDouble(secondDomain['score'] ?? secondDomain['progress_score']) ?? 0.0;
-        final difference = secondScore - firstScore;
-        final percentageChange = firstScore > 0 ? (difference / firstScore) * 100 : 0.0;
-
-        final domainData = {
-          'name': domainName,
-          'firstScore': firstScore,
-          'secondScore': secondScore,
-          'difference': difference,
-          'percentageChange': percentageChange,
-          'trend': _getDomainTrend(difference),
-          'significance': _getChangeSignificance(difference.abs()),
-        };
-
-        domainChanges.add(domainData);
-
-        // Categorize domains
-        if (difference > 5) {
-          improvedDomains.add(domainData);
-        } else if (difference < -5) {
-          declinedDomains.add(domainData);
-        } else {
-          stableDomains.add(domainData);
-        }
-      } else {
-        // Domain removed in second evaluation
-        removedDomains.add({
-          'name': domainName,
-          'score': _safeDouble(firstDomain['score'] ?? firstDomain['progress_score']) ?? 0.0,
-        });
-      }
-    }
-
-    // Find new domains in second evaluation
-    for (final entry in secondDomainMap.entries) {
-      if (!firstDomainMap.containsKey(entry.key)) {
-        newDomains.add({
-          'name': entry.key,
-          'score': _safeDouble(entry.value['score'] ?? entry.value['progress_score']) ?? 0.0,
-        });
-      }
-    }
-
-    // Calculate statistics
-    final totalDomains = domainChanges.length;
-    final improvementRate = totalDomains > 0 ? (improvedDomains.length / totalDomains) * 100 : 0;
-    final declineRate = totalDomains > 0 ? (declinedDomains.length / totalDomains) * 100 : 0;
-    final stabilityRate = totalDomains > 0 ? (stableDomains.length / totalDomains) * 100 : 0;
-
-    return {
-      'domainChanges': domainChanges,
-      'improvedDomains': improvedDomains,
-      'declinedDomains': declinedDomains,
-      'stableDomains': stableDomains,
-      'newDomains': newDomains,
-      'removedDomains': removedDomains,
-      'statistics': {
-        'totalDomains': totalDomains,
-        'improvementRate': improvementRate,
-        'declineRate': declineRate,
-        'stabilityRate': stabilityRate,
-        'improvedCount': improvedDomains.length,
-        'declinedCount': declinedDomains.length,
-        'stableCount': stableDomains.length,
-        'newCount': newDomains.length,
-        'removedCount': removedDomains.length,
-      },
-      'keyInsights': _generateDomainInsights(improvedDomains, declinedDomains, newDomains),
-    };
-  }
-
-// ✅ دالة بديلة لما ما في domains
-  Map<String, dynamic> _createFallbackDomainAnalysis(
-      Map<String, dynamic> firstEval,
-      Map<String, dynamic> secondEval
-      ) {
-    final firstScore = _safeDouble(firstEval['progress_score']) ?? 0.0;
-    final secondScore = _safeDouble(secondEval['progress_score']) ?? 0.0;
-    final scoreDifference = secondScore - firstScore;
-
-    // أنشئ domains افتراضية
-    final defaultDomain = {
-      'name': 'Overall Progress',
-      'firstScore': firstScore,
-      'secondScore': secondScore,
-      'difference': scoreDifference,
-      'percentageChange': firstScore > 0 ? (scoreDifference / firstScore) * 100 : 0.0,
-      'trend': _getDomainTrend(scoreDifference),
-      'significance': _getChangeSignificance(scoreDifference.abs()),
-    };
-
-    final defaultDomains = [defaultDomain];
-
-    // صنّف الـ domain
-    final improvedDomains = scoreDifference > 5 ? defaultDomains : [];
-    final declinedDomains = scoreDifference < -5 ? defaultDomains : [];
-    final stableDomains = scoreDifference.abs() <= 5 ? defaultDomains : [];
-
-    return {
-      'domainChanges': defaultDomains,
-      'improvedDomains': improvedDomains,
-      'declinedDomains': declinedDomains,
-      'stableDomains': stableDomains,
-      'newDomains': [],
-      'removedDomains': [],
-      'statistics': {
-        'totalDomains': 1,
-        'improvementRate': improvedDomains.isNotEmpty ? 100 : 0,
-        'declineRate': declinedDomains.isNotEmpty ? 100 : 0,
-        'stabilityRate': stableDomains.isNotEmpty ? 100 : 0,
-        'improvedCount': improvedDomains.length,
-        'declinedCount': declinedDomains.length,
-        'stableCount': stableDomains.length,
-        'newCount': 0,
-        'removedCount': 0,
-      },
-      'keyInsights': _generateDomainInsights(improvedDomains, declinedDomains, []),
-    };
-  }
-
-  Map<String, dynamic> _analyzeAllEvaluationsInPeriod(List<dynamic> evaluations) {
-    if (evaluations.isEmpty) {
-      return {
-        'totalEvaluations': 0,
-        'averageScore': 0.0,
-        'highestScore': 0.0,
-        'lowestScore': 0.0,
-        'progressTrend': 'no_data',
-        'scoreChanges': [],
-      };
-    }
-
-    final scores = evaluations.map((e) => _safeDouble(e['progress_score']) ?? 0.0).toList();
-    final averageScore = scores.reduce((a, b) => a + b) / scores.length;
-    final highestScore = scores.reduce((a, b) => a > b ? a : b);
-    final lowestScore = scores.reduce((a, b) => a < b ? a : b);
-
-    // Analyze overall trend
-    String progressTrend;
-    final firstScore = scores.first;
-    final lastScore = scores.last;
-    final overallChange = lastScore - firstScore;
-
-    if (overallChange > 10) {
-      progressTrend = 'strong_improvement';
-    } else if (overallChange > 5) {
-      progressTrend = 'moderate_improvement';
-    } else if (overallChange > -5) {
-      progressTrend = 'stable';
-    } else if (overallChange > -10) {
-      progressTrend = 'moderate_decline';
-    } else {
-      progressTrend = 'significant_decline';
-    }
-
-    // Calculate changes between consecutive evaluations
-    final scoreChanges = <Map<String, dynamic>>[];
-    int improvementCount = 0;
-    int declineCount = 0;
-    int stableCount = 0;
-    for (int i = 1; i < evaluations.length; i++) {
-      final prevScore = _safeDouble(evaluations[i-1]['progress_score']) ?? 0.0;
-      final currentScore = _safeDouble(evaluations[i]['progress_score']) ?? 0.0;
-      final change = currentScore - prevScore;
-
-      scoreChanges.add({
-        'fromDate': _formatDate(_safeString(evaluations[i-1]['created_at'])) ,
-        'toDate': _formatDate(_safeString(evaluations[i]['created_at'])),
-        'fromScore': prevScore,
-        'toScore': currentScore,
-        'change': change,
-        'trend': change >= 0 ? 'improvement' : 'decline',
-      });
-
-      if (change > 0.5) improvementCount++;
-      else if (change < -0.5) declineCount++;
-      else stableCount++;
-    }
-
-    // Find best and worst evaluations
-    final bestEvaluation = evaluations[scores.indexOf(highestScore)];
-    final worstEvaluation = evaluations[scores.indexOf(lowestScore)];
-
-    // Classify improvement level for the period
-    String improvementLevel;
-    if (overallChange > 12 && improvementCount >= declineCount + 2) improvementLevel = 'strong_improvement';
-    else if (overallChange > 6 && improvementCount > declineCount) improvementLevel = 'moderate_improvement';
-    else if (overallChange.abs() <= 3) improvementLevel = 'stable';
-    else if (overallChange < -6 && declineCount >= improvementCount) improvementLevel = 'moderate_decline';
-    else if (overallChange < -12) improvementLevel = 'significant_decline';
-    else improvementLevel = 'mixed';
-
-    return {
-      'totalEvaluations': evaluations.length,
-      'averageScore': averageScore,
-      'highestScore': highestScore,
-      'lowestScore': lowestScore,
-      'overallChange': overallChange,
-      'progressTrend': progressTrend,
-      'scoreChanges': scoreChanges,
-      'bestEvaluation': bestEvaluation,
-      'worstEvaluation': worstEvaluation,
-      'evaluationDates': evaluations.map((e) => _formatDate(_safeString(e['created_at']))).toList(),
-      'evaluationScores': scores,
-      'improvementCount': improvementCount,
-      'declineCount': declineCount,
-      'stableCount': stableCount,
-      'improvementLevel': improvementLevel,
-    };
-  }
-
-  Map<String, dynamic> _calculateProgressMetrics(double firstScore, double secondScore, int daysBetween) {
-    final scoreDifference = secondScore - firstScore;
-    final percentageChange = firstScore > 0 ? (scoreDifference / firstScore) * 100 : 0.0;
-
-    final weeklyImprovementRate = daysBetween >= 7 ? (scoreDifference / (daysBetween / 7)) : scoreDifference;
-    final monthlyImprovementRate = daysBetween >= 30 ? (scoreDifference / (daysBetween / 30)) : scoreDifference;
-
-    String progressPace;
-    if (monthlyImprovementRate > 10) {
-      progressPace = 'rapid';
-    } else if (monthlyImprovementRate > 5) {
-      progressPace = 'moderate';
-    } else if (monthlyImprovementRate > 0) {
-      progressPace = 'slow';
-    } else if (monthlyImprovementRate > -5) {
-      progressPace = 'stable';
-    } else {
-      progressPace = 'declining';
-    }
-
-    return {
-      'absoluteChange': scoreDifference,
-      'percentageChange': percentageChange,
-      'weeklyImprovementRate': weeklyImprovementRate,
-      'monthlyImprovementRate': monthlyImprovementRate,
-      'progressPace': progressPace,
-      'expectedTimeline': _calculateExpectedTimeline(secondScore, monthlyImprovementRate),
-    };
-  }
-
-  Map<String, dynamic> _createOverallAssessment(
-      double scoreDifference,
-      Map<String, dynamic> domainAnalysis,
-      Map<String, dynamic> progressMetrics,
-      int daysBetween
-      ) {
-    final stats = domainAnalysis['statistics'];
-    final improvedCount = stats['improvedCount'];
-    final declinedCount = stats['declinedCount'];
-
-    String overallTrend;
-    Color trendColor;
-    IconData trendIcon;
-    String summary;
-    String detailedAnalysis;
-
-    // Multi-factor assessment
-    if (scoreDifference > 15 && improvedCount >= 3 && declinedCount == 0) {
-      overallTrend = 'exceptional_progress';
-      trendColor = Colors.green[700]!;
-      trendIcon = Icons.trending_up;
-      summary = 'Exceptional Progress Achieved 🎉';
-      detailedAnalysis = 'Outstanding improvement across multiple domains with consistent positive trajectory.';
-    }
-    else if (scoreDifference > 8 && improvedCount > declinedCount) {
-      overallTrend = 'significant_improvement';
-      trendColor = Colors.green;
-      trendIcon = Icons.trending_up;
-      summary = 'Significant Improvement 📈';
-      detailedAnalysis = 'Strong progress with notable improvements in key areas.';
-    }
-    else if (scoreDifference > 0 || improvedCount > 0) {
-      overallTrend = 'moderate_improvement';
-      trendColor = Colors.lightGreen;
-      trendIcon = Icons.trending_up;
-      summary = 'Steady Progress ↗️';
-      detailedAnalysis = 'Consistent improvement with positive developments in several areas.';
-    }
-    else if (scoreDifference.abs() < 5 && declinedCount == 0) {
-      overallTrend = 'stable_performance';
-      trendColor = Colors.blue;
-      trendIcon = Icons.trending_flat;
-      summary = 'Stable Performance 🔄';
-      detailedAnalysis = 'Consistent performance maintained across most domains.';
-    }
-    else if (scoreDifference < -10 || declinedCount >= 3) {
-      overallTrend = 'significant_concern';
-      trendColor = Colors.red;
-      trendIcon = Icons.trending_down;
-      summary = 'Significant Concern ⚠️';
-      detailedAnalysis = 'Notable decline observed, requires immediate attention and strategy review.';
-    }
-    else {
-      overallTrend = 'mixed_results';
-      trendColor = Colors.orange;
-      trendIcon = Icons.auto_graph;
-      summary = 'Mixed Results 🔄';
-      detailedAnalysis = 'Varied performance across different domains requiring targeted approach.';
-    }
-
-    return {
-      'trend': overallTrend,
-      'color': trendColor,
-      'icon': trendIcon,
-      'summary': summary,
-      'detailedAnalysis': detailedAnalysis,
-      'confidenceLevel': _calculateConfidenceLevel(daysBetween, domainAnalysis),
-      'keyStrengths': _identifyKeyStrengths(domainAnalysis),
-      'priorityAreas': _identifyPriorityAreas(domainAnalysis),
-    };
-  }
-
-  // ========== HELPER METHODS ==========
-
-  String _getDomainTrend(double difference) {
-    if (difference > 10) return 'strong_improvement';
-    if (difference > 5) return 'moderate_improvement';
-    if (difference > -5) return 'stable';
-    if (difference > -10) return 'moderate_decline';
-    return 'significant_decline';
-  }
-
-  String _getChangeSignificance(double difference) {
-    if (difference > 15) return 'high';
-    if (difference > 8) return 'medium';
-    if (difference > 3) return 'low';
-    return 'minimal';
-  }
-
-  String _calculateExpectedTimeline(double currentScore, double monthlyRate) {
-    if (monthlyRate <= 0) return 'Not applicable - review intervention strategy';
-
-    final pointsToTarget = 100 - currentScore;
-    final monthsToTarget = pointsToTarget / monthlyRate;
-
-    if (monthsToTarget <= 3) return '3 months or less';
-    if (monthsToTarget <= 6) return '3-6 months';
-    if (monthsToTarget <= 12) return '6-12 months';
-    return 'More than 12 months - consider strategy adjustment';
-  }
-
-  String _calculateConfidenceLevel(int daysBetween, Map<String, dynamic> domainAnalysis) {
-    final stats = domainAnalysis['statistics'];
-    final totalDomains = stats['totalDomains'];
-
-    if (daysBetween >= 60 && totalDomains >= 5) return 'High';
-    if (daysBetween >= 30 && totalDomains >= 3) return 'Medium';
-    return 'Low';
-  }
-
-  List<String> _identifyKeyStrengths(Map<String, dynamic> domainAnalysis) {
-    final improvedDomains = domainAnalysis['improvedDomains'] as List;
-    final strengths = <String>[];
-
-    for (final domain in improvedDomains) {
-      if (domain['difference'] > 10) {
-        strengths.add(domain['name']);
-      }
-    }
-
-    return strengths.take(3).toList();
-  }
-
-  List<String> _identifyPriorityAreas(Map<String, dynamic> domainAnalysis) {
-    final declinedDomains = domainAnalysis['declinedDomains'] as List;
-    final priorities = <String>[];
-
-    for (final domain in declinedDomains) {
-      if (domain['difference'] < -5) {
-        priorities.add(domain['name']);
-      }
-    }
-
-    return priorities.take(3).toList();
-  }
-
-  List<String> _generateDomainInsights(
-      List<dynamic> improvedDomains,
-      List<dynamic> declinedDomains,
-      List<dynamic> newDomains
-      ) {
-    final insights = <String>[];
-
-    if (improvedDomains.isNotEmpty) {
-      // استخدم طريقة آمنة بدل reduce
-      Map<String, dynamic>? topImprovement;
-      for (final domain in improvedDomains) {
-        final domainMap = _safeMap(domain);
-        final difference = _safeDouble(domainMap['difference']) ?? 0.0;
-        if (topImprovement == null || difference > (_safeDouble(topImprovement['difference']) ?? 0.0)) {
-          topImprovement = domainMap;
-        }
-      }
-
-      if (topImprovement != null) {
-        final domainName = _safeString(topImprovement['name']);
-        final difference = _safeDouble(topImprovement['difference']) ?? 0.0;
-        insights.add('Largest improvement in $domainName (+${difference.toStringAsFixed(1)}%)');
-      }
-    }
-
-    if (declinedDomains.isNotEmpty) {
-      // استخدم طريقة آمنة بدل reduce
-      Map<String, dynamic>? topDecline;
-      for (final domain in declinedDomains) {
-        final domainMap = _safeMap(domain);
-        final difference = _safeDouble(domainMap['difference']) ?? 0.0;
-        if (topDecline == null || difference < (_safeDouble(topDecline['difference']) ?? 0.0)) {
-          topDecline = domainMap;
-        }
-      }
-
-      if (topDecline != null) {
-        final domainName = _safeString(topDecline['name']);
-        final difference = _safeDouble(topDecline['difference']) ?? 0.0;
-        insights.add('Greatest challenge in $domainName (${difference.toStringAsFixed(1)}%)');
-      }
-    }
-
-    if (newDomains.isNotEmpty) {
-      insights.add('${newDomains.length} new assessment areas introduced');
-    }
-
-    return insights;
-  }
-
-
-  Map<String, dynamic> _generateDetailedInsights(
-      Map<String, dynamic> domainAnalysis,
-      Map<String, dynamic> progressMetrics
-      ) {
-    final stats = domainAnalysis['statistics'];
-
-    return {
-      'performanceConsistency': _assessConsistency(stats),
-      'improvementPattern': _identifyImprovementPattern(domainAnalysis),
-      'interventionEffectiveness': _assessInterventionEffectiveness(progressMetrics, stats),
-      'growthPotential': _assessGrowthPotential(domainAnalysis),
-    };
-  }
-
-  String _assessConsistency(Map<String, dynamic> stats) {
-    final stabilityRate = stats['stabilityRate'];
-    if (stabilityRate > 70) return 'Highly Consistent';
-    if (stabilityRate > 50) return 'Moderately Consistent';
-    return 'Variable Performance';
-  }
-
-  String _identifyImprovementPattern(Map<String, dynamic> domainAnalysis) {
-    final improvedCount = domainAnalysis['statistics']['improvedCount'];
-    final totalDomains = domainAnalysis['statistics']['totalDomains'];
-
-    if (improvedCount == totalDomains) return 'Comprehensive Improvement';
-    if (improvedCount >= totalDomains * 0.7) return 'Broad-Based Improvement';
-    if (improvedCount >= totalDomains * 0.4) return 'Targeted Improvement';
-    return 'Limited Improvement';
-  }
-
-  String _assessInterventionEffectiveness(Map<String, dynamic> progressMetrics, Map<String, dynamic> stats) {
-    final monthlyRate = progressMetrics['monthlyImprovementRate'];
-    final improvedCount = stats['improvedCount'];
-
-    if (monthlyRate > 8 && improvedCount >= 3) return 'Highly Effective';
-    if (monthlyRate > 4 && improvedCount >= 2) return 'Moderately Effective';
-    if (monthlyRate > 0) return 'Minimally Effective';
-    return 'Needs Review';
-  }
-
-  String _assessGrowthPotential(Map<String, dynamic> domainAnalysis) {
-    final newDomains = domainAnalysis['newDomains'] as List;
-    final improvedCount = domainAnalysis['statistics']['improvedCount'];
-
-    if (newDomains.isNotEmpty && improvedCount > 0) return 'High Growth Potential';
-    if (improvedCount >= 2) return 'Moderate Growth Potential';
-    return 'Foundation Building Phase';
-  }
-
-  List<String> _generateComprehensiveRecommendations(
-      Map<String, dynamic> overallAssessment,
-      Map<String, dynamic> domainAnalysis,
-      Map<String, dynamic> progressMetrics,
-      Map<String, dynamic> periodAnalysis
-      ) {
-    final recommendations = <String>[];
-    final trend = overallAssessment['trend'];
-    final priorities = overallAssessment['priorityAreas'] as List<String>;
-    final strengths = overallAssessment['keyStrengths'] as List<String>;
-    final stats = domainAnalysis['statistics'];
-
-    // Trend-based recommendations
-    switch (trend) {
-      case 'exceptional_progress':
-        recommendations.add('Continue current intervention strategies - they are highly effective');
-        recommendations.add('Consider introducing advanced challenges in strongest areas');
-        recommendations.add('Document successful approaches for future reference');
-        break;
-      case 'significant_improvement':
-        recommendations.add('Maintain current intervention intensity and frequency');
-        recommendations.add('Focus on consolidating gains in improved areas');
-        recommendations.add('Gradually introduce new challenges');
-        break;
-      case 'moderate_improvement':
-        recommendations.add('Continue current approach with minor adjustments');
-        recommendations.add('Identify and address barriers to faster progress');
-        recommendations.add('Strengthen support in areas showing slower improvement');
-        break;
-      case 'stable_performance':
-        recommendations.add('Maintain consistency in intervention delivery');
-        recommendations.add('Consider varying techniques to stimulate progress');
-        recommendations.add('Focus on quality of engagement rather than quantity');
-        break;
-      case 'significant_concern':
-        recommendations.add('Immediate review and adjustment of intervention strategies');
-        recommendations.add('Increase session frequency or intensity in priority areas');
-        recommendations.add('Consider multidisciplinary assessment if decline continues');
-        break;
-      case 'mixed_results':
-        recommendations.add('Differentiate intervention approaches based on domain performance');
-        recommendations.add('Capitalize on strengths to support weaker areas');
-        recommendations.add('Review environmental and contextual factors affecting performance');
-        break;
-    }
-
-    // Domain-specific recommendations
-    if (priorities.isNotEmpty) {
-      recommendations.add('Priority focus needed on: ${priorities.join(', ')}');
-    }
-
-    if (strengths.isNotEmpty) {
-      recommendations.add('Leverage strengths in: ${strengths.join(', ')} to support other areas');
-    }
-
-    // Progress pace recommendations
-    final pace = progressMetrics['progressPace'];
-    if (pace == 'slow') {
-      recommendations.add('Consider intensifying intervention or trying alternative approaches');
-    } else if (pace == 'declining') {
-      recommendations.add('Urgent strategy review required - consider environmental and motivational factors');
-    }
-
-    // Statistical recommendations
-    if (stats['newCount'] > 0) {
-      recommendations.add('Ensure proper baseline establishment for new assessment areas');
-    }
-
-    if (stats['removedCount'] > 0) {
-      recommendations.add('Review rationale for discontinued assessment areas');
-    }
-
-    // Period-based recommendations
-    final impCount = (periodAnalysis['improvementCount'] ?? 0) as int;
-    final decCount = (periodAnalysis['declineCount'] ?? 0) as int;
-    final stCount = (periodAnalysis['stableCount'] ?? 0) as int;
-    final totalEval = (periodAnalysis['totalEvaluations'] ?? 0) as int;
-    final level = periodAnalysis['improvementLevel']?.toString() ?? '';
-
-    if (totalEval >= 3) {
-      if (decCount > impCount) {
-        recommendations.add('Increase intervention intensity and add targeted supports due to frequent declines');
-      }
-      if (stCount < (totalEval / 3) && impCount > 0 && decCount > 0) {
-        recommendations.add('Address inconsistency across sessions; standardize routines and reinforcement');
-      }
-      if (level == 'strong_improvement') {
-        recommendations.add('Consider advancing goals and introducing generalization tasks');
-      }
-    } else {
-      recommendations.add('Collect more evaluations to strengthen longitudinal conclusions');
-    }
-
-    return recommendations.take(8).toList();
-  }
-
-  void _toggleComparisonMode() {
-    setState(() {
-      _comparisonMode = !_comparisonMode;
-      if (!_comparisonMode) {
-        _selectedEvaluationsForComparison.clear();
-        _comparisonResults = null;
-        _comparisonType = 'select_manually';
-        _allEvaluationsInPeriod.clear();
-      }
-    });
-  }
-
-  // ========== UI COMPONENTS ==========
-
-  Widget _buildComparisonSelector() {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '📊 Evaluation Comparison',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[800],
+  // ========== UI COMPONENTS FOR ANALYSIS ==========
+
+  Widget _buildAnalysisSection() {
+    if (_isAnalyzing) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: Color(0xFF7815A0)),
+            SizedBox(height: 16),
+            Text(
+              'Generating AI Analysis...',
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Choose how you want to compare evaluations:',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
+            SizedBox(height: 8),
+            Text(
+              'This may take a few moments',
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
             ),
-          ),
-          SizedBox(height: 20),
-
-          _buildComparisonOption(
-            Icons.compare_arrows,
-            'Select Two Evaluations',
-            'Manually choose any two specific evaluations to compare',
-            'select_manually',
-          ),
-
-          SizedBox(height: 12),
-
-          _buildComparisonOption(
-            Icons.date_range,
-            'Date Range Comparison',
-            'Compare first and last evaluations within a specific time period',
-            'date_range',
-          ),
-
-          SizedBox(height: 12),
-
-          _buildComparisonOption(
-            Icons.calendar_view_month,
-            'Last Month Progress',
-            'Analyze progress over the last 30 days',
-            'last_month',
-          ),
-
-          SizedBox(height: 12),
-
-          _buildComparisonOption(
-            Icons.timeline,
-            'Last 3 Months Trend',
-            'Track development and trends over the last 3 months',
-            'last_3_months',
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildComparisonOption(IconData icon, String title, String subtitle, String type) {
-    return Card(
-      elevation: 2,
-      child: ListTile(
-        leading: Container(
-          padding: EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Color(0xFF7815A0).withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, color: Color(0xFF7815A0)),
+          ],
         ),
-        title: Text(title, style: TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text(subtitle, style: TextStyle(fontSize: 12)),
-        trailing: Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: () => type == 'date_range' ? _showDateRangePicker() : _startComparison(type),
-      ),
-    );
+      );
+    }
+
+    if (_analysisError.isNotEmpty) {
+      return Container(
+        margin: EdgeInsets.all(16),
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.orange[50],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.orange),
+        ),
+        child: Column(
+          children: [
+            Icon(Icons.warning, color: Colors.orange, size: 40),
+            SizedBox(height: 12),
+            Text(
+              'Analysis Error',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange[800]),
+            ),
+            SizedBox(height: 8),
+            Text(
+              _analysisError,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.orange[700]),
+            ),
+            SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadComprehensiveAnalysis,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFF7815A0),
+                foregroundColor: Colors.white,
+              ),
+              child: Text('Try Again'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_progressAnalysis == null) {
+      return Container(
+        padding: EdgeInsets.all(24),
+        child: Column(
+          children: [
+            Icon(Icons.analytics, size: 80, color: Colors.grey[400]),
+            SizedBox(height: 16),
+            Text(
+              'Comprehensive Progress Analysis',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey[700]),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Get detailed AI-powered analysis of child progress with insights and recommendations',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Colors.grey[600], height: 1.4),
+            ),
+            SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _loadComprehensiveAnalysis,
+              icon: Icon(Icons.insights),
+              label: Text('Generate AI Analysis'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFF7815A0),
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // عرض نتائج التحليل
+    return _buildAnalysisResults(_progressAnalysis!);
   }
 
-  Widget _buildComprehensiveComparisonReport() {
-    if (_comparisonResults == null) return SizedBox();
-
-    final comparison = _comparisonResults!;
-    final scoreAnalysis = comparison['scoreAnalysis'];
-    final overallAssessment = comparison['overallAssessment'];
-    final domainAnalysis = comparison['domainAnalysis'];
-    final progressMetrics = comparison['progressMetrics'];
-    final periodAnalysis = comparison['periodAnalysis'];
-
+  Widget _buildAnalysisResults(Map<String, dynamic> analysis) {
     return SingleChildScrollView(
       padding: EdgeInsets.all(16),
       child: Column(
         children: [
-          _buildComparisonHeader(comparison),
+          // رأس التقرير
+          _buildReportHeader(analysis),
           SizedBox(height: 20),
-          _buildOverallAssessmentCard(overallAssessment),
+
+          // معلومات الملف الشخصي
+          _buildProfileSection(analysis['profile']),
           SizedBox(height: 16),
 
-          // Show period analysis when there are multiple evaluations
-          if (_allEvaluationsInPeriod.length > 2)
+          // الملخص
+          _buildSummarySection(analysis['summary']),
+          SizedBox(height: 16),
+
+          // مقاييس الأداء
+          if (analysis['performance_metrics'] != null)
             Column(
               children: [
-                _buildPeriodAnalysisCard(periodAnalysis),
+                _buildPerformanceMetrics(analysis['performance_metrics']),
                 SizedBox(height: 16),
               ],
             ),
 
-          _buildScoreAnalysisCard(scoreAnalysis, progressMetrics),
-          SizedBox(height: 16),
-          _buildDomainAnalysisCard(domainAnalysis),
-          SizedBox(height: 16),
-          _buildProgressInsightsCard(comparison['detailedInsights']),
-          SizedBox(height: 16),
-          _buildRecommendationsCard(comparison['recommendations']),
-          SizedBox(height: 16),
-          _buildComparisonActions(),
+          // التحليل المهني
+          if (analysis['professional_analysis'] != null)
+            Column(
+              children: [
+                _buildProfessionalAnalysis(analysis['professional_analysis']),
+                SizedBox(height: 16),
+              ],
+            ),
+
+          // خطة العمل
+          if (analysis['action_plan'] != null)
+            Column(
+              children: [
+                _buildActionPlan(analysis['action_plan']),
+                SizedBox(height: 16),
+              ],
+            ),
+
+          // سجل التقييمات
+          if (analysis['evaluation_history'] != null)
+            Column(
+              children: [
+                _buildEvaluationHistory(analysis['evaluation_history']),
+                SizedBox(height: 16),
+              ],
+            ),
+
+          // معلومات النظام
+          _buildMetadata(analysis['metadata']),
         ],
       ),
     );
   }
 
-  Widget _buildComparisonHeader(Map<String, dynamic> comparison) {
-    final dynamic overallAssessment = comparison['overallAssessment'];
-    final Color baseColor = overallAssessment != null && overallAssessment['color'] is Color
-        ? overallAssessment['color'] as Color
-        : const Color(0xFF7815A0);
-    final IconData headerIcon = overallAssessment != null && overallAssessment['icon'] is IconData
-        ? overallAssessment['icon'] as IconData
-        : Icons.analytics;
-
+  Widget _buildReportHeader(Map<String, dynamic> analysis) {
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(20),
@@ -1108,10 +279,7 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            baseColor,
-            baseColor.withOpacity(0.85),
-          ],
+          colors: [Color(0xFF7815A0), Color(0xFF9C27B0)],
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
@@ -1124,12 +292,12 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
       ),
       child: Column(
         children: [
-          Icon(headerIcon, size: 40, color: Colors.white),
+          Icon(Icons.auto_awesome, size: 50, color: Colors.white),
           SizedBox(height: 12),
           Text(
             'Comprehensive Progress Report',
             style: TextStyle(
-              fontSize: 22,
+              fontSize: 24,
               fontWeight: FontWeight.bold,
               color: Colors.white,
             ),
@@ -1137,7 +305,7 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
           ),
           SizedBox(height: 8),
           Text(
-            '${comparison['firstDate']} to ${comparison['secondDate']}',
+            'AI-Powered Analysis',
             style: TextStyle(
               fontSize: 16,
               color: Colors.white70,
@@ -1145,7 +313,7 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
           ),
           SizedBox(height: 4),
           Text(
-            'Analysis Period: ${comparison['period']}',
+            'Generated: ${_safeString(analysis['metadata']?['analysis_date'])}',
             style: TextStyle(
               fontSize: 14,
               color: Colors.white60,
@@ -1156,83 +324,13 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
     );
   }
 
-  Widget _buildOverallAssessmentCard(Map<String, dynamic> assessment) {
-    return Card(
-      elevation: 6,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: assessment['color'].withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(assessment['icon'], color: assessment['color'], size: 28),
-                ),
-                SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        assessment['summary'],
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: assessment['color'],
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Confidence: ${assessment['confidenceLevel']}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 16),
-            Text(
-              assessment['detailedAnalysis'],
-              style: TextStyle(fontSize: 15, color: Colors.grey[700], height: 1.4),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: 16),
-            Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              children: [
-                if ((assessment['keyStrengths'] as List).isNotEmpty)
-                  Chip(
-                    label: Text('${(assessment['keyStrengths'] as List).length} Strengths'),
-                    backgroundColor: Colors.green[50],
-                    side: BorderSide(color: Colors.green[100]!),
-                  ),
-                if ((assessment['priorityAreas'] as List).isNotEmpty)
-                  Chip(
-                    label: Text('${(assessment['priorityAreas'] as List).length} Focus Areas'),
-                    backgroundColor: Colors.orange[50],
-                    side: BorderSide(color: Colors.orange[100]!),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget _buildProfileSection(Map<String, dynamic>? profile) {
+    if (profile == null) return SizedBox();
 
-  Widget _buildScoreAnalysisCard(Map<String, dynamic> scoreAnalysis, Map<String, dynamic> progressMetrics) {
-    final pwm = _computePeriodWideMetrics();
+    final child = _safeMap(profile['child']);
+    final specialist = _safeMap(profile['specialist']);
+    final parent = _safeMap(profile['parent_contact']);
+
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1243,10 +341,10 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
           children: [
             Row(
               children: [
-                Icon(Icons.score, color: Color(0xFF7815A0), size: 24),
+                Icon(Icons.person, color: Color(0xFF7815A0), size: 24),
                 SizedBox(width: 12),
                 Text(
-                  'Score Analysis',
+                  'Profile Information',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -1255,245 +353,66 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
                 ),
               ],
             ),
-            SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildScoreMetric('Initial', '${scoreAnalysis['firstScore']?.toStringAsFixed(1)}%', Icons.flag),
-                _buildScoreMetric('Current', '${scoreAnalysis['secondScore']?.toStringAsFixed(1)}%', Icons.assessment),
-                _buildScoreMetric('Change', '${scoreAnalysis['absoluteChange'] >= 0 ? '+' : ''}${scoreAnalysis['absoluteChange']?.toStringAsFixed(1)}%',
-                    scoreAnalysis['absoluteChange'] >= 0 ? Icons.arrow_upward : Icons.arrow_downward),
-              ],
-            ),
-            SizedBox(height: 20),
-            Divider(),
             SizedBox(height: 16),
-            Text(
-              'Progress Metrics',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[700],
-              ),
-            ),
-            SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildProgressMetric('Monthly Rate', '${progressMetrics['monthlyImprovementRate']?.toStringAsFixed(1)}%', Icons.timeline),
-                _buildProgressMetric('Progress Pace', progressMetrics['progressPace'], Icons.speed),
-                _buildProgressMetric('Timeline', progressMetrics['expectedTimeline'].split(' ').first, Icons.schedule),
-              ],
-            ),
 
-            if (pwm.isNotEmpty) ...[
-              SizedBox(height: 20),
-              Divider(),
-              SizedBox(height: 16),
-              Text(
-                'Period-wide Metrics',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey[700],
-                ),
-              ),
-              SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildProgressMetric('Slope/mo', '${(pwm['slopePerMonth'] as double).toStringAsFixed(1)}%', Icons.trending_up),
-                  _buildProgressMetric('R²', (pwm['r2'] as double).toStringAsFixed(2), Icons.stacked_line_chart),
-                  _buildProgressMetric('Volatility', '${(pwm['volatilityPct'] as double).toStringAsFixed(1)}%', Icons.multiline_chart),
-                ],
-              ),
-              SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildProgressMetric('Avg Δ', '${(pwm['avgDelta'] as double).toStringAsFixed(1)}%', Icons.swap_vert),
-                  _buildProgressMetric('Median Δ', '${(pwm['medianDelta'] as double).toStringAsFixed(1)}%', Icons.linear_scale),
-                  _buildProgressMetric('%↑ intervals', '${(pwm['improvingPct'] as double).toStringAsFixed(0)}%', Icons.north_east),
-                ],
-              ),
-            ],
+            // Child Info
+            _buildProfileItem('Child Name', child['name']),
+            _buildProfileItem('Age', '${child['age']} years'),
+            _buildProfileItem('Gender', child['gender']),
+            _buildProfileItem('Diagnosis', child['diagnosis']),
+            if (_safeString(child['medical_history']).isNotEmpty && _safeString(child['medical_history']) != 'N/A')
+              _buildProfileItem('Medical History', child['medical_history']),
+            _buildProfileItem('Institution', child['institution']),
+
+            Divider(height: 24),
+
+            // Specialist Info
+            _buildProfileItem('Specialist', specialist['name']),
+            _buildProfileItem('Specialization', specialist['specialization']),
+            _buildProfileItem('Experience', '${specialist['experience_years']} years'),
+
+            Divider(height: 24),
+
+            // Parent Contact
+            _buildProfileItem('Parent Name', parent['name']),
+            _buildProfileItem('Parent Phone', parent['phone']),
           ],
         ),
       ),
     );
   }
 
-  Map<String, dynamic> _computePeriodWideMetrics() {
-    final evals = _safeList(_allEvaluationsInPeriod);
-    if (evals.length < 2) return {};
-
-    // Extract scores and dates
-    final scores = <double>[];
-    final dates = <DateTime>[];
-    for (final e in evals) {
-      final m = _safeMap(e);
-      final s = _safeDouble(m['progress_score']) ?? 0.0;
-      final dStr = _safeString(m['created_at']);
-      DateTime? d;
-      try { d = DateTime.parse(dStr); } catch (_) {}
-      if (d != null) {
-        scores.add(s);
-        dates.add(d);
-      }
-    }
-    if (scores.length < 2) return {};
-
-    // Ensure chronological
-    final idx = List.generate(scores.length, (i) => i);
-    idx.sort((a,b)=>dates[a].compareTo(dates[b]));
-    final sSorted = [for (final i in idx) scores[i]];
-    final dSorted = [for (final i in idx) dates[i]];
-
-    // Deltas
-    final deltas = <double>[];
-    int improving = 0, declining = 0;
-    for (int i=1;i<sSorted.length;i++){
-      final delta = sSorted[i] - sSorted[i-1];
-      deltas.add(delta);
-      if (delta > 0.5) improving++; else if (delta < -0.5) declining++;
-    }
-    final avgDelta = deltas.reduce((a,b)=>a+b)/deltas.length;
-    final medianDelta = _median(deltas);
-
-    // Volatility (% as coefficient of variation)
-    final mean = sSorted.reduce((a,b)=>a+b)/sSorted.length;
-    double variance = 0.0;
-    for (final v in sSorted){ variance += pow(v-mean,2) as double; }
-    variance /= sSorted.length;
-    final stdDev = sqrt(variance);
-    final volatilityPct = mean > 0 ? (stdDev/mean)*100.0 : 0.0;
-
-    // Linear regression slope per day and R^2
-    final firstDate = dSorted.first;
-    final x = dSorted.map((dt)=>dt.difference(firstDate).inDays.toDouble()).toList();
-    double sumX=0,sumY=0,sumXY=0,sumX2=0;
-    final n = sSorted.length;
-    for (int i=0;i<n;i++){ sumX+=x[i]; sumY+=sSorted[i]; sumXY+=x[i]*sSorted[i]; sumX2+=x[i]*x[i]; }
-    final denom = n*sumX2 - sumX*sumX;
-    final slopePerDay = denom.abs() < 1e-9 ? 0.0 : ((n*sumXY - sumX*sumY)/denom);
-    final intercept = (sumY - slopePerDay*sumX)/n;
-    double ssTot=0, ssRes=0; final meanY = sumY/n;
-    for (int i=0;i<n;i++){ final pred = slopePerDay*x[i]+intercept; ssTot += pow(sSorted[i]-meanY,2) as double; ssRes += pow(sSorted[i]-pred,2) as double; }
-    final r2 = ssTot>0 ? (1 - (ssRes/ssTot)) : 0.0;
-    final slopePerMonth = slopePerDay * 30.0;
-
-    final improvingPct = 100.0 * improving / deltas.length;
-
-    return {
-      'avgDelta': avgDelta,
-      'medianDelta': medianDelta,
-      'improvingPct': improvingPct,
-      'decliningPct': 100.0 * declining / deltas.length,
-      'volatilityPct': volatilityPct,
-      'slopePerMonth': slopePerMonth,
-      'r2': r2,
-    };
-  }
-
-  double _median(List<double> values){
-    if (values.isEmpty) return 0.0;
-    final sorted = [...values]..sort();
-    final mid = sorted.length>>1;
-    if (sorted.length.isOdd) return sorted[mid];
-    return (sorted[mid-1] + sorted[mid]) / 2.0;
-  }
-
-  Widget _buildScoreMetric(String label, String value, IconData icon) {
-    return Column(
-      children: [
-        Container(
-          padding: EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Color(0xFF7815A0).withOpacity(0.1),
-            shape: BoxShape.circle,
+  Widget _buildProfileItem(String label, String value) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              '$label:',
+              style: TextStyle(fontWeight: FontWeight.w500, color: Colors.grey[700]),
+            ),
           ),
-          child: Icon(icon, size: 20, color: Color(0xFF7815A0)),
-        ),
-        SizedBox(height: 8),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.grey[800],
+          Expanded(
+            flex: 3,
+            child: Text(
+              value,
+              style: TextStyle(color: Colors.grey[800], fontWeight: FontWeight.w500),
+            ),
           ),
-        ),
-        SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[600],
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildProgressMetric(String label, String value, IconData icon) {
-    return Column(
-      children: [
-        Icon(icon, size: 18, color: Colors.blue),
-        SizedBox(height: 6),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey[800],
-          ),
-          textAlign: TextAlign.center,
-        ),
-        SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10,
-            color: Colors.grey[600],
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ],
-    );
-  }
+  Widget _buildSummarySection(Map<String, dynamic>? summary) {
+    if (summary == null) return SizedBox();
 
-  Widget _buildPeriodStat(String label, String value, IconData icon) {
-    return Column(
-      children: [
-        Container(
-          padding: EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.purple.withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, size: 18, color: Colors.purple),
-        ),
-        SizedBox(height: 8),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: Colors.grey[800],
-          ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: Colors.grey[600],
-          ),
-        ),
-      ],
-    );
-  }
+    final evaluations = _safeMap(summary['evaluations']);
+    final sessions = _safeMap(summary['sessions']);
 
-  Widget _buildPeriodAnalysisCard(Map<String, dynamic> periodAnalysis) {
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1504,10 +423,10 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
           children: [
             Row(
               children: [
-                Icon(Icons.assessment, color: Colors.purple, size: 24),
+                Icon(Icons.assessment, color: Colors.blue, size: 24), // ✅ تم التصحيح هنا
                 SizedBox(width: 12),
                 Text(
-                  'Period Overview',
+                  'Progress Summary',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -1518,131 +437,42 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
             ),
             SizedBox(height: 16),
 
-            // Key Statistics
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildPeriodStat('Total', periodAnalysis['totalEvaluations'].toString(), Icons.assessment),
-                _buildPeriodStat('Average', '${periodAnalysis['averageScore']?.toStringAsFixed(1)}%', Icons.bar_chart),
-                _buildPeriodStat('Change', '${periodAnalysis['overallChange'] >= 0 ? '+' : ''}${periodAnalysis['overallChange']?.toStringAsFixed(1)}%',
-                    periodAnalysis['overallChange'] >= 0 ? Icons.arrow_upward : Icons.arrow_downward),
-              ],
-            ),
-
-            SizedBox(height: 20),
-
-            // Performance Highlights
             Row(
               children: [
                 Expanded(
-                  child: _buildPerformanceCard(
-                    'Best Score',
-                    '${periodAnalysis['highestScore']?.toStringAsFixed(1)}%',
+                  child: _buildSummaryCard(
+                    'Evaluations',
+                    evaluations['total']?.toString() ?? '0',
+                    Icons.assessment,
                     Colors.green,
-                    Icons.emoji_events,
-                    periodAnalysis['bestEvaluation'],
                   ),
                 ),
-                SizedBox(width:3),
+                SizedBox(width: 12),
                 Expanded(
-                  child: _buildPerformanceCard(
-                    'Needs Attention',
-                    '${periodAnalysis['lowestScore']?.toStringAsFixed(1)}%',
-                    Colors.orange,
-                    Icons.warning,
-                    periodAnalysis['worstEvaluation'],
+                  child: _buildSummaryCard(
+                    'Sessions',
+                    sessions['total']?.toString() ?? '0',
+                    Icons.event,
+                    Colors.blue,
                   ),
                 ),
               ],
             ),
-
-            SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildPeriodStat('Improved', (periodAnalysis['improvementCount'] ?? 0).toString(), Icons.trending_up),
-                _buildPeriodStat('Stable', (periodAnalysis['stableCount'] ?? 0).toString(), Icons.trending_flat),
-                _buildPeriodStat('Declined', (periodAnalysis['declineCount'] ?? 0).toString(), Icons.trending_down),
-              ],
-            ),
-
             SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Chip(
-                label: Text('Level: ${_safeString(periodAnalysis['improvementLevel']).replaceAll('_', ' ')}'),
-                backgroundColor: Colors.blueGrey[50],
-              ),
-            ),
 
-            SizedBox(height: 16),
-            if ((periodAnalysis['evaluationScores'] as List).isNotEmpty)
-              Container(
-                height: 100,
-                width: double.infinity,
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.grey[50],
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey[200]!),
-                ),
-                child: _buildMiniTrendChart((periodAnalysis['evaluationScores'] as List).map((e) => _safeDouble(e)).toList()),
-              ),
-
-            SizedBox(height: 16),
-            if ((periodAnalysis['scoreChanges'] as List).isNotEmpty)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Change Timeline',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-                  ),
-                  SizedBox(height: 8),
-                  ...(periodAnalysis['scoreChanges'] as List).map((c) {
-                    final m = _safeMap(c);
-                    final ch = _safeDouble(m['change']);
-                    final isUp = ch >= 0;
-                    return Padding(
-                      padding: EdgeInsets.symmetric(vertical: 6),
-                      child: Row(
-                        children: [
-                          Icon(isUp ? Icons.north_east : Icons.south_east, size: 16, color: isUp ? Colors.green : Colors.red),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              '${m['fromDate']} → ${m['toDate']}  |  ${(_safeDouble(m['fromScore'])).toStringAsFixed(1)}% → ${(_safeDouble(m['toScore'])).toStringAsFixed(1)}%  (${isUp ? '+' : ''}${ch.toStringAsFixed(1)}%)',
-                              style: TextStyle(fontSize: 13),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ],
-              ),
+            _buildSummaryDetail('First Evaluation', evaluations['first_date']),
+            _buildSummaryDetail('Latest Evaluation', evaluations['latest_date']),
+            _buildSummaryDetail('Evaluation Types', (evaluations['types_used'] as List?)?.join(', ') ?? 'N/A'),
+            _buildSummaryDetail('Duration', '${evaluations['duration_days']} days'),
+            _buildSummaryDetail('Completed Sessions', sessions['completed']?.toString() ?? '0'),
+            _buildSummaryDetail('Last Session', sessions['last_session_date'] ?? 'N/A'),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildMiniTrendChart(List<double> scores) {
-    if (scores.isEmpty) return SizedBox();
-    double minY = scores.reduce((a, b) => a < b ? a : b);
-    double maxY = scores.reduce((a, b) => a > b ? a : b);
-    if ((maxY - minY).abs() < 1) {
-      maxY = minY + 1;
-    }
-    return CustomPaint(
-      painter: _TrendLinePainter(scores: scores, minY: minY, maxY: maxY),
-      child: Container(),
-    );
-  }
-
-  Widget _buildPerformanceCard(String title, String score, Color color, IconData icon, dynamic evaluation) {
-    final evalDate = evaluation != null ? _formatDate(_safeString(evaluation['created_at'])) : 'N/A';
-
+  Widget _buildSummaryCard(String title, String value, IconData icon, Color color) {
     return Container(
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1652,45 +482,41 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
       ),
       child: Column(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 18, color: color),
-              SizedBox(width: 6),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                ),
-              ),
-            ],
-          ),
+          Icon(icon, size: 30, color: color),
           SizedBox(height: 8),
           Text(
-            score,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
+            value,
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color),
           ),
           SizedBox(height: 4),
           Text(
-            evalDate,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
-            ),
+            title,
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildDomainAnalysisCard(Map<String, dynamic> domainAnalysis) {
-    final stats = domainAnalysis['statistics'];
+  Widget _buildSummaryDetail(String label, String value) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(flex: 2, child: Text('$label:', style: TextStyle(fontWeight: FontWeight.w500))),
+          Expanded(flex: 3, child: Text(value)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPerformanceMetrics(Map<String, dynamic>? metrics) {
+    if (metrics == null) return SizedBox();
+
+    final scoreAnalysis = _safeMap(metrics['score_analysis']);
+    final statisticalIndicators = _safeMap(metrics['statistical_indicators']);
+    final trendAnalysis = _safeMap(metrics['trend_analysis']);
 
     return Card(
       elevation: 4,
@@ -1702,10 +528,10 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
           children: [
             Row(
               children: [
-                Icon(Icons.category, color: Colors.teal, size: 24),
+                Icon(Icons.trending_up, color: Colors.green, size: 24),
                 SizedBox(width: 12),
                 Text(
-                  'Domain Analysis',
+                  'Performance Metrics',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -1716,39 +542,889 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
             ),
             SizedBox(height: 16),
 
-            // Domain Statistics
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+            // Score Analysis
+            Text(
+              'Score Analysis',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+            ),
+            SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
               children: [
-                _buildDomainStat('Improved', stats['improvedCount'], Colors.green),
-                _buildDomainStat('Stable', stats['stableCount'], Colors.blue),
-                _buildDomainStat('Needs Work', stats['declinedCount'], Colors.orange),
+                _buildMetricChip('Current Score', '${scoreAnalysis['current_score']}%', Colors.green),
+                _buildMetricChip('Starting Score', '${scoreAnalysis['starting_score']}%', Colors.blue),
+                _buildMetricChip('Average Score', '${scoreAnalysis['average_score']}%', Colors.orange),
+                _buildMetricChip('Improvement', '${scoreAnalysis['improvement_percentage']}%', Colors.purple),
+                _buildMetricChip('Total Change', '${scoreAnalysis['total_improvement']} points', Colors.teal),
               ],
             ),
 
             SizedBox(height: 20),
+            Divider(),
+            SizedBox(height: 16),
 
-            // Key Insights
-            if (domainAnalysis['keyInsights'] != null && (domainAnalysis['keyInsights'] as List).isNotEmpty)
+            // Trend Analysis
+            Text(
+              'Trend Analysis',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+            ),
+            SizedBox(height: 12),
+            _buildTrendItem('Overall Direction', trendAnalysis['overall_direction']),
+            _buildTrendItem('Consistency', trendAnalysis['consistency']),
+            _buildTrendItem('Plateau Status', trendAnalysis['plateau_status']),
+            _buildTrendItem('Recent Trend', trendAnalysis['recent_performance']?['trend']),
+
+            SizedBox(height: 20),
+            Divider(),
+            SizedBox(height: 16),
+
+            // Statistical Indicators
+            Text(
+              'Statistical Indicators',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+            ),
+            SizedBox(height: 12),
+            _buildStatItem('Standard Deviation',
+                statisticalIndicators['standard_deviation']?['value'],
+                statisticalIndicators['standard_deviation']?['interpretation']),
+            _buildStatItem('R² Value',
+                statisticalIndicators['r_squared']?['value'],
+                statisticalIndicators['r_squared']?['interpretation']),
+            _buildStatItem('Improvement Rate',
+                statisticalIndicators['improvement_rate']?['value'],
+                statisticalIndicators['improvement_rate']?['interpretation']),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetricChip(String label, String value, Color color) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color),
+          ),
+          SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTrendItem(String label, String? value) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Expanded(flex: 2, child: Text('$label:', style: TextStyle(fontWeight: FontWeight.w500))),
+          Expanded(flex: 3, child: Text(value ?? 'N/A', style: TextStyle(fontWeight: FontWeight.w500))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, dynamic value, String? interpretation) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(flex: 2, child: Text('$label:', style: TextStyle(fontWeight: FontWeight.w500))),
+              Expanded(flex: 3, child: Text(value?.toString() ?? 'N/A')),
+            ],
+          ),
+          if (interpretation != null && interpretation != 'N/A')
+            Padding(
+              padding: EdgeInsets.only(left: 8, top: 2),
+              child: Text(
+                interpretation,
+                style: TextStyle(fontSize: 12, color: Colors.grey[600], fontStyle: FontStyle.italic),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfessionalAnalysis(Map<String, dynamic>? analysis) {
+    if (analysis == null) return SizedBox();
+
+    // 🔥 التحقق إذا كان initial plan أو comprehensive analysis
+    final bool isInitialPlan = _progressAnalysis?['analysis_type'] == 'initial_plan';
+
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.psychology, color: Colors.purple, size: 24),
+                SizedBox(width: 12),
+                Text(
+                  isInitialPlan ? 'Initial Treatment Plan' : 'Professional Analysis', // ⬅️ عنوان مختلف
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[800],
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+
+            if (isInitialPlan)
+              _buildInitialPlan(analysis) // ⬅️ عرض الـ initial plan
+            else
+              _buildComprehensiveAnalysis(analysis), // ⬅️ العرض العادي
+          ],
+        ),
+      ),
+    );
+  }
+
+// 🔥 دالة جديدة لعرض الـ Initial Plan
+  Widget _buildInitialPlan(Map<String, dynamic> analysis) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Baseline Assessment
+        if (analysis['baseline_assessment'] != null)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Baseline Assessment',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+              ),
+              SizedBox(height: 8),
+              _buildAssessmentSection(analysis['baseline_assessment']),
+              SizedBox(height: 16),
+            ],
+          ),
+
+        // Treatment Goals
+        if (analysis['treatment_goals'] != null)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Treatment Goals',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+              ),
+              SizedBox(height: 8),
+              _buildTreatmentGoals(analysis['treatment_goals']),
+              SizedBox(height: 16),
+            ],
+          ),
+
+        // Recommended Schedule
+        if (analysis['recommended_schedule'] != null)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Recommended Schedule',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+              ),
+              SizedBox(height: 8),
+              _buildScheduleCard(analysis['recommended_schedule']),
+              SizedBox(height: 16),
+            ],
+          ),
+
+        // Focus Areas
+        if (analysis['initial_focus_areas'] != null && (analysis['initial_focus_areas'] as List).isNotEmpty)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Initial Focus Areas',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+              ),
+              SizedBox(height: 8),
+              ...(analysis['initial_focus_areas'] as List).map((area) => _buildFocusAreaCard(area)),
+              SizedBox(height: 16),
+            ],
+          ),
+
+        // Next Evaluation
+        if (analysis['next_evaluation'] != null)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Next Evaluation',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+              ),
+              SizedBox(height: 8),
+              _buildNextEvaluationCard(analysis['next_evaluation']),
+              SizedBox(height: 16),
+            ],
+          ),
+
+        // Parent Instructions
+        if (analysis['parent_instructions'] != null)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Parent Instructions',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+              ),
+              SizedBox(height: 8),
+              _buildParentInstructions(analysis['parent_instructions']),
+              SizedBox(height: 16),
+            ],
+          ),
+
+        // Success Indicators
+        if (analysis['success_indicators'] != null)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Success Indicators',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+              ),
+              SizedBox(height: 8),
+              _buildSuccessIndicators(analysis['success_indicators']),
+            ],
+          ),
+      ],
+    );
+  }
+
+// 🔥 دالة العرض العادي (Comprehensive Analysis)
+  Widget _buildComprehensiveAnalysis(Map<String, dynamic> analysis) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Overall Assessment
+        if (analysis['overall_assessment'] != null)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Overall Assessment',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+              ),
+              SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      analysis['overall_assessment']?['summary'] ?? 'N/A',
+                      style: TextStyle(fontSize: 14, color: Colors.grey[800], height: 1.4),
+                    ),
+                    SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Chip(
+                          label: Text(analysis['overall_assessment']?['trend'] ?? 'N/A'),
+                          backgroundColor: Colors.green[100],
+                        ),
+                        SizedBox(width: 8),
+                        Chip(
+                          label: Text(analysis['overall_assessment']?['progress_level'] ?? 'N/A'),
+                          backgroundColor: Colors.blue[100],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 16),
+            ],
+          ),
+
+        // Strengths
+        if (analysis['strengths'] != null && (analysis['strengths'] as List).isNotEmpty)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Strengths',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+              ),
+              SizedBox(height: 8),
+              ...(analysis['strengths'] as List).map((strength) => _buildAnalysisItem(strength, Colors.green)),
+              SizedBox(height: 16),
+            ],
+          ),
+
+        // Challenges
+        if (analysis['challenges'] != null && (analysis['challenges'] as List).isNotEmpty)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Challenges',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+              ),
+              SizedBox(height: 8),
+              ...(analysis['challenges'] as List).map((challenge) => _buildAnalysisItem(challenge, Colors.orange)),
+              SizedBox(height: 16),
+            ],
+          ),
+
+        // Recommendations
+        if (analysis['recommendations'] != null)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Recommendations',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+              ),
+              SizedBox(height: 8),
+              _buildRecommendationsSection(analysis['recommendations']),
+            ],
+          ),
+      ],
+    );
+  }
+
+// 🔥 دوال مساعدة للـ Initial Plan
+  Widget _buildAssessmentSection(Map<String, dynamic> assessment) {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue[50],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildListSection('Current Abilities', assessment['current_abilities']),
+          SizedBox(height: 12),
+          _buildListSection('Main Challenges', assessment['main_challenges']),
+          SizedBox(height: 12),
+          _buildListSection('Behavioral Observations', assessment['behavioral_observations']),
+          SizedBox(height: 12),
+          if (assessment['initial_score_interpretation'] != null)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Score Interpretation:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  assessment['initial_score_interpretation'],
+                  style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildListSection(String title, List<dynamic>? items) {
+    if (items == null || items.isEmpty) return SizedBox();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$title:',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        SizedBox(height: 4),
+        ...items.map((item) => Padding(
+          padding: EdgeInsets.symmetric(vertical: 2),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.arrow_right, size: 16, color: Colors.grey[600]),
+              SizedBox(width: 4),
+              Expanded(child: Text(item.toString())),
+            ],
+          ),
+        )).toList(),
+      ],
+    );
+  }
+
+  Widget _buildTreatmentGoals(Map<String, dynamic> goals) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (goals['short_term'] != null && (goals['short_term'] as List).isNotEmpty)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Short Term Goals:',
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green[700]),
+              ),
+              SizedBox(height: 8),
+              ...(goals['short_term'] as List).map((goal) => _buildGoalCard(goal, Colors.green)),
+              SizedBox(height: 12),
+            ],
+          ),
+
+        if (goals['long_term'] != null && (goals['long_term'] as List).isNotEmpty)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Long Term Goals:',
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue[700]),
+              ),
+              SizedBox(height: 8),
+              ...(goals['long_term'] as List).map((goal) => _buildGoalCard(goal, Colors.blue)),
+            ],
+          ),
+      ],
+    );
+  }
+
+  Widget _buildGoalCard(Map<String, dynamic> goal, Color color) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            goal['goal'] ?? 'N/A',
+            style: TextStyle(fontWeight: FontWeight.bold, color: color),
+          ),
+          SizedBox(height: 4),
+          Text('Timeline: ${goal['timeline'] ?? 'N/A'}'),
+          if (goal['success_criteria'] != null)
+            Text('Success: ${goal['success_criteria']}'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScheduleCard(Map<String, dynamic> schedule) {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.green[50],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildScheduleItem('Frequency', schedule['frequency']),
+          _buildScheduleItem('Duration', schedule['duration']),
+          _buildScheduleItem('Best Timing', schedule['best_timing']),
+          if (schedule['rationale'] != null) ...[
+            SizedBox(height: 8),
+            Text(
+              'Rationale: ${schedule['rationale']}',
+              style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey[700]),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScheduleItem(String label, String? value) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Text('$label: ', style: TextStyle(fontWeight: FontWeight.bold)),
+          Expanded(child: Text(value ?? 'N/A')),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFocusAreaCard(Map<String, dynamic> area) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.orange[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: _getPriorityColor(area['priority']),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  area['priority']?.toString().toUpperCase() ?? 'N/A',
+                  style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+              ),
+              SizedBox(width: 8),
+              Text(
+                area['skill'] ?? 'N/A',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
+          Text('Approach: ${area['approach'] ?? 'N/A'}'),
+          if (area['activities'] != null && (area['activities'] as List).isNotEmpty) ...[
+            SizedBox(height: 4),
+            Text('Activities: ${(area['activities'] as List).join(', ')}'),
+          ],
+          if (area['expected_progress'] != null) ...[
+            SizedBox(height: 4),
+            Text('Expected: ${area['expected_progress']}'),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Color _getPriorityColor(String? priority) {
+    switch (priority?.toLowerCase()) {
+      case 'high': return Colors.red;
+      case 'medium': return Colors.orange;
+      case 'low': return Colors.green;
+      default: return Colors.grey;
+    }
+  }
+
+  Widget _buildNextEvaluationCard(Map<String, dynamic> nextEval) {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.purple[50],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Suggested Date: ${nextEval['suggested_date'] ?? 'N/A'}',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          SizedBox(height: 8),
+          _buildListSection('What to Assess', nextEval['what_to_assess']),
+          SizedBox(height: 8),
+          _buildListSection('Expected Improvements', nextEval['expected_improvements']),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildParentInstructions(Map<String, dynamic> instructions) {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.teal[50],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildListSection('Daily Activities', instructions['daily_activities']),
+          SizedBox(height: 12),
+          _buildListSection('Environment Modifications', instructions['environment_modifications']),
+          SizedBox(height: 12),
+          _buildListSection('What to Monitor', instructions['what_to_monitor']),
+          SizedBox(height: 12),
+          _buildListSection('Communication Tips', instructions['communication_tips']),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuccessIndicators(Map<String, dynamic> indicators) {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.indigo[50],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (indicators['week_1'] != null) _buildTimelineIndicator('Week 1', indicators['week_1']),
+          if (indicators['week_2'] != null) _buildTimelineIndicator('Week 2', indicators['week_2']),
+          if (indicators['week_4'] != null) _buildTimelineIndicator('Week 4', indicators['week_4']),
+          if (indicators['month_3'] != null) _buildTimelineIndicator('Month 3', indicators['month_3']),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimelineIndicator(String timeline, List<dynamic>? indicators) {
+    if (indicators == null || indicators.isEmpty) return SizedBox();
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            timeline,
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo[700]),
+          ),
+          SizedBox(height: 4),
+          ...indicators.map((indicator) => Padding(
+            padding: EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.check_circle, size: 16, color: Colors.green),
+                SizedBox(width: 8),
+                Expanded(child: Text(indicator.toString())),
+              ],
+            ),
+          )).toList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnalysisItem(Map<String, dynamic> item, Color color) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            item['area'] ?? 'N/A',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color),
+          ),
+          SizedBox(height: 4),
+          Text(
+            item['description'] ?? 'N/A',
+            style: TextStyle(fontSize: 14, color: Colors.grey[700], height: 1.4),
+          ),
+          if (item['progress'] != null) ...[
+            SizedBox(height: 4),
+            Text(
+              'Progress: ${item['progress']}',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600], fontStyle: FontStyle.italic),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecommendationsSection(Map<String, dynamic>? recommendations) {
+    if (recommendations == null) return SizedBox();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (recommendations['session_schedule'] != null)
+          _buildRecommendationCard(
+            'Session Schedule',
+            recommendations['session_schedule'],
+            Icons.schedule,
+            Colors.blue,
+          ),
+
+        if (recommendations['next_session'] != null)
+          _buildRecommendationCard(
+            'Next Session',
+            recommendations['next_session'],
+            Icons.event,
+            Colors.green,
+          ),
+
+        if (recommendations['intensity_adjustment'] != null)
+          _buildRecommendationCard(
+            'Intensity Adjustment',
+            recommendations['intensity_adjustment'],
+            Icons.trending_up,
+            Colors.orange,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildRecommendationCard(String title, Map<String, dynamic> data, IconData icon, Color color) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 20, color: color),
+              SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color),
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
+          ...data.entries.map((entry) => Padding(
+            padding: EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${_capitalize(entry.key)}: ',
+                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                ),
+                Expanded(
+                  child: Text(
+                    entry.value?.toString() ?? 'N/A',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                ),
+              ],
+            ),
+          )).toList(),
+        ],
+      ),
+    );
+  }
+
+  String _capitalize(String text) {
+    if (text.isEmpty) return text;
+    return text[0].toUpperCase() + text.substring(1).replaceAll('_', ' ');
+  }
+
+  Widget _buildActionPlan(Map<String, dynamic>? actionPlan) {
+    if (actionPlan == null) return SizedBox();
+
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.assignment, color: Colors.amber, size: 24),
+                SizedBox(width: 12),
+                Text(
+                  'Action Plan',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[800],
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+
+            // Next Session
+            if (actionPlan['next_session'] != null)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Key Insights:',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                    'Next Session',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
                   ),
-                  SizedBox(height: 12),
-                  ...(domainAnalysis['keyInsights'] as List).map((insight) => Padding(
-                    padding: EdgeInsets.symmetric(vertical: 6),
+                  SizedBox(height: 8),
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.amber[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.calendar_today, color: Colors.amber),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Recommended: ${actionPlan['next_session']?['recommended_date'] ?? 'N/A'}',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              Text(
+                                'Status: ${actionPlan['next_session']?['status'] ?? 'N/A'}',
+                                style: TextStyle(color: Colors.grey[600]),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                ],
+              ),
+
+            // Quick Recommendations
+            if (actionPlan['quick_recommendations'] != null && (actionPlan['quick_recommendations'] as List).isNotEmpty)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Quick Recommendations',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+                  ),
+                  SizedBox(height: 8),
+                  ...(actionPlan['quick_recommendations'] as List).map((rec) => Padding(
+                    padding: EdgeInsets.symmetric(vertical: 4),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.insights, size: 16, color: Colors.purple),
+                        Icon(Icons.arrow_right, size: 20, color: Colors.green),
                         SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            insight,
-                            style: TextStyle(fontSize: 14, height: 1.4),
+                            rec.toString(),
+                            style: TextStyle(fontSize: 14, color: Colors.grey[700], height: 1.4),
                           ),
                         ),
                       ],
@@ -1762,38 +1438,9 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
     );
   }
 
-  Widget _buildDomainStat(String label, int count, Color color) {
-    return Column(
-      children: [
-        Container(
-          padding: EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Text(
-            count.toString(),
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ),
-        SizedBox(height: 6),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: color,
-          ),
-        ),
-      ],
-    );
-  }
+  Widget _buildEvaluationHistory(List<dynamic>? history) {
+    if (history == null || history.isEmpty) return SizedBox();
 
-  Widget _buildProgressInsightsCard(Map<String, dynamic> insights) {
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1804,10 +1451,10 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
           children: [
             Row(
               children: [
-                Icon(Icons.auto_graph, color: Colors.indigo, size: 24),
+                Icon(Icons.history, color: Colors.purple, size: 24),
                 SizedBox(width: 12),
                 Text(
-                  'Progress Insights',
+                  'Evaluation History',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -1817,174 +1464,75 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
               ],
             ),
             SizedBox(height: 16),
-            _buildInsightRow('Performance Consistency', insights['performanceConsistency']),
-            _buildInsightRow('Improvement Pattern', insights['improvementPattern']),
-            _buildInsightRow('Intervention Effectiveness', insights['interventionEffectiveness']),
-            _buildInsightRow('Growth Potential', insights['growthPotential']),
+
+            ...history.map((eval) => _buildEvaluationCard(eval)).toList(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildInsightRow(String label, String value) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 10),
-      child: Row(
+  Widget _buildEvaluationCard(Map<String, dynamic> eval) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            flex: 2,
-            child: Text(
-              label,
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.grey[700]),
-            ),
-          ),
-          Expanded(
-            flex: 3,
-            child: Text(
-              value,
-              style: TextStyle(fontSize: 14, color: Colors.grey[800], fontWeight: FontWeight.w500),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRecommendationsCard(List<String> recommendations) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.lightbulb_outline, color: Colors.amber, size: 24),
-                SizedBox(width: 12),
-                Text(
-                  'Recommendations',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey[800],
-                  ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Session ${eval['session_number']}',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF7815A0)),
+              ),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _getScoreColor(_safeDouble(eval['score'])).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ],
-            ),
-            SizedBox(height: 16),
-            ...recommendations.map((recommendation) => Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.arrow_right, size: 20, color: Colors.green),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      recommendation,
-                      style: TextStyle(fontSize: 14, color: Colors.grey[700], height: 1.4),
-                    ),
-                  ),
-                ],
+                child: Text(
+                  '${eval['score']}%',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: _getScoreColor(_safeDouble(eval['score']))),
+                ),
               ),
-            )).toList(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildComparisonActions() {
-    return Row(
-      children: [
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: _toggleComparisonMode,
-            icon: Icon(Icons.close),
-            label: Text('Exit Comparison'),
-            style: OutlinedButton.styleFrom(
-              padding: EdgeInsets.symmetric(vertical: 16),
-              side: BorderSide(color: Colors.grey),
-            ),
+            ],
           ),
-        ),
-        SizedBox(width: 12),
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: () {
-              // TODO: Implement export functionality
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Export feature coming soon!')),
-              );
-            },
-            icon: Icon(Icons.download),
-            label: Text('Export Report'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFF7815A0),
-              foregroundColor: Colors.white,
-              padding: EdgeInsets.symmetric(vertical: 16),
-            ),
+          SizedBox(height: 8),
+          Text(
+            eval['date'] ?? 'N/A',
+            style: TextStyle(color: Colors.grey[600], fontSize: 14),
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEvaluationCard(dynamic evaluation) {
-    final safeEval = _safeMap(evaluation);
-    final isSelected = _selectedEvaluationsForComparison.contains(evaluation);
-    final progressScore = _safeDouble(safeEval['progress_score']) ?? 0.0;
-    final evalType = _safeString(safeEval['evaluation_type']);
-    final createdAt = _safeString(safeEval['created_at']);
-
-    return Card(
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      elevation: isSelected ? 6 : 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: isSelected
-            ? BorderSide(color: Colors.blue, width: 2)
-            : BorderSide.none,
-      ),
-      child: ListTile(
-        leading: Container(
-          padding: EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.blue[50] : Color(0xFF7815A0).withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
+          SizedBox(height: 4),
+          Text(
+            'Type: ${eval['type'] ?? 'N/A'}',
+            style: TextStyle(color: Colors.grey[600], fontSize: 14),
           ),
-          child: Icon(
-            isSelected ? Icons.check_circle : Icons.assessment,
-            color: isSelected ? Colors.blue : Color(0xFF7815A0),
-          ),
-        ),
-        title: Text(
-          evalType.isNotEmpty ? evalType : 'General Evaluation',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(_formatDate(createdAt)),
-            SizedBox(height: 2),
+          if (eval['score_change'] != null && eval['score_change'] != 0) ...[
+            SizedBox(height: 4),
             Text(
-              'Score: ${progressScore.toInt()}%',
+              'Change: ${eval['score_change'] > 0 ? '+' : ''}${eval['score_change']}%',
               style: TextStyle(
+                color: eval['score_change'] > 0 ? Colors.green : Colors.red,
+                fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: _getScoreColor(progressScore),
               ),
             ),
           ],
-        ),
-        trailing: _comparisonMode ? Icon(
-          isSelected ? Icons.check_box : Icons.check_box_outline_blank,
-          color: isSelected ? Colors.blue : Colors.grey,
-        ) : null,
-        onTap: _comparisonMode ? () => _toggleEvaluationSelection(evaluation) : null,
+          if (eval['notes'] != null && eval['notes'].toString().isNotEmpty) ...[
+            SizedBox(height: 8),
+            Text(
+              'Notes: ${eval['notes']}',
+              style: TextStyle(fontSize: 14, color: Colors.grey[700], fontStyle: FontStyle.italic),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -1995,577 +1543,45 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
     return Colors.red;
   }
 
-  // ========== EXISTING PROGRESS ANALYSIS ==========
+  Widget _buildMetadata(Map<String, dynamic>? metadata) {
+    if (metadata == null) return SizedBox();
 
-  Map<String, dynamic> _analyzeProgress(List<dynamic> evaluations) {
-    final safeEvaluations = _safeList(evaluations);
-
-    if (safeEvaluations.isEmpty) {
-      return {
-        'trend': 'no_data',
-        'message': 'No evaluations available',
-        'improvement': 0.0,
-        'hasEnoughData': false,
-        'confidence': 'low',
-        'trendColor': Colors.grey,
-        'trendIcon': Icons.help_outline,
-      };
-    }
-
-    if (safeEvaluations.length == 1) {
-      final score = _safeDouble(safeEvaluations.first['progress_score']) ?? 0.0;
-      return {
-        'trend': 'initial',
-        'message': 'Initial evaluation completed',
-        'improvement': 0.0,
-        'currentScore': score,
-        'hasEnoughData': false,
-        'confidence': 'medium',
-        'trendColor': Colors.blue,
-        'trendIcon': Icons.assessment,
-        'firstScore': score,
-        'lastScore': score,
-      };
-    }
-
-    final sortedEvaluations = List.from(safeEvaluations)
-      ..sort((a, b) {
-        try {
-          final dateA = DateTime.parse(_safeString(a['created_at']));
-          final dateB = DateTime.parse(_safeString(b['created_at']));
-          return dateA.compareTo(dateB);
-        } catch (e) {
-          return 0;
-        }
-      });
-
-    final analysis = _advancedProgressAnalysis(sortedEvaluations);
-    return analysis;
-  }
-
-  Map<String, dynamic> _advancedProgressAnalysis(List<dynamic> evaluations) {
-    final scores = evaluations.map((e) => _safeDouble(e['progress_score']) ?? 0.0).toList();
-    final dates = evaluations.map((e) => DateTime.parse(_safeString(e['created_at']))).toList();
-
-    final firstScore = scores.first;
-    final lastScore = scores.last;
-    final simpleImprovement = lastScore - firstScore;
-    final averageScore = scores.reduce((a, b) => a + b) / scores.length;
-
-    final trendAnalysis = _calculateTrend(scores, dates);
-    final stabilityAnalysis = _calculateStability(scores);
-    final recentAnalysis = _analyzeRecentProgress(scores);
-
-    return _determineFinalClassification(
-      simpleImprovement: simpleImprovement,
-      trendSlope: trendAnalysis['slope'],
-      stability: stabilityAnalysis['stability'],
-      recentTrend: recentAnalysis['trend'],
-      averageScore: averageScore,
-      evaluationCount: scores.length,
-      firstScore: firstScore,
-      lastScore: lastScore,
-    );
-  }
-
-  Map<String, dynamic> _calculateTrend(List<double> scores, List<DateTime> dates) {
-    if (scores.length < 2) return {'slope': 0.0, 'rSquared': 0.0, 'trend': 'unknown'};
-
-    final firstDate = dates.first;
-    final xValues = dates.map((date) => date.difference(firstDate).inDays.toDouble()).toList();
-
-    double sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
-    final n = scores.length.toDouble();
-
-    for (int i = 0; i < scores.length; i++) {
-      sumX += xValues[i];
-      sumY += scores[i];
-      sumXY += xValues[i] * scores[i];
-      sumX2 += xValues[i] * xValues[i];
-    }
-
-    final slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-    final intercept = (sumY - slope * sumX) / n;
-
-    double ssTotal = 0, ssResidual = 0;
-    final meanY = sumY / n;
-
-    for (int i = 0; i < scores.length; i++) {
-      final prediction = slope * xValues[i] + intercept;
-      ssTotal += pow(scores[i] - meanY, 2);
-      ssResidual += pow(scores[i] - prediction, 2);
-    }
-
-    final rSquared = ssTotal > 0 ? (1 - (ssResidual / ssTotal)) : 0.0;
-
-    String trend;
-    if (slope > 0.1) trend = 'strong_improvement';
-    else if (slope > 0.02) trend = 'moderate_improvement';
-    else if (slope > -0.02) trend = 'stable';
-    else if (slope > -0.1) trend = 'moderate_decline';
-    else trend = 'strong_decline';
-
-    return {
-      'slope': slope,
-      'rSquared': rSquared,
-      'trend': trend,
-      'intercept': intercept,
-    };
-  }
-
-  Map<String, dynamic> _calculateStability(List<double> scores) {
-    if (scores.length < 2) return {'stability': 'unknown', 'volatility': 0.0};
-
-    final average = scores.reduce((a, b) => a + b) / scores.length;
-    final variance = scores.map((score) => pow(score - average, 2)).reduce((a, b) => a + b) / scores.length;
-    final standardDeviation = sqrt(variance);
-    final volatility = average > 0 ? (standardDeviation / average) * 100 : 0.0;
-
-    String stability;
-    if (volatility < 5) stability = 'very_stable';
-    else if (volatility < 10) stability = 'stable';
-    else if (volatility < 15) stability = 'moderate_volatility';
-    else if (volatility < 20) stability = 'high_volatility';
-    else stability = 'very_high_volatility';
-
-    return {
-      'stability': stability,
-      'volatility': volatility,
-      'standardDeviation': standardDeviation,
-    };
-  }
-
-  Map<String, dynamic> _analyzeRecentProgress(List<double> scores) {
-    if (scores.length < 3) return {'trend': 'insufficient_data', 'recentImprovement': 0.0};
-
-    final recentScores = scores.sublist(scores.length - 3);
-    final recentImprovement = recentScores.last - recentScores.first;
-
-    String trend;
-    if (recentImprovement > 5) trend = 'strong_recent_improvement';
-    else if (recentImprovement > 2) trend = 'moderate_recent_improvement';
-    else if (recentImprovement > -2) trend = 'stable_recent';
-    else if (recentImprovement > -5) trend = 'moderate_recent_decline';
-    else trend = 'strong_recent_decline';
-
-    return {
-      'trend': trend,
-      'recentImprovement': recentImprovement,
-      'recentScores': recentScores,
-    };
-  }
-
-  Map<String, dynamic> _determineFinalClassification({
-    required double simpleImprovement,
-    required double trendSlope,
-    required String stability,
-    required String recentTrend,
-    required double averageScore,
-    required int evaluationCount,
-    required double firstScore,
-    required double lastScore,
-  }) {
-    String confidence = 'medium';
-    if (evaluationCount >= 5 && trendSlope.abs() > 0.05) confidence = 'high';
-    if (evaluationCount < 3) confidence = 'low';
-
-    String primaryTrend;
-    Color trendColor;
-    IconData trendIcon;
-    String message;
-    String detailedMessage;
-
-    final bool hasStrongImprovement = simpleImprovement > 15 || trendSlope > 0.15;
-    final bool hasModerateImprovement = simpleImprovement > 5 || trendSlope > 0.05;
-    final bool hasStablePerformance = simpleImprovement.abs() < 5 && trendSlope.abs() < 0.03;
-    final bool hasModerateDecline = simpleImprovement < -5 || trendSlope < -0.05;
-    final bool hasStrongDecline = simpleImprovement < -15 || trendSlope < -0.15;
-
-    final bool isConsistent = stability == 'very_stable' || stability == 'stable';
-    final bool hasRecentImprovement = recentTrend.contains('improvement');
-    final bool hasRecentDecline = recentTrend.contains('decline');
-
-    if (hasStrongImprovement && isConsistent) {
-      primaryTrend = 'exceptional_improvement';
-      trendColor = Colors.green[700]!;
-      trendIcon = Icons.trending_up;
-      message = 'Exceptional Progress! 🌟';
-      detailedMessage = 'Outstanding consistent improvement with strong growth trajectory';
-    }
-    else if (hasStrongImprovement) {
-      primaryTrend = 'significant_improvement';
-      trendColor = Colors.green;
-      trendIcon = Icons.trending_up;
-      message = 'Excellent Progress! 🎉';
-      detailedMessage = 'Significant improvement observed, though with some variability';
-    }
-    else if (hasModerateImprovement && hasRecentImprovement) {
-      primaryTrend = 'accelerating_improvement';
-      trendColor = Colors.green[400]!;
-      trendIcon = Icons.trending_up;
-      message = 'Steady Improvement 📈';
-      detailedMessage = 'Consistent improvement with positive recent momentum';
-    }
-    else if (hasModerateImprovement) {
-      primaryTrend = 'moderate_improvement';
-      trendColor = Colors.lightGreen;
-      trendIcon = Icons.trending_up;
-      message = 'Good Progress 📈';
-      detailedMessage = 'Steady improvement maintained over time';
-    }
-    else if (hasStablePerformance && isConsistent) {
-      primaryTrend = 'very_stable';
-      trendColor = Colors.blue;
-      trendIcon = Icons.trending_flat;
-      message = 'Very Stable Performance 🔄';
-      detailedMessage = 'Highly consistent performance with minimal fluctuations';
-    }
-    else if (hasStablePerformance) {
-      primaryTrend = 'stable';
-      trendColor = Colors.orange;
-      trendIcon = Icons.trending_flat;
-      message = 'Stable Performance ➡️';
-      detailedMessage = 'Overall stable performance with normal variations';
-    }
-    else if (hasModerateDecline && hasRecentDecline) {
-      primaryTrend = 'accelerating_decline';
-      trendColor = Colors.red[600]!;
-      trendIcon = Icons.trending_down;
-      message = 'Growing Concerns 📉';
-      detailedMessage = 'Moderate decline with concerning recent trend';
-    }
-    else if (hasModerateDecline) {
-      primaryTrend = 'moderate_decline';
-      trendColor = Colors.orange[700]!;
-      trendIcon = Icons.trending_down;
-      message = 'Needs Attention 📉';
-      detailedMessage = 'Moderate decline observed, requires intervention';
-    }
-    else if (hasStrongDecline) {
-      primaryTrend = 'significant_decline';
-      trendColor = Colors.red;
-      trendIcon = Icons.trending_down;
-      message = 'Significant Decline! ⚠️';
-      detailedMessage = 'Major decline detected, immediate attention required';
-    }
-    else {
-      primaryTrend = 'mixed_pattern';
-      trendColor = Colors.purple;
-      trendIcon = Icons.auto_graph;
-      message = 'Mixed Pattern 🔄';
-      detailedMessage = 'Complex performance pattern with varying trends';
-    }
-
-    final recommendations = _generateProgressRecommendations(
-      primaryTrend: primaryTrend,
-      stability: stability,
-      recentTrend: recentTrend,
-      averageScore: averageScore,
-      evaluationCount: evaluationCount,
-    );
-
-    return {
-      'trend': primaryTrend,
-      'message': message,
-      'detailedMessage': detailedMessage,
-      'improvement': simpleImprovement,
-      'trendColor': trendColor,
-      'trendIcon': trendIcon,
-      'firstScore': firstScore,
-      'lastScore': lastScore,
-      'averageScore': averageScore,
-      'evaluationCount': evaluationCount,
-      'confidence': confidence,
-      'stability': stability,
-      'recentTrend': recentTrend,
-      'trendSlope': trendSlope,
-      'recommendations': recommendations,
-      'hasEnoughData': true,
-    };
-  }
-
-  List<String> _generateProgressRecommendations({
-    required String primaryTrend,
-    required String stability,
-    required String recentTrend,
-    required double averageScore,
-    required int evaluationCount,
-  }) {
-    final recommendations = <String>[];
-
-    if (primaryTrend.contains('improvement')) {
-      recommendations.add('Continue current intervention strategies');
-      if (primaryTrend.contains('exceptional') || primaryTrend.contains('significant')) {
-        recommendations.add('Consider advancing to more challenging goals');
-      }
-    }
-
-    if (primaryTrend.contains('decline')) {
-      recommendations.add('Review and adjust current intervention strategies');
-      recommendations.add('Consider additional assessment to identify challenges');
-      if (primaryTrend.contains('significant')) {
-        recommendations.add('Urgent intervention recommended');
-      }
-    }
-
-    if (primaryTrend.contains('stable')) {
-      recommendations.add('Maintain consistent intervention approach');
-      if (averageScore < 50) {
-        recommendations.add('Consider intensifying support for breakthrough');
-      }
-    }
-
-    if (stability.contains('high_volatility')) {
-      recommendations.add('Focus on consistency and routine in sessions');
-      recommendations.add('Monitor for external factors affecting performance');
-    }
-
-    if (stability.contains('very_stable')) {
-      recommendations.add('Stable pattern allows for predictable progress planning');
-    }
-
-    if (recentTrend.contains('recent_improvement')) {
-      recommendations.add('Recent positive trend - capitalize on current momentum');
-    }
-
-    if (recentTrend.contains('recent_decline')) {
-      recommendations.add('Address recent challenges promptly');
-    }
-
-    if (evaluationCount < 4) {
-      recommendations.add('More evaluations needed for comprehensive analysis');
-    }
-
-    if (averageScore < 40) {
-      recommendations.add('Consider foundational skill development focus');
-    } else if (averageScore > 80) {
-      recommendations.add('Focus on advanced skill development and maintenance');
-    }
-
-    return recommendations;
-  }
-
-  Widget _buildAdvancedProgressChart(List<dynamic> evaluations, Map<String, dynamic> analysis) {
-    final safeEvaluations = _safeList(evaluations);
-
-    if (safeEvaluations.isEmpty) {
-      return _buildEmptyChart();
-    }
-
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: analysis['trendColor'].withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: analysis['trendColor'].withOpacity(0.3)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(analysis['trendIcon'], color: analysis['trendColor'], size: 20),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        analysis['message'],
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: analysis['trendColor'],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 8),
-                Text(
-                  analysis['detailedMessage'] ?? '',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: analysis['trendColor'].withOpacity(0.8),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 16),
-          Container(
-            height: 120,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: safeEvaluations.asMap().entries.map((entry) {
-                final index = entry.key;
-                final evaluation = _safeMap(entry.value);
-                final score = _safeDouble(evaluation['progress_score']) ?? 0.0;
-                final height = (score / 100) * 80;
-                return Expanded(
-                  child: Container(
-                    margin: EdgeInsets.symmetric(horizontal: 2),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Tooltip(
-                          message: '${_formatDate(_safeString(evaluation['created_at']))}\nScore: ${score.toInt()}%',
-                          child: Container(
-                            width: 20,
-                            height: height.clamp(10, 80).toDouble(),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [Color(0xFF7815A0), Color(0xFF9C27B0)],
-                                begin: Alignment.bottomCenter,
-                                end: Alignment.topCenter,
-                              ),
-                              borderRadius: BorderRadius.only(
-                                topLeft: Radius.circular(4),
-                                topRight: Radius.circular(4),
-                              ),
-                            ),
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          '${score.toInt()}%',
-                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyChart() {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          Icon(Icons.assessment, size: 40, color: Colors.grey[400]),
-          SizedBox(height: 8),
-          Text(
-            'No evaluations yet',
-            style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.w500),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ========== TAB BUILD METHODS ==========
-
-  Widget _buildEvaluationsTab() {
-    final evaluations = _safeList(childData?['evaluations']);
-    final progressAnalysis = _analyzeProgress(evaluations);
-
-    if (evaluations.isEmpty) {
-      return Center(
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: EdgeInsets.all(16),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.assessment, size: 64, color: Colors.grey[400]),
-            SizedBox(height: 16),
             Text(
-              'No evaluations available',
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+              'Analysis Information',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey[600]),
             ),
+            SizedBox(height: 8),
+            _buildMetadataItem('Model', metadata['analysis_model']),
+            _buildMetadataItem('Analysis Date', metadata['analysis_date']),
+            if (metadata['data_quality'] != null)
+              _buildMetadataItem('Data Quality', metadata['data_quality']?['recommendation']),
           ],
         ),
-      );
-    }
-
-    return Column(
-      children: [
-        // Comparison Mode Toggle
-        if (!_comparisonMode)
-          Padding(
-            padding: EdgeInsets.all(16),
-            child: ElevatedButton.icon(
-              onPressed: () => _startComparison('select_manually'),
-              icon: Icon(Icons.analytics),
-              label: Text('Comprehensive Comparison Report'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFF7815A0),
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ),
-
-        // Comparison Interface (only when selecting manually and before results)
-        if (_comparisonMode && _comparisonType == 'select_manually' && _comparisonResults == null)
-          Padding(
-            padding: EdgeInsets.all(16),
-            child: _buildComparisonSelector(),
-          ),
-
-        // Comparison Results or Evaluations List
-        if (_comparisonResults != null)
-          Expanded(child: _buildComprehensiveComparisonReport())
-        else if (_comparisonMode && _comparisonType == 'select_manually')
-          Expanded(
-            child: Column(
-              children: [
-                Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text(
-                    'Select 2 evaluations to compare:',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
-                  ),
-                ),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: evaluations.length,
-                    itemBuilder: (context, index) => _buildEvaluationCard(evaluations[index]),
-                  ),
-                ),
-              ],
-            ),
-          )
-        else
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  Padding(
-                    padding: EdgeInsets.all(16),
-                    child: _buildAdvancedProgressChart(evaluations, progressAnalysis),
-                  ),
-                  ...evaluations.map((evaluation) => _buildEvaluationCard(evaluation)).toList(),
-                ],
-              ),
-            ),
-          ),
-      ],
+      ),
     );
   }
+
+  Widget _buildMetadataItem(String label, String? value) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Expanded(flex: 2, child: Text('$label:', style: TextStyle(fontSize: 12, color: Colors.grey[600]))),
+          Expanded(flex: 3, child: Text(value ?? 'N/A', style: TextStyle(fontSize: 12, color: Colors.grey[800]))),
+        ],
+      ),
+    );
+  }
+
+  // ========== EXISTING TABS ==========
 
   Widget _buildInfoCard(String title, String value, IconData icon) {
     return Card(
@@ -2630,7 +1646,7 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
           _buildInfoCard('Parent', _safeString(parent['full_name']), Icons.family_restroom),
           _buildInfoCard('Email', _safeString(parent['email']), Icons.email),
           _buildInfoCard('Phone', _safeString(parent['phone']), Icons.phone),
-          if (_safeString(child['medical_history']).isNotEmpty)
+          if (_safeString(child['medical_history']).isNotEmpty && _safeString(child['medical_history']) != 'N/A')
             _buildInfoCard('Medical History', _safeString(child['medical_history']), Icons.medical_information),
         ],
       ),
@@ -2663,10 +1679,16 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
     );
   }
 
+  Widget _buildEvaluationsTab() {
+    return _buildAnalysisSection();
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
+
       appBar: AppBar(
         title: Text(
           widget.childName.isNotEmpty ? widget.childName : 'Child Details',
@@ -2675,14 +1697,24 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
         backgroundColor: Color(0xFF7815A0),
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.white),
-        actions: [
-          if (_comparisonMode)
-            IconButton(
-              icon: Icon(Icons.close),
-              onPressed: _toggleComparisonMode,
-              tooltip: 'Exit Comparison',
+      ),
+      // في الجزء العلوي من build method، بعد AppBar
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ComparisonAnalysisScreen(
+                childId: widget.childId,
+                childName: widget.childName,
+              ),
             ),
-        ],
+          );
+        },
+        icon: Icon(Icons.compare_arrows),
+        label: Text('Compare'),
+        backgroundColor: Color(0xFF7815A0),
+        foregroundColor: Colors.white,
       ),
       body: isLoading
           ? Center(
@@ -2754,7 +1786,7 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
                 ),
                 tabs: [
                   Tab(text: 'Information'),
-                  Tab(text: 'Evaluations'),
+                  Tab(text: 'Progress Analysis'),
                   Tab(text: 'Sessions'),
                 ],
               ),
@@ -2773,53 +1805,4 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
       ),
     );
   }
-}
-// Painter for mini trend chart (top-level)
-class _TrendLinePainter extends CustomPainter {
-  final List<double> scores;
-  final double minY;
-  final double maxY;
-
-  _TrendLinePainter({required this.scores, required this.minY, required this.maxY});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paintLine = Paint()
-      ..color = const Color(0xFF7815A0)
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-
-    final paintFill = Paint()
-      ..color = const Color(0xFF9C27B0).withOpacity(0.15)
-      ..style = PaintingStyle.fill;
-
-    final path = Path();
-    final fillPath = Path();
-
-    if (scores.isEmpty) return;
-
-    final double dxStep = scores.length == 1 ? size.width : size.width / (scores.length - 1);
-
-    for (int i = 0; i < scores.length; i++) {
-      final x = i * dxStep;
-      final norm = (scores[i] - minY) / (maxY - minY);
-      final y = size.height - (norm * (size.height - 4)) - 2;
-      if (i == 0) {
-        path.moveTo(x, y);
-        fillPath.moveTo(x, size.height);
-        fillPath.lineTo(x, y);
-      } else {
-        path.lineTo(x, y);
-        fillPath.lineTo(x, y);
-      }
-    }
-    fillPath.lineTo(size.width, size.height);
-    fillPath.close();
-
-    canvas.drawPath(fillPath, paintFill);
-    canvas.drawPath(path, paintLine);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
