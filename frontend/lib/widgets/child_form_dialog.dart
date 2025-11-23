@@ -198,6 +198,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
   void initState() {
     super.initState();
     _initializeForm();
+    _currentStep = ChildFormStep.basicInfo;
     _loadDiagnoses();
     _processScreeningData(); 
   }
@@ -224,20 +225,20 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
     }
     
     // إذا كان من screening، نذهب مباشرة للخطوة الطبية
-    if (screeningData['from_screening'] == true) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        setState(() {
-          _currentStep = ChildFormStep.medicalInfo;
-        });
+    // if (screeningData['from_screening'] == true) {
+    //   WidgetsBinding.instance.addPostFrameCallback((_) {
+    //     setState(() {
+    //       _currentStep = ChildFormStep.medicalInfo;
+    //     });
         
-        // إذا كان هناك تحليل AI، نفعله تلقائياً
-        if (_symptomsDescription.isNotEmpty) {
-          Future.delayed(Duration(seconds: 1), () {
-            _analyzeMedicalCondition();
-          });
-        }
-      });
-    }
+    //     // إذا كان هناك تحليل AI، نفعله تلقائياً
+    //     if (_symptomsDescription.isNotEmpty) {
+    //       Future.delayed(Duration(seconds: 1), () {
+    //         _analyzeMedicalCondition();
+    //       });
+    //     }
+    //   });
+    // }
   }
 
   void _initializeForm() {
@@ -307,71 +308,97 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
   }
 
   Future<void> _saveBasicInfo() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+  if (!(_formKey.currentState?.validate() ?? false)) return;
 
-    _formKey.currentState?.save();
+  _formKey.currentState?.save();
 
-    setState(() {
-      _isLoading = true;
-    });
+  setState(() {
+    _isLoading = true;
+  });
 
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token') ?? '';
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token') ?? '';
 
-      final basicInfo = {
-        'full_name': _fullName,
-        'date_of_birth': _dateController.text,
-        'gender': _gender,
-        'child_identifier': _childIdentifier.isEmpty ? null : _childIdentifier,
-        'school_info': _schoolInfo.isEmpty ? null : _schoolInfo,
-        'photo': _photo.isEmpty ? null : _photo,
-        // ⭐ إضافة بيانات الموقع
-        'city': _city.isEmpty ? null : _city,
-        'address': _address.isEmpty ? null : _address,
-        'location_lat': _locationLat,
-        'location_lng': _locationLng,
-      };
+    final basicInfo = {
+      'full_name': _fullName,
+      'date_of_birth': _dateController.text,
+      'gender': _gender,
+      'child_identifier': _childIdentifier.isEmpty ? null : _childIdentifier,
+      'school_info': _schoolInfo.isEmpty ? null : _schoolInfo,
+      'photo': _photo.isEmpty ? null : _photo,
+      'city': _city.isEmpty ? null : _city,
+      'address': _address.isEmpty ? null : _address,
+      'location_lat': _locationLat,
+      'location_lng': _locationLng,
+    };
 
-      print('Saving child basic info: $basicInfo');
+    print('Saving child basic info: $basicInfo');
 
-      final result = await ApiService.saveChildBasicInfo(token, basicInfo);
+    final result = await ApiService.saveChildBasicInfo(token, basicInfo);
 
-      if (result['success'] == true) {
-        final childId = result['child_id']?.toString();
-        print('Child ID received: $childId');
+    if (result['success'] == true) {
+      final childId = result['child_id']?.toString();
+      print('Child ID received: $childId');
 
-        if (childId == null) {
-          throw Exception('Child ID is null from server');
-        }
-
-        setState(() {
-          _childId = childId;
-          _currentStep = ChildFormStep.medicalInfo;
-          _isLoading = false;
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Basic information saved successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        throw Exception(result['message'] ?? 'Failed to save basic information');
+      if (childId == null) {
+        throw Exception('Child ID is null from server');
       }
-    } catch (e) {
+
       setState(() {
+        _childId = childId;
+        
+        // ⭐ التعديل هنا: دائماً اذهب لـ medicalInfo أولاً
+        // حتى لو كان من الاستبيان، عشان يعرض Basic Info first
+        _currentStep = ChildFormStep.medicalInfo;
+        
         _isLoading = false;
       });
+
+      // ⭐ جديد: إذا كان من الاستبيان، اعمل تحليل تلقائي بعد حفظ Basic Info
+      if (widget.screeningData != null && widget.screeningData!['from_screening'] == true) {
+        print('🎯 Auto-analyzing from screening data...');
+        
+        // املأ البيانات الطبية تلقائياً من الاستبيان
+        if (widget.screeningData!['suspected_condition'] != null) {
+          _suspectedCondition = widget.screeningData!['suspected_condition'].toString();
+        }
+        if (widget.screeningData!['symptoms_description'] != null) {
+          _symptomsDescription = widget.screeningData!['symptoms_description'].toString();
+        }
+        
+        // انتقل لشاشة المؤسسات مباشرة إذا كان في بيانات
+        if (widget.screeningData!['recommended_institutions'] != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            setState(() {
+              _recommendedInstitutions = widget.screeningData!['recommended_institutions'];
+              _currentStep = ChildFormStep.selectInstitution;
+            });
+          });
+        }
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          backgroundColor: Colors.red,
+          content: Text('Basic information saved successfully'),
+          backgroundColor: Colors.green,
         ),
       );
+    } else {
+      throw Exception(result['message'] ?? 'Failed to save basic information');
     }
+  } catch (e) {
+    setState(() {
+      _isLoading = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Error: ${e.toString()}'),
+        backgroundColor: Colors.red,
+      ),
+    );
   }
+}
 
   Future<void> _analyzeMedicalCondition() async {
     print('Starting medical analysis');
@@ -2244,80 +2271,92 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
   }
 
   void _goToNextStep() {
-    print('_goToNextStep called - Current step: $_currentStep');
+  print('_goToNextStep called - Current step: $_currentStep');
 
-    switch (_currentStep) {
-      case ChildFormStep.basicInfo:
-        print('Calling _saveBasicInfo');
-        _saveBasicInfo();
-        break;
+  switch (_currentStep) {
+    case ChildFormStep.basicInfo:
+      print('Calling _saveBasicInfo');
+      _saveBasicInfo();
+      break;
 
-      case ChildFormStep.medicalInfo:
-        print('Calling _analyzeMedicalCondition');
+    case ChildFormStep.medicalInfo:
+      print('Calling _analyzeMedicalCondition');
 
-        _formKey.currentState?.save();
+      _formKey.currentState?.save();
 
-        final hasSymptoms = _symptomsDescription.trim().isNotEmpty;
-        final hasSuspectedCondition = _suspectedCondition.trim().isNotEmpty;
-        final hasDiagnosis = _selectedDiagnosisId != null;
+      final hasSymptoms = _symptomsDescription.trim().isNotEmpty;
+      final hasSuspectedCondition = _suspectedCondition.trim().isNotEmpty;
+      final hasDiagnosis = _selectedDiagnosisId != null;
 
-        print('Medical Data Check:');
-        print('   - Symptoms: $hasSymptoms (${_symptomsDescription.length} chars)');
-        print('   - Suspected Condition: $hasSuspectedCondition ($_suspectedCondition)');
-        print('   - Diagnosis: $hasDiagnosis ($_selectedDiagnosisId)');
+      print('Medical Data Check:');
+      print('   - Symptoms: $hasSymptoms (${_symptomsDescription.length} chars)');
+      print('   - Suspected Condition: $hasSuspectedCondition ($_suspectedCondition)');
+      print('   - Diagnosis: $hasDiagnosis ($_selectedDiagnosisId)');
 
-        if (!hasSymptoms && !hasSuspectedCondition && !hasDiagnosis) {
-          print('No medical data provided at all');
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Please provide at least one of: symptoms description, suspected condition, or diagnosis'),
-              backgroundColor: Colors.orange,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-          return;
-        }
-
+      // ⭐ التعديل: إذا كان من الاستبيان وعنده بيانات، اذهب مباشرة للمؤسسات
+      if (widget.screeningData != null && 
+          widget.screeningData!['from_screening'] == true &&
+          widget.screeningData!['recommended_institutions'] != null) {
+        
+        print('🎯 Using pre-loaded institutions from screening');
+        setState(() {
+          _recommendedInstitutions = widget.screeningData!['recommended_institutions'];
+          _currentStep = ChildFormStep.selectInstitution;
+        });
+      }
+      // التحقق العادي إذا ما كان من استبيان
+      else if (!hasSymptoms && !hasSuspectedCondition && !hasDiagnosis) {
+        print('No medical data provided at all');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Please provide at least one of: symptoms description, suspected condition, or diagnosis'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        return;
+      } else {
         _analyzeMedicalCondition();
-        break;
+      }
+      break;
 
-      case ChildFormStep.selectInstitution:
-        print('Calling _requestRegistration');
-        _requestRegistration();
-        break;
+    case ChildFormStep.selectInstitution:
+      print('Calling _requestRegistration');
+      _requestRegistration();
+      break;
 
-      case ChildFormStep.confirmation:
-        print('Closing dialog');
-        Navigator.pop(context, true);
-        break;
-    }
+    case ChildFormStep.confirmation:
+      print('Closing dialog');
+      Navigator.pop(context, true);
+      break;
   }
+}
 
   String _getActionButtonText() {
-    switch (_currentStep) {
-      case ChildFormStep.basicInfo:
-        return 'Save Basic Info';
-      case ChildFormStep.medicalInfo:
-        return 'Analyze & Find Institutions';
-      case ChildFormStep.selectInstitution:
-        return 'Request Registration';
-      case ChildFormStep.confirmation:
-        return 'Finish';
-    }
+  switch (_currentStep) {
+    case ChildFormStep.basicInfo:
+      return 'Continue to Recommendations'; // ⭐ غير النص
+    case ChildFormStep.medicalInfo:
+      return widget.screeningData != null ? 'View Recommended Institutions' : 'Analyze & Find Institutions';
+    case ChildFormStep.selectInstitution:
+      return 'Request Registration';
+    case ChildFormStep.confirmation:
+      return 'Finish';
   }
+}
 
-  String _getStepTitle() {
-    switch (_currentStep) {
-      case ChildFormStep.basicInfo:
-        return 'Basic Information';
-      case ChildFormStep.medicalInfo:
-        return 'Medical Information';
-      case ChildFormStep.selectInstitution:
-        return 'Select Institution';
-      case ChildFormStep.confirmation:
-        return 'Confirmation';
-    }
+String _getStepTitle() {
+  switch (_currentStep) {
+    case ChildFormStep.basicInfo:
+      return 'Add Child - Basic Information';
+    case ChildFormStep.medicalInfo:
+      return widget.screeningData != null ? 'Screening Results Summary' : 'Medical Information';
+    case ChildFormStep.selectInstitution:
+      return 'Recommended Institutions';
+    case ChildFormStep.confirmation:
+      return 'Confirmation';
   }
+}
 
   // ⭐ جديد: دالة فتح شاشة الخريطة واستقبال البيانات
   Future<void> _openMapScreen() async {

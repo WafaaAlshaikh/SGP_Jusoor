@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../models/screening_models.dart';
 import 'start_screening_screen.dart';
+import 'manage_children_screen.dart';
 
 class ResultsScreen extends StatelessWidget {
   final Map<String, dynamic> results;
@@ -18,7 +19,7 @@ class ResultsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Screening Results'),
-        backgroundColor: Colors.blue[700],
+        backgroundColor: const Color.fromARGB(255, 114, 180, 245),
         foregroundColor: Colors.white,
         elevation: 0,
       ),
@@ -89,6 +90,26 @@ class ResultsScreen extends StatelessWidget {
       ),
     );
   }
+
+  void _addChildFromScreening(BuildContext context) {
+  final screeningData = {
+    'from_screening': true,
+    'suspected_condition': results['primary_concern']?.toString() ?? '',
+    'symptoms_description': 'Based on screening assessment - ${results['recommendations']?.join(', ') ?? ''}',
+    'recommended_institutions': results['enhanced_analysis']?['recommended_institutions'] ?? [],
+  };
+
+  print('🎯 Navigating to ManageChildrenScreen with screening data');
+
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(
+      builder: (context) => ManageChildrenScreen(
+        screeningData: screeningData,
+      ),
+    ),
+  );
+}
 
   Widget _buildRiskLevelsSection(Map<String, dynamic> riskLevels, Map<String, dynamic> scores) {
     return Container(
@@ -375,6 +396,26 @@ class ResultsScreen extends StatelessWidget {
             ),
           ),
         ),
+        const SizedBox(height: 15),
+      SizedBox(
+        width: double.infinity,
+        height: 50,
+        child: ElevatedButton(
+          onPressed: () {
+            _addChildFromScreening(context);
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green[700],
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          child: const Text(
+            'Add to My Children',
+            style: TextStyle(fontSize: 18, color: Colors.white),
+          ),
+        ),
+      ),
       ],
     );
   }

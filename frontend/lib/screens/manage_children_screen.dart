@@ -9,10 +9,14 @@ import '../widgets/child_form_dialog.dart';
 import '../widgets/empty_state_widget.dart';
 import '../widgets/error_state_widget.dart';
 
+
+
 enum ChildSortOption { name, age, lastSession, registrationStatus }
 
 class ManageChildrenScreen extends StatefulWidget {
-  const ManageChildrenScreen({super.key});
+   final Map<String, dynamic>? screeningData; // ⭐ هذا الناقص
+
+  const ManageChildrenScreen({super.key, this.screeningData}); 
 
   @override
   State<ManageChildrenScreen> createState() => _ManageChildrenScreenState();
@@ -45,6 +49,13 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
     super.initState();
     _initializeData();
     _fetchChildren();
+
+     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.screeningData != null) {
+        print('🎯 Opening child form automatically from screening results');
+        _openAddEditChild(screeningData: widget.screeningData);
+      }
+    });
   }
 
   void _initializeData() {
@@ -196,24 +207,31 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
     print('🔄 Sorted children by ${_sortOption.name}');
   }
 
-  void _openAddEditChild({Child? child}) async {
-    final changed = await showDialog<bool>(
-      context: context,
-      builder: (_) => ChildFormDialog(child: child),
-    );
+  void _openAddEditChild({Child? child, Map<String, dynamic>? screeningData}) async {
+  final changed = await showDialog<bool>(
+    context: context,
+    builder: (_) => ChildFormDialog(
+      child: child,
+      screeningData: screeningData, // ⭐ مرر بيانات الـ screening هنا
+    ),
+  );
 
-    if (changed == true) {
-      await _fetchChildren();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(child == null ? 'Child added successfully!' : 'Child updated successfully!'),
-          backgroundColor: _successColor,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
-    }
+  if (changed == true) {
+    await _fetchChildren();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(child == null 
+          ? (screeningData != null 
+              ? 'Child added from screening results!' 
+              : 'Child added successfully!')
+          : 'Child updated successfully!'),
+        backgroundColor: _successColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
+}
 
   void _confirmDelete(Child child) async {
     final confirmed = await showDialog<bool>(
