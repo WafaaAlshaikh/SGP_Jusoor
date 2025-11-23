@@ -210,40 +210,62 @@ class SpecialistService {
 
   // ✅ إضافة نوع جلسة جديد
   static Future<Map<String, dynamic>> addSessionType({
-    required String name,
-    required int duration,
-    required double price,
-    required String category,
-    List<String>? targetConditions,
-  }) async {
-    try {
-      final token = await _getToken();
-      if (token == null) throw Exception('No token found');
+  required String name,
+  required int duration,
+  required double price,
+  required String category,
+  List<String>? targetConditions,
+}) async {
+  try {
+    final token = await _getToken();
+    if (token == null) throw Exception('No authentication token found');
 
-      final response = await http.post(
-        Uri.parse('$baseUrl/add-session-type'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'name': name,
-          'duration': duration,
-          'price': price,
-          'category': category,
-          'target_conditions': targetConditions,
-        }),
-      );
+    print('🔄 Sending session type request...');
+    print('   - Name: $name');
+    print('   - Duration: $duration min');
+    print('   - Price: $price JOD');
+    print('   - Category: $category');
+    print('   - Target Conditions: $targetConditions');
 
-      if (response.statusCode == 201) {
-        return jsonDecode(response.body);
-      } else {
-        final error = jsonDecode(response.body);
-        throw Exception(error['message'] ?? 'Failed to add session type');
-      }
-    } catch (e) {
-      print('❌ Error in addSessionType: $e');
-      rethrow;
+    final response = await http.post(
+      Uri.parse('$baseUrl/add-session-type'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'name': name,
+        'duration': duration,
+        'price': price,
+        'category': category,
+        'target_conditions': targetConditions,
+      }),
+    );
+
+    print('📡 Response status: ${response.statusCode}');
+    print('📡 Response body: ${response.body}');
+
+    if (response.statusCode == 201) {
+      final data = jsonDecode(response.body);
+      print('✅ Session type request submitted successfully');
+      return data;
+    } else {
+      final errorData = jsonDecode(response.body);
+      final errorMessage = errorData['message'] ?? 'Failed to add session type';
+      print('❌ Server error: $errorMessage');
+      throw Exception(errorMessage);
+    }
+  } catch (e) {
+    print('❌ Network error in addSessionType: $e');
+    
+    // 🔥 معالجة أفضل للرسائل العربية
+    if (e.toString().contains('خطأ في إضافة نوع الجلسة')) {
+      throw Exception('Error adding session type - please try again');
+    } else if (e.toString().contains('No authentication token')) {
+      throw Exception('Please login again');
+    } else {
+      throw Exception('Network error: Please check your connection');
     }
   }
+}
 }

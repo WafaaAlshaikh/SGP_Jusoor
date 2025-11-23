@@ -820,7 +820,6 @@ const addSessionsForChildren = async (req, res) => {
   }
 };
 
-// ✅ إضافة نوع جلسة جديد (بحاجة لموافقة المدير)
 const addSessionType = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
@@ -828,17 +827,9 @@ const addSessionType = async (req, res) => {
       name,
       duration,
       price,
-      category,
-      target_conditions // مصفوفة من الحالات المستهدفة
+      category, // هذا اللي بده يروح على specialization
+      target_conditions
     } = req.body;
-
-    // التحقق من الحقول المطلوبة
-    if (!name || !duration || !price || !category) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'الحقول المطلوبة: name, duration, price, category' 
-      });
-    }
 
     // 1️⃣ جلب بيانات المختص
     const specialist = await Specialist.findOne({
@@ -848,43 +839,37 @@ const addSessionType = async (req, res) => {
     if (!specialist || !specialist.institution_id) {
       return res.status(404).json({ 
         success: false,
-        message: 'المختص أو المؤسسة غير موجودة' 
+        message: 'Specialist or institution not found' 
       });
     }
 
-    // 2️⃣ إنشاء نوع الجلسة بحالة "Pending"
+    // 2️⃣ 🔥 استخدم specialist.specialization بدل category
     const sessionType = await SessionType.create({
       institution_id: specialist.institution_id,
       name,
       duration: parseInt(duration),
       price: parseFloat(price),
-      category,
+      category: specialist.specialization || 'General', // 🔥 هنا التغيير
       specialist_specialization: specialist.specialization || '',
       target_conditions: target_conditions || null,
-      approval_status: 'Pending', // بانتظار موافقة المدير
+      approval_status: 'Pending',
       created_by_specialist_id: specialistId
     });
 
-    // 3️⃣ إرسال إشعار للمديرين في المؤسسة
+    // 3️⃣ باقي الكود يضل نفسه...
     const Manager = require('../model/Manager');
     const managers = await Manager.findAll({
       where: {
         institution_id: specialist.institution_id,
         is_active: true
-      },
-      include: [
-        {
-          model: User,
-          attributes: ['user_id']
-        }
-      ]
+      }
     });
 
     for (const manager of managers) {
       await Notification.create({
         user_id: manager.manager_id,
-        title: 'طلب موافقة على نوع جلسة جديد',
-        message: `طلب المختص ${specialist.specialization} إضافة نوع جلسة جديد: ${name}. يرجى المراجعة والموافقة.`,
+        title: 'New Session Type Approval Request',
+        message: `Specialist ${specialist.specialization} requested to add new session type: ${name}. Please review and approve.`,
         type: 'general',
         related_id: sessionType.session_type_id,
         is_read: false
@@ -893,7 +878,7 @@ const addSessionType = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'تم إرسال طلب إضافة نوع الجلسة للمدير للموافقة',
+      message: 'Session type request sent for admin approval',
       data: sessionType
     });
 
@@ -901,7 +886,7 @@ const addSessionType = async (req, res) => {
     console.error('Error in addSessionType:', err);
     res.status(500).json({ 
       success: false,
-      message: 'خطأ في إضافة نوع الجلسة', 
+      message: 'Error adding session type', 
       error: err.message 
     });
   }

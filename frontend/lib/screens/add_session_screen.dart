@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/specialist_api.dart';
 import '../theme/app_colors.dart';
+import 'add_session_type_screen.dart';
 
 class AddSessionScreen extends StatefulWidget {
   final String? preSelectedDate;
@@ -768,11 +769,49 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
   }
 
   Widget _buildSessionTypesList() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+    return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      // العنوان والزر جنباً إلى جنب
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // const Text(
+          //   'Select Session Type',
+          //   style: TextStyle(
+          //     fontSize: 18,
+          //     fontWeight: FontWeight.bold,
+          //     color: AppColors.textDark,
+          //   ),
+          // ),
+          TextButton.icon(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => AddSessionTypeScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.add_circle, size: 18),
+            label: const Text(
+              'New Type',
+              style: TextStyle(fontSize: 14),
+            ),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.primary,
+            ),
+          ),
+        ],
       ),
+      
+      const SizedBox(height: 12),
+      
+      // قائمة أنواع الجلسات
+      Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+        ),
       child: Column(
         children: sessionTypes.map((type) {
           final typeId = type['session_type_id'] as int;
@@ -804,9 +843,11 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
             ),
           );
         }).toList(),
+        ),
       ),
-    );
-  }
+    ],
+  );
+}
 
   Widget _buildDateTimeSelection() {
   return Container(
@@ -924,7 +965,6 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
             },
           ),
         ),
-        
         const Divider(),
         
         // Time selection
