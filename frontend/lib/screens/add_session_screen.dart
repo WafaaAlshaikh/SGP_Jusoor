@@ -4,7 +4,18 @@ import '../services/specialist_api.dart';
 import '../theme/app_colors.dart';
 
 class AddSessionScreen extends StatefulWidget {
-  const AddSessionScreen({super.key});
+  final String? preSelectedDate;
+  final List<String> preSelectedFocusAreas;
+  final int? childId;
+  final String? childName;
+
+  const AddSessionScreen({
+    super.key,
+    this.preSelectedDate,
+    this.preSelectedFocusAreas = const [],
+    this.childId,
+    this.childName,
+  });
 
   @override
   State<AddSessionScreen> createState() => _AddSessionScreenState();
@@ -28,56 +39,151 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
   String sessionType = 'Onsite';
   TextEditingController notesController = TextEditingController();
 
-  @override
-  void initState() {
-    super.initState();
+  // Focus areas from AI recommendations
+  List<String> focusAreas = [];
+
+  // 🔥 متغير لتتبع إذا كان الطفل محدداً تلقائياً
+  bool isAutoSelected = false;
+
+ @override
+void initState() {
+  super.initState();
+  print('🚀 AddSessionScreen initialized');
+  print('📋 Initial data - ChildID: ${widget.childId}, Date: ${widget.preSelectedDate}');
+  
+  _initializePreSelectedData();
+}
+
+@override
+void didChangeDependencies() {
+  super.didChangeDependencies();
+  print('🔄 AddSessionScreen dependencies changed');
+  
+  // تأكد من تحميل البيانات بعد بناء الواجهة
+  WidgetsBinding.instance.addPostFrameCallback((_) {
     _loadData();
-  }
+  });
+}
 
-  @override
-  void dispose() {
-    notesController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadData() async {
-    await Future.wait([
-      _loadEligibleChildren(),
-      _loadSessionTypes(),
-    ]);
-  }
-
-  Future<void> _loadEligibleChildren() async {
-    if (!mounted) return;
-    
+Future<void> _loadData() async {
+  print('📥 Loading data...');
+  await Future.wait([
+    _loadEligibleChildren(),
+    _loadSessionTypes(),
+  ]);
+  
+  // 🔥 بعد تحميل الأطفال، تحقق من التحديد التلقائي
+  if (widget.childId != null && !selectedChildIds.contains(widget.childId)) {
     setState(() {
-      isLoadingChildren = true;
-      errorMessage = null;
+      selectedChildIds.add(widget.childId!);
+      isAutoSelected = true;
     });
+    print('✅ Force auto-selected child after data load: ${widget.childId}');
+  }
+}
 
+  // 🔥 دالة محسنة لتهيئة البيانات المسبقة
+  // 🔥 دالة محسنة لتهيئة البيانات المسبقة
+void _initializePreSelectedData() {
+  print('🎯 Initializing pre-selected data...');
+  print('Child ID: ${widget.childId}');
+  print('Child Name: ${widget.childName}');
+  print('Pre-selected Date: ${widget.preSelectedDate}');
+  print('Focus Areas: ${widget.preSelectedFocusAreas}');
+
+  // إذا كان هناك تاريخ مسبق
+  if (widget.preSelectedDate != null) {
     try {
-      final response = await SpecialistService.getEligibleChildren();
-      if (!mounted) return;
-      
-      if (response['success'] == true) {
-        setState(() {
-          eligibleChildren = response['data'] ?? [];
-          isLoadingChildren = false;
-        });
-      } else {
-        setState(() {
-          errorMessage = response['message'] ?? 'Failed to load children';
-          isLoadingChildren = false;
-        });
-      }
-    } catch (e) {
-      if (!mounted) return;
+      final date = DateTime.parse(widget.preSelectedDate!);
       setState(() {
-        errorMessage = 'Error loading children: ${e.toString()}';
-        isLoadingChildren = false;
+        selectedDate = date;
+      });
+      print('✅ Date set to: $selectedDate');
+      
+      // تحميل الأوقات المتاحة لهذا التاريخ
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadAvailableSlots();
+      });
+    } catch (e) {
+      print('❌ Error parsing pre-selected date: $e');
+      // إذا فشل التحويل، استخدم تاريخ افتراضي
+      setState(() {
+        selectedDate = DateTime.now().add(Duration(days: 7));
       });
     }
   }
+
+  // 🔥 إذا كان هناك focus areas
+  if (widget.preSelectedFocusAreas.isNotEmpty) {
+    setState(() {
+      focusAreas = List.from(widget.preSelectedFocusAreas);
+    });
+    print('✅ Focus areas set: $focusAreas');
+    
+    // إضافة focus areas إلى notes تلقائياً
+    if (focusAreas.isNotEmpty) {
+      final focusNotes = 'Focus areas: ${focusAreas.join(', ')}';
+      if (notesController.text.isEmpty) {
+        notesController.text = focusNotes;
+      } else {
+        notesController.text = '${notesController.text}\n\n$focusNotes';
+      }
+    }
+  }
+
+  // 🔥 إضافة ملاحظة تلقائية باسم الطفل
+  if (widget.childName != null && widget.childId != null) {
+    final autoNote = 'Session for ${widget.childName} - AI Recommended';
+    if (notesController.text.isEmpty) {
+      notesController.text = autoNote;
+    } else {
+      notesController.text = '$autoNote\n\n${notesController.text}';
+    }
+    print('✅ Auto note added for child: ${widget.childName}');
+  }
+}
+
+
+
+  Future<void> _loadEligibleChildren() async {
+  if (!mounted) return;
+  
+  setState(() {
+    isLoadingChildren = true;
+    errorMessage = null;
+  });
+
+  try {
+    final response = await SpecialistService.getEligibleChildren();
+    if (!mounted) return;
+    
+    if (response['success'] == true) {
+      setState(() {
+        eligibleChildren = response['data'] ?? [];
+        
+        // 🔥 تحديد الطفل تلقائياً بعد تحميل البيانات
+        if (widget.childId != null && !selectedChildIds.contains(widget.childId)) {
+          selectedChildIds.add(widget.childId!);
+          isAutoSelected = true;
+          print('✅ Auto-selected child: ${widget.childId}');
+        }
+        
+        isLoadingChildren = false;
+      });
+    } else {
+      setState(() {
+        errorMessage = response['message'] ?? 'Failed to load children';
+        isLoadingChildren = false;
+      });
+    }
+  } catch (e) {
+    if (!mounted) return;
+    setState(() {
+      errorMessage = 'Error loading children: ${e.toString()}';
+      isLoadingChildren = false;
+    });
+  }
+}
 
   Future<void> _loadSessionTypes() async {
     if (!mounted) return;
@@ -124,7 +230,7 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
       if (response['success'] == true) {
         setState(() {
           availableSlots = List<String>.from(response['data']['available_slots'] ?? []);
-          selectedTime = null; // إعادة تعيين الوقت المختار
+          selectedTime = null;
           isLoadingSlots = false;
         });
       } else {
@@ -167,7 +273,6 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
 
     // Format date and time
     final dateStr = DateFormat('yyyy-MM-dd').format(selectedDate!);
-    // الوقت مختار مسبقاً من القائمة فلا نحتاج لتحويله
 
     try {
       // Show loading dialog
@@ -184,7 +289,7 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
         childIds: selectedChildIds.toList(),
         sessionTypeId: selectedSessionTypeId!,
         date: dateStr,
-        time: '$selectedTime:00', // نضيف الثواني
+        time: '$selectedTime:00',
         sessionType: sessionType,
         notes: notesController.text.isNotEmpty ? notesController.text : null,
       );
@@ -267,59 +372,25 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Recommended Focus Areas
+              if (focusAreas.isNotEmpty) _buildRecommendedFocusAreas(),
+
               // Error message
-              if (errorMessage != null)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: AppColors.error.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.error),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.error_outline, color: AppColors.error),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          errorMessage!,
-                          style: const TextStyle(color: AppColors.error),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              if (errorMessage != null) _buildErrorMessage(),
 
               // Children Selection Section
               _buildSectionTitle('Select Children'),
-              if (isLoadingChildren)
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(20.0),
-                    child: CircularProgressIndicator(),
-                  ),
-                )
-              else if (eligibleChildren.isEmpty)
-                _buildEmptyState('No eligible children found')
-              else
-                _buildChildrenList(),
+              if (isLoadingChildren) _buildLoadingIndicator()
+              else if (eligibleChildren.isEmpty) _buildEmptyState('No eligible children found')
+              else _buildChildrenList(),
 
               const SizedBox(height: 24),
 
               // Session Type Selection
               _buildSectionTitle('Select Session Type'),
-              if (isLoadingSessionTypes)
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(20.0),
-                    child: CircularProgressIndicator(),
-                  ),
-                )
-              else if (sessionTypes.isEmpty)
-                _buildEmptyState('No session types available')
-              else
-                _buildSessionTypesList(),
+              if (isLoadingSessionTypes) _buildLoadingIndicator()
+              else if (sessionTypes.isEmpty) _buildEmptyState('No session types available')
+              else _buildSessionTypesList(),
 
               const SizedBox(height: 24),
 
@@ -353,32 +424,173 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
               const SizedBox(height: 32),
 
               // Submit Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _submitSession,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    'Add Sessions',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
+              _buildSubmitButton(),
 
               const SizedBox(height: 24),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // 🔥 الدالة المفقودة - إضافة زر الإرسال
+  Widget _buildSubmitButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: _submitSession,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: const Text(
+          'Add Sessions',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Widget for recommended focus areas
+  Widget _buildRecommendedFocusAreas() {
+  final hasRecommendations = focusAreas.isNotEmpty || widget.childName != null;
+  
+  if (!hasRecommendations) return SizedBox();
+
+  return Container(
+    width: double.infinity,
+    padding: EdgeInsets.all(16),
+    margin: EdgeInsets.only(bottom: 16),
+    decoration: BoxDecoration(
+      color: Colors.green[50],
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.green, width: 2),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.auto_awesome, color: Colors.green[700], size: 24),
+            SizedBox(width: 12),
+            Text(
+              'AI Recommended Session',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.green[800],
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: 12),
+        
+        if (widget.childName != null) 
+          Container(
+            padding: EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.person, color: Colors.green[700], size: 16),
+                SizedBox(width: 8),
+                Text(
+                  'Child: ',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  widget.childName!,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.green[700],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        
+        if (focusAreas.isNotEmpty) ...[
+          SizedBox(height: 8),
+          Container(
+            padding: EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Focus Areas:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 4),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: focusAreas.map((area) => Chip(
+                    label: Text(area),
+                    backgroundColor: Colors.green[100],
+                    labelStyle: TextStyle(color: Colors.green[800]),
+                  )).toList(),
+                ),
+              ],
+            ),
+          ),
+        ],
+        
+        SizedBox(height: 8),
+        Text(
+          'This session has been pre-configured based on AI progress analysis',
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.green[700],
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+  Widget _buildErrorMessage() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: AppColors.error.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.error),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: AppColors.error),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              errorMessage!,
+              style: const TextStyle(color: AppColors.error),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingIndicator() {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(20.0),
+        child: CircularProgressIndicator(),
       ),
     );
   }
@@ -417,48 +629,120 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
   }
 
   Widget _buildChildrenList() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: eligibleChildren.map((child) {
-          final childId = child['child_id'] as int;
-          final isSelected = selectedChildIds.contains(childId);
-          return CheckboxListTile(
+  return Container(
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Column(
+      children: eligibleChildren.map((child) {
+        final childId = child['child_id'] as int;
+        final isSelected = selectedChildIds.contains(childId);
+        final isAutoSelectedChild = isAutoSelected && childId == widget.childId;
+        final childName = child['full_name'] ?? 'Unknown';
+        final childCondition = child['condition'] ?? 'Not specified';
+        
+        print('👶 Child in list: $childId, Selected: $isSelected, Auto: $isAutoSelectedChild');
+
+        return Container(
+          margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: isAutoSelectedChild ? BoxDecoration(
+            color: Colors.green[50],
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.green, width: 2),
+          ) : null,
+          child: CheckboxListTile(
             value: isSelected,
             onChanged: (value) {
               setState(() {
                 if (value == true) {
                   selectedChildIds.add(childId);
+                  print('➕ Added child: $childId');
                 } else {
                   selectedChildIds.remove(childId);
+                  print('➖ Removed child: $childId');
+                  // إذا كان الطفل محدد تلقائياً وألغى التحديد، نزيل العلامة
+                  if (isAutoSelectedChild) {
+                    isAutoSelected = false;
+                    print('🔁 Auto-selection disabled');
+                  }
                 }
               });
             },
-            title: Text(
-              child['full_name'] ?? '',
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-              ),
+            title: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    childName,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      color: isAutoSelectedChild ? Colors.green[800] : Colors.black87,
+                    ),
+                  ),
+                ),
+                if (isAutoSelectedChild) ...[
+                  SizedBox(width: 8),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.green,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.auto_awesome, size: 12, color: Colors.white),
+                        SizedBox(width: 4),
+                        Text(
+                          'AI Selected',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
             ),
-            subtitle: Text(
-              'Condition: ${child['condition'] ?? 'Not specified'}',
-              style: const TextStyle(
-                color: AppColors.textGray,
-                fontSize: 12,
-              ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Condition: $childCondition',
+                  style: TextStyle(
+                    color: AppColors.textGray,
+                    fontSize: 12,
+                  ),
+                ),
+                if (isAutoSelectedChild) 
+                  Text(
+                    'Recommended based on progress analysis',
+                    style: TextStyle(
+                      color: Colors.green[600],
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+              ],
             ),
+            secondary: isAutoSelectedChild 
+                ? Icon(Icons.psychology, color: Colors.green, size: 24)
+                : Icon(Icons.person_outline, color: Colors.grey[600], size: 24),
             activeColor: AppColors.primary,
+            checkColor: Colors.white,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
             ),
-          );
-        }).toList(),
-      ),
-    );
-  }
+            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          ),
+        );
+      }).toList(),
+    ),
+  );
+}
 
   Widget _buildSessionTypesList() {
     return Container(
@@ -502,52 +786,73 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
   }
 
   Widget _buildDateTimeSelection() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          // Date picker
-          ListTile(
-            leading: const Icon(Icons.calendar_today, color: AppColors.primary),
-            title: const Text('Date'),
-            subtitle: Text(
-              selectedDate != null
-                  ? DateFormat('yyyy-MM-dd').format(selectedDate!)
-                  : 'Select date',
-            ),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-            onTap: () async {
-              final date = await showDatePicker(
-                context: context,
-                initialDate: DateTime.now(),
-                firstDate: DateTime.now(),
-                lastDate: DateTime.now().add(const Duration(days: 365)),
-              );
-              if (date != null && mounted) {
-                setState(() {
-                  selectedDate = date;
-                  selectedTime = null; // إعادة تعيين الوقت عند تغيير التاريخ
-                });
-                await _loadAvailableSlots();
-              }
-            },
+  return Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Column(
+      children: [
+        // Date picker
+        ListTile(
+          leading: const Icon(Icons.calendar_today, color: AppColors.primary),
+          title: const Text('Date'),
+          subtitle: Text(
+            selectedDate != null
+                ? DateFormat('yyyy-MM-dd').format(selectedDate!)
+                : 'Select date',
           ),
-          const Divider(),
-          
-          // Time selection
-          ListTile(
-            leading: const Icon(Icons.access_time, color: AppColors.primary),
-            title: const Text('Available Times'),
-            subtitle: _buildTimeSelection(),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (widget.preSelectedDate != null && selectedDate != null)
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.green,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'AI Recommended',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              const Icon(Icons.arrow_forward_ios, size: 16),
+            ],
           ),
-        ],
-      ),
-    );
-  }
+          onTap: () async {
+            final date = await showDatePicker(
+              context: context,
+              initialDate: selectedDate ?? DateTime.now(),
+              firstDate: DateTime.now(),
+              lastDate: DateTime.now().add(const Duration(days: 365)),
+            );
+            if (date != null && mounted) {
+              setState(() {
+                selectedDate = date;
+                selectedTime = null;
+              });
+              await _loadAvailableSlots();
+            }
+          },
+        ),
+        const Divider(),
+        
+        // Time selection
+        ListTile(
+          leading: const Icon(Icons.access_time, color: AppColors.primary),
+          title: const Text('Available Times'),
+          subtitle: _buildTimeSelection(),
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildTimeSelection() {
     if (selectedDate == null) {

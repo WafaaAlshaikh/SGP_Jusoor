@@ -4,6 +4,7 @@ import 'dart:math';
 import '../services/specialist_children_service.dart';
 import '../services/progress_analysis_service.dart';
 import 'comparison_analysis_screen.dart';
+import 'add_session_screen.dart';
 class ChildDetailsScreen extends StatefulWidget {
   final int childId;
   final String childName;
@@ -32,6 +33,22 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
   void initState() {
     super.initState();
     _loadChildDetails();
+  }
+  // 🔥 أضف هذه الدالة في _ChildDetailsScreenState
+  void _debugCheckAnalysisData() {
+    if (_progressAnalysis != null) {
+      print('=== AI ANALYSIS DATA DEBUG ===');
+      print('Professional Analysis: ${_progressAnalysis!['professional_analysis']}');
+
+      final professionalAnalysis = _progressAnalysis!['professional_analysis'];
+      if (professionalAnalysis != null) {
+        print('Next Session: ${professionalAnalysis['next_session']}');
+        print('Next Session Type: ${professionalAnalysis['next_session']?.runtimeType}');
+      }
+
+      print('Analysis Keys: ${_progressAnalysis!.keys.toList()}');
+      print('==============================');
+    }
   }
 
   Future<void> _loadChildDetails() async {
@@ -77,6 +94,7 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
       setState(() {
         _progressAnalysis = analysis;
       });
+      _debugCheckAnalysisData();
     } catch (e) {
       setState(() {
         _analysisError = e.toString().replaceAll('Exception: ', '');
@@ -705,6 +723,7 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
                   SizedBox(height: 16),
                 ],
               ),
+            _buildNextSessionSection(analysis),
 
             // 🔥 قسم Next Evaluation - يظهر دائماً إذا كانت البيانات متوفرة
             if (analysis['next_evaluation'] != null)
@@ -731,6 +750,85 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
       ),
     );
   }
+
+  Widget _buildNextSessionSection(Map<String, dynamic> analysis) {
+    final nextSession = analysis['next_session'];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Next Session Recommendation',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+        ),
+        SizedBox(height: 8),
+
+        if (nextSession != null)
+          _buildNextSessionCard(nextSession)
+        else
+          _buildDefaultNextSessionCard(),
+
+        SizedBox(height: 16),
+      ],
+    );
+  }
+
+// 🔥 بطاقة افتراضية عندما لا تكون هناك توصية
+  Widget _buildDefaultNextSessionCard() {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.lightbulb_outline, color: Colors.blue, size: 20),
+              SizedBox(width: 8),
+              Text(
+                'AI Session Recommendation',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blue[800]),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          Text(
+            'Based on the child\'s progress analysis, we recommend scheduling the next session soon to maintain momentum.',
+            style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+          ),
+          SizedBox(height: 12),
+
+          // 🔥 زر Book Now تجريبي
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _onBookNowPressed({
+                'suggested_date': _getNextAvailableDate(),
+                'focus_areas': ['Continue current progress', 'Reinforce learned skills'],
+                'preparation': 'Review previous session notes and prepare materials'
+              }),
+              icon: Icon(Icons.event_available, size: 20),
+              label: Text('Book Recommended Session'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue[600],
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
 
   Widget _buildInitialPlanContent(Map<String, dynamic> analysis) {
     return Column(
@@ -827,70 +925,169 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
       ],
     );
   }
+
+  // 🔥 دالة محسنة لتحويل التاريخ
+String _convertDateFormat(String? inputDate) {
+  if (inputDate == null || inputDate.isEmpty || inputDate == 'N/A') {
+    return _getNextAvailableDate(); // تاريخ افتراضي إذا لم يكن موجوداً
+  }
+  
+  try {
+    // إذا كان التاريخ بصيغة "6-12" (يوم-شهر)
+    if (inputDate.contains('-') && !inputDate.contains('-20')) {
+      final parts = inputDate.split('-');
+      if (parts.length == 2) {
+        final day = int.tryParse(parts[0].trim());
+        final month = int.tryParse(parts[1].trim());
+        
+        if (day != null && month != null) {
+          final now = DateTime.now();
+          final year = now.year;
+          
+          // إنشاء التاريخ مع السنة الحالية
+          final date = DateTime(year, month, day);
+          
+          // إذا كان التاريخ قد مضى، نضيف سنة
+          final finalDate = date.isBefore(now) ? DateTime(year + 1, month, day) : date;
+          
+          return '${finalDate.year}-${finalDate.month.toString().padLeft(2, '0')}-${finalDate.day.toString().padLeft(2, '0')}';
+        }
+      }
+    }
+    
+    // إذا كان التاريخ بصيغة أخرى، نحاول تحليله
+    final date = DateTime.parse(inputDate);
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    
+  } catch (e) {
+    print('❌ Error converting date: $inputDate, error: $e');
+    return _getNextAvailableDate(); // تاريخ افتراضي في حالة الخطأ
+  }
+}
+
+// 🔥 دالة محسنة للحصول على تاريخ متاح
+String _getNextAvailableDate() {
+  final nextWeek = DateTime.now().add(Duration(days: 7));
+  return '${nextWeek.year}-${nextWeek.month.toString().padLeft(2, '0')}-${nextWeek.day.toString().padLeft(2, '0')}';
+}
   Widget _buildNextSessionCard(Map<String, dynamic> nextSession) {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.green[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.green.withOpacity(0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+  return Container(
+    padding: EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.green[50],
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.green.withOpacity(0.3)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.calendar_today, color: Colors.green, size: 20),
+            SizedBox(width: 8),
+            Text(
+              'Suggested Date: ${nextSession['suggested_date'] ?? 'N/A'}',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green[800]),
+            ),
+          ],
+        ),
+        SizedBox(height: 12),
+
+        if (nextSession['focus_areas'] != null && (nextSession['focus_areas'] as List).isNotEmpty)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.calendar_today, color: Colors.green, size: 20),
-              SizedBox(width: 8),
               Text(
-                'Suggested Date: ${nextSession['suggested_date'] ?? 'N/A'}',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green[800]),
+                'Focus Areas:',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              SizedBox(height: 4),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: (nextSession['focus_areas'] as List).map((area) => Chip(
+                  label: Text(area.toString()),
+                  backgroundColor: Colors.green[100],
+                  labelStyle: TextStyle(fontSize: 12),
+                )).toList(),
+              ),
+              SizedBox(height: 8),
+            ],
+          ),
+
+        if (nextSession['preparation'] != null)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Preparation:',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              SizedBox(height: 4),
+              Text(
+                nextSession['preparation'].toString(),
+                style: TextStyle(fontSize: 14, color: Colors.grey[700]),
               ),
             ],
           ),
-          SizedBox(height: 12),
-
-          if (nextSession['focus_areas'] != null && (nextSession['focus_areas'] as List).isNotEmpty)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Focus Areas:',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-                SizedBox(height: 4),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: (nextSession['focus_areas'] as List).map((area) => Chip(
-                    label: Text(area.toString()),
-                    backgroundColor: Colors.green[100],
-                    labelStyle: TextStyle(fontSize: 12),
-                  )).toList(),
-                ),
-                SizedBox(height: 8),
-              ],
+        
+        // 🔥 إضافة زر Book Now
+        SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () => _onBookNowPressed(nextSession),
+            icon: Icon(Icons.event_available, size: 20),
+            label: Text('Book Now'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green[600],
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
-          if (nextSession['preparation'] != null)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Preparation:',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  nextSession['preparation'].toString(),
-                  style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-                ),
-              ],
-            ),
-        ],
+// 🔥 دالة التعامل مع زر Book Now - نسخة محسنة
+  // 🔥 دالة التعامل مع زر Book Now - نسخة محسنة مع التاريخ
+void _onBookNowPressed(Map<String, dynamic> nextSession) {
+  final suggestedDate = nextSession['suggested_date'];
+  final focusAreas = nextSession['focus_areas'] as List<dynamic>?;
+  
+  print('🎯 Book Now Pressed!');
+  print('Original Suggested Date: $suggestedDate');
+  
+  // تحويل التاريخ للتنسيق الصحيح
+  final convertedDate = _convertDateFormat(suggestedDate);
+  final finalFocusAreas = focusAreas?.cast<String>() ?? ['General skill development'];
+
+  print('Converted Date: $convertedDate');
+  print('Focus Areas: $finalFocusAreas');
+  print('Child ID: ${widget.childId}');
+  print('Child Name: ${widget.childName}');
+
+  // الانتقال لصفحة Add Session مع تمرير البيانات
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => AddSessionScreen(
+        preSelectedDate: convertedDate,
+        preSelectedFocusAreas: finalFocusAreas,
+        childId: widget.childId,
+        childName: widget.childName, // 🔥 تمرير اسم الطفل
       ),
-    );
-  }
+    ),
+  ).then((value) {
+    // Optional: Refresh data when returning from booking
+    _loadChildDetails();
+  });
+}
 // 🔥 دالة جديدة لعرض الـ Initial Plan
   Widget _buildInitialPlan(Map<String, dynamic> analysis) {
     return Column(
@@ -1552,7 +1749,7 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
             ),
             SizedBox(height: 16),
 
-            // Next Session
+            // Next Session مع زر Book Now
             if (actionPlan['next_session'] != null)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1562,34 +1759,7 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey[700]),
                   ),
                   SizedBox(height: 8),
-                  Container(
-                    padding: EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.amber[50],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.calendar_today, color: Colors.amber),
-                        SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Recommended: ${actionPlan['next_session']?['recommended_date'] ?? 'N/A'}',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              Text(
-                                'Status: ${actionPlan['next_session']?['status'] ?? 'N/A'}',
-                                style: TextStyle(color: Colors.grey[600]),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  _buildNextSessionCard(actionPlan['next_session']),
                   SizedBox(height: 16),
                 ],
               ),
@@ -1620,6 +1790,26 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
                       ],
                     ),
                   )).toList(),
+
+                  // 🔥 زر إضافي في الـ Action Plan
+                  SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _onBookNowPressed({
+                        'suggested_date': _getNextAvailableDate(),
+                        'focus_areas': ['Implement action plan recommendations'],
+                        'preparation': 'Review the complete action plan before the session'
+                      }),
+                      icon: Icon(Icons.event_available, size: 20),
+                      label: Text('Schedule Action Plan Session'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.amber[600],
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
                 ],
               ),
           ],
