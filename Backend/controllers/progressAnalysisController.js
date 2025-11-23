@@ -351,6 +351,39 @@ const analyzeChildProgress = async (req, res) => {
         }
       }
     };
+    // في ملف controllers/progressAnalysisController.js
+// ابحث عن السطر قبل res.json(response); وأضف:
+
+// 1️⃣2️⃣ 🔥 أضف الـ console.log هنا لرؤية التاريخ قبل الإرسال
+console.log('🎯 AI Recommended Date:', aiAnalysis.next_session?.suggested_date);
+console.log('📤 Sending to frontend analysis:', {
+  suggested_date: aiAnalysis.next_session?.suggested_date,
+  focus_areas: aiAnalysis.next_session?.focus_areas,
+  preparation: aiAnalysis.next_session?.preparation
+});
+
+// 🔥 أضف أيضاً تحقق من suggestedNextSession
+console.log('📅 Calculated Next Session Date:', suggestedNextSession);
+// 1️⃣2️⃣ 🔥 أضف الـ console.log هنا لرؤية التاريخ قبل الإرسال
+console.log('=== 🔥 PROGRESS ANALYSIS DEBUG ===');
+console.log('📊 Full AI Analysis:', JSON.stringify(aiAnalysis, null, 2));
+console.log('🎯 AI next_session:', aiAnalysis.next_session);
+console.log('📅 AI suggested_date:', aiAnalysis.next_session?.suggested_date);
+console.log('📋 AI recommendations:', aiAnalysis.recommendations);
+console.log('📅 Calculated Next Session Date:', suggestedNextSession);
+console.log('📤 Final Response next_session:', response.professional_analysis?.next_session);
+
+// تحقق من هيكل الـ AI response
+console.log('🔍 AI Analysis Structure:');
+if (aiAnalysis) {
+  Object.keys(aiAnalysis).forEach(key => {
+    console.log(`   ${key}:`, typeof aiAnalysis[key]);
+  });
+}
+
+console.log('================================');
+
+
 
     res.json(response);
 

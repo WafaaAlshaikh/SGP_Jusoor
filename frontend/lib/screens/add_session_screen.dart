@@ -45,149 +45,122 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
   // 🔥 متغير لتتبع إذا كان الطفل محدداً تلقائياً
   bool isAutoSelected = false;
 
- @override
-void initState() {
-  super.initState();
-  print('🚀 AddSessionScreen initialized');
-  print('📋 Initial data - ChildID: ${widget.childId}, Date: ${widget.preSelectedDate}');
-  
-  _initializePreSelectedData();
-}
+  @override
+  void initState() {
+    super.initState();
+    print('🚀 AddSessionScreen initialized');
+    print('📋 Received data:');
+    print('   - preSelectedDate: ${widget.preSelectedDate}');
+    print('   - preSelectedFocusAreas: ${widget.preSelectedFocusAreas}');
+    print('   - childId: ${widget.childId}');
+    print('   - childName: ${widget.childName}');
 
-@override
-void didChangeDependencies() {
-  super.didChangeDependencies();
-  print('🔄 AddSessionScreen dependencies changed');
-  
-  // تأكد من تحميل البيانات بعد بناء الواجهة
-  WidgetsBinding.instance.addPostFrameCallback((_) {
+    _initializePreSelectedData();
     _loadData();
-  });
-}
-
-Future<void> _loadData() async {
-  print('📥 Loading data...');
-  await Future.wait([
-    _loadEligibleChildren(),
-    _loadSessionTypes(),
-  ]);
-  
-  // 🔥 بعد تحميل الأطفال، تحقق من التحديد التلقائي
-  if (widget.childId != null && !selectedChildIds.contains(widget.childId)) {
-    setState(() {
-      selectedChildIds.add(widget.childId!);
-      isAutoSelected = true;
-    });
-    print('✅ Force auto-selected child after data load: ${widget.childId}');
   }
-}
 
-  // 🔥 دالة محسنة لتهيئة البيانات المسبقة
-  // 🔥 دالة محسنة لتهيئة البيانات المسبقة
-void _initializePreSelectedData() {
-  print('🎯 Initializing pre-selected data...');
-  print('Child ID: ${widget.childId}');
-  print('Child Name: ${widget.childName}');
-  print('Pre-selected Date: ${widget.preSelectedDate}');
-  print('Focus Areas: ${widget.preSelectedFocusAreas}');
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    print('🔄 AddSessionScreen dependencies changed');
 
-  // إذا كان هناك تاريخ مسبق
-  if (widget.preSelectedDate != null) {
-    try {
-      final date = DateTime.parse(widget.preSelectedDate!);
+    // تأكد من تحميل البيانات بعد بناء الواجهة
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadData();
+    });
+  }
+
+  Future<void> _loadData() async {
+    print('📥 Loading data...');
+    await Future.wait([
+      _loadEligibleChildren(),
+      _loadSessionTypes(),
+    ]);
+
+    // 🔥 بعد تحميل الأطفال، تحقق من التحديد التلقائي
+    if (widget.childId != null && !selectedChildIds.contains(widget.childId)) {
       setState(() {
-        selectedDate = date;
+        selectedChildIds.add(widget.childId!);
+        isAutoSelected = true;
       });
-      print('✅ Date set to: $selectedDate');
-      
-      // تحميل الأوقات المتاحة لهذا التاريخ
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _loadAvailableSlots();
-      });
-    } catch (e) {
-      print('❌ Error parsing pre-selected date: $e');
-      // إذا فشل التحويل، استخدم تاريخ افتراضي
-      setState(() {
-        selectedDate = DateTime.now().add(Duration(days: 7));
-      });
+      print('✅ Force auto-selected child after data load: ${widget.childId}');
     }
   }
 
-  // 🔥 إذا كان هناك focus areas
-  if (widget.preSelectedFocusAreas.isNotEmpty) {
-    setState(() {
-      focusAreas = List.from(widget.preSelectedFocusAreas);
-    });
-    print('✅ Focus areas set: $focusAreas');
-    
-    // إضافة focus areas إلى notes تلقائياً
-    if (focusAreas.isNotEmpty) {
-      final focusNotes = 'Focus areas: ${focusAreas.join(', ')}';
-      if (notesController.text.isEmpty) {
-        notesController.text = focusNotes;
-      } else {
-        notesController.text = '${notesController.text}\n\n$focusNotes';
+  void _initializePreSelectedData() {
+    print('🎯 Initializing pre-selected data...');
+
+    // التحقق من التاريخ المسبق
+    if (widget.preSelectedDate != null) {
+      print('📅 Processing pre-selected date: ${widget.preSelectedDate}');
+
+      try {
+        final date = DateTime.parse(widget.preSelectedDate!);
+        setState(() {
+          selectedDate = date;
+        });
+        print('✅ Date successfully set to: $selectedDate');
+
+        // تحميل الأوقات المتاحة فوراً
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _loadAvailableSlots();
+        });
+      } catch (e) {
+        print('❌ Error parsing date: $e');
+        // استخدام تاريخ افتراضي إذا فشل التحليل
+        setState(() {
+          selectedDate = DateTime.now().add(Duration(days: 1));
+        });
       }
-    }
-  }
-
-  // 🔥 إضافة ملاحظة تلقائية باسم الطفل
-  if (widget.childName != null && widget.childId != null) {
-    final autoNote = 'Session for ${widget.childName} - AI Recommended';
-    if (notesController.text.isEmpty) {
-      notesController.text = autoNote;
     } else {
-      notesController.text = '$autoNote\n\n${notesController.text}';
+      print('❌ No pre-selected date provided');
     }
-    print('✅ Auto note added for child: ${widget.childName}');
   }
-}
-
-
 
   Future<void> _loadEligibleChildren() async {
-  if (!mounted) return;
-  
-  setState(() {
-    isLoadingChildren = true;
-    errorMessage = null;
-  });
-
-  try {
-    final response = await SpecialistService.getEligibleChildren();
     if (!mounted) return;
-    
-    if (response['success'] == true) {
+
+    setState(() {
+      isLoadingChildren = true;
+      errorMessage = null;
+    });
+
+    try {
+      final response = await SpecialistService.getEligibleChildren();
+      if (!mounted) return;
+
+      if (response['success'] == true) {
+        setState(() {
+          eligibleChildren = response['data'] ?? [];
+
+          // 🔥 تحديد الطفل تلقائياً بعد تحميل البيانات
+          if (widget.childId != null &&
+              !selectedChildIds.contains(widget.childId)) {
+            selectedChildIds.add(widget.childId!);
+            isAutoSelected = true;
+            print('✅ Auto-selected child: ${widget.childId}');
+          }
+
+          isLoadingChildren = false;
+        });
+      } else {
+        setState(() {
+          errorMessage = response['message'] ?? 'Failed to load children';
+          isLoadingChildren = false;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
       setState(() {
-        eligibleChildren = response['data'] ?? [];
-        
-        // 🔥 تحديد الطفل تلقائياً بعد تحميل البيانات
-        if (widget.childId != null && !selectedChildIds.contains(widget.childId)) {
-          selectedChildIds.add(widget.childId!);
-          isAutoSelected = true;
-          print('✅ Auto-selected child: ${widget.childId}');
-        }
-        
-        isLoadingChildren = false;
-      });
-    } else {
-      setState(() {
-        errorMessage = response['message'] ?? 'Failed to load children';
+        errorMessage = 'Error loading children: ${e.toString()}';
         isLoadingChildren = false;
       });
     }
-  } catch (e) {
-    if (!mounted) return;
-    setState(() {
-      errorMessage = 'Error loading children: ${e.toString()}';
-      isLoadingChildren = false;
-    });
   }
-}
 
   Future<void> _loadSessionTypes() async {
     if (!mounted) return;
-    
+
     setState(() {
       isLoadingSessionTypes = true;
     });
@@ -195,7 +168,7 @@ void _initializePreSelectedData() {
     try {
       final response = await SpecialistService.getAvailableSessionTypes();
       if (!mounted) return;
-      
+
       if (response['success'] == true) {
         setState(() {
           sessionTypes = response['data'] ?? [];
@@ -226,10 +199,11 @@ void _initializePreSelectedData() {
       final dateStr = DateFormat('yyyy-MM-dd').format(selectedDate!);
       final response = await SpecialistService.getAvailableSlots(dateStr);
       if (!mounted) return;
-      
+
       if (response['success'] == true) {
         setState(() {
-          availableSlots = List<String>.from(response['data']['available_slots'] ?? []);
+          availableSlots =
+              List<String>.from(response['data']['available_slots'] ?? []);
           selectedTime = null;
           isLoadingSlots = false;
         });
@@ -251,6 +225,39 @@ void _initializePreSelectedData() {
   }
 
   Future<void> _submitSession() async {
+    if (widget.preSelectedDate != null && selectedDate != null) {
+    final aiDate = DateTime.parse(widget.preSelectedDate!);
+    if (selectedDate != aiDate) {
+      // طلب تأكيد إذا غير التاريخ الموصى به
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Change AI Recommended Date?'),
+          content: Text('You are using a different date than the AI recommendation. Do you want to proceed?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text('Use AI Date'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text('Proceed Anyway'),
+            ),
+          ],
+        ),
+      );
+      
+      if (confirmed != true) {
+        // العودة للتاريخ الموصى به
+        setState(() {
+          selectedDate = DateTime.parse(widget.preSelectedDate!);
+          selectedTime = null;
+        });
+        await _loadAvailableSlots();
+        return;
+      }
+    }
+  }
     if (selectedChildIds.isEmpty) {
       _showError('Please select at least one child');
       return;
@@ -298,7 +305,8 @@ void _initializePreSelectedData() {
       if (mounted) Navigator.of(context).pop();
 
       if (response['success'] == true) {
-        _showSuccess('Sessions created successfully. Approval requests sent to parents');
+        _showSuccess(
+            'Sessions created successfully. Approval requests sent to parents');
         // Reset form
         if (mounted) {
           setState(() {
@@ -380,17 +388,23 @@ void _initializePreSelectedData() {
 
               // Children Selection Section
               _buildSectionTitle('Select Children'),
-              if (isLoadingChildren) _buildLoadingIndicator()
-              else if (eligibleChildren.isEmpty) _buildEmptyState('No eligible children found')
-              else _buildChildrenList(),
+              if (isLoadingChildren)
+                _buildLoadingIndicator()
+              else if (eligibleChildren.isEmpty)
+                _buildEmptyState('No eligible children found')
+              else
+                _buildChildrenList(),
 
               const SizedBox(height: 24),
 
               // Session Type Selection
               _buildSectionTitle('Select Session Type'),
-              if (isLoadingSessionTypes) _buildLoadingIndicator()
-              else if (sessionTypes.isEmpty) _buildEmptyState('No session types available')
-              else _buildSessionTypesList(),
+              if (isLoadingSessionTypes)
+                _buildLoadingIndicator()
+              else if (sessionTypes.isEmpty)
+                _buildEmptyState('No session types available')
+              else
+                _buildSessionTypesList(),
 
               const SizedBox(height: 24),
 
@@ -461,107 +475,108 @@ void _initializePreSelectedData() {
 
   // Widget for recommended focus areas
   Widget _buildRecommendedFocusAreas() {
-  final hasRecommendations = focusAreas.isNotEmpty || widget.childName != null;
-  
-  if (!hasRecommendations) return SizedBox();
+    final hasRecommendations =
+        focusAreas.isNotEmpty || widget.childName != null;
 
-  return Container(
-    width: double.infinity,
-    padding: EdgeInsets.all(16),
-    margin: EdgeInsets.only(bottom: 16),
-    decoration: BoxDecoration(
-      color: Colors.green[50],
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.green, width: 2),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.auto_awesome, color: Colors.green[700], size: 24),
-            SizedBox(width: 12),
-            Text(
-              'AI Recommended Session',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.green[800],
+    if (!hasRecommendations) return SizedBox();
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(16),
+      margin: EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.green[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green, width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.auto_awesome, color: Colors.green[700], size: 24),
+              SizedBox(width: 12),
+              Text(
+                'AI Recommended Session',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green[800],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          if (widget.childName != null)
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.person, color: Colors.green[700], size: 16),
+                  SizedBox(width: 8),
+                  Text(
+                    'Child: ',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    widget.childName!,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.green[700],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (focusAreas.isNotEmpty) ...[
+            SizedBox(height: 8),
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Focus Areas:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 4),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: focusAreas
+                        .map((area) => Chip(
+                              label: Text(area),
+                              backgroundColor: Colors.green[100],
+                              labelStyle: TextStyle(color: Colors.green[800]),
+                            ))
+                        .toList(),
+                  ),
+                ],
               ),
             ),
           ],
-        ),
-        SizedBox(height: 12),
-        
-        if (widget.childName != null) 
-          Container(
-            padding: EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.person, color: Colors.green[700], size: 16),
-                SizedBox(width: 8),
-                Text(
-                  'Child: ',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  widget.childName!,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.green[700],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        
-        if (focusAreas.isNotEmpty) ...[
           SizedBox(height: 8),
-          Container(
-            padding: EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Focus Areas:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 4),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: focusAreas.map((area) => Chip(
-                    label: Text(area),
-                    backgroundColor: Colors.green[100],
-                    labelStyle: TextStyle(color: Colors.green[800]),
-                  )).toList(),
-                ),
-              ],
+          Text(
+            'This session has been pre-configured based on AI progress analysis',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.green[700],
+              fontStyle: FontStyle.italic,
             ),
           ),
         ],
-        
-        SizedBox(height: 8),
-        Text(
-          'This session has been pre-configured based on AI progress analysis',
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.green[700],
-            fontStyle: FontStyle.italic,
-          ),
-        ),
-      ],
-    ),
-  );
-}
+      ),
+    );
+  }
+
   Widget _buildErrorMessage() {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -629,120 +644,128 @@ void _initializePreSelectedData() {
   }
 
   Widget _buildChildrenList() {
-  return Container(
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Column(
-      children: eligibleChildren.map((child) {
-        final childId = child['child_id'] as int;
-        final isSelected = selectedChildIds.contains(childId);
-        final isAutoSelectedChild = isAutoSelected && childId == widget.childId;
-        final childName = child['full_name'] ?? 'Unknown';
-        final childCondition = child['condition'] ?? 'Not specified';
-        
-        print('👶 Child in list: $childId, Selected: $isSelected, Auto: $isAutoSelectedChild');
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: eligibleChildren.map((child) {
+          final childId = child['child_id'] as int;
+          final isSelected = selectedChildIds.contains(childId);
+          final isAutoSelectedChild =
+              isAutoSelected && childId == widget.childId;
+          final childName = child['full_name'] ?? 'Unknown';
+          final childCondition = child['condition'] ?? 'Not specified';
 
-        return Container(
-          margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: isAutoSelectedChild ? BoxDecoration(
-            color: Colors.green[50],
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.green, width: 2),
-          ) : null,
-          child: CheckboxListTile(
-            value: isSelected,
-            onChanged: (value) {
-              setState(() {
-                if (value == true) {
-                  selectedChildIds.add(childId);
-                  print('➕ Added child: $childId');
-                } else {
-                  selectedChildIds.remove(childId);
-                  print('➖ Removed child: $childId');
-                  // إذا كان الطفل محدد تلقائياً وألغى التحديد، نزيل العلامة
-                  if (isAutoSelectedChild) {
-                    isAutoSelected = false;
-                    print('🔁 Auto-selection disabled');
+          print(
+              '👶 Child in list: $childId, Selected: $isSelected, Auto: $isAutoSelectedChild');
+
+          return Container(
+            margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: isAutoSelectedChild
+                ? BoxDecoration(
+                    color: Colors.green[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green, width: 2),
+                  )
+                : null,
+            child: CheckboxListTile(
+              value: isSelected,
+              onChanged: (value) {
+                setState(() {
+                  if (value == true) {
+                    selectedChildIds.add(childId);
+                    print('➕ Added child: $childId');
+                  } else {
+                    selectedChildIds.remove(childId);
+                    print('➖ Removed child: $childId');
+                    // إذا كان الطفل محدد تلقائياً وألغى التحديد، نزيل العلامة
+                    if (isAutoSelectedChild) {
+                      isAutoSelected = false;
+                      print('🔁 Auto-selection disabled');
+                    }
                   }
-                }
-              });
-            },
-            title: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    childName,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w500,
-                      color: isAutoSelectedChild ? Colors.green[800] : Colors.black87,
+                });
+              },
+              title: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      childName,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        color: isAutoSelectedChild
+                            ? Colors.green[800]
+                            : Colors.black87,
+                      ),
                     ),
                   ),
-                ),
-                if (isAutoSelectedChild) ...[
-                  SizedBox(width: 8),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.green,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.auto_awesome, size: 12, color: Colors.white),
-                        SizedBox(width: 4),
-                        Text(
-                          'AI Selected',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
+                  if (isAutoSelectedChild) ...[
+                    SizedBox(width: 8),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.auto_awesome,
+                              size: 12, color: Colors.white),
+                          SizedBox(width: 4),
+                          Text(
+                            'AI Selected',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Condition: $childCondition',
-                  style: TextStyle(
-                    color: AppColors.textGray,
-                    fontSize: 12,
-                  ),
-                ),
-                if (isAutoSelectedChild) 
+              ),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    'Recommended based on progress analysis',
+                    'Condition: $childCondition',
                     style: TextStyle(
-                      color: Colors.green[600],
-                      fontSize: 11,
-                      fontStyle: FontStyle.italic,
+                      color: AppColors.textGray,
+                      fontSize: 12,
                     ),
                   ),
-              ],
+                  if (isAutoSelectedChild)
+                    Text(
+                      'Recommended based on progress analysis',
+                      style: TextStyle(
+                        color: Colors.green[600],
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                ],
+              ),
+              secondary: isAutoSelectedChild
+                  ? Icon(Icons.psychology, color: Colors.green, size: 24)
+                  : Icon(Icons.person_outline,
+                      color: Colors.grey[600], size: 24),
+              activeColor: AppColors.primary,
+              checkColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             ),
-            secondary: isAutoSelectedChild 
-                ? Icon(Icons.psychology, color: Colors.green, size: 24)
-                : Icon(Icons.person_outline, color: Colors.grey[600], size: 24),
-            activeColor: AppColors.primary,
-            checkColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          ),
-        );
-      }).toList(),
-    ),
-  );
-}
+          );
+        }).toList(),
+      ),
+    );
+  }
 
   Widget _buildSessionTypesList() {
     return Container(
@@ -794,53 +817,114 @@ void _initializePreSelectedData() {
     ),
     child: Column(
       children: [
-        // Date picker
-        ListTile(
-          leading: const Icon(Icons.calendar_today, color: AppColors.primary),
-          title: const Text('Date'),
-          subtitle: Text(
-            selectedDate != null
-                ? DateFormat('yyyy-MM-dd').format(selectedDate!)
-                : 'Select date',
+        // Date picker مع تحسينات
+        Container(
+          padding: EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.green[50],
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.green),
           ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (widget.preSelectedDate != null && selectedDate != null)
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.green,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    'AI Recommended',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+          child: ListTile(
+            leading: const Icon(Icons.calendar_today, color: Colors.green),
+            title: const Text('Session Date', style: TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  selectedDate != null
+                      ? DateFormat('EEEE, MMMM d, yyyy').format(selectedDate!)
+                      : 'No date selected',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: selectedDate != null ? Colors.green[800] : Colors.grey,
                   ),
                 ),
-              const Icon(Icons.arrow_forward_ios, size: 16),
-            ],
+                if (widget.preSelectedDate != null && selectedDate != null)
+                  Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Text(
+                      '✅ AI Recommended Date',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.green[700],
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (widget.preSelectedDate != null && selectedDate != null)
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.green,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'AI',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                SizedBox(width: 8),
+                Icon(Icons.arrow_forward_ios, size: 16, color: Colors.green),
+              ],
+            ),
+            onTap: () async {
+              final date = await showDatePicker(
+                context: context,
+                initialDate: selectedDate ?? DateTime.now(),
+                firstDate: DateTime.now(),
+                lastDate: DateTime.now().add(const Duration(days: 365)),
+                builder: (context, child) {
+                  return Theme(
+                    data: Theme.of(context).copyWith(
+                      colorScheme: ColorScheme.light(
+                        primary: Colors.green, // header background color
+                        onPrimary: Colors.white, // header text color
+                        onSurface: Colors.black, // body text color
+                      ),
+                      textButtonTheme: TextButtonThemeData(
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.green, // button text color
+                        ),
+                      ),
+                    ),
+                    child: child!,
+                  );
+                },
+              );
+              if (date != null && mounted) {
+                setState(() {
+                  selectedDate = date;
+                  selectedTime = null;
+                });
+                await _loadAvailableSlots();
+                
+                // إشعار عند تغيير التاريخ الموصى به
+                if (widget.preSelectedDate != null && 
+                    date != DateTime.parse(widget.preSelectedDate!)) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('⚠️ You changed the AI recommended date'),
+                      backgroundColor: Colors.orange,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              }
+            },
           ),
-          onTap: () async {
-            final date = await showDatePicker(
-              context: context,
-              initialDate: selectedDate ?? DateTime.now(),
-              firstDate: DateTime.now(),
-              lastDate: DateTime.now().add(const Duration(days: 365)),
-            );
-            if (date != null && mounted) {
-              setState(() {
-                selectedDate = date;
-                selectedTime = null;
-              });
-              await _loadAvailableSlots();
-            }
-          },
         ),
+        
         const Divider(),
         
         // Time selection
@@ -942,7 +1026,9 @@ void _initializePreSelectedData() {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withOpacity(0.1) : Colors.grey[100],
+          color: isSelected
+              ? AppColors.primary.withOpacity(0.1)
+              : Colors.grey[100],
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected ? AppColors.primary : Colors.transparent,

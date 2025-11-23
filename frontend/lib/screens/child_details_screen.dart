@@ -34,22 +34,32 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
     super.initState();
     _loadChildDetails();
   }
-  // 🔥 أضف هذه الدالة في _ChildDetailsScreenState
-  void _debugCheckAnalysisData() {
-    if (_progressAnalysis != null) {
-      print('=== AI ANALYSIS DATA DEBUG ===');
-      print('Professional Analysis: ${_progressAnalysis!['professional_analysis']}');
-
-      final professionalAnalysis = _progressAnalysis!['professional_analysis'];
-      if (professionalAnalysis != null) {
-        print('Next Session: ${professionalAnalysis['next_session']}');
-        print('Next Session Type: ${professionalAnalysis['next_session']?.runtimeType}');
+ 
+ 
+void _debugCheckAnalysisData() {
+  if (_progressAnalysis != null) {
+    print('=== 🔥 FULL ANALYSIS DATA DEBUG ===');
+    print('Professional Analysis: ${_progressAnalysis!['professional_analysis']}');
+    
+    final professionalAnalysis = _progressAnalysis!['professional_analysis'];
+    if (professionalAnalysis != null) {
+      print('Next Session Object: ${professionalAnalysis['next_session']}');
+      print('Next Session Type: ${professionalAnalysis['next_session']?.runtimeType}');
+      
+      // 🔥 تحقق عميق من next_session
+      if (professionalAnalysis['next_session'] != null) {
+        final nextSession = professionalAnalysis['next_session'];
+        print('Suggested Date: ${nextSession['suggested_date']}');
+        print('Suggested Date Type: ${nextSession['suggested_date']?.runtimeType}');
       }
-
-      print('Analysis Keys: ${_progressAnalysis!.keys.toList()}');
-      print('==============================');
     }
+    print('Analysis Full Structure:');
+    _progressAnalysis!.forEach((key, value) {
+      print('$key: $value');
+    });
+    print('==============================');
   }
+}
 
   Future<void> _loadChildDetails() async {
     try {
@@ -926,51 +936,156 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
     );
   }
 
-  // 🔥 دالة محسنة لتحويل التاريخ
+// 🔥 دالة محسنة ومبسطة لتحويل التاريخ
 String _convertDateFormat(String? inputDate) {
+  print('🔄 Converting date: $inputDate');
+  
   if (inputDate == null || inputDate.isEmpty || inputDate == 'N/A') {
-    return _getNextAvailableDate(); // تاريخ افتراضي إذا لم يكن موجوداً
+    return _getNextAvailableDate();
   }
   
   try {
-    // إذا كان التاريخ بصيغة "6-12" (يوم-شهر)
-    if (inputDate.contains('-') && !inputDate.contains('-20')) {
-      final parts = inputDate.split('-');
-      if (parts.length == 2) {
-        final day = int.tryParse(parts[0].trim());
-        final month = int.tryParse(parts[1].trim());
+    // الحالة 1: إذا كان التاريخ بالفعل بصيغة YYYY-MM-DD
+    if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(inputDate)) {
+      final date = DateTime.parse(inputDate);
+      if (date.isAfter(DateTime.now())) {
+        return inputDate;
+      }
+    }
+    
+    // الحالة 2: التواريخ النصية (November 19, 2025)
+    if (inputDate.contains(RegExp(r'[a-zA-Z]'))) {
+      return _parseTextDateToIso(inputDate);
+    }
+    
+    // الحالة 3: أي تنسيق آخر - نحاول التحليل
+    final date = DateTime.parse(inputDate);
+    final formatted = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    
+    // إذا كان التاريخ في الماضي، نستخدم تاريخ مستقبلي
+    if (date.isBefore(DateTime.now())) {
+      return _getNextAvailableDate();
+    }
+    
+    return formatted;
+    
+  } catch (e) {
+    print('❌ Error converting date "$inputDate": $e');
+    return _getNextAvailableDate();
+  }
+}
+
+// 🔥 دالة مساعدة لتحويل التواريخ النصية
+String _parseTextDateToIso(String textDate) {
+  try {
+    final months = {
+      'january': 1, 'february': 2, 'march': 3, 'april': 4, 'may': 5, 'june': 6,
+      'july': 7, 'august': 8, 'september': 9, 'october': 10, 'november': 11, 'december': 12
+    };
+    
+    final lowerDate = textDate.toLowerCase();
+    
+    for (final month in months.keys) {
+      if (lowerDate.contains(month)) {
+        // استخراج اليوم والسنة باستخدام regex محسن
+        final regex = RegExp(r'(\d{1,2})\s*,?\s*(\d{4})?');
+        final match = regex.firstMatch(textDate);
         
-        if (day != null && month != null) {
-          final now = DateTime.now();
-          final year = now.year;
+        if (match != null) {
+          final day = int.parse(match.group(1)!);
+          final year = match.group(2) != null ? int.parse(match.group(2)!) : DateTime.now().year;
+          final monthNumber = months[month]!;
           
-          // إنشاء التاريخ مع السنة الحالية
-          final date = DateTime(year, month, day);
+          final date = DateTime(year, monthNumber, day);
           
-          // إذا كان التاريخ قد مضى، نضيف سنة
-          final finalDate = date.isBefore(now) ? DateTime(year + 1, month, day) : date;
+          // التحقق من أن التاريخ ليس في الماضي
+          if (date.isBefore(DateTime.now())) {
+            return _getNextAvailableDate();
+          }
           
-          return '${finalDate.year}-${finalDate.month.toString().padLeft(2, '0')}-${finalDate.day.toString().padLeft(2, '0')}';
+          return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
         }
       }
     }
     
-    // إذا كان التاريخ بصيغة أخرى، نحاول تحليله
-    final date = DateTime.parse(inputDate);
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-    
+    // إذا فشل التحليل النصي
+    return _getNextAvailableDate();
   } catch (e) {
-    print('❌ Error converting date: $inputDate, error: $e');
-    return _getNextAvailableDate(); // تاريخ افتراضي في حالة الخطأ
+    print('❌ Error in _parseTextDateToIso: $e');
+    return _getNextAvailableDate();
   }
 }
 
-// 🔥 دالة محسنة للحصول على تاريخ متاح
-String _getNextAvailableDate() {
-  final nextWeek = DateTime.now().add(Duration(days: 7));
-  return '${nextWeek.year}-${nextWeek.month.toString().padLeft(2, '0')}-${nextWeek.day.toString().padLeft(2, '0')}';
+// 🔥 دالة مساعدة لتحليل التواريخ النصية مثل "November 19, 2025"
+DateTime _parseTextDate(String dateText) {
+  try {
+    // قائمة بالأشهر الإنجليزية
+    final months = {
+      'january': 1, 'february': 2, 'march': 3, 'april': 4, 'may': 5, 'june': 6,
+      'july': 7, 'august': 8, 'september': 9, 'october': 10, 'november': 11, 'december': 12,
+      'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
+      'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12
+    };
+    
+    final lowerDate = dateText.toLowerCase();
+    
+    // البحث عن الشهر في النص
+    for (final month in months.keys) {
+      if (lowerDate.contains(month)) {
+        // استخراج اليوم والسنة
+        final regex = RegExp(r'(\d{1,2}),?\s*(\d{4})?');
+        final match = regex.firstMatch(dateText);
+        
+        if (match != null) {
+          final day = int.parse(match.group(1)!);
+          final year = match.group(2) != null ? int.parse(match.group(2)!) : DateTime.now().year;
+          final monthNumber = months[month]!;
+          
+          return DateTime(year, monthNumber, day);
+        }
+      }
+    }
+    
+    // إذا فشل التحليل، نستخدم التحليل العادي
+    return DateTime.parse(dateText);
+  } catch (e) {
+    print('❌ Error in _parseTextDate: $e');
+    rethrow;
+  }
 }
+
+
+
+String _getNextAvailableDate() {
+  final now = DateTime.now();
+  
+  // نبحث عن أول يوم إثنين قادم (أو أي يوم عمل)
+  DateTime nextDate = now.add(Duration(days: 1));
+  
+  // نتأكد من أن التاريخ في المستقبل وليس عطلة نهاية الأسبوع
+  int attempts = 0;
+  while (attempts < 14) { // نبحث لمدة أسبوعين
+    if (nextDate.weekday != DateTime.friday && 
+        nextDate.weekday != DateTime.saturday &&
+        nextDate.isAfter(now)) {
+      final formatted = '${nextDate.year}-${nextDate.month.toString().padLeft(2, '0')}-${nextDate.day.toString().padLeft(2, '0')}';
+      print('📅 Generated next available date: $formatted');
+      return formatted;
+    }
+    nextDate = nextDate.add(Duration(days: 1));
+    attempts++;
+  }
+  
+  // إذا لم نجد، نستخدم تاريخ بعد أسبوع
+  final fallbackDate = now.add(Duration(days: 7));
+  final formatted = '${fallbackDate.year}-${fallbackDate.month.toString().padLeft(2, '0')}-${fallbackDate.day.toString().padLeft(2, '0')}';
+  print('📅 Using fallback date: $formatted');
+  return formatted;
+}
+
+
   Widget _buildNextSessionCard(Map<String, dynamic> nextSession) {
+    _debugFullAnalysis();
   return Container(
     padding: EdgeInsets.all(16),
     decoration: BoxDecoration(
@@ -1054,40 +1169,71 @@ String _getNextAvailableDate() {
   );
 }
 
-// 🔥 دالة التعامل مع زر Book Now - نسخة محسنة
-  // 🔥 دالة التعامل مع زر Book Now - نسخة محسنة مع التاريخ
-void _onBookNowPressed(Map<String, dynamic> nextSession) {
-  final suggestedDate = nextSession['suggested_date'];
-  final focusAreas = nextSession['focus_areas'] as List<dynamic>?;
-  
-  print('🎯 Book Now Pressed!');
-  print('Original Suggested Date: $suggestedDate');
-  
-  // تحويل التاريخ للتنسيق الصحيح
-  final convertedDate = _convertDateFormat(suggestedDate);
-  final finalFocusAreas = focusAreas?.cast<String>() ?? ['General skill development'];
+  void _onBookNowPressed(Map<String, dynamic> nextSession) {
+    print('🎯 Book Now Pressed - FULL ANALYSIS DATA:');
 
-  print('Converted Date: $convertedDate');
-  print('Focus Areas: $finalFocusAreas');
-  print('Child ID: ${widget.childId}');
-  print('Child Name: ${widget.childName}');
+    // 🔥 الإصلاح: استخدام بيانات الـ AI من الـ professional_analysis بدلاً من action_plan
+    final aiNextSession = _progressAnalysis?['professional_analysis']?['recommendations']?['next_session'];
 
-  // الانتقال لصفحة Add Session مع تمرير البيانات
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => AddSessionScreen(
-        preSelectedDate: convertedDate,
-        preSelectedFocusAreas: finalFocusAreas,
-        childId: widget.childId,
-        childName: widget.childName, // 🔥 تمرير اسم الطفل
+    print('📊 AI Next Session from professional_analysis: $aiNextSession');
+    print('📋 Raw nextSession data from action_plan: $nextSession');
+
+    // 🔥 الأولوية: استخدام بيانات الـ AI إذا موجودة
+    final Map<String, dynamic> sessionData;
+    if (aiNextSession != null && aiNextSession['suggested_date'] != null) {
+      print('✅ Using AI data from professional_analysis');
+      sessionData = {
+        'suggested_date': aiNextSession['suggested_date'],
+        'focus_areas': aiNextSession['focus_areas'] ?? ['General skill development'],
+        'preparation': aiNextSession['preparation'] ?? 'Review progress analysis'
+      };
+    } else {
+      print('⚠️ Using fallback data from action_plan');
+      sessionData = nextSession;
+    }
+
+    final suggestedDate = sessionData['suggested_date'];
+    final focusAreas = sessionData['focus_areas'] as List<dynamic>?;
+
+    print('🎯 FINAL - Using date: $suggestedDate');
+    print('🎯 FINAL - Using focus areas: $focusAreas');
+
+    // تحويل التاريخ للتنسيق الصحيح
+    final convertedDate = _convertDateFormat(suggestedDate?.toString());
+    final finalFocusAreas = focusAreas?.cast<String>() ?? ['General skill development'];
+
+    print('✅ Converted Date: $convertedDate');
+    print('✅ Focus Areas: $finalFocusAreas');
+    print('✅ Child: ${widget.childName} (ID: ${widget.childId})');
+
+    // الانتقال لصفحة Add Session
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddSessionScreen(
+          preSelectedDate: convertedDate,
+          preSelectedFocusAreas: finalFocusAreas,
+          childId: widget.childId,
+          childName: widget.childName,
+        ),
       ),
-    ),
-  ).then((value) {
-    // Optional: Refresh data when returning from booking
-    _loadChildDetails();
-  });
-}
+    ).then((_) {
+      _loadChildDetails();
+    });
+  }
+
+  void _debugFullAnalysis() {
+    if (_progressAnalysis != null) {
+      print('=== 🔥 FULL AI ANALYSIS STRUCTURE ===');
+      print('Professional Analysis: ${_progressAnalysis!['professional_analysis']}');
+      print('Recommendations: ${_progressAnalysis!['professional_analysis']?['recommendations']}');
+      print('Next Session in Recommendations: ${_progressAnalysis!['professional_analysis']?['recommendations']?['next_session']}');
+      print('Action Plan: ${_progressAnalysis!['action_plan']}');
+      print('====================================');
+    }
+  }
+
+
 // 🔥 دالة جديدة لعرض الـ Initial Plan
   Widget _buildInitialPlan(Map<String, dynamic> analysis) {
     return Column(

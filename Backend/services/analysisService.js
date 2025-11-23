@@ -483,6 +483,9 @@ static normalizeDate(dateString) {
 /**
  * تحديد موعد الجلسة القادمة المقترح - متزامن مع AI
  */
+/**
+ * تحديد موعد الجلسة القادمة المقترح - متزامن مع AI
+ */
 static calculateNextSessionDate(evaluations, trends = null, aiAnalysis = null) {
   if (!evaluations || evaluations.length === 0) {
     const nextDate = new Date();
@@ -492,18 +495,56 @@ static calculateNextSessionDate(evaluations, trends = null, aiAnalysis = null) {
 
   const lastSession = new Date(evaluations[evaluations.length - 1].created_at);
   
-  // 🔥 الأولوية: استخدام التاريخ من تحليل الـ AI إذا موجود
+  // 🔥 الإصلاح: البحث في المكان الصحيح
+  console.log('🔍 Searching for AI date in:', Object.keys(aiAnalysis || {}));
+  
+  // المحاولة 1: next_session مباشرة
+  if (aiAnalysis && aiAnalysis.next_session) {
+    const aiDate = aiAnalysis.next_session.suggested_date;
+    if (aiDate) {
+      const normalizedDate = this.normalizeDate(aiDate);
+      if (normalizedDate) {
+        console.log(`✅ Using AI suggested date (direct): ${aiDate} -> ${normalizedDate}`);
+        return normalizedDate;
+      }
+    }
+  }
+  
+  // المحاولة 2: داخل recommendations
   if (aiAnalysis && aiAnalysis.recommendations && aiAnalysis.recommendations.next_session) {
     const aiDate = aiAnalysis.recommendations.next_session.suggested_date;
     if (aiDate) {
       const normalizedDate = this.normalizeDate(aiDate);
       if (normalizedDate) {
-        console.log(`✅ Using AI suggested date: ${aiDate} -> ${normalizedDate}`);
+        console.log(`✅ Using AI suggested date (in recommendations): ${aiDate} -> ${normalizedDate}`);
         return normalizedDate;
-      } else {
-        console.log(`❌ Failed to normalize AI date: ${aiDate}`);
       }
     }
+  }
+  
+  // المحاولة 3: أي مكان آخر في الـ aiAnalysis
+  if (aiAnalysis) {
+    // بحث شامل في كل الـ aiAnalysis
+    const searchForDate = (obj, path = '') => {
+      for (const key in obj) {
+        if (key === 'suggested_date' && obj[key]) {
+          console.log(`📍 Found suggested_date at: ${path}${key}`);
+          const normalizedDate = this.normalizeDate(obj[key]);
+          if (normalizedDate) {
+            console.log(`✅ Using AI suggested date (searched): ${obj[key]} -> ${normalizedDate}`);
+            return normalizedDate;
+          }
+        }
+        if (typeof obj[key] === 'object' && obj[key] !== null) {
+          const result = searchForDate(obj[key], `${path}${key}.`);
+          if (result) return result;
+        }
+      }
+      return null;
+    };
+    
+    const foundDate = searchForDate(aiAnalysis);
+    if (foundDate) return foundDate;
   }
 
   // 🔥 المنطق الاحتياطي
@@ -516,7 +557,7 @@ static calculateNextSessionDate(evaluations, trends = null, aiAnalysis = null) {
   const calculatedDate = new Date(lastSession);
   calculatedDate.setDate(calculatedDate.getDate() + recommendedInterval);
   
-  console.log(`📅 Calculated date: ${calculatedDate.toISOString().split('T')[0]} (interval: ${recommendedInterval} days)`);
+  console.log(`📅 No AI date found, using calculated: ${calculatedDate.toISOString().split('T')[0]} (interval: ${recommendedInterval} days)`);
   
   return calculatedDate.toISOString().split('T')[0];
 }

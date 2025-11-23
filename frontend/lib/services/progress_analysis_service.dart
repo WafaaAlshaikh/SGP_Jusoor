@@ -38,6 +38,9 @@ class ProgressAnalysisService {
         },
       ).timeout(Duration(seconds: 60));
 
+      print('📥 API Response Status: ${response.statusCode}');
+    print('📥 API Response Body: ${response.body}');
+
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {
