@@ -1239,16 +1239,16 @@ ParentActionButton(
               },
             ),
             // في ParentDashboardScreen - أضف في _buildMainActionsGrid()
-            ParentActionButton(
-              icon: Icons.track_changes,
-              text: 'تتبع المهارات',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => DailySkillsTracker()),
-                );
-              },
-            ),
+            // ParentActionButton(
+            //   icon: Icons.track_changes,
+            //   text: 'تتبع المهارات',
+            //   onTap: () {
+            //     Navigator.push(
+            //       context,
+            //       MaterialPageRoute(builder: (_) => DailySkillsTracker()),
+            //     );
+            //   },
+            // ),
             ParentActionButton(
               icon: Icons.menu_book,
               text: 'Educational Resources',

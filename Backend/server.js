@@ -9,6 +9,9 @@ const fs = require('fs');
 const progressAnalysisRoutes = require('./routes/progressAnalysisRoutes');
 dotenv.config();
 
+const diagnosisRoutes = require('./routes/diagnosisRoutes');
+
+
 // MODELS
 require('./model/index');
 require('./model/relations');
@@ -80,7 +83,8 @@ app.get('/test', (req, res) => {
 // ===========================
 // 📌 ROUTES
 // ===========================
-
+// ⭐ تأكد من استخدام المسار الصحيح
+app.use('/api/diagnoses', diagnosisRoutes);
 // Auth
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/auth', require('./routes/auth'));  // لنحافظ على الإصدارين

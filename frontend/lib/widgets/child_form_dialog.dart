@@ -289,16 +289,16 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
     } catch (e) {
       print('Error loading diagnoses: $e');
       final defaultDiagnoses = [
-        {'diagnosis_id': 1, 'name': 'Autism Spectrum Disorder (ASD)'},
+        {'diagnosis_id': 1, 'name': 'Autism Spectrum Disorder'},
         {'diagnosis_id': 2, 'name': 'Attention Deficit Hyperactivity Disorder (ADHD)'},
         {'diagnosis_id': 3, 'name': 'Down Syndrome'},
         {'diagnosis_id': 4, 'name': 'Speech and Language Delay'},
-        {'diagnosis_id': 5, 'name': 'Learning Disabilities'},
-        {'diagnosis_id': 6, 'name': 'Intellectual Disability'},
-        {'diagnosis_id': 7, 'name': 'Developmental Delay'},
-        {'diagnosis_id': 8, 'name': 'Behavioral Disorders'},
-        {'diagnosis_id': 9, 'name': 'Social Communication Disorder'},
-        {'diagnosis_id': 10, 'name': 'Global Developmental Delay'},
+        // {'diagnosis_id': 5, 'name': 'Learning Disabilities'},
+        // {'diagnosis_id': 6, 'name': 'Intellectual Disability'},
+        // {'diagnosis_id': 7, 'name': 'Developmental Delay'},
+        // {'diagnosis_id': 8, 'name': 'Behavioral Disorders'},
+        // {'diagnosis_id': 9, 'name': 'Social Communication Disorder'},
+        // {'diagnosis_id': 10, 'name': 'Global Developmental Delay'},
       ];
       setState(() {
         _diagnoses = defaultDiagnoses;
@@ -2384,7 +2384,7 @@ String _getStepTitle() {
       
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('✅ تم تحديد الموقع: $_city'),
+          content: Text('✅ Location selected: $_city'),
           backgroundColor: Colors.green,
           duration: Duration(seconds: 2),
         ),
@@ -2406,7 +2406,7 @@ String _getStepTitle() {
                 Icon(Icons.location_on, color: Color(0xFF7815A0), size: 20),
                 SizedBox(width: 8),
                 Text(
-                  'موقع الطفل (اختياري)',
+                  'Child Location (Optional)',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -2417,19 +2417,19 @@ String _getStepTitle() {
             ),
             SizedBox(height: 8),
             Text(
-              'حدد موقع الطفل على الخريطة لمساعدتنا في إيجاد المؤسسات الأقرب إليك',
+              'Select the child\'s location on the map to help us find the nearest institutions to you',
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
             SizedBox(height: 16),
-            
-            // زر اختيار الموقع من الخريطة
+
+            // Choose location from map button
             OutlinedButton.icon(
               onPressed: _openMapScreen,
               icon: Icon(Icons.map, color: Color(0xFF7815A0)),
               label: Text(
                 _locationLat != null && _locationLng != null
-                    ? 'تعديل الموقع على الخريطة'
-                    : 'اختر الموقع من الخريطة',
+                    ? 'Edit Location on Map'
+                    : 'Choose Location from Map',
                 style: TextStyle(color: Color(0xFF7815A0)),
               ),
               style: OutlinedButton.styleFrom(
@@ -2440,8 +2440,8 @@ String _getStepTitle() {
                 padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
             ),
-            
-            // عرض الموقع المحدد
+
+            // Display selected location
             if (_locationLat != null && _locationLng != null) ...[
               SizedBox(height: 12),
               Container(
@@ -2459,7 +2459,7 @@ String _getStepTitle() {
                         Icon(Icons.check_circle, color: Colors.green, size: 16),
                         SizedBox(width: 8),
                         Text(
-                          'تم تحديد الموقع',
+                          'Location Selected',
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             color: Colors.green.shade800,
@@ -2469,11 +2469,11 @@ String _getStepTitle() {
                     ),
                     SizedBox(height: 8),
                     if (_city.isNotEmpty)
-                      Text('المدينة: $_city', style: TextStyle(fontSize: 12)),
+                      Text('City: $_city', style: TextStyle(fontSize: 12)),
                     if (_address.isNotEmpty)
-                      Text('العنوان: $_address', style: TextStyle(fontSize: 12)),
+                      Text('Address: $_address', style: TextStyle(fontSize: 12)),
                     Text(
-                      'الإحداثيات: ${_locationLat!.toStringAsFixed(4)}, ${_locationLng!.toStringAsFixed(4)}',
+                      'Coordinates: ${_locationLat!.toStringAsFixed(4)}, ${_locationLng!.toStringAsFixed(4)}',
                       style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
                     ),
                   ],

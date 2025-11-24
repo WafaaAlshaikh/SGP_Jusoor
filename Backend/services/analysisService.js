@@ -6,9 +6,7 @@ const groq = new Groq({
 });
 
 class AnalysisService {
-  /**
-   * حساب الإحصائيات الرياضية الكاملة
-   */
+ 
   static calculateStatistics(scores) {
     if (!scores || scores.length === 0) {
       return null;
@@ -16,17 +14,17 @@ class AnalysisService {
 
     const n = scores.length;
     
-    // Average (المتوسط)
+    // Average
     const average = scores.reduce((sum, score) => sum + score, 0) / n;
     
-    // Standard Deviation (الانحراف المعياري)
+    // Standard Deviation
     const variance = scores.reduce((sum, score) => sum + Math.pow(score - average, 2), 0) / n;
     const standardDeviation = Math.sqrt(variance);
     
-    // Coefficient of Variation (معامل الاختلاف)
+    // Coefficient of Variation 
     const cv = (standardDeviation / average) * 100;
     
-    // Linear Regression for R² (الانحدار الخطي)
+    // Linear Regression for R² 
     const xValues = scores.map((_, index) => index + 1);
     const xMean = xValues.reduce((sum, x) => sum + x, 0) / n;
     const yMean = average;
@@ -45,7 +43,7 @@ class AnalysisService {
     
     const rSquared = Math.pow(numerator / Math.sqrt(denominatorX * denominatorY), 2);
     
-    // Slope (معدل التحسن)
+    // Slope 
     const slope = numerator / denominatorX;
     
     // Trend Detection
@@ -70,14 +68,12 @@ class AnalysisService {
     };
   }
 
-  /**
-   * تحليل الاتجاهات والأنماط
-   */
+  
   static analyzeTrends(evaluations) {
     const scores = evaluations.map(e => parseFloat(e.progress_score));
     const dates = evaluations.map(e => new Date(e.created_at));
     
-    // حساب الفترات بين الجلسات (بالأيام)
+    // Calculating the intervals between sessions (in days)
     const intervals = [];
     for (let i = 1; i < dates.length; i++) {
       const daysDiff = Math.round((dates[i] - dates[i - 1]) / (1000 * 60 * 60 * 24));
@@ -88,12 +84,12 @@ class AnalysisService {
       ? intervals.reduce((sum, i) => sum + i, 0) / intervals.length 
       : 0;
     
-    // كشف الثبات (Plateau)
+    //  (Plateau)
     const lastThreeScores = scores.slice(-3);
     const isPlateau = lastThreeScores.length >= 3 && 
       Math.max(...lastThreeScores) - Math.min(...lastThreeScores) < 3;
     
-    // تقييم الاستقرار
+    
     const recentScores = scores.slice(-5);
     const recentStdDev = this.calculateStatistics(recentScores)?.standardDeviation || 0;
     const isConsistent = recentStdDev < 5;
@@ -107,15 +103,13 @@ class AnalysisService {
     };
   }
 
-  /**
-   * التحليل الذكي باستخدام Groq AI - مع تنسيق محسّن
-   */
+  
   static async generateAIAnalysis(childData, evaluations, specialistInfo) {
     const scores = evaluations.map(e => parseFloat(e.progress_score));
     const statistics = this.calculateStatistics(scores);
     const trends = this.analyzeTrends(evaluations);
     
-    // بناء السياق الكامل للطفل
+   
     const allNotes = evaluations.map((e, idx) => 
       `Session ${idx + 1} (${new Date(e.created_at).toLocaleDateString()}): Score ${e.progress_score}/100 - ${e.notes || 'No notes'}`
     ).join('\n');
@@ -246,20 +240,20 @@ Be extremely specific and base all observations on actual data from the notes an
 
       const rawResponse = completion.choices[0]?.message?.content || '{}';
       
-      // تنظيف الاستجابة من أي markdown أو code blocks
+
       let cleanedResponse = rawResponse.trim();
       cleanedResponse = cleanedResponse.replace(/```json\n?/g, '');
       cleanedResponse = cleanedResponse.replace(/```\n?/g, '');
       cleanedResponse = cleanedResponse.trim();
       
-      // محاولة parse الـ JSON
+   
       try {
         return JSON.parse(cleanedResponse);
       } catch (parseError) {
         console.error('JSON Parse Error:', parseError);
         console.error('Raw Response:', rawResponse);
         
-        // إرجاع هيكل افتراضي في حالة الفشل
+     
         return {
           overall_assessment: {
             summary: rawResponse,
@@ -276,14 +270,7 @@ Be extremely specific and base all observations on actual data from the notes an
     }
   }
 
-  /**
-   * إنشاء خطة أولية للطفل الجديد - مع تنسيق محسّن
-   */
-// services/analysisService.js
-
-/**
- * إنشاء خطة أولية للطفل الجديد - مع تنسيق محسّن
- */
+ 
 static async generateInitialPlan(childData, firstEvaluation, specialistInfo) {
   const prompt = `You are a ${specialistInfo.specialization} specialist creating an initial treatment plan for a new child.
 
@@ -419,9 +406,6 @@ Calculate dates based on current date: ${new Date().toISOString().split('T')[0]}
   }
 }
 
-  /**
-   * حساب العمر من تاريخ الميلاد
-   */
   static calculateAge(dateOfBirth) {
     if (!dateOfBirth) return 'Unknown';
     const today = new Date();
@@ -434,14 +418,7 @@ Calculate dates based on current date: ${new Date().toISOString().split('T')[0]}
     return age;
   }
 
-  /**
-   * تحديد موعد الجلسة القادمة المقترح
-   */
- // services/analysisService.js
 
-/**
- * تحديد موعد الجلسة القادمة المقترح - متزامن مع AI
- */
 static normalizeDate(dateString) {
   if (!dateString) return null;
   
@@ -480,12 +457,6 @@ static normalizeDate(dateString) {
   return null;
 }
 
-/**
- * تحديد موعد الجلسة القادمة المقترح - متزامن مع AI
- */
-/**
- * تحديد موعد الجلسة القادمة المقترح - متزامن مع AI
- */
 static calculateNextSessionDate(evaluations, trends = null, aiAnalysis = null) {
   if (!evaluations || evaluations.length === 0) {
     const nextDate = new Date();
@@ -495,10 +466,10 @@ static calculateNextSessionDate(evaluations, trends = null, aiAnalysis = null) {
 
   const lastSession = new Date(evaluations[evaluations.length - 1].created_at);
   
-  // 🔥 الإصلاح: البحث في المكان الصحيح
+  
   console.log('🔍 Searching for AI date in:', Object.keys(aiAnalysis || {}));
   
-  // المحاولة 1: next_session مباشرة
+ 
   if (aiAnalysis && aiAnalysis.next_session) {
     const aiDate = aiAnalysis.next_session.suggested_date;
     if (aiDate) {
@@ -510,7 +481,7 @@ static calculateNextSessionDate(evaluations, trends = null, aiAnalysis = null) {
     }
   }
   
-  // المحاولة 2: داخل recommendations
+  
   if (aiAnalysis && aiAnalysis.recommendations && aiAnalysis.recommendations.next_session) {
     const aiDate = aiAnalysis.recommendations.next_session.suggested_date;
     if (aiDate) {
@@ -522,9 +493,9 @@ static calculateNextSessionDate(evaluations, trends = null, aiAnalysis = null) {
     }
   }
   
-  // المحاولة 3: أي مكان آخر في الـ aiAnalysis
+ 
   if (aiAnalysis) {
-    // بحث شامل في كل الـ aiAnalysis
+    
     const searchForDate = (obj, path = '') => {
       for (const key in obj) {
         if (key === 'suggested_date' && obj[key]) {
@@ -547,7 +518,7 @@ static calculateNextSessionDate(evaluations, trends = null, aiAnalysis = null) {
     if (foundDate) return foundDate;
   }
 
-  // 🔥 المنطق الاحتياطي
+ 
   let recommendedInterval = 7;
   
   if (trends && trends.averageSessionInterval) {
@@ -562,9 +533,6 @@ static calculateNextSessionDate(evaluations, trends = null, aiAnalysis = null) {
   return calculatedDate.toISOString().split('T')[0];
 }
 
-  /**
-   * Compare progress between two specific dates
-   */
   static calculateDateRangeComparison(evaluations, startDate, endDate) {
     if (evaluations.length < 2) {
       throw new Error('Need at least 2 evaluations for comparison');
@@ -1020,9 +988,7 @@ Provide period-specific analysis in STRUCTURED JSON format. Return ONLY valid JS
   }
   // services/analysisService.js
 
-/**
- * مقارنة مباشرة بين تقييمين محددين
- */
+
 static calculateDirectComparison(startEvaluation, endEvaluation, startDate, endDate) {
   const startScore = parseFloat(startEvaluation.progress_score);
   const endScore = parseFloat(endEvaluation.progress_score);
@@ -1030,11 +996,11 @@ static calculateDirectComparison(startEvaluation, endEvaluation, startDate, endD
   const scoreChange = endScore - startScore;
   const percentageChange = (scoreChange / startScore) * 100;
   
-  // حساب الفرق بالأيام
+  
   const daysBetween = Math.round((endDate - startDate) / (1000 * 60 * 60 * 24));
   const dailyImprovementRate = scoreChange / daysBetween;
   
-  // تحليل التقدم
+  
   let trend, magnitude, progressSummary;
   
   if (scoreChange > 0) {
@@ -1059,10 +1025,10 @@ static calculateDirectComparison(startEvaluation, endEvaluation, startDate, endD
     progressSummary = 'Performance remained stable between the two dates';
   }
   
-  // تحليل الاختلافات الرئيسية من الملاحظات
+ 
   const keyDifferences = this.analyzeNotesDifferences(startEvaluation.notes, endEvaluation.notes);
   
-  // تحليل الاستقرار
+  
   const scoreDifference = Math.abs(scoreChange);
   const consistencyAnalysis = scoreDifference < 5 ? 'Highly Consistent' : 
                              scoreDifference < 15 ? 'Moderately Consistent' : 
@@ -1082,9 +1048,7 @@ static calculateDirectComparison(startEvaluation, endEvaluation, startDate, endD
   };
 }
 
-/**
- * تحليل الاختلافات بين الملاحظات
- */
+
 static analyzeNotesDifferences(startNotes, endNotes) {
   const differences = [];
   
@@ -1100,11 +1064,11 @@ static analyzeNotesDifferences(startNotes, endNotes) {
     return ['No notes in ending evaluation'];
   }
   
-  // تحليل بسيط للاختلافات (يمكن تطويره باستخدام AI لاحقاً)
+ 
   const startLower = startNotes.toLowerCase();
   const endLower = endNotes.toLowerCase();
   
-  // البحث عن كلمات مفتاحية
+ 
   const keywords = ['improved', 'better', 'progress', 'regressed', 'worse', 'challenge', 'difficulty', 'excellent', 'good'];
   
   keywords.forEach(keyword => {
@@ -1121,9 +1085,7 @@ static analyzeNotesDifferences(startNotes, endNotes) {
   return differences.length > 0 ? differences : ['Notes show development changes between evaluations'];
 }
 
-/**
- * توليد توصيات للمقارنة المباشرة
- */
+
 static generateDirectComparisonRecommendations(scoreChange, daysBetween) {
   const recommendations = [];
   
@@ -1148,9 +1110,7 @@ static generateDirectComparisonRecommendations(scoreChange, daysBetween) {
   return recommendations;
 }
 
-/**
- * توليد تحليل AI للمقارنة المباشرة
- */
+
 static async generateDirectComparisonAnalysis(childData, startEvaluation, endEvaluation, startDate, endDate, comparisonStats) {
   const prompt = `You are comparing a child's progress between TWO SPECIFIC DATES only.
 

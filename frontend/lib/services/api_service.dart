@@ -447,7 +447,7 @@ class ApiService {
   static Future<List<Map<String, dynamic>>> getDiagnoses(String token) async {
     try {
       final response = await http.get(
-        Uri.parse('http://10.0.2.2:5000/api/diagnoses'),
+        Uri.parse('http://10.0.2.2:5000/api/diagnoses'), // ⭐ هذا صحيح
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -455,13 +455,12 @@ class ApiService {
       );
 
       print('📡 Diagnoses response: ${response.statusCode}');
+      print('📡 Response body: ${response.body}'); // ⭐ أضف هذا للتصحيح
 
       if (response.statusCode == 200) {
         final List data = jsonDecode(response.body);
+        print('✅ Loaded ${data.length} diagnoses from API');
         return List<Map<String, dynamic>>.from(data);
-      } else if (response.statusCode == 404) {
-        print('⚠️ Diagnoses endpoint not found, using default list');
-        return _getDefaultDiagnoses();
       } else {
         print('❌ Failed to fetch diagnoses: ${response.statusCode}');
         return _getDefaultDiagnoses();
@@ -471,10 +470,9 @@ class ApiService {
       return _getDefaultDiagnoses();
     }
   }
-
   static List<Map<String, dynamic>> _getDefaultDiagnoses() {
     return [
-      {'diagnosis_id': 1, 'name': 'Autism Spectrum Disorder (ASD)'},
+      {'diagnosis_id': 1, 'name': 'Autism Spectrum Disorder'},
       {'diagnosis_id': 2, 'name': 'Attention Deficit Hyperactivity Disorder (ADHD)'},
       {'diagnosis_id': 3, 'name': 'Down Syndrome'},
       {'diagnosis_id': 4, 'name': 'Speech and Language Delay'},
