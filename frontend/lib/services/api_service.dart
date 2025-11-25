@@ -34,97 +34,127 @@ class ApiService {
 
 
   static Future<Map<String, dynamic>> signupInitial(Map<String, dynamic> data) async {
-    try {
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      print('🚀 [API SERVICE] PREPARING DATA TO SEND');
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      print('📦 Original data received:');
-      print('   Keys: ${data.keys.toList()}');
-      print('   location_lat exists: ${data.containsKey('location_lat')}');
-      print('   location_lng exists: ${data.containsKey('location_lng')}');
+  try {
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    print('🚀 [API SERVICE] PREPARING DATA TO SEND');
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    print('📦 COMPLETE DATA RECEIVED:');
+    data.forEach((key, value) {
+      print('   $key: $value (${value.runtimeType})');
+    });
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-      Map<String, dynamic> requestData = {
-        'full_name': data['full_name'],
-        'email': data['email'],
-        'password': data['password'],
-        'role': data['role'],
-        'phone': data['phone'],
-        'profile_picture': data['profile_picture'],
+    // ✅ بناء البيانات بشكل صريح لكل الدور
+    Map<String, dynamic> requestData = {
+      'full_name': data['full_name']?.toString() ?? '',
+      'email': data['email']?.toString() ?? '',
+      'password': data['password']?.toString() ?? '',
+      'role': data['role']?.toString() ?? '',
+      'phone': data['phone']?.toString(),
+      'profile_picture': data['profile_picture']?.toString(),
 
-        'location_lat': data['location_lat'],
-        'location_lng': data['location_lng'],
-        'location_address': data['location_address'],
-        'city': data['city'],
-        'region': data['region'],
+      // البيانات الجغرافية
+      'location_lat': data['location_lat'],
+      'location_lng': data['location_lng'],
+      'location_address': data['location_address']?.toString(),
+      'city': data['city']?.toString(),
+      'region': data['region']?.toString(),
+    };
+
+    // ✅ إضافة بيانات Parent
+    if (data['role'] == 'Parent') {
+      requestData['address'] = data['address']?.toString();
+      requestData['occupation'] = data['occupation']?.toString();
+    }
+
+    // ✅ إضافة بيانات Specialist
+    if (data['role'] == 'Specialist') {
+      requestData['specialization'] = data['specialization']?.toString();
+      requestData['years_experience'] = data['years_experience'];
+      requestData['institution_id'] = data['institution_id'] != null 
+          ? int.tryParse(data['institution_id'].toString())
+          : null;
+    }
+
+    // ✅ إضافة بيانات Manager - تأكد من وجودها
+    if (data['role'] == 'Manager') {
+      // البيانات الإلزامية
+      requestData['institution_name'] = data['institution_name']?.toString();
+      requestData['institution_contact_email'] = data['institution_contact_email']?.toString();
+      requestData['institution_contact_phone'] = data['institution_contact_phone']?.toString();
+      
+      // البيانات الاختيارية
+      requestData['institution_license'] = data['institution_license']?.toString();
+      requestData['institution_established_year'] = data['institution_established_year'];
+      requestData['institution_city'] = data['institution_city']?.toString();
+      requestData['institution_region'] = data['institution_region']?.toString();
+
+      // ✅ طباعة بيانات المؤسسة للتأكد
+      print('🏢 MANAGER INSTITUTION DATA:');
+      print('   ├─ institution_name: ${requestData['institution_name']}');
+      print('   ├─ institution_contact_email: ${requestData['institution_contact_email']}');
+      print('   ├─ institution_contact_phone: ${requestData['institution_contact_phone']}');
+      print('   ├─ institution_license: ${requestData['institution_license']}');
+      print('   ├─ institution_established_year: ${requestData['institution_established_year']}');
+      print('   ├─ institution_city: ${requestData['institution_city']}');
+      print('   └─ institution_region: ${requestData['institution_region']}');
+    }
+
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    print('📤 FINAL REQUEST DATA:');
+    requestData.forEach((key, value) {
+      print('   $key: $value');
+    });
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/signup'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(requestData),
+    ).timeout(Duration(seconds: 30));
+
+    print('📡 Signup response: ${response.statusCode}');
+    print('📦 Response body: ${response.body}');
+
+    final result = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      print('✅ [API SERVICE] Signup initial SUCCESS');
+      return {
+        'success': true,
+        'message': result['message'],
+        'tempToken': result['tempToken'],
       };
-
-      if (data['role'] == 'Parent') {
-        requestData['address'] = data['address'];
-        requestData['occupation'] = data['occupation'];
-      } else if (data['role'] == 'Specialist') {
-        requestData['specialization'] = data['specialization'];
-        requestData['years_experience'] = data['years_experience'];
-        requestData['institution_id'] = data['institution_id'];
-      } else if (data['role'] == 'Manager') {
-        requestData['institution_id'] = data['institution_id'];
-      }
-
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      print('📤 REQUEST BODY TO BE SENT:');
-      print('   location_lat: ${requestData['location_lat']}');
-      print('   location_lng: ${requestData['location_lng']}');
-      print('   location_address: ${requestData['location_address']}');
-      print('   city: ${requestData['city']}');
-      print('   region: ${requestData['region']}');
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-      final response = await http.post(
-        Uri.parse('$baseUrl/signup'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(requestData),
-      ).timeout(Duration(seconds: 30));
-
-      print('📡 Signup response: ${response.statusCode}');
-      print('📦 Response body: ${response.body}');
-
-      final result = jsonDecode(response.body);
-
-      if (response.statusCode == 200) {
-        print('✅ [API SERVICE] Signup initial SUCCESS');
-        return {
-          'success': true,
-          'message': result['message'],
-          'tempToken': result['tempToken'],
-        };
-      } else {
-        print('❌ [API SERVICE] Signup initial FAILED: ${result['message']}');
-        return {
-          'success': false,
-          'message': result['message'] ?? 'Signup failed',
-        };
-      }
-    } on TimeoutException {
+    } else {
+      print('❌ [API SERVICE] Signup initial FAILED: ${result['message']}');
       return {
         'success': false,
-        'message': 'Connection timeout. Please try again.',
-      };
-    } on SocketException {
-      return {
-        'success': false,
-        'message': 'No internet connection.',
-      };
-    } catch (e) {
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      print('❌ [API SERVICE] CRITICAL ERROR:');
-      print('   Error: $e');
-      print('   Type: ${e.runtimeType}');
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      return {
-        'success': false,
-        'message': 'An error occurred. Please try again.',
+        'message': result['message'] ?? 'Signup failed',
       };
     }
+  } on TimeoutException {
+    return {
+      'success': false,
+      'message': 'Connection timeout. Please try again.',
+    };
+  } on SocketException {
+    return {
+      'success': false,
+      'message': 'No internet connection.',
+    };
+  } catch (e) {
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    print('❌ [API SERVICE] CRITICAL ERROR:');
+    print('   Error: $e');
+    print('   Type: ${e.runtimeType}');
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    return {
+      'success': false,
+      'message': 'An error occurred. Please try again.',
+    };
   }
+}
+
 
   static Future<Map<String, dynamic>> verifySignup(String tempToken, String otp) async {
     try {
@@ -181,14 +211,51 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> login(Map<String, dynamic> data) async {
+  // في api_service.dart - تحديث دالة login
+static Future<Map<String, dynamic>> login(Map<String, dynamic> data) async {
+  try {
+    print('🚀 [API SERVICE] Attempting login...');
+    
     final response = await http.post(
       Uri.parse('$baseUrl/login'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode(data),
-    );
-    return jsonDecode(response.body);
+    ).timeout(Duration(seconds: 30));
+
+    print('📡 Login response: ${response.statusCode}');
+    print('📦 Response body: ${response.body}');
+
+    final result = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      print('✅ [API SERVICE] Login SUCCESS');
+      print('   Role: ${result['user']['role']}');
+      if (result['user']['role'] == 'Manager') {
+        print('   Institution Data: ${result['institution']}');
+      }
+    } else {
+      print('❌ [API SERVICE] Login FAILED: ${result['message']}');
+    }
+
+    return result;
+  } on TimeoutException {
+    return {
+      'success': false,
+      'message': 'Connection timeout. Please try again.',
+    };
+  } on SocketException {
+    return {
+      'success': false,
+      'message': 'No internet connection.',
+    };
+  } catch (e) {
+    print('❌ [API SERVICE] Login ERROR: $e');
+    return {
+      'success': false,
+      'message': 'An error occurred. Please try again.',
+    };
   }
+}
 
   static Future<Map<String, dynamic>> sendResetCode(String email) async {
     final response = await http.post(

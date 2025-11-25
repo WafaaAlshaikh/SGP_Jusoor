@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
@@ -16,68 +18,82 @@ class _LoginScreenState extends State<LoginScreen> {
   bool isLoading = false;
   bool showPassword = false;
 
-  // دالة submit كما هي بدون تغيير
-  void submit() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => isLoading = true);
+ void submit() async {
+  if (!_formKey.currentState!.validate()) return;
+  setState(() => isLoading = true);
 
-    final response = await ApiService.login({'email': email.trim(), 'password': password});
-    setState(() => isLoading = false);
+  final response = await ApiService.login({'email': email.trim(), 'password': password});
+  setState(() => isLoading = false);
 
+  final message = response['message'] ?? 'Unknown error';
+  final success = response['token'] != null;
 
-    final message = response['message'] ?? 'Unknown error';
-    final success = response['token'] != null;
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(message),
+      backgroundColor: success ? Colors.green : Colors.red,
+    ),
+  );
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: success ? Colors.green : Colors.red,
-      ),
-    );
+  // طباعة تفصيلية للرد
+  print('=== LOGIN RESPONSE ===');
+  print('Success: ${response['success']}');
+  print('Message: ${response['message']}');
+  print('Token: ${response['token']}');
+  print('User Role: ${response['user']?['role']}');
+  print('User Status: ${response['user']?['status']}');
+  
+  // ✅ طباعة بيانات المؤسسة إذا كان مديراً
+  if (response['user']?['role'] == 'Manager') {
+    print('🏢 Institution Data: ${response['institution']}');
+  }
+  print('=====================');
 
+  if (success && mounted) {
+    final prefs = await SharedPreferences.getInstance();
 
-    // في دالة submit بعد response
-    print('=== LOGIN RESPONSE ===');
-    print('Success: ${response['success']}');
-    print('Message: ${response['message']}');
-    print('Token: ${response['token']}');
-    print('User Role: ${response['user']?['role']}');
-    print('User Status: ${response['user']?['status']}');
-    print('=====================');
-    if (success && mounted) {
-      final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('token', response['token']);
+    await prefs.setString('user_id', response['user']['user_id'].toString());
+    await prefs.setString('user_email', response['user']['email']);
+    await prefs.setString('user_name', response['user']['full_name']);
+    await prefs.setString('user_role', response['user']['role']);
+    
+    // ✅ حفظ بيانات المؤسسة إذا كان مديراً
+    if (response['user']['role'] == 'Manager' && response['institution'] != null) {
+      await prefs.setString('institution_data', jsonEncode(response['institution']));
+      print('🏢 تم حفظ بيانات المؤسسة في التخزين المحلي');
+      print('   Institution Name: ${response['institution']['name']}');
+      print('   Institution Status: ${response['institution']['approval_status']}');
+    }
 
-      await prefs.setString('token', response['token']);
-      await prefs.setString('user_id', response['user']['user_id'].toString());
-      await prefs.setString('user_email', response['user']['email']);
-      await prefs.setString('user_name', response['user']['full_name']);
-      await prefs.setString('user_role', response['user']['role']);
+    print('✅ تم حفظ بيانات المستخدم في التخزين المحلي');
+    print('📝 Token: ${response['token']}');
+    print('👤 User ID: ${response['user']['user_id']}');
+    print('🎯 Role: ${response['user']['role']}');
 
-      print('✅ تم حفظ بيانات المستخدم في التخزين المحلي');
-      print('📝 Token: ${response['token']}');
-      print('👤 User ID: ${response['user']['user_id']}');
-      print('🎯 Role: ${response['user']['role']}');
+    try {
+      final authSync = AuthSyncService();
+      await authSync.syncCurrentUser();
+      print('✅ تمت مزامنة Firebase بنجاح');
+    } catch (e) {
+      print('❌ خطأ في مزامنة Firebase: $e');
+    }
 
-      try {
-        final authSync = AuthSyncService();
-        await authSync.syncCurrentUser();
-        print('✅ تمت مزامنة Firebase بنجاح');
-      } catch (e) {
-        print('❌ خطأ في مزامنة Firebase: $e');
-      }
-
-      final role = response['user']['role'];
-      if (role == 'Parent') {
-        Navigator.pushReplacementNamed(context, '/parentDashboard');
-      } else if (role == 'Specialist') {
-        Navigator.pushReplacementNamed(context, '/specialistDashboard');
-      } else if (role == 'Admin') {
-        Navigator.pushReplacementNamed(context, '/adminDashboard');
-      } else {
-        Navigator.pushReplacementNamed(context, '/home');
-      }
+    // ✅ تحديث التوجيه لإضافة Manager
+    final role = response['user']['role'];
+    if (role == 'Parent') {
+      Navigator.pushReplacementNamed(context, '/parentDashboard');
+    } else if (role == 'Specialist') {
+      Navigator.pushReplacementNamed(context, '/specialistDashboard');
+    } else if (role == 'Admin') {
+      Navigator.pushReplacementNamed(context, '/adminDashboard');
+    } else if (role == 'Manager') {
+      Navigator.pushReplacementNamed(context, '/managerDashboard');
+    } else {
+      Navigator.pushReplacementNamed(context, '/home');
     }
   }
+}
 
   @override
   Widget build(BuildContext context) {

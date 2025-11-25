@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:frontend/screens/manager_home_screen.dart';
 
 import 'screens/signup_screen.dart';
 import 'screens/login_screen.dart';
@@ -238,6 +239,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         '/forgotPassword': (context) => ForgotPasswordScreen(),
         '/adminDashboard': (context) => AdminDashboardScreen(),
         '/specialistDashboard': (context) => SpecialistDashboardScreen(),
+        '/managerDashboard': (context) => ManagerHomeScreen(),
         '/chats': (context) => ChatListScreen(),
         '/map': (context) => MapScreen(),
 

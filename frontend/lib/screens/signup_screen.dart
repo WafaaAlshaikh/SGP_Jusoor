@@ -32,6 +32,12 @@ class _SignupScreenState extends State<SignupScreen> {
   String? website; // للمInstitution
   String? contactInfo; // للمInstitution
 
+  // ✅ بيانات المؤسسة الجديدة للمدير
+  String? institutionContactEmail;
+  String? institutionContactPhone;
+  String? institutionLicense;
+  int? institutionEstablishedYear;
+
   // بيانات OTP
   String otp = '';
   String? tempToken;
@@ -123,315 +129,350 @@ class _SignupScreenState extends State<SignupScreen> {
 
 
   Widget _buildRoleSpecificFields() {
-    switch (role) {
-      case 'Parent':
-        return Column(
-          children: [
-            SizedBox(height: 16),
-            TextFormField(
-              decoration: InputDecoration(
-                labelText: 'Address',
-                prefixIcon: Icon(Icons.home_outlined, color: Color(0xFF7815A0)),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              onChanged: (val) => address = val,
+  switch (role) {
+    case 'Parent':
+      return Column(
+        children: [
+          SizedBox(height: 16),
+          TextFormField(
+            decoration: InputDecoration(
+              labelText: 'Address',
+              prefixIcon: Icon(Icons.home_outlined, color: Color(0xFF7815A0)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            SizedBox(height: 16),
-            TextFormField(
-              decoration: InputDecoration(
-                labelText: 'Occupation',
-                prefixIcon: Icon(Icons.work_outline, color: Color(0xFF7815A0)),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              onChanged: (val) => occupation = val,
+            onChanged: (val) => address = val,
+          ),
+          SizedBox(height: 16),
+          TextFormField(
+            decoration: InputDecoration(
+              labelText: 'Occupation',
+              prefixIcon: Icon(Icons.work_outline, color: Color(0xFF7815A0)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             ),
-          ],
-        );
+            onChanged: (val) => occupation = val,
+          ),
+        ],
+      );
 
-      case 'Specialist':
-        return Column(
-          children: [
-            SizedBox(height: 16),
-            TextFormField(
-              decoration: InputDecoration(
-                labelText: 'Specialization',
-                prefixIcon: Icon(Icons.medical_services_outlined, color: Color(0xFF7815A0)),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              onChanged: (val) => specialization = val,
+    case 'Specialist':
+      return Column(
+        children: [
+          SizedBox(height: 16),
+          TextFormField(
+            decoration: InputDecoration(
+              labelText: 'Specialization',
+              prefixIcon: Icon(Icons.medical_services_outlined, color: Color(0xFF7815A0)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            SizedBox(height: 16),
-            TextFormField(
-              decoration: InputDecoration(
-                labelText: 'Years of Experience',
-                prefixIcon: Icon(Icons.timeline_outlined, color: Color(0xFF7815A0)),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              keyboardType: TextInputType.number,
-              onChanged: (val) => yearsExperience = int.tryParse(val),
+            onChanged: (val) => specialization = val,
+          ),
+          SizedBox(height: 16),
+          TextFormField(
+            decoration: InputDecoration(
+              labelText: 'Years of Experience',
+              prefixIcon: Icon(Icons.timeline_outlined, color: Color(0xFF7815A0)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            SizedBox(height: 16),
-            TextFormField(
-              decoration: InputDecoration(
-                labelText: 'Institution ID (Optional)',
-                prefixIcon: Icon(Icons.business_outlined, color: Color(0xFF7815A0)),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              keyboardType: TextInputType.number,
-              onChanged: (val) => institutionId = val,
+            keyboardType: TextInputType.number,
+            onChanged: (val) => yearsExperience = int.tryParse(val),
+          ),
+          SizedBox(height: 16),
+          TextFormField(
+            decoration: InputDecoration(
+              labelText: 'Institution ID (Optional)',
+              prefixIcon: Icon(Icons.business_outlined, color: Color(0xFF7815A0)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             ),
-          ],
-        );
+            keyboardType: TextInputType.number,
+            onChanged: (val) => institutionId = val,
+          ),
+        ],
+      );
 
-      case 'Institution':
-        return Column(
-          children: [
-            SizedBox(height: 16),
-            TextFormField(
-              decoration: InputDecoration(
-                labelText: 'Institution Name',
-                prefixIcon: Icon(Icons.business, color: Color(0xFF7815A0)),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              onChanged: (val) => institutionName = val,
-              validator: (val) => val!.isEmpty ? 'Required for Institution' : null,
+    // ✅ تحديث Manager ليدخل بيانات المؤسسة الجديدة
+    case 'Manager':
+      return Column(
+        children: [
+          SizedBox(height: 16),
+          TextFormField(
+            decoration: InputDecoration(
+              labelText: 'Institution Name *',
+              prefixIcon: Icon(Icons.business, color: Color(0xFF7815A0)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            SizedBox(height: 16),
-            TextFormField(
-              decoration: InputDecoration(
-                labelText: 'Description',
-                prefixIcon: Icon(Icons.description_outlined, color: Color(0xFF7815A0)),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              maxLines: 3,
-              onChanged: (val) => institutionDescription = val,
+            onChanged: (val) => institutionName = val,
+            validator: (val) => val!.isEmpty ? 'Required for Manager' : null,
+          ),
+          SizedBox(height: 16),
+          TextFormField(
+            decoration: InputDecoration(
+              labelText: 'Institution Contact Email *',
+              prefixIcon: Icon(Icons.email_outlined, color: Color(0xFF7815A0)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            SizedBox(height: 16),
-            TextFormField(
-              decoration: InputDecoration(
-                labelText: 'Location',
-                prefixIcon: Icon(Icons.location_on_outlined, color: Color(0xFF7815A0)),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              onChanged: (val) => location = val,
+            keyboardType: TextInputType.emailAddress,
+            onChanged: (val) => institutionContactEmail = val,
+            validator: (val) {
+              if (val!.isEmpty) return 'Required for Manager';
+              final emailRegex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+              if (!emailRegex.hasMatch(val)) return 'Enter valid email';
+              return null;
+            },
+          ),
+          SizedBox(height: 16),
+          TextFormField(
+            decoration: InputDecoration(
+              labelText: 'Institution Contact Phone *',
+              prefixIcon: Icon(Icons.phone_outlined, color: Color(0xFF7815A0)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            SizedBox(height: 16),
-            TextFormField(
-              decoration: InputDecoration(
-                labelText: 'Website (Optional)',
-                prefixIcon: Icon(Icons.language_outlined, color: Color(0xFF7815A0)),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              keyboardType: TextInputType.url,
-              onChanged: (val) => website = val,
+            keyboardType: TextInputType.phone,
+            onChanged: (val) => institutionContactPhone = val,
+            validator: (val) => val!.isEmpty ? 'Required for Manager' : null,
+          ),
+          SizedBox(height: 16),
+          TextFormField(
+            decoration: InputDecoration(
+              labelText: 'License Number (Optional)',
+              prefixIcon: Icon(Icons.badge_outlined, color: Color(0xFF7815A0)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            SizedBox(height: 16),
-            TextFormField(
-              decoration: InputDecoration(
-                labelText: 'Contact Info',
-                prefixIcon: Icon(Icons.contact_phone_outlined, color: Color(0xFF7815A0)),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              onChanged: (val) => contactInfo = val,
+            onChanged: (val) => institutionLicense = val,
+          ),
+          SizedBox(height: 16),
+          TextFormField(
+            decoration: InputDecoration(
+              labelText: 'Established Year (Optional)',
+              prefixIcon: Icon(Icons.calendar_today_outlined, color: Color(0xFF7815A0)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             ),
-          ],
-        );
-
-      case 'Manager':
-        return Column(
-          children: [
-            SizedBox(height: 16),
-            TextFormField(
-              decoration: InputDecoration(
-                labelText: 'Institution ID',
-                prefixIcon: Icon(Icons.business_outlined, color: Color(0xFF7815A0)),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              keyboardType: TextInputType.number,
-              onChanged: (val) => institutionId = val,
-              validator: (val) => val!.isEmpty ? 'Required for Manager' : null,
+            keyboardType: TextInputType.number,
+            onChanged: (val) => institutionEstablishedYear = int.tryParse(val),
+          ),
+          SizedBox(height: 16),
+          Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue[50],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue),
             ),
-          ],
-        );
-
-      case 'Admin':
-        return Column(
-          children: [
-            SizedBox(height: 16),
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.orange[50],
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, color: Colors.orange),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Admin accounts require approval from existing administrators',
-                      style: TextStyle(color: Colors.orange[800]),
-                    ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.blue, size: 16),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Your institution will be reviewed by admin before activation',
+                    style: TextStyle(fontSize: 12, color: Colors.blue[800]),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        );
+          ),
+        ],
+      );
 
-      case 'Donor':
-        return Column(
-          children: [
-            SizedBox(height: 16),
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.green[50],
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.green),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.volunteer_activism, color: Colors.green),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Thank you for your interest in supporting our cause!',
-                      style: TextStyle(color: Colors.green[800]),
-                    ),
+    case 'Admin':
+      return Column(
+        children: [
+          SizedBox(height: 16),
+          Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.orange[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.orange),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Admin accounts require approval from existing administrators',
+                    style: TextStyle(color: Colors.orange[800]),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        );
+          ),
+        ],
+      );
 
-      default:
-        return SizedBox.shrink();
-    }
+    case 'Donor':
+      return Column(
+        children: [
+          SizedBox(height: 16),
+          Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.green[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.green),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.volunteer_activism, color: Colors.green),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Thank you for your interest in supporting our cause!',
+                    style: TextStyle(color: Colors.green[800]),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+
+    default:
+      return SizedBox.shrink();
   }
+}
 
   void submitSignup() async {
-    if (!_formKey.currentState!.validate()) return;
+  if (!_formKey.currentState!.validate()) return;
 
-    setState(() => isLoading = true);
+  setState(() => isLoading = true);
 
-    // ✅ الحل: استخدام userLocation إذا كان موجود، وإلا موقع افتراضي
-    Map<String, dynamic> locationData;
+  // ✅ الحل: استخدام userLocation إذا كان موجود، وإلا موقع افتراضي
+  Map<String, dynamic> locationData;
 
-    if (userLocation != null &&
-        userLocation!['lat'] != null &&
-        userLocation!['lng'] != null) {
-      // ✅ استخدام الموقع المحدد من الخريطة
-      locationData = {
-        'lat': userLocation!['lat'],
-        'lng': userLocation!['lng'],
-        'address': userLocation!['address'] ?? 'Selected Location',
-        'city': userLocation!['city'] ?? 'فلسطين',
-        'region': userLocation!['region'] ?? 'فلسطين',
-      };
-      print('✅ Using selected location from map: $locationData');
-    } else {
-      // ⚠️ موقع افتراضي إذا لم يحدد المستخدم موقعاً
-      locationData = {
-        'lat': 32.4645,
-        'lng': 35.3027,
-        'address': 'جنين, فلسطين',
-        'city': 'جنين',
-        'region': 'شمال الضفة',
-      };
-      print('⚠️ Using default location (Jenin): $locationData');
-    }
-
-    final Map<String, dynamic> data = {
-      'full_name': fullName.trim(),
-      'email': email.trim(),
-      'password': password,
-      'role': role,
-      'phone': phone,
-      'profile_picture': profilePicture,
-
-      // ✅ البيانات الجغرافية - مضمونة الآن
-      'location_lat': locationData['lat'],
-      'location_lng': locationData['lng'],
-      'location_address': locationData['address'],
-      'city': locationData['city'],
-      'region': locationData['region'],
-
-      // بيانات إضافية حسب الدور
-      if (role == 'Parent') ...{
-        'address': address ?? locationData['address'],
-        'occupation': occupation,
-      },
-      if (role == 'Specialist') ...{
-        'specialization': specialization,
-        'years_experience': yearsExperience,
-        'institution_id': institutionId,
-      },
+  if (userLocation != null &&
+      userLocation!['lat'] != null &&
+      userLocation!['lng'] != null) {
+    locationData = {
+      'lat': userLocation!['lat'],
+      'lng': userLocation!['lng'],
+      'address': userLocation!['address'] ?? 'Selected Location',
+      'city': userLocation!['city'] ?? 'فلسطين',
+      'region': userLocation!['region'] ?? 'فلسطين',
     };
+    print('✅ Using selected location from map: $locationData');
+  } else {
+    locationData = {
+      'lat': 32.4645,
+      'lng': 35.3027,
+      'address': 'جنين, فلسطين',
+      'city': 'جنين',
+      'region': 'شمال الضفة',
+    };
+    print('⚠️ Using default location (Jenin): $locationData');
+  }
 
-    // 🔍 طباعة تفصيلية قبل الإرسال
-    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    print('🚀 [SIGNUP] SENDING DATA TO API:');
-    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    print('📍 LOCATION DATA:');
-    print('   ├─ location_lat: ${data['location_lat']} (${data['location_lat'].runtimeType})');
-    print('   ├─ location_lng: ${data['location_lng']} (${data['location_lng'].runtimeType})');
-    print('   ├─ location_address: ${data['location_address']}');
-    print('   ├─ city: ${data['city']}');
-    print('   └─ region: ${data['region']}');
-    print('👤 USER DATA:');
-    print('   ├─ full_name: ${data['full_name']}');
-    print('   ├─ email: ${data['email']}');
-    print('   └─ role: ${data['role']}');
-    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  final Map<String, dynamic> data = {
+    'full_name': fullName.trim(),
+    'email': email.trim(),
+    'password': password,
+    'role': role,
+    'phone': phone,
+    'profile_picture': profilePicture,
 
-    try {
-      final response = await ApiService.signupInitial(data);
-      setState(() => isLoading = false);
+    // ✅ البيانات الجغرافية - مضمونة الآن
+    'location_lat': locationData['lat'],
+    'location_lng': locationData['lng'],
+    'location_address': locationData['address'],
+    'city': locationData['city'],
+    'region': locationData['region'],
 
-      if (response['success'] == true) {
-        setState(() {
-          tempToken = response['tempToken'];
-          showOTPScreen = true;
-        });
+    // بيانات إضافية حسب الدور
+    if (role == 'Parent') ...{
+      'address': address ?? locationData['address'],
+      'occupation': occupation,
+    },
+    if (role == 'Specialist') ...{
+      'specialization': specialization,
+      'years_experience': yearsExperience,
+      'institution_id': institutionId,
+    },
+    // ✅ إضافة بيانات المؤسسة للمدير
+    if (role == 'Manager') ...{
+      'institution_name': institutionName,
+      'institution_contact_email': institutionContactEmail,
+      'institution_contact_phone': institutionContactPhone,
+      'institution_license': institutionLicense,
+      'institution_established_year': institutionEstablishedYear,
+      'institution_city': locationData['city'], // استخدام نفس مدينة المستخدم
+      'institution_region': locationData['region'], // استخدام نفس منطقة المستخدم
+    },
+  };
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✅ تم إرسال رمز التحقق لبريدك الإلكتروني'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
-          ),
-        );
+  // 🔍 طباعة تفصيلية قبل الإرسال
+  print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  print('🚀 [SIGNUP] SENDING DATA TO API:');
+  print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  print('📍 LOCATION DATA:');
+  print('   ├─ location_lat: ${data['location_lat']} (${data['location_lat'].runtimeType})');
+  print('   ├─ location_lng: ${data['location_lng']} (${data['location_lng'].runtimeType})');
+  print('   ├─ location_address: ${data['location_address']}');
+  print('   ├─ city: ${data['city']}');
+  print('   └─ region: ${data['region']}');
+  
+  if (role == 'Manager') {
+    print('🏢 INSTITUTION DATA:');
+    print('   ├─ institution_name: ${data['institution_name']}');
+    print('   ├─ institution_contact_email: ${data['institution_contact_email']}');
+    print('   ├─ institution_contact_phone: ${data['institution_contact_phone']}');
+    print('   ├─ institution_license: ${data['institution_license']}');
+    print('   ├─ institution_established_year: ${data['institution_established_year']}');
+    print('   ├─ institution_city: ${data['institution_city']}');
+    print('   └─ institution_region: ${data['institution_region']}');
+  }
+  
+  print('👤 USER DATA:');
+  print('   ├─ full_name: ${data['full_name']}');
+  print('   ├─ email: ${data['email']}');
+  print('   └─ role: ${data['role']}');
+  print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-        print('✅ [SIGNUP] OTP sent successfully with location data!');
-        print('📍 Location confirmed in request: ${data['city']}, ${data['region']}');
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ ${response['message']}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        print('❌ [SIGNUP] Failed: ${response['message']}');
-      }
-    } catch (e) {
-      setState(() => isLoading = false);
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      print('❌ [SIGNUP] CRITICAL ERROR:');
-      print('   Error: $e');
-      print('   Type: ${e.runtimeType}');
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  try {
+    final response = await ApiService.signupInitial(data);
+    setState(() => isLoading = false);
+
+    if (response['success'] == true) {
+      setState(() {
+        tempToken = response['tempToken'];
+        showOTPScreen = true;
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('❌ خطأ في الشبكة. تحقق من اتصالك بالإنترنت'),
+          content: Text('✅ تم إرسال رمز التحقق لبريدك الإلكتروني'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+        ),
+      );
+
+      print('✅ [SIGNUP] OTP sent successfully!');
+      if (role == 'Manager') {
+        print('🏢 Institution data included in request');
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ ${response['message']}'),
           backgroundColor: Colors.red,
         ),
       );
+      print('❌ [SIGNUP] Failed: ${response['message']}');
     }
+  } catch (e) {
+    setState(() => isLoading = false);
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    print('❌ [SIGNUP] CRITICAL ERROR:');
+    print('   Error: $e');
+    print('   Type: ${e.runtimeType}');
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('❌ خطأ في الشبكة. تحقق من اتصالك بالإنترنت'),
+        backgroundColor: Colors.red,
+      ),
+    );
   }
+}
 
   void verifyOTP() async {
     if (!_otpFormKey.currentState!.validate()) return;
