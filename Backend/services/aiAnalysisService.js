@@ -1,4 +1,3 @@
-// services/aiAnalysisService.js - Advanced Local AI Analysis System
 const Diagnosis = require('../model/Diagnosis');
 const Institution = require('../model/Institution');
 const SessionType = require('../model/SessionType');

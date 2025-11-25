@@ -29,8 +29,8 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.BOOLEAN,
       defaultValue: true
     },
-    // Add these fields to your model definition:
-enhanced_results: {
+
+    enhanced_results: {
   type: DataTypes.JSON,
   allowNull: true
 },

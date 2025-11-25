@@ -25,11 +25,10 @@ const getUpcomingSessions = async (req, res) => {
     const childIds = children.map(c => c.child_id);
     if (childIds.length === 0) return res.status(200).json({ sessions: [] });
 
-    // ✅ عرض فقط الجلسات التي تمت موافقة الأهل عليها (Scheduled)
     const sessions = await Session.findAll({
       where: {
         child_id: { [Op.in]: childIds },
-        status: ['Scheduled', 'Rescheduled'] // فقط الجلسات المقررة
+        status: ['Scheduled', 'Rescheduled'] 
       },
       include: [
         {
@@ -56,8 +55,8 @@ const getUpcomingSessions = async (req, res) => {
       time: s.time,
       sessionLocation: s.session_type,
       status: s.status,
-      isPaid: s.is_paid, // ✅ إضافة حالة الدفع
-      paymentStatus: s.payment_status // ✅ إضافة حالة الدفع
+      isPaid: s.is_paid, 
+      paymentStatus: s.payment_status 
     }));
 
     res.status(200).json({ sessions: formatted });
@@ -98,8 +97,8 @@ const getCompletedSessions = async (req, res) => {
       time: s.time,
       sessionLocation: s.session_type,
       status: s.status,
-      rating: null, // سيتم إضافته بعد migration
-      review: null, // سيتم إضافته بعد migration
+      rating: null,
+      review: null, 
     }));
 
     res.json({ sessions: formatted });
@@ -148,7 +147,6 @@ const cancelSession = async (req, res) => {
 
     if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
 
-    // التحقق من أن الجلسة مملوكة للـ parent
     const parentId = req.user.user_id;
     const child = await Child.findOne({
       where: { child_id: session.child_id, parent_id: parentId }
@@ -158,7 +156,6 @@ const cancelSession = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
-    // ✅ تحديث حالة الجلسة إلى "Cancelled" فقط
     await session.update({
       status: 'Cancelled',
       reason: reason || 'Cancelled by parent'
@@ -181,7 +178,6 @@ const getChildSessions = async (req, res) => {
 
     if (!childId) return res.status(400).json({ message: 'Child ID is required' });
 
-    // التحقق من أن الـ parent يملك هذا الطفل (إذا كان المستخدم parent)
     if (userRole === 'Parent') {
       const child = await Child.findOne({
         where: { 
@@ -308,7 +304,6 @@ exports.approveSession = async (req, res) => {
   }
 };
 
-// ✅ جلب الجلسات المعلقة (Pending Approval)
 const getPendingSessions = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -362,7 +357,6 @@ const getPendingSessions = async (req, res) => {
   }
 };
 
-// ✅ جلب الجلسات الملغاة
 const getCancelledSessions = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -407,7 +401,7 @@ const getCancelledSessions = async (req, res) => {
       time: s.time,
       sessionLocation: s.session_type,
       status: s.status,
-      cancellationReason: s.reason || null, // استخدام reason الموجود بدلاً من cancellation_reason
+      cancellationReason: s.reason || null, 
     }));
 
     res.status(200).json({ sessions: formatted });
@@ -417,7 +411,6 @@ const getCancelledSessions = async (req, res) => {
   }
 };
 
-// ✅ تقييم الجلسة من قبل الأهل
 const rateSession = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -431,7 +424,6 @@ const rateSession = async (req, res) => {
       });
     }
 
-    // التحقق من أن الجلسة مملوكة للـ parent
     const session = await Session.findByPk(id, {
       include: [{
         model: Child,
@@ -455,27 +447,12 @@ const rateSession = async (req, res) => {
       });
     }
 
-    // تحديث التقييم - سيتم تفعيله بعد إضافة الحقول إلى قاعدة البيانات
-    // await session.update({
-    //   parent_rating: rating,
-    //   parent_review: review || null
-    // });
-    
-    // مؤقتاً: حفظ التقييم في parent_notes أو جدول منفصل
+   
     await session.update({
       parent_notes: review || session.parent_notes || null
     });
 
-    // حساب تقييم الأخصائي - سيتم تفعيله بعد إضافة الحقول
-    // const allSessionsForSpecialist = await Session.findAll({
-    //   where: {
-    //     specialist_id: session.specialist_id,
-    //     status: 'Completed',
-    //     parent_rating: { [Op.not]: null }
-    //   },
-    //   attributes: ['parent_rating']
-    // });
-
+   
     res.json({ 
       success: true, 
       message: 'Session rated successfully',
@@ -488,7 +465,6 @@ const rateSession = async (req, res) => {
   }
 };
 
-// في controllers/sessionController.js - أضف هذه الدالة
 const processPayment = async (req, res) => {
   try {
       const { id } = req.params;
@@ -497,7 +473,6 @@ const processPayment = async (req, res) => {
 
       console.log('💳 Processing payment for session:', { id, paymentMethod });
 
-      // التحقق من أن الجلسة تابعة للوالد
       const session = await Session.findOne({
         where: { session_id: id },
         include: [
@@ -512,7 +487,7 @@ const processPayment = async (req, res) => {
             attributes: ['price']
           },
           {
-            model: Invoice,  // ✅ إضافة العلاقة
+            model: Invoice, 
             as: 'Invoice',
             attributes: ['invoice_id', 'status']
           }
@@ -526,7 +501,6 @@ const processPayment = async (req, res) => {
       });
     }
 
-    // التحقق من أن الجلسة بحاجة للدفع
     if (session.is_paid && session.payment_status === 'Paid') {
       return res.status(400).json({
         success: false,
@@ -534,20 +508,17 @@ const processPayment = async (req, res) => {
       });
     }
 
-    // محاكاة عملية الدفع الناجحة
-    // في التطبيق الحقيقي، هنا ستتكامل مع بوابة الدفع
-    const paymentSuccess = true; // محاكاة نجاح الدفع
+    
+    const paymentSuccess = true;
 
     if (paymentSuccess) {
-      // تحديث حالة الجلسة بعد الدفع الناجح
       await session.update({
         is_paid: true,
         payment_status: 'Paid',
         payment_date: new Date(),
-        status: 'Scheduled' // تأكيد الجلسة بعد الدفع
+        status: 'Scheduled' 
       });
 
-      // إنشاء أو تحديث الفاتورة
       let invoice = await Invoice.findOne({ where: { session_id: id } });
 
       if (!invoice) {
@@ -560,7 +531,7 @@ const processPayment = async (req, res) => {
           tax_amount: 0,
           total_amount: session.SessionType ? session.SessionType.price : session.price,
           status: 'Paid',
-          due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // بعد أسبوع
+          due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), 
           issued_date: new Date(),
           paid_date: new Date()
         });
@@ -571,7 +542,6 @@ const processPayment = async (req, res) => {
         });
       }
 
-      // إنشاء سجل الدفع
       await Payment.create({
         invoice_id: invoice.invoice_id,
         amount: invoice.total_amount,
@@ -582,7 +552,6 @@ const processPayment = async (req, res) => {
         payment_date: new Date()
       });
 
-      // إرسال إشعار للمختص
       if (session.specialist_id) {
         await Notification.create({
           user_id: session.specialist_id,

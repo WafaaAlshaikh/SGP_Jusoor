@@ -8,7 +8,7 @@ const Diagnosis = sequelize.define('Diagnosis', {
         primaryKey: true 
     },
     name: { 
-        type: DataTypes.STRING(255), // ⭐ Changed from ENUM to VARCHAR
+        type: DataTypes.STRING(255), 
         allowNull: false,
         unique: true 
     },
@@ -24,12 +24,12 @@ const Diagnosis = sequelize.define('Diagnosis', {
         type: DataTypes.ENUM(
             'Developmental',  
             'Neurological',  
-            'Genetic',        // جيني
-            'Sensory',        // حسي
-            'Learning',       // تعليمي
-            'Behavioral',     // سلوكي
-            'Physical',       // جسدي
-            'Multiple'        // متعدد
+            'Genetic',       
+            'Sensory',       
+            'Learning',       
+            'Behavioral',    
+            'Physical',      
+            'Multiple'      
         ),
         allowNull: true,
         defaultValue: 'Developmental'

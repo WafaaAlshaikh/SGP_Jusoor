@@ -39,7 +39,7 @@ const Review = sequelize.define('Review', {
     type: DataTypes.TEXT,
     allowNull: true
   },
-  // Aspect ratings
+
   staff_rating: {
     type: DataTypes.DECIMAL(2, 1),
     allowNull: true,
@@ -72,7 +72,7 @@ const Review = sequelize.define('Review', {
       max: 5.0
     }
   },
-  // Engagement metrics
+
   helpful_count: {
     type: DataTypes.INTEGER,
     defaultValue: 0
@@ -81,13 +81,13 @@ const Review = sequelize.define('Review', {
     type: DataTypes.INTEGER,
     defaultValue: 0
   },
-  // Images
+
   images: {
     type: DataTypes.JSON,
     allowNull: true,
     comment: 'Array of image URLs'
   },
-  // Status
+
   status: {
     type: DataTypes.ENUM('pending', 'approved', 'rejected'),
     defaultValue: 'approved'

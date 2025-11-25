@@ -9,13 +9,9 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
 
-/**
- * GET /api/ai/specialist-advice
- * يجيب نصائح علمية محدثة مع مصادر ودراسات للأخصائي
- */
+
 router.get('/specialist-advice', authMiddleware, async (req, res) => {
   try {
-    // تحقق أن المستخدم أخصائي
     if (req.user.role !== 'Specialist') {
       return res.status(403).json({ 
         success: false,
@@ -23,7 +19,6 @@ router.get('/specialist-advice', authMiddleware, async (req, res) => {
       });
     }
 
-    // جيب بيانات الأخصائي من قاعدة البيانات
     const specialist = await Specialist.findOne({
       where: { specialist_id: req.user.user_id }
     });
@@ -37,7 +32,6 @@ router.get('/specialist-advice', authMiddleware, async (req, res) => {
 
     console.log(`Generating evidence-based advice for: ${specialist.specialization} (${specialist.years_experience} years)`);
 
-    // ولّد النصائح العلمية المحدثة من Groq AI
     const chatCompletion = await groq.chat.completions.create({
       messages: [
         {
@@ -92,7 +86,6 @@ Generate 5 tips following this format.`
 
     const content = chatCompletion.choices[0]?.message?.content || '[]';
     
-    // استخراج JSON من الرد
     const jsonMatch = content.match(/\[[\s\S]*\]/);
     
     if (jsonMatch) {
@@ -123,13 +116,10 @@ Generate 5 tips following this format.`
   }
 });
 
-/**
- * GET /api/ai/daily-tip
- * يجيب نصيحة يومية علمية مع مصدر أو دراسة
- */
+
+
 router.get('/daily-tip', authMiddleware, async (req, res) => {
   try {
-    // تحقق أن المستخدم أخصائي
     if (req.user.role !== 'Specialist') {
       return res.status(403).json({ 
         success: false,
@@ -137,7 +127,6 @@ router.get('/daily-tip', authMiddleware, async (req, res) => {
       });
     }
 
-    // جيب بيانات الأخصائي
     const specialist = await Specialist.findOne({
       where: { specialist_id: req.user.user_id }
     });
@@ -151,7 +140,6 @@ router.get('/daily-tip', authMiddleware, async (req, res) => {
 
     console.log(`Generating evidence-based daily tip for: ${specialist.specialization}`);
 
-    // ولّد نصيحة يومية علمية
     const chatCompletion = await groq.chat.completions.create({
       messages: [
         {
@@ -199,10 +187,8 @@ Make it specific to ${specialist.specialization}.`
   }
 });
 
-/**
- * GET /api/ai/specialized-exercise
- * يجيب تمرين محدد حسب التخصص مع خطوات التنفيذ
- */
+
+
 router.get('/specialized-exercise', authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== 'Specialist') {
@@ -223,7 +209,7 @@ router.get('/specialized-exercise', authMiddleware, async (req, res) => {
       });
     }
 
-    const { focus_area } = req.query; // مثلاً: 'speech', 'motor skills', 'social skills'
+    const { focus_area } = req.query; 
 
     const chatCompletion = await groq.chat.completions.create({
       messages: [
@@ -289,10 +275,7 @@ Make it practical, detailed, and evidence-based.`
   }
 });
 
-/**
- * POST /api/ai/educational-resources
- * يجيب موارد تعليمية من مصادر موثوقة حسب التشخيص
- */
+
 router.post('/educational-resources', authMiddleware, async (req, res) => {
   try {
     const { diagnosis, age } = req.body;
@@ -306,9 +289,8 @@ router.post('/educational-resources', authMiddleware, async (req, res) => {
 
     console.log(`🔄 Generating educational resources for: ${diagnosis}, age: ${age}`);
 
-    // Add variation seed based on current time
     const now = new Date();
-    const seed = now.getHours() + now.getMinutes(); // Changes every minute
+    const seed = now.getHours() + now.getMinutes(); 
     const focusAreas = [
       'communication and social interaction',
       'daily living skills and independence',
@@ -318,7 +300,6 @@ router.post('/educational-resources', authMiddleware, async (req, res) => {
     ];
     const selectedFocus = focusAreas[seed % focusAreas.length];
 
-    // Trusted sources mapping
     const trustedSources = {
       'Autism Spectrum Disorder': [
         { name: 'Autism Speaks', url: 'https://www.autismspeaks.org' },
@@ -345,7 +326,6 @@ router.post('/educational-resources', authMiddleware, async (req, res) => {
 
     const sources = trustedSources[diagnosis] || trustedSources['Learning Disabilities'];
 
-    // Generate AI resources using Groq
     const chatCompletion = await groq.chat.completions.create({
       messages: [
         {
@@ -396,9 +376,9 @@ Generate 5 DIVERSE resources in JSON format ONLY.`
         }
       ],
       model: "llama-3.3-70b-versatile",
-      temperature: 0.85, // Higher for more variety
+      temperature: 0.85, 
       max_tokens: 1800,
-      top_p: 0.9 // Add nucleus sampling for diversity
+      top_p: 0.9
     });
 
     const content = chatCompletion.choices[0]?.message?.content || '[]';
@@ -407,7 +387,6 @@ Generate 5 DIVERSE resources in JSON format ONLY.`
     if (jsonMatch) {
       const aiResources = JSON.parse(jsonMatch[0]);
       
-      // Format resources with trusted sources
       const resources = aiResources.map((resource, index) => {
         const source = sources[index % sources.length];
         return {
@@ -453,10 +432,8 @@ Generate 5 DIVERSE resources in JSON format ONLY.`
   }
 });
 
-/**
- * GET /api/ai/test
- * endpoint للاختبار السريع (بدون authentication)
- */
+
+
 router.get('/test', async (req, res) => {
   try {
     const chatCompletion = await groq.chat.completions.create({
@@ -486,7 +463,6 @@ router.get('/test', async (req, res) => {
   }
 });
 
-// Educational Chatbot - General Q&A about conditions
 router.post('/educational-chat', authMiddleware, async (req, res) => {
   try {
     const { message, diagnoses } = req.body;
@@ -501,7 +477,6 @@ router.post('/educational-chat', authMiddleware, async (req, res) => {
     console.log(`💬 Educational Chat Question: "${message}"`);
     console.log(`📋 User's diagnoses: ${diagnoses?.join(', ') || 'None'}`);
 
-    // Build context based on user's diagnoses
     let contextInfo = '';
     if (diagnoses && diagnoses.length > 0) {
       contextInfo = `\n\nThe parent has children with the following conditions: ${diagnoses.join(', ')}.`;

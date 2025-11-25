@@ -1,24 +1,22 @@
-// controllers/VacationController.js
 const { Op } = require('sequelize');
 const VacationRequest = require('../model/VacationRequest');
 const Session = require('../model/Session');
 const Specialist = require('../model/Specialist');
 const User = require('../model/User');
 const Notification = require('../model/Notification');
-// ✅ إنشاء طلب إجازة جديد
+
 exports.createVacation = async (req, res) => {
   try {
     const { start_date, end_date, reason } = req.body;
     const specialist_id = req.user.user_id;
 
-    // تحقق من صلاحية المستخدم
+
     const specialist = await Specialist.findOne({ 
       where: { specialist_id },
-      include: [{ model: User, as: 'User' }] // ⭐ تضمين بيانات المستخدم
+      include: [{ model: User, as: 'User' }] 
     });
     if (!specialist) return res.status(403).json({ message: 'Not a specialist' });
 
-    // لا يسمح بتاريخ ماضي
     const today = new Date().toISOString().split('T')[0];
     if (start_date < today) return res.status(400).json({ message: 'Start date cannot be in the past' });
 
@@ -30,7 +28,6 @@ exports.createVacation = async (req, res) => {
       reason
     });
 
-    // ⭐ البحث عن المدير في نفس المؤسسة
     const manager = await User.findOne({
       where: { 
         institution_id: specialist.institution_id,
@@ -38,7 +35,6 @@ exports.createVacation = async (req, res) => {
       }
     });
 
-    // ⭐ إرسال إشعار للمدير إذا وجد
     if (manager) {
       await Notification.create({
         user_id: manager.user_id,
@@ -53,7 +49,7 @@ exports.createVacation = async (req, res) => {
     res.status(201).json({ 
       message: 'Vacation request created', 
       vacation,
-      notification_sent: !!manager // ⭐ إرجاع حالة الإشعار
+      notification_sent: !!manager 
     });
   } catch (err) {
     console.error(err);
@@ -61,7 +57,6 @@ exports.createVacation = async (req, res) => {
   }
 };
 
-// ✅ عرض جميع الإجازات للمختص
 exports.getMyVacations = async (req, res) => {
   try {
     const specialist_id = req.user.user_id;
@@ -78,7 +73,7 @@ exports.getMyVacations = async (req, res) => {
   }
 };
 
-// ✅ تعديل طلب إجازة (فقط إذا status = Pending)
+
 exports.updateVacation = async (req, res) => {
   try {
     const { id } = req.params;
@@ -89,7 +84,6 @@ exports.updateVacation = async (req, res) => {
     if (!vacation) return res.status(404).json({ message: 'Vacation not found' });
     if (vacation.status !== 'Pending') return res.status(400).json({ message: 'Cannot modify an approved or rejected vacation' });
 
-    // تحقق من الجلسات والتاريخ
     const today = new Date().toISOString().split('T')[0];
     if (start_date < today) return res.status(400).json({ message: 'Start date cannot be in the past' });
 
@@ -107,7 +101,6 @@ exports.updateVacation = async (req, res) => {
 };
 
 
-// ✅ حذف طلب إجازة (فقط إذا Pending) مع حذف الإشعار
 exports.deleteVacation = async (req, res) => {
   try {
     const { id } = req.params;
@@ -117,7 +110,6 @@ exports.deleteVacation = async (req, res) => {
     if (!vacation) return res.status(404).json({ message: 'Vacation not found' });
     if (vacation.status !== 'Pending') return res.status(400).json({ message: 'Cannot delete an approved or rejected vacation' });
 
-    // ⭐ حذف الإشعار المرتبط بهذا الطلب
     await Notification.destroy({
       where: { 
         related_id: id,
@@ -133,7 +125,6 @@ exports.deleteVacation = async (req, res) => {
   }
 };
 
-// ✅ عرض جميع الطلبات للمدير (نفس المؤسسة فقط)
 exports.getInstitutionVacations = async (req, res) => {
   try {
     const manager = await User.findByPk(req.user.user_id);
@@ -151,7 +142,6 @@ exports.getInstitutionVacations = async (req, res) => {
   }
 };
 
-// ✅ جلب الأيام المحجوزة (فيها جلسات)
 exports.getUnavailableDates = async (req, res) => {
   try {
     const specialist_id = req.user.user_id;
@@ -166,21 +156,19 @@ exports.getUnavailableDates = async (req, res) => {
 
     const unavailableDates = sessions.map(s => s.date);
 
-    // كمان نمنع الأيام الماضية
     const today = new Date().toISOString().split('T')[0];
     const pastDates = [];
 
-    // بتقدري من الفرونت تمنعي الأيام الماضية بنفسك، بس هون بنخليها جاهزة لو بدك
     res.status(200).json({
       unavailableDates,
-      today // عشان تعرفي من وين تبدأي
+      today 
     });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Server error' });
   }
 };
-// ✅ جلب طلبات الإجازة مع الإشعارات للمدير
+
 exports.getManagerVacationNotifications = async (req, res) => {
   try {
     const manager = await User.findByPk(req.user.user_id);
@@ -207,14 +195,14 @@ exports.getManagerVacationNotifications = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
-// ✅ تحديث حالة الطلب من قبل المدير
+
 exports.updateVacationStatus = async (req, res) => {
   try {
     const manager = await User.findByPk(req.user.user_id);
     if (manager.role !== 'Manager') return res.status(403).json({ message: 'Not authorized' });
 
     const { id } = req.params;
-    const { status } = req.body; // Approved أو Rejected
+    const { status } = req.body; 
 
     const vacation = await VacationRequest.findOne({
       where: { request_id: id, institution_id: manager.institution_id }

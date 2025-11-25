@@ -1,4 +1,3 @@
-// controllers/enhancedScreeningController.js
 const AIAnalysisService = require('../services/aiAnalysisService');
 const GroqAIService = require('../services/groqAIService');
 const { Institution, SessionType, sequelize } = require('../model/index');
@@ -115,7 +114,6 @@ class EnhancedScreeningController {
     return symptoms;
   }
 
-  // في enhancedScreeningController.js - نعدل دالة getInstitutionsFromScreening
 async getInstitutionsFromScreening(screeningResults, childLocation, parentLocation = {}) {
   try {
     const targetConditions = [];
@@ -156,7 +154,7 @@ async getInstitutionsFromScreening(screeningResults, childLocation, parentLocati
       targetConditions,
       childLocation?.city || '',
       childLocation?.address || '',
-      parentLocation // ✅ نضيف موقع الأب
+      parentLocation 
     );
 
   } catch (error) {
@@ -165,7 +163,6 @@ async getInstitutionsFromScreening(screeningResults, childLocation, parentLocati
   }
 }
 
-// NEW: نعدل الدالة الأساسية عشان تأخذ parentLocation
 async getRecommendedInstitutionsForScreening(targetConditions, childCity, childAddress, parentLocation = {}, filters = {}) {
   try {
     const {
@@ -277,7 +274,7 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
 
         if (matchingSpecialties.length > 2) matchScore += 0.2;
 
-        // ✅ NOW: Calculate distance using parent location
+        //  Calculate distance using parent location
         let distance = null;
         if (parentLocation.lat && parentLocation.lng && instData.location_lat && instData.location_lng) {
           distance = this.calculateDistance(
@@ -310,17 +307,15 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
 
         let finalScore = matchScore;
         
-        // ✅ Adjust score based on distance (closer = better)
+        //  Adjust score based on distance (closer = better)
         if (distance !== null) {
-          // المؤسسات الأقرب تحصل على نقاط أعلى
           if (distance < 5) {
-            finalScore += 0.3; // قريبة جداً
+            finalScore += 0.3; 
           } else if (distance < 15) {
-            finalScore += 0.2; // قريبة
+            finalScore += 0.2; 
           } else if (distance < 30) {
-            finalScore += 0.1; // متوسطة
+            finalScore += 0.1; 
           }
-          // أكثر من 30 كم ما في نقاط إضافية
         }
         
         // Adjust score based on specialization match
@@ -354,11 +349,10 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
 
     let filteredInstitutions = scoredInstitutions.filter(i => i !== null);
 
-    // ✅ NOW: Sort by distance if available, otherwise by match score
+    //  Sort by distance if available, otherwise by match score
     filteredInstitutions.sort((a, b) => {
       switch(sort_by) {
         case 'distance':
-          // المؤسسات الأقرب تأتي أولاً
           return (a.distance || 999) - (b.distance || 999);
         case 'rating':
           return parseFloat(b.rating) - parseFloat(a.rating);
@@ -366,9 +360,7 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
           return parseFloat(a.avg_price) - parseFloat(b.avg_price);
         case 'match_score':
         default:
-          // إذا عندنا مسافات، نفضل المؤسسات القريبة حتى لو كانت match score أقل قليلاً
           if (a.distance !== null && b.distance !== null) {
-            // دمج بين المسافة والـ match score
             const aScore = a.match_score * (a.distance < 10 ? 1.2 : a.distance < 25 ? 1.1 : 1.0);
             const bScore = b.match_score * (b.distance < 10 ? 1.2 : b.distance < 25 ? 1.1 : 1.0);
             return bScore - aScore;
@@ -406,8 +398,6 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
   }
 }
 
-  // NEW: Custom method for screening (without childId)
-  // في enhancedScreeningController.js - نعدل دالة getRecommendedInstitutionsForScreening
 async getRecommendedInstitutionsForScreening(targetConditions, childCity, childAddress, parentLocation = {}, filters = {}) {
   try {
     const {
@@ -481,7 +471,7 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
         let matchScore = 0;
         let matchingSpecialties = [];
         let matchingSessionTypes = [];
-        let matchingReasons = []; // ✅ أسباب التطابق
+        let matchingReasons = [];
 
         console.log(`\n🔍 Analyzing institution: ${instData.name}`);
         console.log(`   📍 Location: ${instData.city}, ${instData.region}`);
@@ -531,7 +521,7 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
               description: st.description || 'No description available'
             });
             
-            // ✅ Add matching reasons
+            //  Add matching reasons
             matchDetails.forEach(detail => {
               if (!matchingReasons.includes(detail)) {
                 matchingReasons.push(detail);
@@ -551,7 +541,7 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
           matchingReasons.push(`✅ Offers ${matchingSpecialties.length} different specialties`);
         }
 
-        // ✅ Calculate distance using parent location
+        // Calculate distance using parent location
         let distance = null;
         let distanceReason = '';
         if (parentLocation.lat && parentLocation.lng && instData.location_lat && instData.location_lng) {
@@ -616,13 +606,13 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
 
         let finalScore = matchScore;
         
-        // ✅ Adjust score based on specialization match
+        // Adjust score based on specialization match
         if (matchingSpecialties.length > 0) {
           finalScore += 0.1 * matchingSpecialties.length;
           matchingReasons.push(`🎯 Specialized in ${matchingSpecialties.length} relevant areas`);
         }
 
-        // ✅ Summary for this institution
+        // Summary for this institution
         console.log(`   📊 FINAL SCORE: ${(finalScore * 100).toFixed(0)}%`);
         console.log(`   🎯 Matching specialties: ${matchingSpecialties.join(', ')}`);
         console.log(`   📋 Matching services: ${matchingSessionTypes.length}`);
@@ -645,7 +635,7 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
           matching_specialties: matchingSpecialties,
           available_services: matchingSessionTypes,
           total_services: instSessionTypes.length,
-          matching_reasons: matchingReasons, // ✅ أسباب التوصية
+          matching_reasons: matchingReasons,
           coordinates: {
             lat: instData.location_lat,
             lng: instData.location_lng
@@ -656,7 +646,7 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
 
     let filteredInstitutions = scoredInstitutions.filter(i => i !== null);
 
-    // ✅ NOW: Sort by distance if available, otherwise by match score
+    // Sort by distance if available, otherwise by match score
     filteredInstitutions.sort((a, b) => {
       switch(sort_by) {
         case 'distance':
@@ -679,7 +669,7 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
     const offset = (page - 1) * limit;
     const paginatedInstitutions = filteredInstitutions.slice(offset, offset + limit);
 
-    // ✅ FINAL SUMMARY
+    //  FINAL SUMMARY
     console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('🎯 FINAL RECOMMENDATION SUMMARY');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -720,7 +710,6 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
         ...inst,
         match_score: `${(inst.match_score * 100).toFixed(0)}%`,
         distance: inst.distance ? `${inst.distance.toFixed(1)} KM` : 'Unknown',
-        // ✅ نضمن أن أسباب التوصية بتكون موجودة في النتيجة
         recommendation_reasons: inst.matching_reasons
       })),
       pagination: {
@@ -748,7 +737,6 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
     const primaryConcern = screeningResults.primary_concern;
     const riskLevel = primaryConcern ? screeningResults.risk_levels[primaryConcern] : null;
 
-    // Urgent steps for high risk
     if (riskLevel === 'high' || riskLevel === 'significant') {
       steps.push(`🚨 URGENT: Immediate evaluation recommended for ${this.getConditionEnglishName(primaryConcern)}`);
       steps.push('📞 Contact specialist within 1-2 weeks');

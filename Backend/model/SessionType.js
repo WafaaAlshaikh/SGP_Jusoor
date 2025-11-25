@@ -24,11 +24,11 @@ const SessionType = sequelize.define('SessionType', {
   },
   approval_status: {
     type: DataTypes.ENUM('Pending', 'Approved', 'Rejected'),
-    defaultValue: 'Pending' // الجلسات الموجودة تكون موافق عليها، الجديدة تحتاج موافقة
+    defaultValue: 'Pending' 
   },
   created_by_specialist_id: {
     type: DataTypes.BIGINT.UNSIGNED,
-    allowNull: true // ID المختص الذي أنشأ نوع الجلسة
+    allowNull: true 
   }
 }, { 
   tableName: 'SessionTypes', 

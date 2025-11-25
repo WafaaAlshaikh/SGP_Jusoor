@@ -23,7 +23,6 @@ console.log('✅ Payment-Invoice relations established');
 
 
 
-// No relationships needed for QuestionnaireResponse - it's standalone
 module.exports = {
   User,
   Child,

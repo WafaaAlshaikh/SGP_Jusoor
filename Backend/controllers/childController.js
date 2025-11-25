@@ -989,7 +989,7 @@ exports.addChild = async (req, res) => {
   }
 };
 
-// ================= توليد الخطوات التالية الذكية =================
+// ================= Next Smart steps =================
 exports.generateNextSteps = (aiAnalysis, institutions) => {
   const steps = [];
 

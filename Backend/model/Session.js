@@ -34,7 +34,7 @@ const Session = sequelize.define('Session', {
     ), 
     defaultValue: 'Pending Manager Approval' 
   },
-  // ✅ نظام الطلبات
+
   requested_by_parent: { 
     type: DataTypes.BOOLEAN, 
     defaultValue: false 
@@ -48,31 +48,30 @@ const Session = sequelize.define('Session', {
     allowNull: true
   },
 
-  // ✅ نظام إعادة الجدولة
-  is_pending: {           // هل الجلسة بانتظار موافقة
+
+  is_pending: {          
     type: DataTypes.BOOLEAN,
     defaultValue: false
   },
-  parent_approved: {      // موافقة الأهل (null = بانتظار, true = وافق, false = رفض)
+  parent_approved: {      
     type: DataTypes.BOOLEAN,
     allowNull: true
   },
-  original_session_id: {  // يشير للجلسة الأصلية (إذا كانت هذه معدلة)
+  original_session_id: { 
     type: DataTypes.INTEGER,
     allowNull: true
   },
    reason: {      
-    type: DataTypes.STRING(500), // ⭐ راح تستخدم للحذف والتعديل
+    type: DataTypes.STRING(500), 
     allowNull: true,
     defaultValue: null
   },
 
-  // ✅ إدارة الرؤية
-  is_visible: {           // هل الجلسة ظاهرة في الفرونت
+  is_visible: {         
     type: DataTypes.BOOLEAN,
     defaultValue: true
   },
-  // requested_by_parent: { type: DataTypes.BOOLEAN, defaultValue: false }, 
+
   parent_notes: { type: DataTypes.TEXT, allowNull: true },
   is_first_booking: { type: DataTypes.BOOLEAN, defaultValue: false }, 
   approved_by_manager_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: true }, 
@@ -89,11 +88,7 @@ is_paid: {
   payment_date: {
     type: DataTypes.DATE,
     allowNull: true
-  },  // ✅ تقييمات الجلسة - سيتم إضافتها لاحقاً بعد migration
-  // parent_rating: { type: DataTypes.DECIMAL(2, 1), allowNull: true },
-  // parent_review: { type: DataTypes.TEXT, allowNull: true },
-  // specialist_rating: { type: DataTypes.DECIMAL(2, 1), allowNull: true },
-  // cancellation_reason: { type: DataTypes.TEXT, allowNull: true } 
+  },  
 }, { 
   tableName: 'Sessions', 
   timestamps: false 

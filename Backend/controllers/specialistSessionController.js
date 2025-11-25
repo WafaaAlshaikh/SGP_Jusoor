@@ -9,7 +9,7 @@ const ZoomMeeting = require('../model/ZoomMeeting');
 const { createZoomMeeting } = require('../services/zoomService');
 const { createInvoiceForSession } = require('./sessionBookingController');
 
-// ✅ 1. جلب كل الجلسات للأخصائي - النسخة المعدلة
+
 exports.getAllSessionsForSpecialist = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
@@ -17,7 +17,7 @@ exports.getAllSessionsForSpecialist = async (req, res) => {
     const sessions = await Session.findAll({
       where: { 
         specialist_id: specialistId,
-        is_visible: true // 🔥 إظهار الجلسات المرئية فقط
+        is_visible: true
       },
       include: [
         { 
@@ -62,7 +62,6 @@ exports.getAllSessionsForSpecialist = async (req, res) => {
 };
 
 
-// ✅ 2. حذف الجلسة مباشرة مع إشعار للأهل - النسخة المحدثة
 exports.requestDeleteSession = async (req, res) => {
   try {
     const { id } = req.params;
@@ -84,11 +83,10 @@ exports.requestDeleteSession = async (req, res) => {
       return res.status(404).json({ message: 'Session not found' });
     }
 
-    // ⭐ تحديث حالة الجلسة إلى Cancelled مباشرة
     await Session.update(
       {
         status: 'Cancelled',
-        is_visible: false, // إخفاء الجلسة
+        is_visible: false, 
         reason: reason || 'Cancelled by specialist'
       },
       {
@@ -96,7 +94,6 @@ exports.requestDeleteSession = async (req, res) => {
       }
     );
 
-    // ⭐ إرسال إشعار للأهل فقط - بدون مدير
     if (session.child && session.child.parent_id) {
       await Notification.create({
         user_id: session.child.parent_id,
@@ -118,11 +115,11 @@ exports.requestDeleteSession = async (req, res) => {
   }
 };
 
-// ✅ 3. تعديل الجلسة مع إشعار للأهل - النسخة المحدثة
+
 exports.requestSessionUpdate = async (req, res) => {
   try {
     const { id } = req.params;
-    const { date, time, status, session_type, reason } = req.body; // ⭐ نأخذ السبب
+    const { date, time, status, session_type, reason } = req.body; 
     const specialistId = req.user.user_id;
 
     const session = await Session.findOne({ 
@@ -138,19 +135,17 @@ exports.requestSessionUpdate = async (req, res) => {
 
     if (!session) return res.status(404).json({ message: 'Session not found' });
 
-    // 🔥 تحديث الجلسة القديمة لتصبح Pending Approval مع السبب
     await Session.update(
       {
         status: 'Pending Approval',
         is_pending: true,
-        reason: reason || null // ⭐ إضافة السبب للتعديل
+        reason: reason || null 
       },
       {
         where: { session_id: id, specialist_id: specialistId }
       }
     );
 
-    // 🔥 إنشاء الجلسة الجديدة لكن مخفية مع السبب
     const newSession = await Session.create({
       child_id: session.child_id,
       specialist_id: session.specialist_id,
@@ -163,10 +158,9 @@ exports.requestSessionUpdate = async (req, res) => {
       is_pending: true,
       is_visible: false,
       original_session_id: session.session_id,
-      reason: reason || 'Rescheduled from original session' // ⭐ السبب
+      reason: reason || 'Rescheduled from original session' 
     });
 
-    // إشعار للأهل
     if (session.child && session.child.parent_id) {
       await Notification.create({
         user_id: session.child.parent_id,
@@ -190,32 +184,29 @@ exports.requestSessionUpdate = async (req, res) => {
   }
 };
 
-// ✅ 4. الموافقة على الجلسة المعلقة - النسخة المعدلة
+
 exports.approvePendingSession = async (req, res) => {
   try {
-    const { id } = req.params;  // id = الجلسة القديمة
+    const { id } = req.params;  
     const { approve } = req.body;
 
-    // 🔥 البحث عن الجلسة القديمة
     const originalSession = await Session.findOne({ 
       where: { session_id: id } 
     });
     
     if (!originalSession) return res.status(404).json({ message: 'Session not found' });
 
-    // 🔥 البحث عن الجلسة الجديدة المرتبطة
     const newSession = await Session.findOne({
       where: { original_session_id: id, is_pending: true }
     });
 
     if (approve) {
-      // 🔥 الموافقة: إخفاء الجلسة القديمة وإظهار الجلسة الجديدة
       if (newSession) {
         await Session.update(
           { 
             status: 'Scheduled',
             is_pending: false,
-            is_visible: true // 🔥 جعل الجلسة الجديدة ظاهرة
+            is_visible: true
           }, 
           { 
             where: { session_id: newSession.session_id } 
@@ -223,11 +214,10 @@ exports.approvePendingSession = async (req, res) => {
         );
       }
 
-      // 🔥 إخفاء الجلسة القديمة
       await Session.update(
         { 
           status: 'Rescheduled - Approved',
-          is_visible: false, // 🔥 إخفاء الجلسة القديمة
+          is_visible: false, 
           is_pending: false
         }, 
         { 
@@ -236,7 +226,6 @@ exports.approvePendingSession = async (req, res) => {
       );
 
     } else {
-      // 🔥 الرفض: إعادة الجلسة القديمة وحذف الجلسة الجديدة
       await Session.update(
         { 
           status: 'Scheduled',
@@ -248,7 +237,6 @@ exports.approvePendingSession = async (req, res) => {
         }
       );
 
-      // حذف الجلسة الجديدة
       if (newSession) {
         await newSession.destroy();
       }
@@ -264,14 +252,13 @@ exports.approvePendingSession = async (req, res) => {
   }
 };
 
-// ✅ 5. إكمال جلسات اليوم
+
 exports.completeTodaySessions = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // البحث عن جلسات اليوم مع معلومات الطفل
     const todaySessions = await Session.findAll({
       where: {
         specialist_id: specialistId,
@@ -289,7 +276,6 @@ exports.completeTodaySessions = async (req, res) => {
       ]
     });
 
-    // تحديث الجلسات
     const result = await Session.update(
       { status: 'Completed' },
       {
@@ -305,7 +291,6 @@ exports.completeTodaySessions = async (req, res) => {
 
     const updatedCount = result[0];
 
-    // إرسال إشعارات للأهل
     for (const session of todaySessions) {
       if (session.child && session.child.parent_id) {
         await Notification.create({
@@ -329,7 +314,7 @@ exports.completeTodaySessions = async (req, res) => {
   }
 };
 
-// ✅ 6. جلب الجلسات القادمة (7 أيام)
+
 exports.getUpcomingSessions = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
@@ -347,7 +332,7 @@ exports.getUpcomingSessions = async (req, res) => {
           [Op.between]: [today, nextWeek]
         },
         status: 'Scheduled',
-        is_visible: true // 🔥 إظهار الجلسات المرئية فقط
+        is_visible: true 
       },
       include: [
         { 
@@ -383,7 +368,7 @@ exports.getUpcomingSessions = async (req, res) => {
   }
 };
 
-// ✅ 7. التقرير الشهري
+
 exports.getMonthlyReport = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
@@ -402,7 +387,7 @@ exports.getMonthlyReport = async (req, res) => {
         date: {
           [Op.between]: [startDate, endDate]
         },
-        is_visible: true // 🔥 إظهار الجلسات المرئية فقط
+        is_visible: true 
       },
       attributes: [
         'session_id', 
@@ -436,7 +421,7 @@ exports.getMonthlyReport = async (req, res) => {
   }
 };
 
-// ✅ 8. ضبط التذكيرات
+
 exports.setSessionReminders = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
@@ -452,7 +437,7 @@ exports.setSessionReminders = async (req, res) => {
   }
 };
 
-// ✅ 9. الانضمام إلى جلسة زوم
+
 exports.joinZoomSession = async (req, res) => {
   try {
     const { id } = req.params;
@@ -477,15 +462,12 @@ exports.joinZoomSession = async (req, res) => {
       return res.status(404).json({ message: 'Online session not found' });
     }
 
-    // تحقق أولًا إذا كان الاجتماع موجود مسبقًا في قاعدة بيانات ZoomMeeting
     let zoomMeeting = await ZoomMeeting.findOne({ where: { session_id: id } });
 
     if (!zoomMeeting) {
-      // إنشاء اجتماع جديد عبر خدمة Zoom
       const startTime = `${session.date}T${session.time}:00`;
       const meetingData = await createZoomMeeting(`Session ${session.child.full_name}`, startTime);
 
-      // حفظ اجتماع Zoom في قاعدة البيانات
       zoomMeeting = await ZoomMeeting.create({
         session_id: session.session_id,
         meeting_id: meetingData.id,
@@ -494,7 +476,6 @@ exports.joinZoomSession = async (req, res) => {
         topic: meetingData.topic
       });
 
-      // إرسال إشعار للأهل إذا موجود parent_id
       if (session.child && session.child.parent_id) {
         await Notification.create({
           user_id: session.child.parent_id,
@@ -522,7 +503,7 @@ exports.joinZoomSession = async (req, res) => {
   }
 };
 
-// ✅ 10. جلب التعديلات المعلقة للأهل
+
 exports.getPendingSessionsForParent = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -552,12 +533,11 @@ exports.getPendingSessionsForParent = async (req, res) => {
   }
 };
 
-// ✅ جلب الجلسات الجديدة المعلقة للموافقة (أنشأها المختص)
+
 exports.getNewPendingSessionsForParent = async (req, res) => {
   try {
     const parentId = req.user.user_id;
     
-    // جلب الجلسات التي بحالة "Pending Approval" و parent_approved = null
     const pendingSessions = await Session.findAll({
       where: {
         status: 'Pending Approval',
@@ -605,14 +585,13 @@ exports.getNewPendingSessionsForParent = async (req, res) => {
   }
 };
 
-// ✅ موافقة أو رفض الجلسة الجديدة من قبل الأهل
+
 exports.approveNewSession = async (req, res) => {
   try {
     const parentId = req.user.user_id;
     const { session_id } = req.params;
-    const { approve } = req.body; // true = موافقة, false = رفض
+    const { approve } = req.body; 
 
-    // جلب الجلسة
     const session = await Session.findOne({
       where: {
         session_id,
@@ -642,7 +621,6 @@ exports.approveNewSession = async (req, res) => {
     }
 
     if (approve) {
-      // الموافقة: تحديث حالة الجلسة إلى "Scheduled" مع إعداد الدفع إلى Pending
       await session.update({
         status: 'Scheduled',
         parent_approved: true,
@@ -651,7 +629,6 @@ exports.approveNewSession = async (req, res) => {
         payment_status: 'Pending'
       });
 
-      // إنشاء فاتورة للجلسة بنفس منطق حجز الأهل
       let invoiceId = null;
       try {
         const child = session.child;
@@ -661,7 +638,6 @@ exports.approveNewSession = async (req, res) => {
         console.error('⚠️ Failed to create invoice for specialist-created session:', invoiceError);
       }
 
-      // إرسال إشعار للمختص
       await Notification.create({
         user_id: session.specialist_id,
         title: 'تمت الموافقة على الجلسة',
@@ -681,7 +657,6 @@ exports.approveNewSession = async (req, res) => {
         }
       });
     } else {
-      // الرفض: تحديث حالة الجلسة إلى "Rejected"
       await session.update({
         status: 'Rejected',
         parent_approved: false,
@@ -689,7 +664,6 @@ exports.approveNewSession = async (req, res) => {
         is_visible: false
       });
 
-      // إرسال إشعار للمختص
       await Notification.create({
         user_id: session.specialist_id,
         title: 'تم رفض الجلسة',
@@ -719,7 +693,7 @@ exports.approveNewSession = async (req, res) => {
   }
 };
 
-// ✅ 11. جلب إحصائيات سريعة
+
 exports.getQuickStats = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
@@ -729,7 +703,6 @@ exports.getQuickStats = async (req, res) => {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    // جلسات اليوم
     const todaySessions = await Session.count({
       where: {
         specialist_id: specialistId,
@@ -738,7 +711,6 @@ exports.getQuickStats = async (req, res) => {
       }
     });
 
-    // جلسات هذا الأسبوع
     const weekStart = new Date(today);
     weekStart.setDate(weekStart.getDate() - weekStart.getDay());
     
@@ -756,7 +728,6 @@ exports.getQuickStats = async (req, res) => {
       }
     });
 
-    // جلسات معلقة للموافقة
     const pendingSessions = await Session.count({
       where: {
         specialist_id: specialistId,
@@ -765,7 +736,6 @@ exports.getQuickStats = async (req, res) => {
       }
     });
 
-    // جلسات مكتملة هذا الشهر
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
     const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
     monthEnd.setHours(23, 59, 59, 999);
@@ -794,7 +764,7 @@ exports.getQuickStats = async (req, res) => {
     res.status(500).json({ message: 'Server error getting quick stats' });
   }
 };
-// ✅ ⭐ NEW: جلب الجلسات المطلوب حذفها وتنتظر الموافقة - النسخة المصححة
+
 exports.getDeleteRequestedSessions = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
@@ -821,7 +791,7 @@ exports.getDeleteRequestedSessions = async (req, res) => {
           attributes: ['session_type_id', 'name', 'duration', 'category']
         }
       ],
-      attributes: [ // ⭐ تم التصحيح هنا - إزالة createdAt
+      attributes: [ 
         'session_id', 
         'date', 
         'time', 
@@ -845,12 +815,11 @@ exports.getDeleteRequestedSessions = async (req, res) => {
   }
 };
 
-// ✅ الحل الصحيح - يرجع البيانات الأصلية والمعدلة معاً
+
 exports.getPendingUpdateRequests = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
 
-    // أولاً: نجيب الجلسات المعلقة (الجلسات المعدلة الجديدة)
     const pendingSessions = await Session.findAll({
       where: {
         specialist_id: specialistId,
@@ -877,10 +846,8 @@ exports.getPendingUpdateRequests = async (req, res) => {
       order: [['session_id', 'DESC']]
     });
 
-    // ثانياً: نجيب بيانات الجلسات الأصلية ونتأكد من الربط
     const sessionsWithOriginalData = await Promise.all(
       pendingSessions.map(async (session) => {
-        // 🔥 نجيب الجلسة الأصلية
         const originalSession = await Session.findOne({
           where: { session_id: session.original_session_id },
           include: [
@@ -907,26 +874,23 @@ exports.getPendingUpdateRequests = async (req, res) => {
           console.log('  - Original Time:', originalSession.time);
         }
 
-        // نرجع البيانات مع الجلسة الأصلية
         return {
-          // 🔥 بيانات الجلسة المعدلة (الجديدة)
           session_id: session.session_id,
           child: session.child,
           institution: session.institution,
           SessionType: session.SessionType,
-          date: session.date,           // الموعد الجديد
-          time: session.time,           // الوقت الجديد
+          date: session.date,           
+          time: session.time,         
           status: session.status,
           session_type: session.session_type,
           is_pending: session.is_pending,
           reason: session.reason,
           original_session_id: session.original_session_id,
           
-          // 🔥 بيانات الجلسة الأصلية (القديمة)
           originalSession: originalSession ? {
             session_id: originalSession.session_id,
-            date: originalSession.date,     // الموعد القديم
-            time: originalSession.time,     // الوقت القديم
+            date: originalSession.date,     
+            time: originalSession.time,     
             status: originalSession.status,
             session_type: originalSession.session_type,
             child: originalSession.child,

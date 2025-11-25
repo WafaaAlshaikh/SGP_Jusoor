@@ -11,7 +11,7 @@ const { Op } = require('sequelize');
 const { sequelize } = require('../config/db');
 const ZoomMeeting = require('../model/ZoomMeeting');
 const { createZoomMeeting } = require('../services/zoomService');
-// ✅ 1. عدد الجلسات القادمة
+
 const getUpcomingSessionsCount = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
@@ -31,7 +31,7 @@ const getUpcomingSessionsCount = async (req, res) => {
   }
 };
 
-// ✅ 2. عدد الأطفال الفريدين اللي عندهم جلسات مع الأخصائي
+
 const getChildrenCount = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
@@ -49,11 +49,11 @@ const getChildrenCount = async (req, res) => {
   }
 };
 
-// ✅ جلب الأوقات المتاحة حسب جدول المختص
+
 const getAvailableSlots = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
-    const { date } = req.query; // التاريخ المطلوب (YYYY-MM-DD)
+    const { date } = req.query; 
 
     if (!date) {
       return res.status(400).json({
@@ -62,7 +62,6 @@ const getAvailableSlots = async (req, res) => {
       });
     }
 
-    // 1️⃣ جلب جدول المختص
     const SpecialistSchedule = require('../model/SpecialistSchedule');
     const schedules = await SpecialistSchedule.findAll({
       where: { specialist_id: specialistId },
@@ -77,11 +76,9 @@ const getAvailableSlots = async (req, res) => {
       });
     }
 
-    // 2️⃣ تحديد يوم الأسبوع للتاريخ المطلوب
     const targetDate = new Date(date);
     const dayOfWeek = targetDate.toLocaleDateString('en-US', { weekday: 'long' });
 
-    // 3️⃣ البحث عن الجدول المناسب ليوم الأسبوع
     const daySchedule = schedules.find(schedule => 
       schedule.day_of_week === dayOfWeek
     );
@@ -94,13 +91,11 @@ const getAvailableSlots = async (req, res) => {
       });
     }
 
-    // 4️⃣ توليد الأوقات المتاحة (كل 30 دقيقة)
     const availableSlots = generateTimeSlots(
       daySchedule.start_time,
       daySchedule.end_time
     );
 
-    // 5️⃣ استبعاد الأوقات المحجوزة
     const bookedSessions = await Session.findAll({
       where: {
         specialist_id: specialistId,
@@ -114,7 +109,7 @@ const getAvailableSlots = async (req, res) => {
 
     const bookedTimes = bookedSessions.map(session => {
       const time = session.time;
-      return time.substring(0, 5); // نأخذ فقط HH:MM
+      return time.substring(0, 5);
     });
 
     const filteredSlots = availableSlots.filter(slot => 
@@ -142,7 +137,7 @@ const getAvailableSlots = async (req, res) => {
   }
 };
 
-// ✅ دالة مساعدة لتوليد الأوقات
+
 const generateTimeSlots = (startTime, endTime) => {
   const slots = [];
   const start = new Date(`1970-01-01T${startTime}`);
@@ -155,14 +150,13 @@ const generateTimeSlots = (startTime, endTime) => {
     const minutes = current.getMinutes().toString().padStart(2, '0');
     slots.push(`${hours}:${minutes}`);
     
-    // إضافة 30 دقيقة
     current.setMinutes(current.getMinutes() + 30);
   }
 
   return slots;
 };
 
-// ✅ 3. إضافة جلسة جديدة
+
 const addSession = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
@@ -236,7 +230,6 @@ const getChildrenInInstitution = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
 
-    // 1️⃣ نجيب بيانات الأخصائي حتى نعرف لأي مؤسسة تابع
     const specialist = await Specialist.findOne({
       where: { specialist_id: specialistId }
     });
@@ -245,7 +238,6 @@ const getChildrenInInstitution = async (req, res) => {
       return res.status(404).json({ message: 'Specialist or institution not found' });
     }
 
-    // 2️⃣ نجيب كل الـ child_id اللي ظهروا في جلسات داخل نفس المؤسسة
     const sessions = await Session.findAll({
       where: { institution_id: specialist.institution_id },
       attributes: ['child_id'],
@@ -253,12 +245,11 @@ const getChildrenInInstitution = async (req, res) => {
     });
 
     if (!sessions.length) {
-      return res.json([]); // ما في أطفال بهالمؤسسة
+      return res.json([]); 
     }
 
     const childIds = sessions.map(s => s.child_id);
 
-    // 3️⃣ نجيب بيانات الأطفال من جدول Children
     const children = await Child.findAll({
       where: { child_id: { [Op.in]: childIds } },
       attributes: ['child_id', 'full_name', 'gender', 'date_of_birth', 'photo']
@@ -276,16 +267,14 @@ const getImminentSessions = async (req, res) => {
     const specialistId = req.user.user_id;
     const now = new Date();
     
-    // نحسب الوقت بعد 5 و10 دقائق
     const in5Minutes = new Date(now.getTime() + 5 * 60000);
     const in10Minutes = new Date(now.getTime() + 10 * 60000);
 
-    // بديل أبسط وأكثر موثوقية
     const imminentSessions = await Session.findAll({
       where: {
         specialist_id: specialistId,
         status: 'Scheduled',
-        date: now.toISOString().split('T')[0] // نفس اليوم
+        date: now.toISOString().split('T')[0] 
       },
       include: [
         {
@@ -305,19 +294,15 @@ const getImminentSessions = async (req, res) => {
       ]
     });
 
-    // نفلتر الجلسات يدوياً بناءً على الوقت
     const sessionsIn5Minutes = [];
     const sessionsIn10Minutes = [];
 
-    // 🔥 نضيف: نجلب تفاصيل الزوم ميتينج للجلسات الأونلاين
     for (let session of imminentSessions) {
       const sessionDateTime = new Date(`${session.date}T${session.time}`);
       
-      // نتأكد أن الجلسة في المستقبل (ليست ماضية)
       if (sessionDateTime > now) {
         const sessionData = session.toJSON();
         
-        // 🔥 إذا كانت الجلسة أونلاين، نجلب تفاصيل الزوم ميتينج
         if (session.session_type === 'Online') {
           const zoomMeeting = await ZoomMeeting.findOne({ 
             where: { session_id: session.session_id } 
@@ -331,7 +316,6 @@ const getImminentSessions = async (req, res) => {
               topic: zoomMeeting.topic
             };
           } else {
-            // 🔥 إذا ما في meeting، ننشئ واحد جديد
             try {
               const startTime = `${session.date}T${session.time}:00`;
               const meetingData = await createZoomMeeting(
@@ -386,12 +370,10 @@ const getImminentSessions = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
-// ✅ جلب الأطفال المسجلين في نفس المؤسسة والذين يعانون من الحالة التي يختص بها المختص
 const getEligibleChildren = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
 
-    // 1️⃣ جلب بيانات المختص
     const specialist = await Specialist.findOne({
       where: { specialist_id: specialistId },
       include: [
@@ -411,7 +393,6 @@ const getEligibleChildren = async (req, res) => {
 
     const specialistSpecialization = specialist.specialization || '';
 
-    // 2️⃣ جلب أنواع الجلسات المتاحة التي تطابق تخصص المختص
     const matchingSessionTypes = await SessionType.findAll({
       where: {
         institution_id: specialist.institution_id,
@@ -421,14 +402,11 @@ const getEligibleChildren = async (req, res) => {
       attributes: ['session_type_id', 'target_conditions', 'specialist_specialization']
     });
 
-    // 3️⃣ جمع جميع الحالات المستهدفة من أنواع الجلسات المتطابقة
     const targetConditionsSet = new Set();
     matchingSessionTypes.forEach(sessionType => {
       if (sessionType.target_conditions) {
-        // target_conditions هو JSON array
         let conditions = [];
         try {
-          // إذا كان string، نحوله إلى array
           if (typeof sessionType.target_conditions === 'string') {
             conditions = JSON.parse(sessionType.target_conditions);
           } else if (Array.isArray(sessionType.target_conditions)) {
@@ -446,7 +424,6 @@ const getEligibleChildren = async (req, res) => {
       }
     });
 
-    // إذا لم نجد أنواع جلسات متطابقة، نرجع قائمة فارغة
     if (targetConditionsSet.size === 0) {
       return res.status(200).json({
         success: true,
@@ -456,7 +433,6 @@ const getEligibleChildren = async (req, res) => {
       });
     }
 
-    // 4️⃣ جلب الأطفال المسجلين في نفس المؤسسة
     const children = await Child.findAll({
       where: {
         current_institution_id: specialist.institution_id,
@@ -485,11 +461,9 @@ const getEligibleChildren = async (req, res) => {
       ]
     });
 
-    // 5️⃣ فلترة الأطفال: نتحقق من أن diagnosis الطفل موجود في target_conditions
     const eligibleChildren = children.filter(child => {
       let childCondition = null;
       
-      // الحصول على حالة الطفل من diagnosis أو suspected_condition
       if (child.diagnosis_id && child.Diagnosis) {
         childCondition = child.Diagnosis.name;
       } else if (child.suspected_condition) {
@@ -500,11 +474,9 @@ const getEligibleChildren = async (req, res) => {
         return false;
       }
 
-      // التحقق من أن حالة الطفل موجودة في target_conditions
       const childConditionLower = childCondition.toLowerCase().trim();
       for (const targetCondition of targetConditionsSet) {
         const targetConditionLower = targetCondition.toLowerCase().trim();
-        // مقارنة مرنة (يحتوي أو متطابق)
         if (childConditionLower === targetConditionLower ||
             childConditionLower.includes(targetConditionLower) ||
             targetConditionLower.includes(childConditionLower)) {
@@ -515,7 +487,6 @@ const getEligibleChildren = async (req, res) => {
       return false;
     });
 
-    // 6️⃣ إرجاع النتائج
     res.status(200).json({
       success: true,
       message: 'تم جلب الأطفال بنجاح',
@@ -541,13 +512,11 @@ const getEligibleChildren = async (req, res) => {
   }
 };
 
-// ✅ جلب أنواع الجلسات المتاحة حسب الحالة
 const getAvailableSessionTypes = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
-    const { condition } = req.query; // اسم الحالة (مثل 'ASD', 'ADHD')
+    const { condition } = req.query; 
 
-    // 1️⃣ جلب بيانات المختص
     const specialist = await Specialist.findOne({
       where: { specialist_id: specialistId }
     });
@@ -561,10 +530,9 @@ const getAvailableSessionTypes = async (req, res) => {
 
     const specialistSpecialization = specialist.specialization || '';
 
-    // 2️⃣ جلب أنواع الجلسات المتاحة في المؤسسة التي تطابق تخصص المختص
     const whereClause = {
       institution_id: specialist.institution_id,
-      approval_status: 'Approved', // فقط الجلسات الموافق عليها
+      approval_status: 'Approved', 
       specialist_specialization: { [Op.like]: `%${specialistSpecialization}%` }
     };
 
@@ -582,7 +550,6 @@ const getAvailableSessionTypes = async (req, res) => {
       order: [['name', 'ASC']]
     });
 
-    // 3️⃣ إذا تم تحديد حالة، نفلتر حسب target_conditions
     let filteredSessionTypes = sessionTypes;
     if (condition) {
       filteredSessionTypes = sessionTypes.filter(sessionType => {
@@ -628,12 +595,11 @@ const getAvailableSessionTypes = async (req, res) => {
   }
 };
 
-// ✅ تحديث دالة إضافة الجلسة لدعم عدة أطفال وطلب موافقة الأهل
 const addSessionsForChildren = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
     const { 
-      child_ids, // مصفوفة من IDs الأطفال
+      child_ids, 
       session_type_id,
       date, 
       time, 
@@ -641,7 +607,6 @@ const addSessionsForChildren = async (req, res) => {
       notes 
     } = req.body;
 
-    // التحقق من الحقول المطلوبة
     if (!child_ids || !Array.isArray(child_ids) || child_ids.length === 0) {
       return res.status(400).json({ 
         success: false,
@@ -656,7 +621,6 @@ const addSessionsForChildren = async (req, res) => {
       });
     }
 
-    // 1️⃣ جلب بيانات المختص
     const specialist = await Specialist.findOne({
       where: { specialist_id: specialistId }
     });
@@ -668,7 +632,6 @@ const addSessionsForChildren = async (req, res) => {
       });
     }
 
-    // 2️⃣ التحقق من نوع الجلسة
     const sessionType = await SessionType.findOne({
       where: {
         session_type_id,
@@ -684,7 +647,6 @@ const addSessionsForChildren = async (req, res) => {
       });
     }
 
-    // 3️⃣ التحقق من الأطفال
     const children = await Child.findAll({
       where: {
         child_id: { [Op.in]: child_ids },
@@ -707,7 +669,6 @@ const addSessionsForChildren = async (req, res) => {
       });
     }
 
-    // 4️⃣ 🔥🔥🔥 التحقق من أن الوقت متاح في جدول المختص 🔥🔥🔥
     const sessionDateTime = new Date(`${date}T${time}`);
     if (sessionDateTime < new Date()) {
       return res.status(400).json({ 
@@ -716,7 +677,6 @@ const addSessionsForChildren = async (req, res) => {
       });
     }
 
-    // 🔥 التحقق من جدول المختص
     const dayOfWeek = sessionDateTime.toLocaleDateString('en-US', { weekday: 'long' });
     const SpecialistSchedule = require('../model/SpecialistSchedule');
     
@@ -734,8 +694,7 @@ const addSessionsForChildren = async (req, res) => {
       });
     }
 
-    // 🔥 التحقق من أن الوقت ضمن ساعات العمل
-    const sessionTime = time.substring(0, 5); // نأخذ HH:MM فقط
+    const sessionTime = time.substring(0, 5); 
     const scheduleStart = specialistSchedule.start_time.substring(0, 5);
     const scheduleEnd = specialistSchedule.end_time.substring(0, 5);
 
@@ -746,12 +705,11 @@ const addSessionsForChildren = async (req, res) => {
       });
     }
 
-    // 🔥 التحقق من أن الوقت غير محجوز مسبقاً
     const conflictSessions = await Session.findAll({
       where: {
         specialist_id: specialistId,
         date,
-        time: { [Op.like]: `${sessionTime}%` }, // مطابقة الوقت
+        time: { [Op.like]: `${sessionTime}%` }, 
         status: { 
           [Op.notIn]: ['Cancelled', 'Rejected', 'Completed', 'Pending Approval'] 
         }
@@ -765,29 +723,26 @@ const addSessionsForChildren = async (req, res) => {
       });
     }
 
-    // 5️⃣ إنشاء الجلسات للأطفال
     const createdSessions = [];
     const notifications = [];
 
     for (const child of children) {
-      // إنشاء الجلسة بحالة "Pending Approval" (بانتظار موافقة الأهل)
       const session = await Session.create({
         child_id: child.child_id,
         specialist_id: specialistId,
         institution_id: specialist.institution_id,
         session_type_id,
         date,
-        time: `${sessionTime}:00`, // نتأكد من التنسيق
+        time: `${sessionTime}:00`, 
         session_type,
-        status: 'Pending Approval', // بانتظار موافقة الأهل
-        parent_approved: null, // null = بانتظار الموافقة
+        status: 'Pending Approval', 
+        parent_approved: null, 
         is_pending: true,
         parent_notes: notes || null
       });
 
       createdSessions.push(session);
 
-      // إرسال إشعار للأهل
       if (child.Parent && child.Parent.parent_id) {
         const notification = await Notification.create({
           user_id: child.Parent.parent_id,
@@ -827,11 +782,10 @@ const addSessionType = async (req, res) => {
       name,
       duration,
       price,
-      category, // هذا اللي بده يروح على specialization
+      category, 
       target_conditions
     } = req.body;
 
-    // 1️⃣ جلب بيانات المختص
     const specialist = await Specialist.findOne({
       where: { specialist_id: specialistId }
     });
@@ -843,20 +797,18 @@ const addSessionType = async (req, res) => {
       });
     }
 
-    // 2️⃣ 🔥 استخدم specialist.specialization بدل category
     const sessionType = await SessionType.create({
       institution_id: specialist.institution_id,
       name,
       duration: parseInt(duration),
       price: parseFloat(price),
-      category: specialist.specialization || 'General', // 🔥 هنا التغيير
+      category: specialist.specialization || 'General', 
       specialist_specialization: specialist.specialization || '',
       target_conditions: target_conditions || null,
       approval_status: 'Pending',
       created_by_specialist_id: specialistId
     });
 
-    // 3️⃣ باقي الكود يضل نفسه...
     const Manager = require('../model/Manager');
     const managers = await Manager.findAll({
       where: {

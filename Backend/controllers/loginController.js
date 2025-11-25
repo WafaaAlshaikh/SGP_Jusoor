@@ -1,7 +1,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const User = require('../model/User');
-const Institution = require('../model/Institution'); // ✅ إضافة هذا الـ import
+const Institution = require('../model/Institution'); 
 require('dotenv').config();
 
 const login = async (req, res) => {
@@ -36,7 +36,6 @@ const login = async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    // ✅ جلب بيانات المؤسسة إذا كان المستخدم مديراً
     let institutionData = null;
     if (user.role === 'Manager' && user.institution_id) {
       institutionData = await Institution.findByPk(user.institution_id);
@@ -61,7 +60,6 @@ const login = async (req, res) => {
     const decodedToken = jwt.decode(token);
     console.log('🔐 Decoded token after generation:', decodedToken);
 
-    // ✅ بناء response مع إضافة بيانات المؤسسة للمدير
     const responseData = {
       success: true,
       message: 'Login successful', 
@@ -76,7 +74,6 @@ const login = async (req, res) => {
       }
     };
 
-    // ✅ إضافة بيانات المؤسسة إذا كان مديراً
     if (user.role === 'Manager' && institutionData) {
       responseData.institution = {
         institution_id: institutionData.institution_id,

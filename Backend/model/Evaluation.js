@@ -1,4 +1,3 @@
-// في ملف Evaluation.js - تحديث النموذج
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/db');
 const Child = require('./Child');
@@ -34,17 +33,16 @@ const Evaluation = sequelize.define('Evaluation', {
     type: DataTypes.STRING(500),
     allowNull: true
   },
-  // ✅ الحقول الجديدة
   analyzed_sessions: {
-    type: DataTypes.JSON, // ['Speech', 'Occupational'] - أنواع الجلسات المطلوبة
+    type: DataTypes.JSON, 
     allowNull: true
   },
   ai_analysis: {
-    type: DataTypes.TEXT, // التحليل النصي من الـ AI
+    type: DataTypes.TEXT, 
     allowNull: true
   },
   auto_scheduled: {
-    type: DataTypes.BOOLEAN, // هل تم الجدولة التلقائية؟
+    type: DataTypes.BOOLEAN,
     defaultValue: false
   },
   created_at: { 

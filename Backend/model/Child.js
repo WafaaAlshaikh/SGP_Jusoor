@@ -1,4 +1,3 @@
-// models/Child.js - النسخة المحدثة
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/db');
 const Parent = require('./Parent');

@@ -1,4 +1,3 @@
-// controllers/institutionController.js
 const Institution = require('../model/Institution');
 
 exports.getInstitutions = async (req, res) => {

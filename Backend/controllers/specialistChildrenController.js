@@ -1,11 +1,9 @@
 const { Specialist, Child, Parent, User, Evaluation, Diagnosis, Institution, Session } = require('../model/index');
 
-// جلب جميع الأطفال للاخصائي مع معلوماتهم الكاملة
 const getSpecialistChildren = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
 
-    // التحقق من وجود الأخصائي
     const specialist = await Specialist.findOne({
       where: { specialist_id: specialistId },
       include: [{
@@ -21,13 +19,12 @@ const getSpecialistChildren = async (req, res) => {
       });
     }
 
-    // جلب جميع جلسات الأخصائي مع الأطفال المرتبطين بها
     const sessions = await Session.findAll({
       where: { specialist_id: specialistId },
       include: [
         {
           model: Child,
-          as: 'child', // alias موجود في موديل Session
+          as: 'child', 
           include: [
             {
               model: Parent,
@@ -38,7 +35,7 @@ const getSpecialistChildren = async (req, res) => {
             },
             {
               model: Diagnosis,
-              as: 'Diagnosis', // لازم يكون string
+              as: 'Diagnosis',
               attributes: ['name', 'description']
             },
             {
@@ -52,7 +49,6 @@ const getSpecialistChildren = async (req, res) => {
       attributes: ['session_id', 'date', 'status']
     });
 
-    // تجميع الأطفال مع تجنب التكرار
     const childrenMap = new Map();
     sessions.forEach(session => {
       if (session.child && !childrenMap.has(session.child.child_id)) {
@@ -61,7 +57,6 @@ const getSpecialistChildren = async (req, res) => {
     });
     const children = Array.from(childrenMap.values());
 
-    // جلب التقييمات لكل طفل
     const childrenWithEvaluations = await Promise.all(
       children.map(async (child) => {
         const evaluations = await Evaluation.findAll({
@@ -123,13 +118,11 @@ const getSpecialistChildren = async (req, res) => {
   }
 };
 
-// جلب طفل محدد مع معلوماته الكاملة
 const getChildDetails = async (req, res) => {
   try {
     const { childId } = req.params;
     const specialistId = req.user.user_id;
 
-    // التحقق من أن الأخصائي لديه جلسات مع هذا الطفل
     const hasSessions = await Session.findOne({
       where: { 
         specialist_id: specialistId,
@@ -174,7 +167,6 @@ const getChildDetails = async (req, res) => {
       });
     }
 
-    // جلب جميع التقييمات لهذا الطفل من قبل الأخصائي
     const evaluations = await Evaluation.findAll({
       where: { 
         child_id: childId,
@@ -183,7 +175,6 @@ const getChildDetails = async (req, res) => {
       order: [['created_at', 'DESC']]
     });
 
-    // جلب تاريخ الجلسات
     const sessions = await Session.findAll({
       where: { 
         child_id: childId,

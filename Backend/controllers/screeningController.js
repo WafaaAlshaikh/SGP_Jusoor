@@ -66,113 +66,7 @@ class ScreeningController {
     }
   }
 
-  // async submitAnswer(req, res) {
-  //   try {
-  //     const { session_id, question_id, answer } = req.body;
-      
-  //     console.log('📨 SUBMIT ANSWER:', { session_id, question_id, answer });
-      
-  //     if (!session_id || !question_id || answer === undefined) {
-  //       return res.status(400).json({
-  //         success: false,
-  //         message: 'Session ID, question ID and answer are required'
-  //       });
-  //     }
-
-  //     const response = await QuestionnaireResponse.findOne({ where: { session_id } });
-      
-  //     if (!response) {
-  //       return res.status(404).json({
-  //         success: false,
-  //         message: 'Screening session not found'
-  //       });
-  //     }
-
-  //     const questionIdNum = parseInt(question_id);
-  //     const currentResponses = response.responses || {};
-      
-  //     // Save answer
-  //     const updatedResponses = Object.assign({}, currentResponses, {
-  //       [questionIdNum]: {
-  //         answer,
-  //         timestamp: new Date()
-  //       }
-  //     });
-
-  //     await response.update({ responses: updatedResponses });
-
-  //     const answeredCount = Object.keys(updatedResponses).length;
-  //     console.log('✅ ANSWER SAVED - Total:', answeredCount);
-
-  //     // Calculate current scores
-  //     const currentScores = await this.calculateCurrentScores(
-  //       response.child_age_months,
-  //       updatedResponses
-  //     );
-
-  //     await response.update({ scores: currentScores });
-
-  //     // Determine next step
-  //     const nextStep = await this.determineNextStep(
-  //       response.child_age_months,
-  //       updatedResponses,
-  //       currentScores,
-  //       response.screening_phase
-  //     );
-
-  //     if (nextStep.completed) {
-  //       // Calculate final results
-  //       console.log('🎉 SCREENING COMPLETED');
-  //       const finalResults = await this.calculateFinalResults(
-  //         response.child_age_months,
-  //         updatedResponses,
-  //         currentScores
-  //       );
-
-  //       await response.update({
-  //         results: finalResults,
-  //         completed_at: new Date()
-  //       });
-
-  //       return res.json({
-  //         success: true,
-  //         completed: true,
-  //         results: finalResults,
-  //         scores: currentScores,
-  //         progress: 100
-  //       });
-  //     }
-
-  //     // Update phase if needed
-  //     if (nextStep.new_phase) {
-  //       await response.update({ screening_phase: nextStep.new_phase });
-  //     }
-
-  //     // Calculate progress
-  //     const progress = this.calculateDynamicProgress(
-  //       response.child_age_months,
-  //       updatedResponses,
-  //       nextStep.new_phase || response.screening_phase
-  //     );
-
-  //     console.log('➡️ NEXT QUESTION:', nextStep.next_question.id, '- Phase:', nextStep.new_phase || response.screening_phase);
-
-  //     res.json({
-  //       success: true,
-  //       completed: false,
-  //       next_question: nextStep.next_question,
-  //       phase: nextStep.new_phase || response.screening_phase,
-  //       phase_message: nextStep.phase_message,
-  //       progress: progress,
-  //       answered_questions: answeredCount,
-  //       current_scores: currentScores
-  //     });
-
-  //   } catch (error) {
-  //     console.error('❌ SUBMIT ERROR:', error);
-  //     res.status(500).json({ success: false, message: 'Failed to save answer' });
-  //   }
-  // }
+  
 
   // ========== HELPER METHODS ==========
 
@@ -602,43 +496,7 @@ class ScreeningController {
     return 8;
   }
 
-  // async getResults(req, res) {
-  //   try {
-  //     const { session_id } = req.params;
-      
-  //     const response = await QuestionnaireResponse.findOne({ where: { session_id } });
-      
-  //     if (!response) {
-  //       return res.status(404).json({ success: false, message: 'Results not found' });
-  //     }
 
-  //     if (!response.completed_at) {
-  //       const results = await this.calculateFinalResults(
-  //         response.child_age_months,
-  //         response.responses,
-  //         response.scores
-  //       );
-
-  //       await response.update({
-  //         results: results,
-  //         completed_at: new Date()
-  //       });
-  //     }
-
-  //     res.json({
-  //       success: true,
-  //       results: response.results,
-  //       scores: response.scores,
-  //       child_age_months: response.child_age_months,
-  //       child_gender: response.child_gender,
-  //       completed_at: response.completed_at
-  //     });
-      
-  //   } catch (error) {
-  //     console.error('❌ GET RESULTS ERROR:', error);
-  //     res.status(500).json({ success: false, message: 'Failed to get results' });
-  //   }
-  // }
 
   async getScreeningStats(req, res) {
     try {
@@ -720,7 +578,7 @@ class ScreeningController {
   }
 
 
-  // ========== ENHANCED SUBMIT ANSWER ==========
+  // ==========  SUBMIT ANSWER ==========
 async submitAnswer(req, res) {
   try {
     const { session_id, question_id, answer } = req.body;
@@ -784,7 +642,7 @@ async submitAnswer(req, res) {
         currentScores
       );
 
-      // ✅ GET PARENT LOCATION FROM TOKEN
+      // GET PARENT LOCATION FROM TOKEN
       let parentLocation = {};
       try {
         const token = req.headers.authorization?.split(' ')[1];
@@ -805,7 +663,7 @@ async submitAnswer(req, res) {
         console.log('⚠️ Could not get parent location from token:', tokenError.message);
       }
 
-      // ENHANCED: Add AI analysis and recommendations
+      // Add AI analysis and recommendations
       let enhancedAnalysis = null;
       try {
         enhancedAnalysis = await this.enhancedScreening.analyzeScreeningResults(
@@ -815,7 +673,7 @@ async submitAnswer(req, res) {
             city: response.city || '',
             address: response.address || ''
           },
-          parentLocation // ✅ نمرر موقع الأب
+          parentLocation 
         );
         
         // Merge enhanced analysis with final results
@@ -876,7 +734,7 @@ async submitAnswer(req, res) {
   }
 }
 
-  // ========== ENHANCED GET RESULTS ==========
+  // ==========  GET RESULTS ==========
   async getResults(req, res) {
     try {
       const { session_id } = req.params;
@@ -894,7 +752,7 @@ async submitAnswer(req, res) {
           response.scores
         );
 
-        // ENHANCED: Add AI analysis if not already present
+        //  Add AI analysis if not already present
         if (!results.enhanced_analysis) {
           try {
             const enhancedAnalysis = await this.enhancedScreening.analyzeScreeningResults(
@@ -933,7 +791,7 @@ async submitAnswer(req, res) {
     }
   }
 
-  // ========== NEW: GET ENHANCED RECOMMENDATIONS ==========
+  // ========== GET ENHANCED RECOMMENDATIONS ==========
   async getEnhancedRecommendations(req, res) {
     try {
       const { session_id } = req.params;

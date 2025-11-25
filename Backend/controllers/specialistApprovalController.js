@@ -1,15 +1,12 @@
-// controllers/specialistApprovalController.js
 const Session = require('../model/Session');
 const SessionType = require('../model/SessionType');
 const Invoice = require('../model/Invoice');
 
-// موافقة الأخصائي على الجلسة
 exports.approveSession = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
     const { sessionId } = req.params;
 
-    // التحقق من أن الجلسة تابعة للأخصائي
     const session = await Session.findOne({
       where: { 
         session_id: sessionId,
@@ -29,10 +26,8 @@ exports.approveSession = async (req, res) => {
       });
     }
 
-    // تحديث حالة الجلسة
     await session.update({ status: 'Pending Payment' });
 
-    // إنشاء الفاتورة تلقائياً
     const invoice = await createInvoiceForSession(sessionId, session.SessionType.price);
 
     res.json({
@@ -59,7 +54,6 @@ exports.approveSession = async (req, res) => {
   }
 };
 
-// رفض الجلسة من قبل الأخصائي
 exports.rejectSession = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
@@ -101,7 +95,6 @@ exports.rejectSession = async (req, res) => {
   }
 };
 
-// دالة مساعدة لإنشاء الفاتورة
 const createInvoiceForSession = async (sessionId, price) => {
   const session = await Session.findByPk(sessionId, {
     include: [{

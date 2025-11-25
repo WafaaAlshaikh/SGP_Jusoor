@@ -9,8 +9,8 @@ const Notification = sequelize.define('Notification', {
     autoIncrement: true
   },
 
-  // 🔹 المستخدم اللي وُجّه إليه الإشعار (مثلاً الأهل أو المدير)
-user_id: {
+
+  user_id: {
   type: DataTypes.BIGINT.UNSIGNED,
   allowNull: true,
   references: {
@@ -22,19 +22,16 @@ user_id: {
 },
 
 
-  // 🔹 العنوان المختصر للإشعار
   title: {
     type: DataTypes.STRING,
     allowNull: false
   },
 
-  // 🔹 محتوى الرسالة
   message: {
     type: DataTypes.TEXT,
     allowNull: false
   },
 
-  // 🔹 نوع الإشعار (delete_request, session_update, status_update, session_completed, ...)
   type: {
     type: DataTypes.ENUM(
       'delete_request',
@@ -50,19 +47,16 @@ user_id: {
     defaultValue: 'general'
   },
 
-  // 🔹 ID العنصر المرتبط (مثلاً رقم الجلسة)
   related_id: {
     type: DataTypes.INTEGER,
     allowNull: true
   },
 
-  // 🔹 هل تمت قراءة الإشعار أم لا
   is_read: {
     type: DataTypes.BOOLEAN,
     defaultValue: false
   },
 
-  // 🔹 تاريخ إنشاء الإشعار
   created_at: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW
@@ -72,7 +66,6 @@ user_id: {
   timestamps: false
 });
 
-// العلاقة مع جدول المستخدم
 Notification.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 
 module.exports = Notification;

@@ -84,15 +84,15 @@ Parent.hasMany(Child, { foreignKey: 'parent_id' });
 Diagnosis.hasMany(Child, { foreignKey: 'diagnosis_id', as: 'Children' });
 
 // Session relationships
-Session.belongsTo(Child, { foreignKey: 'child_id', as: 'SessionChild' }); // ⬅️ تغيير الـ alias
-Session.belongsTo(Specialist, { foreignKey: 'specialist_id', as: 'SessionSpecialist' }); // ⬅️ تغيير الـ alias
+Session.belongsTo(Child, { foreignKey: 'child_id', as: 'SessionChild' }); 
+Session.belongsTo(Specialist, { foreignKey: 'specialist_id', as: 'SessionSpecialist' }); 
 Session.belongsTo(SessionType, { foreignKey: 'session_type_id' });
-Session.belongsTo(Institution, { foreignKey: 'institution_id', as: 'SessionInstitution' }); // ⬅️ تغيير الـ alias
+Session.belongsTo(Institution, { foreignKey: 'institution_id', as: 'SessionInstitution' });
 
-Child.hasMany(Session, { foreignKey: 'child_id', as: 'ChildSessions' }); // ⬅️ تغيير الـ alias
-Specialist.hasMany(Session, { foreignKey: 'specialist_id', as: 'SpecialistSessions' }); // ⬅️ تغيير الـ alias
+Child.hasMany(Session, { foreignKey: 'child_id', as: 'ChildSessions' }); 
+Specialist.hasMany(Session, { foreignKey: 'specialist_id', as: 'SpecialistSessions' }); 
 SessionType.hasMany(Session, { foreignKey: 'session_type_id' });
-Institution.hasMany(Session, { foreignKey: 'institution_id', as: 'InstitutionSessions' }); // ⬅️ تغيير الـ alias
+Institution.hasMany(Session, { foreignKey: 'institution_id', as: 'InstitutionSessions' }); 
 
 // ==================== Secondery Relations ====================
 

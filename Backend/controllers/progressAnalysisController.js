@@ -1,4 +1,3 @@
-// controllers/progressAnalysisController.js
 const { 
   Specialist, 
   Child, 
@@ -12,16 +11,12 @@ const {
 const AnalysisService = require('../services/analysisService');
 const { Op } = require('sequelize');
 
-/**
- * تحليل شامل لتقدم الطفل
- * GET /api/specialist/children/:childId/progress-analysis
- */
+
 const analyzeChildProgress = async (req, res) => {
   try {
     const { childId } = req.params;
     const specialistId = req.user.user_id;
 
-    // 1️⃣ التحقق من صلاحية الأخصائي
     const specialist = await Specialist.findOne({
       where: { specialist_id: specialistId },
       include: [{
@@ -37,7 +32,6 @@ const analyzeChildProgress = async (req, res) => {
       });
     }
 
-    // 2️⃣ التحقق من وجود جلسات مع الطفل
     const hasAccess = await Session.findOne({
       where: { 
         specialist_id: specialistId,
@@ -52,7 +46,6 @@ const analyzeChildProgress = async (req, res) => {
       });
     }
 
-    // 3️⃣ جلب معلومات الطفل الكاملة
     const child = await Child.findOne({
       where: { child_id: childId },
       include: [
@@ -83,7 +76,6 @@ const analyzeChildProgress = async (req, res) => {
       });
     }
 
-    // 4️⃣ جلب جميع التقييمات مرتبة زمنياً
     const evaluations = await Evaluation.findAll({
       where: { 
         child_id: childId,
@@ -99,7 +91,6 @@ const analyzeChildProgress = async (req, res) => {
       ]
     });
 
-    // 5️⃣ جلب السيشنات للتحليل
     const sessions = await Session.findAll({
       where: { 
         child_id: childId,
@@ -109,7 +100,6 @@ const analyzeChildProgress = async (req, res) => {
       order: [['date', 'DESC']]
     });
 
-    // 6️⃣ التحقق من وجود تقييمات
     if (evaluations.length === 0) {
       return res.status(400).json({ 
         success: false, 
@@ -117,7 +107,6 @@ const analyzeChildProgress = async (req, res) => {
       });
     }
 
-    // 7️⃣ تحضير معلومات الأخصائي
     const specialistInfo = {
       specialist_id: specialist.specialist_id,
       full_name: specialist.User.full_name,
@@ -125,7 +114,6 @@ const analyzeChildProgress = async (req, res) => {
       years_experience: specialist.years_experience
     };
 
-    // 8️⃣ تحضير معلومات الطفل
     const childData = {
       child_id: child.child_id,
       full_name: child.full_name,
@@ -145,9 +133,7 @@ const analyzeChildProgress = async (req, res) => {
     let trends = null;
     let analysisType;
 
-    // 9️⃣ تحديد نوع التحليل
     if (evaluations.length === 1) {
-      // 🆕 خطة أولية للطفل الجديد
       analysisType = 'initial_plan';
       aiAnalysis = await AnalysisService.generateInitialPlan(
         childData,
@@ -155,15 +141,12 @@ const analyzeChildProgress = async (req, res) => {
         specialistInfo
       );
     } else {
-      // 📊 تحليل شامل للتقدم
       analysisType = 'comprehensive_analysis';
       
-      // حساب الإحصائيات
       const scores = evaluations.map(e => parseFloat(e.progress_score));
       statistics = AnalysisService.calculateStatistics(scores);
       trends = AnalysisService.analyzeTrends(evaluations);
       
-      // توليد التحليل بالـ AI
       aiAnalysis = await AnalysisService.generateAIAnalysis(
         childData,
         evaluations,
@@ -171,21 +154,18 @@ const analyzeChildProgress = async (req, res) => {
       );
     }
 
-    // 🔟 حساب موعد الجلسة القادمة المقترح
-    // 🔟 حساب موعد الجلسة القادمة المقترح - متزامن مع AI
+   
     const suggestedNextSession = AnalysisService.calculateNextSessionDate(
       evaluations,
-      trends,           // ⬅️ غير هذا
-      aiAnalysis        // ⬅️ أضف هذا
+      trends,           
+      aiAnalysis        
     );
 
-    // 1️⃣1️⃣ بناء الاستجابة النهائية المحسّنة
     const response = {
       success: true,
       analysis_type: analysisType,
       generated_at: new Date().toISOString(),
       
-      // معلومات الطفل والأخصائي
       profile: {
         child: {
           id: childData.child_id,
@@ -208,7 +188,6 @@ const analyzeChildProgress = async (req, res) => {
         }
       },
 
-      // ملخص الجلسات والتقييمات
       summary: {
         evaluations: {
           total: evaluations.length,
@@ -235,7 +214,6 @@ const analyzeChildProgress = async (req, res) => {
         }
       },
 
-      // الإحصائيات المفصلة
       performance_metrics: evaluations.length > 1 ? {
         score_analysis: {
           current_score: statistics.latestScore,
@@ -298,10 +276,8 @@ const analyzeChildProgress = async (req, res) => {
         current_score: parseFloat(evaluations[0].progress_score)
       },
 
-      // التحليل الاحترافي من AI (منظم)
       professional_analysis: aiAnalysis,
 
-      // خطة العمل والتوصيات
       "action_plan": {
     "quick_recommendations": evaluations.length > 1 ? [
       statistics.slope > 5 ? '✅ Maintain current approach - excellent progress' : 
@@ -320,7 +296,6 @@ const analyzeChildProgress = async (req, res) => {
     ]
   },
 
-      // سجل التقييمات الكامل
       evaluation_history: evaluations.map((e, idx) => ({
         session_number: idx + 1,
         date: new Date(e.created_at).toLocaleDateString('en-US', {
@@ -338,7 +313,6 @@ const analyzeChildProgress = async (req, res) => {
         ) : 0
       })),
 
-      // معلومات النظام
       metadata: {
         analysis_model: 'Groq Llama 3.1 8B Instant',
         analysis_date: new Date().toLocaleDateString('en-US', {
@@ -351,10 +325,7 @@ const analyzeChildProgress = async (req, res) => {
         }
       }
     };
-    // في ملف controllers/progressAnalysisController.js
-// ابحث عن السطر قبل res.json(response); وأضف:
-
-// 1️⃣2️⃣ 🔥 أضف الـ console.log هنا لرؤية التاريخ قبل الإرسال
+ 
 console.log('🎯 AI Recommended Date:', aiAnalysis.next_session?.suggested_date);
 console.log('📤 Sending to frontend analysis:', {
   suggested_date: aiAnalysis.next_session?.suggested_date,
@@ -362,9 +333,7 @@ console.log('📤 Sending to frontend analysis:', {
   preparation: aiAnalysis.next_session?.preparation
 });
 
-// 🔥 أضف أيضاً تحقق من suggestedNextSession
 console.log('📅 Calculated Next Session Date:', suggestedNextSession);
-// 1️⃣2️⃣ 🔥 أضف الـ console.log هنا لرؤية التاريخ قبل الإرسال
 console.log('=== 🔥 PROGRESS ANALYSIS DEBUG ===');
 console.log('📊 Full AI Analysis:', JSON.stringify(aiAnalysis, null, 2));
 console.log('🎯 AI next_session:', aiAnalysis.next_session);
@@ -373,7 +342,6 @@ console.log('📋 AI recommendations:', aiAnalysis.recommendations);
 console.log('📅 Calculated Next Session Date:', suggestedNextSession);
 console.log('📤 Final Response next_session:', response.professional_analysis?.next_session);
 
-// تحقق من هيكل الـ AI response
 console.log('🔍 AI Analysis Structure:');
 if (aiAnalysis) {
   Object.keys(aiAnalysis).forEach(key => {
@@ -397,16 +365,12 @@ console.log('================================');
   }
 };
 
-/**
- * تحليل سريع (بدون AI) - للإحصائيات فقط
- * GET /api/specialist/children/:childId/quick-stats
- */
+
 const getQuickStatistics = async (req, res) => {
   try {
     const { childId } = req.params;
     const specialistId = req.user.user_id;
 
-    // التحقق من الصلاحيات
     const hasAccess = await Session.findOne({
       where: { specialist_id: specialistId, child_id: childId }
     });
@@ -418,7 +382,6 @@ const getQuickStatistics = async (req, res) => {
       });
     }
 
-    // جلب التقييمات
     const evaluations = await Evaluation.findAll({
       where: { child_id: childId, specialist_id: specialistId },
       order: [['created_at', 'ASC']]
@@ -454,21 +417,13 @@ const getQuickStatistics = async (req, res) => {
   }
 };
 
-/**
- * Compare progress between two specific dates
- * GET /api/specialist/children/:childId/compare-dates
- */
-/**
- * Compare progress between two specific dates (ONLY evaluations on these exact dates)
- * GET /api/specialist/children/:childId/compare-dates
- */
+
 const compareDateRangeProgress = async (req, res) => {
   try {
     const { childId } = req.params;
     const specialistId = req.user.user_id;
     const { startDate, endDate } = req.query;
 
-    // Validate dates
     if (!startDate || !endDate) {
       return res.status(400).json({
         success: false,
@@ -505,7 +460,6 @@ const compareDateRangeProgress = async (req, res) => {
       });
     }
 
-    // Get child info
     const child = await Child.findOne({
       where: { child_id: childId },
       include: [
@@ -531,7 +485,6 @@ const compareDateRangeProgress = async (req, res) => {
       });
     }
 
-    // 🔥 التغيير الرئيسي: جلب التقييمات في التاريخين المحددين فقط
     const startEvaluation = await Evaluation.findOne({
       where: {
         child_id: childId,
@@ -543,7 +496,7 @@ const compareDateRangeProgress = async (req, res) => {
           ]
         }
       },
-      order: [['created_at', 'DESC']] // إذا كان هناك أكثر من تقييم في نفس اليوم، نأخذ الأخير
+      order: [['created_at', 'DESC']] 
     });
 
     const endEvaluation = await Evaluation.findOne({
@@ -557,10 +510,9 @@ const compareDateRangeProgress = async (req, res) => {
           ]
         }
       },
-      order: [['created_at', 'DESC']] // إذا كان هناك أكثر من تقييم في نفس اليوم، نأخذ الأخير
+      order: [['created_at', 'DESC']] 
     });
 
-    // التحقق من وجود التقييمين
     if (!startEvaluation || !endEvaluation) {
       const missingDates = [];
       if (!startEvaluation) missingDates.push(`start date (${startDate})`);
@@ -572,10 +524,8 @@ const compareDateRangeProgress = async (req, res) => {
       });
     }
 
-    // إنشاء مصفوفة تحتوي على التقييمين فقط
     const evaluations = [startEvaluation, endEvaluation];
 
-    // 🔥 التغيير: جلب الجلسات في التاريخين المحددين فقط
     const sessions = await Session.findAll({
       where: {
         child_id: childId,
@@ -587,7 +537,6 @@ const compareDateRangeProgress = async (req, res) => {
       attributes: ['session_id', 'date', 'status', 'session_type']
     });
 
-    // حساب المقارنة بين التقييمين فقط
     const comparisonStats = AnalysisService.calculateDirectComparison(
       startEvaluation,
       endEvaluation,
@@ -595,7 +544,6 @@ const compareDateRangeProgress = async (req, res) => {
       end
     );
 
-    // توليد تحليل AI للمقارنة المباشرة
     const aiComparison = await AnalysisService.generateDirectComparisonAnalysis(
       child,
       startEvaluation,
@@ -605,7 +553,6 @@ const compareDateRangeProgress = async (req, res) => {
       comparisonStats
     );
 
-    // بناء الاستجابة
     const response = {
       success: true,
       comparison_type: 'direct_date_comparison',
@@ -678,10 +625,7 @@ const compareDateRangeProgress = async (req, res) => {
   }
 };
 
-/**
- * Analyze progress for a specific period (last month, week, 3 months, etc.)
- * GET /api/specialist/children/:childId/period-analysis
- */
+
 const analyzePeriodProgress = async (req, res) => {
   try {
     const { childId } = req.params;
@@ -728,7 +672,6 @@ const analyzePeriodProgress = async (req, res) => {
       });
     }
 
-    // Get child info
     const child = await Child.findOne({
       where: { child_id: childId },
       include: [
