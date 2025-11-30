@@ -1198,15 +1198,35 @@ class _SummaryCard extends StatelessWidget {
       color: Colors.white,
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(padding: const EdgeInsets.all(16.0), child: Column(children: [
-        Icon(icon, color: AppColors.primary, size: 36),
-        const SizedBox(height: 8),
-        if (insightText == null) Text('$count', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.textDark))
-        else Text(insightText!, style: const TextStyle(fontSize: 12, color: AppColors.textGray), maxLines: 3, overflow: TextOverflow.ellipsis),
-        Text(title, style: const TextStyle(fontSize: 16, color: AppColors.textGray)),
-        const SizedBox(height: 2),
-        TextButton(onPressed: onTap, child: Text(buttonText)),
-      ])),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(children: [
+          Icon(icon, color: AppColors.primary, size: 36),
+          const SizedBox(height: 8),
+          if (insightText == null)
+            Text('$count', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.textDark))
+          else
+            Text(insightText!, style: const TextStyle(fontSize: 12, color: AppColors.textGray), maxLines: 3, overflow: TextOverflow.ellipsis),
+          Text(title, style: const TextStyle(fontSize: 16, color: AppColors.textGray)),
+          const SizedBox(height: 2),
+
+          // 🔥 التعديل هنا - استبدلي TextButton بـ InkWell أو ElevatedButton
+          InkWell(
+            onTap: onTap,
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: Text(
+                buttonText,
+                style: TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+        ]),
+      ),
     );
   }
 }

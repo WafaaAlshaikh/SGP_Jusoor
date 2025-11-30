@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 import '../services/specialist_children_service.dart';
 import 'child_details_screen.dart';
+import '../theme/app_colors.dart';
 
 class SpecialistChildrenScreen extends StatefulWidget {
   const SpecialistChildrenScreen({Key? key}) : super(key: key);
@@ -105,83 +106,102 @@ class _SpecialistChildrenScreenState extends State<SpecialistChildrenScreen> {
 
     return Card(
       margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      elevation: 6,
+      elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () => _navigateToChildDetails(_safeInt(safeChild['child_id']), childName),
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header with basic info
-              Row(
-                children: [
-                  CircleAvatar(
-                    backgroundColor: Color(0xFF7815A0),
-                    radius: 24,
-                    child: Text(
-                      childName.isNotEmpty ? childName[0].toUpperCase() : '?',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.textGray.withOpacity(0.1)),
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header with basic info
+                Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [AppColors.primary, AppColors.primaryLight],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        shape: BoxShape.circle,
                       ),
-                    ),
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          childName.isNotEmpty ? childName : 'Unknown',
+                      child: Center(
+                        child: Text(
+                          childName.isNotEmpty ? childName[0].toUpperCase() : '?',
                           style: TextStyle(
+                            color: Colors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: 18,
-                            color: Colors.grey[800],
                           ),
                         ),
-                        SizedBox(height: 4),
-                        Row(
-                          children: [
-                            _buildStatusChip(registrationStatus),
-                            SizedBox(width: 6),
-                            Container(
-                              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Color(0xFF7815A0).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                diagnosis['name'] ?? 'Not specified',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Color(0xFF7815A0),
-                                  fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            childName.isNotEmpty ? childName : 'Unknown',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                              color: AppColors.textDark,
+                            ),
+                          ),
+                          SizedBox(height: 6),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            children: [
+                              _buildStatusChip(registrationStatus),
+                              Container(
+                                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+                                ),
+                                child: Text(
+                                  diagnosis['name'] ?? 'Not specified',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ],
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  Icon(Icons.arrow_forward_ios, size: 16, color: Color(0xFF7815A0)),
-                ],
-              ),
+                    Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.primary),
+                  ],
+                ),
 
-              SizedBox(height: 16),
+                SizedBox(height: 20),
 
-              // Stats row
-              _buildStatsRow(totalSessions, evaluations.length, lastSession),
+                // Stats row
+                _buildStatsRow(totalSessions, evaluations.length, lastSession),
 
-              SizedBox(height: 12),
+                SizedBox(height: 16),
 
-              // Quick progress indicator
-              if (evaluations.isNotEmpty) _buildQuickProgress(evaluations),
-            ],
+                // Quick progress indicator
+                if (evaluations.isNotEmpty) _buildQuickProgress(evaluations),
+              ],
+            ),
           ),
         ),
       ),
@@ -190,73 +210,88 @@ class _SpecialistChildrenScreenState extends State<SpecialistChildrenScreen> {
 
   Widget _buildStatusChip(String status) {
     Color color;
-    String text;
+    IconData icon;
+    String tooltip;
 
     switch (status.toLowerCase()) {
       case 'approved':
-        color = Colors.green;
-        text = 'Approved';
+        color = AppColors.success;
+        icon = Icons.check_circle;
+        tooltip = 'Active Child';
         break;
       case 'pending':
-        color = Colors.orange;
-        text = 'Pending';
+        color = AppColors.warning;
+        icon = Icons.pending;
+        tooltip = 'Pending Approval';
         break;
       default:
-        color = Colors.grey;
-        text = 'Not Registered';
+        color = AppColors.textGray;
+        icon = Icons.person_outline;
+        tooltip = 'Not Registered';
     }
 
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 10,
-          color: color,
-          fontWeight: FontWeight.w500,
+    return Tooltip(
+      message: tooltip,
+      child: Container(
+        padding: EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          shape: BoxShape.circle,
+          border: Border.all(color: color.withOpacity(0.3)),
         ),
+        child: Icon(icon, size: 14, color: color),
       ),
     );
   }
 
   Widget _buildStatsRow(int sessions, int evaluations, Map<String, dynamic> lastSession) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: [
-        _buildStatItem(Icons.event, '$sessions', 'Sessions'),
-        _buildStatItem(Icons.assessment, '$evaluations', 'Evaluations'),
-        _buildStatItem(
-            Icons.calendar_today,
-            lastSession['date'] != null ? _formatDate(_safeString(lastSession['date'])) : 'N/A',
-            'Last Session'
-        ),
-      ],
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildStatItem(Icons.event, '$sessions', 'Sessions'),
+          _buildStatItem(Icons.assessment, '$evaluations', 'Evaluations'),
+          _buildStatItem(
+              Icons.calendar_today,
+              lastSession['date'] != null ? _formatDate(_safeString(lastSession['date'])) : 'N/A',
+              'Last Session'
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildStatItem(IconData icon, String value, String label) {
     return Column(
       children: [
-        Icon(icon, size: 20, color: Color(0xFF7815A0)),
-        SizedBox(height: 4),
+        Container(
+          padding: EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, size: 18, color: AppColors.primary),
+        ),
+        SizedBox(height: 8),
         Text(
           value,
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            fontSize: 14,
-            color: Colors.grey[800],
+            fontSize: 16,
+            color: AppColors.textDark,
           ),
         ),
+        SizedBox(height: 2),
         Text(
           label,
           style: TextStyle(
-            fontSize: 10,
-            color: Colors.grey[600],
+            fontSize: 12,
+            color: AppColors.textGray,
           ),
         ),
       ],
@@ -276,7 +311,7 @@ class _SpecialistChildrenScreenState extends State<SpecialistChildrenScreen> {
         'improvement': 0.0,
         'hasEnoughData': false,
         'confidence': 'low',
-        'trendColor': Colors.grey,
+        'trendColor': AppColors.textGray,
         'trendIcon': Icons.help_outline,
       };
     }
@@ -290,7 +325,7 @@ class _SpecialistChildrenScreenState extends State<SpecialistChildrenScreen> {
         'currentScore': score,
         'hasEnoughData': false,
         'confidence': 'medium',
-        'trendColor': Colors.blue,
+        'trendColor': AppColors.info,
         'trendIcon': Icons.assessment,
         'firstScore': score,
         'lastScore': score,
@@ -485,70 +520,70 @@ class _SpecialistChildrenScreenState extends State<SpecialistChildrenScreen> {
     // التصنيف النهائي
     if (hasStrongImprovement && isConsistent) {
       primaryTrend = 'exceptional_improvement';
-      trendColor = Colors.green[700]!;
+      trendColor = AppColors.success;
       trendIcon = Icons.trending_up;
       message = 'Exceptional Progress! 🌟';
       detailedMessage = 'Outstanding consistent improvement with strong growth trajectory';
     }
     else if (hasStrongImprovement) {
       primaryTrend = 'significant_improvement';
-      trendColor = Colors.green;
+      trendColor = Color(0xFF27AE60);
       trendIcon = Icons.trending_up;
       message = 'Excellent Progress! 🎉';
       detailedMessage = 'Significant improvement observed, though with some variability';
     }
     else if (hasModerateImprovement && hasRecentImprovement) {
       primaryTrend = 'accelerating_improvement';
-      trendColor = Colors.green[400]!;
+      trendColor = AppColors.info;
       trendIcon = Icons.trending_up;
       message = 'Steady Improvement 📈';
       detailedMessage = 'Consistent improvement with positive recent momentum';
     }
     else if (hasModerateImprovement) {
       primaryTrend = 'moderate_improvement';
-      trendColor = Colors.lightGreen;
+      trendColor = AppColors.primary;
       trendIcon = Icons.trending_up;
       message = 'Good Progress 📈';
       detailedMessage = 'Steady improvement maintained over time';
     }
     else if (hasStablePerformance && isConsistent) {
       primaryTrend = 'very_stable';
-      trendColor = Colors.blue;
+      trendColor = AppColors.textGray;
       trendIcon = Icons.trending_flat;
       message = 'Very Stable Performance 🔄';
       detailedMessage = 'Highly consistent performance with minimal fluctuations';
     }
     else if (hasStablePerformance) {
       primaryTrend = 'stable';
-      trendColor = Colors.orange;
+      trendColor = AppColors.warning;
       trendIcon = Icons.trending_flat;
       message = 'Stable Performance ➡️';
       detailedMessage = 'Overall stable performance with normal variations';
     }
     else if (hasModerateDecline && hasRecentDecline) {
       primaryTrend = 'accelerating_decline';
-      trendColor = Colors.red[600]!;
+      trendColor = AppColors.error;
       trendIcon = Icons.trending_down;
       message = 'Growing Concerns 📉';
       detailedMessage = 'Moderate decline with concerning recent trend';
     }
     else if (hasModerateDecline) {
       primaryTrend = 'moderate_decline';
-      trendColor = Colors.orange[700]!;
+      trendColor = Color(0xFFE67E22);
       trendIcon = Icons.trending_down;
       message = 'Needs Attention 📉';
       detailedMessage = 'Moderate decline observed, requires intervention';
     }
     else if (hasStrongDecline) {
       primaryTrend = 'significant_decline';
-      trendColor = Colors.red;
+      trendColor = Color(0xFFC0392B);
       trendIcon = Icons.trending_down;
       message = 'Significant Decline! ⚠️';
       detailedMessage = 'Major decline detected, immediate attention required';
     }
     else {
       primaryTrend = 'mixed_pattern';
-      trendColor = Colors.purple;
+      trendColor = AppColors.primaryLight;
       trendIcon = Icons.auto_graph;
       message = 'Mixed Pattern 🔄';
       detailedMessage = 'Complex performance pattern with varying trends';
@@ -653,19 +688,20 @@ class _SpecialistChildrenScreenState extends State<SpecialistChildrenScreen> {
     final safeEvaluations = _safeList(evaluations);
     if (safeEvaluations.length < 2) {
       return Container(
-        padding: EdgeInsets.all(12),
+        padding: EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.grey[50],
+          color: AppColors.background,
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.textGray.withOpacity(0.2)),
         ),
         child: Row(
           children: [
-            Icon(Icons.info, size: 16, color: Colors.orange),
-            SizedBox(width: 8),
+            Icon(Icons.info, size: 20, color: AppColors.warning),
+            SizedBox(width: 12),
             Expanded(
               child: Text(
                 'Need more evaluations to show progress',
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                style: TextStyle(fontSize: 14, color: AppColors.textGray, fontWeight: FontWeight.w500),
               ),
             ),
           ],
@@ -676,16 +712,23 @@ class _SpecialistChildrenScreenState extends State<SpecialistChildrenScreen> {
     final progressAnalysis = _analyzeProgress(evaluations);
 
     return Container(
-      padding: EdgeInsets.all(12),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: progressAnalysis['trendColor'].withOpacity(0.1),
+        color: progressAnalysis['trendColor'].withOpacity(0.08),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: progressAnalysis['trendColor'].withOpacity(0.3)),
       ),
       child: Row(
         children: [
-          Icon(progressAnalysis['trendIcon'], size: 16, color: progressAnalysis['trendColor']),
-          SizedBox(width: 8),
+          Container(
+            padding: EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: progressAnalysis['trendColor'].withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(progressAnalysis['trendIcon'], size: 20, color: progressAnalysis['trendColor']),
+          ),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -693,27 +736,35 @@ class _SpecialistChildrenScreenState extends State<SpecialistChildrenScreen> {
                 Text(
                   progressAnalysis['message'],
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: progressAnalysis['trendColor'],
                   ),
                 ),
+                SizedBox(height: 4),
                 Text(
                   '${progressAnalysis['firstScore']?.toInt() ?? 0}% → ${progressAnalysis['lastScore']?.toInt() ?? 0}%',
                   style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey[600],
+                    fontSize: 12,
+                    color: AppColors.textGray,
                   ),
                 ),
               ],
             ),
           ),
-          Text(
-            '${progressAnalysis['improvement'] > 0 ? '+' : ''}${progressAnalysis['improvement']?.toStringAsFixed(1) ?? '0.0'}%',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: progressAnalysis['trendColor'],
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: progressAnalysis['trendColor'].withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '${progressAnalysis['improvement'] > 0 ? '+' : ''}${progressAnalysis['improvement']?.toStringAsFixed(1) ?? '0.0'}%',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: progressAnalysis['trendColor'],
+              ),
             ),
           ),
         ],
@@ -757,7 +808,7 @@ class _SpecialistChildrenScreenState extends State<SpecialistChildrenScreen> {
     final filteredChildren = _filteredChildren;
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(
           'My Children',
@@ -767,13 +818,14 @@ class _SpecialistChildrenScreenState extends State<SpecialistChildrenScreen> {
             fontSize: 20,
           ),
         ),
-        backgroundColor: Color(0xFF7815A0),
+        backgroundColor: AppColors.primary,
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.white),
         actions: [
           IconButton(
             icon: Icon(Icons.refresh, color: Colors.white),
             onPressed: _loadChildren,
+            tooltip: 'Refresh',
           ),
         ],
       ),
@@ -782,11 +834,22 @@ class _SpecialistChildrenScreenState extends State<SpecialistChildrenScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(color: Color(0xFF7815A0)),
-            SizedBox(height: 16),
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: CircularProgressIndicator(
+                color: AppColors.primary,
+                strokeWidth: 3,
+              ),
+            ),
+            SizedBox(height: 20),
             Text(
               'Loading children...',
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+              style: TextStyle(fontSize: 16, color: AppColors.textDark, fontWeight: FontWeight.w500),
             ),
           ],
         ),
@@ -796,45 +859,47 @@ class _SpecialistChildrenScreenState extends State<SpecialistChildrenScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.orange),
-            SizedBox(height: 16),
+            Icon(Icons.error_outline, size: 64, color: AppColors.warning),
+            SizedBox(height: 20),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 32),
               child: Text(
                 errorMessage,
-                style: TextStyle(fontSize: 16, color: Colors.black87),
+                style: TextStyle(fontSize: 16, color: AppColors.textDark, fontWeight: FontWeight.w500),
                 textAlign: TextAlign.center,
               ),
             ),
-            SizedBox(height: 16),
+            SizedBox(height: 24),
             ElevatedButton(
               onPressed: _loadChildren,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFF7815A0),
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 2,
               ),
-              child: Text('Try Again', style: TextStyle(fontSize: 16, color: Colors.white)),
+              child: Text('Try Again', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             ),
           ],
         ),
       )
           : Column(
         children: [
-          // Search and filter section only
+          // Search and filter section
           Padding(
-            padding: EdgeInsets.all(16),
+            padding: EdgeInsets.all(20),
             child: Column(
               children: [
                 // Search bar
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 4,
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 8,
                         offset: Offset(0, 2),
                       ),
                     ],
@@ -842,9 +907,10 @@ class _SpecialistChildrenScreenState extends State<SpecialistChildrenScreen> {
                   child: TextField(
                     decoration: InputDecoration(
                       hintText: 'Search children by name or diagnosis...',
-                      prefixIcon: Icon(Icons.search, color: Color(0xFF7815A0)),
+                      hintStyle: TextStyle(color: AppColors.textGray),
+                      prefixIcon: Icon(Icons.search, color: AppColors.primary),
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                     ),
                     onChanged: (value) {
                       setState(() {
@@ -853,26 +919,27 @@ class _SpecialistChildrenScreenState extends State<SpecialistChildrenScreen> {
                     },
                   ),
                 ),
-                SizedBox(height: 12),
+                SizedBox(height: 16),
                 // Filter chips
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: _diagnosisTypes.map((diagnosis) {
                       final isSelected = _selectedFilter == diagnosis;
-                      return Padding(
-                        padding: EdgeInsets.only(right: 8),
+                      return Container(
+                        margin: EdgeInsets.only(right: 8),
                         child: FilterChip(
                           label: Text(
                             diagnosis == 'all' ? 'All Children' : diagnosis,
                             style: TextStyle(
-                              color: isSelected ? Colors.white : Color(0xFF7815A0),
+                              color: isSelected ? Colors.white : AppColors.primary,
                               fontWeight: FontWeight.w500,
+                              fontSize: 13,
                             ),
                           ),
                           selected: isSelected,
-                          backgroundColor: Colors.white,
-                          selectedColor: Color(0xFF7815A0),
+                          backgroundColor: AppColors.surface,
+                          selectedColor: AppColors.primary,
                           checkmarkColor: Colors.white,
                           onSelected: (selected) {
                             setState(() {
@@ -880,8 +947,10 @@ class _SpecialistChildrenScreenState extends State<SpecialistChildrenScreen> {
                             });
                           },
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            side: BorderSide(color: Color(0xFF7815A0)),
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(
+                              color: isSelected ? AppColors.primary : AppColors.textGray.withOpacity(0.3),
+                            ),
                           ),
                         ),
                       );
@@ -894,16 +963,16 @@ class _SpecialistChildrenScreenState extends State<SpecialistChildrenScreen> {
 
           // Results count
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+            padding: EdgeInsets.symmetric(horizontal: 20),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   '${filteredChildren.length} children found',
                   style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
+                    fontSize: 15,
+                    color: AppColors.textGray,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 if (filteredChildren.length != children.length)
@@ -914,9 +983,12 @@ class _SpecialistChildrenScreenState extends State<SpecialistChildrenScreen> {
                         _selectedFilter = 'all';
                       });
                     },
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                    ),
                     child: Text(
                       'Clear filters',
-                      style: TextStyle(color: Color(0xFF7815A0)),
+                      style: TextStyle(fontWeight: FontWeight.w500),
                     ),
                   ),
               ],
@@ -931,25 +1003,26 @@ class _SpecialistChildrenScreenState extends State<SpecialistChildrenScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
-                  SizedBox(height: 16),
+                  Icon(Icons.search_off, size: 80, color: AppColors.textLight),
+                  SizedBox(height: 20),
                   Text(
                     'No children found',
-                    style: TextStyle(fontSize: 18, color: Colors.grey[600], fontWeight: FontWeight.w500),
+                    style: TextStyle(fontSize: 18, color: AppColors.textGray, fontWeight: FontWeight.w600),
                   ),
-                  SizedBox(height: 8),
+                  SizedBox(height: 12),
                   Text(
                     'Try adjusting your search or filters',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                    style: TextStyle(fontSize: 14, color: AppColors.textLight),
                   ),
                 ],
               ),
             )
                 : RefreshIndicator(
               onRefresh: _loadChildren,
-              color: Color(0xFF7815A0),
+              color: AppColors.primary,
+              backgroundColor: AppColors.surface,
               child: ListView.builder(
-                padding: EdgeInsets.only(bottom: 16),
+                padding: EdgeInsets.only(bottom: 20),
                 itemCount: filteredChildren.length,
                 itemBuilder: (context, index) {
                   final child = filteredChildren[index];

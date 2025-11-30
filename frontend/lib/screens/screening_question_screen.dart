@@ -29,7 +29,6 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
   int _currentQuestionIndex = 0;
   dynamic _selectedAnswer;
   bool _isLoading = false;
-  int _progress = 0;
   bool _hasError = false;
   String _currentPhase = 'initial';
   int _totalAnswered = 0;
@@ -38,7 +37,6 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
   void initState() {
     super.initState();
     _questions = widget.initialQuestions;
-    _progress = widget.progress;
     _currentPhase = widget.phase ?? 'initial';
 
     if (widget.phaseMessage != null) {
@@ -137,7 +135,6 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
         _currentQuestionIndex = 0;
         _questions = [ScreeningQuestion.fromJson(nextQuestionData)];
         _selectedAnswer = null;
-        _progress = response['progress'] ?? _progress + 5;
         _currentPhase = newPhase ?? _currentPhase;
         _totalAnswered = response['answered_questions'] ?? _totalAnswered + 1;
         _isLoading = false;
@@ -175,7 +172,7 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
               Text(
                 'Oops!',
                 style: TextStyle(
-                  fontSize: 20, 
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textDark,
                 ),
@@ -211,7 +208,7 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
 
   Widget _buildAnswerOption(Map<String, dynamic> choice, IconData icon) {
     final isSelected = _selectedAnswer == choice['value'];
-    
+
     return AnimatedContainer(
       duration: Duration(milliseconds: 300),
       margin: EdgeInsets.symmetric(vertical: 6),
@@ -281,7 +278,7 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
 
   Widget _buildBinaryQuestion() {
     final choices = _questions[_currentQuestionIndex].choices;
-    
+
     if (choices.isEmpty) {
       return _buildEmptyState();
     }
@@ -360,9 +357,9 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
           Text(
             'No questions available',
             style: TextStyle(
-              fontSize: 20, 
-              fontWeight: FontWeight.bold, 
-              color: AppColors.textDark
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textDark
             ),
           ),
           SizedBox(height: 12),
@@ -414,59 +411,9 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
     }
   }
 
-  Widget _buildProgressIndicator() {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Progress',
-                style: TextStyle(
-                  fontSize: 14, 
-                  color: AppColors.textGray, 
-                  fontWeight: FontWeight.w500
-                ),
-              ),
-              Text(
-                '$_progress%',
-                style: TextStyle(
-                  fontSize: 14, 
-                  color: _getPhaseColor(), 
-                  fontWeight: FontWeight.bold
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 12),
-          LinearProgressIndicator(
-            value: _progress / 100,
-            backgroundColor: AppColors.accent1,
-            color: _getPhaseColor(),
-            minHeight: 8,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildPhaseBadge() {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -476,25 +423,25 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(25),
         boxShadow: [
           BoxShadow(
             color: _getPhaseColor().withOpacity(0.3),
-            blurRadius: 8,
-            offset: Offset(0, 2),
+            blurRadius: 12,
+            offset: Offset(0, 4),
           ),
         ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.assessment_outlined, size: 16, color: AppColors.textWhite),
-          SizedBox(width: 6),
+          Icon(Icons.assessment_outlined, size: 18, color: AppColors.textWhite),
+          SizedBox(width: 8),
           Text(
             _getPhaseLabel(),
             style: TextStyle(
               color: AppColors.textWhite,
-              fontSize: 12,
+              fontSize: 14,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -507,65 +454,69 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
     final currentQuestion = _questions[_currentQuestionIndex];
 
     return Container(
-      padding: EdgeInsets.all(20),
+      padding: EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: Offset(0, 2),
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 16,
+            offset: Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Question ${_totalAnswered + 1}',
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.textGray,
-              fontWeight: FontWeight.w500,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Question ${_totalAnswered + 1}',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: AppColors.textGray,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              if (currentQuestion.isCritical)
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 16),
+                      SizedBox(width: 4),
+                      Text(
+                        'Important',
+                        style: TextStyle(
+                          color: AppColors.warning,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           ),
-          SizedBox(height: 12),
+          SizedBox(height: 16),
           Text(
             currentQuestion.text,
             style: TextStyle(
-              fontSize: 20,
+              fontSize: 22,
               fontWeight: FontWeight.w700,
               color: AppColors.textDark,
               height: 1.4,
+              fontFamily: 'Inter',
             ),
           ),
-          SizedBox(height: 16),
-          if (currentQuestion.isCritical)
-            Container(
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.warning.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.warning.withOpacity(0.3)),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 20),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Important question for accurate assessment',
-                      style: TextStyle(
-                        color: AppColors.warning,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
         ],
       ),
     );
@@ -579,7 +530,11 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
         appBar: AppBar(
           title: Text(
             'Screening',
-            style: TextStyle(color: AppColors.textWhite),
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: AppColors.textWhite,
+              fontFamily: 'Inter',
+            ),
           ),
           backgroundColor: AppColors.primary,
           elevation: 0,
@@ -598,6 +553,7 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
             fontWeight: FontWeight.w600,
             fontSize: 18,
             color: AppColors.textWhite,
+            fontFamily: 'Inter',
           ),
         ),
         backgroundColor: AppColors.primary,
@@ -606,21 +562,17 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Progress Section
-              _buildProgressIndicator(),
-              SizedBox(height: 20),
-              
-              // Phase Badge
+              // Phase Badge - Centered at top
               Center(child: _buildPhaseBadge()),
               SizedBox(height: 24),
 
               // Question Header
               _buildQuestionHeader(),
-              SizedBox(height: 24),
+              SizedBox(height: 32),
 
               // Question Options
               Expanded(
@@ -630,12 +582,12 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
                 ),
               ),
 
-              SizedBox(height: 20),
+              SizedBox(height: 24),
 
               // Next Button
               SizedBox(
                 width: double.infinity,
-                height: 56,
+                height: 60,
                 child: ElevatedButton(
                   onPressed: _selectedAnswer != null && !_isLoading
                       ? _submitAnswer
@@ -647,32 +599,33 @@ class _ScreeningQuestionScreenState extends State<ScreeningQuestionScreen> {
                       borderRadius: BorderRadius.circular(16),
                     ),
                     disabledBackgroundColor: AppColors.textLight,
-                    elevation: 2,
-                    shadowColor: _getPhaseColor().withOpacity(0.3),
+                    elevation: 4,
+                    shadowColor: _getPhaseColor().withOpacity(0.4),
                   ),
                   child: _isLoading
                       ? SizedBox(
-                          height: 24,
-                          width: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation(AppColors.textWhite),
-                          ),
-                        )
+                    height: 24,
+                    width: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      valueColor: AlwaysStoppedAnimation(AppColors.textWhite),
+                    ),
+                  )
                       : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Continue',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            SizedBox(width: 8),
-                            Icon(Icons.arrow_forward_rounded, size: 20),
-                          ],
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Continue',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'Inter',
                         ),
+                      ),
+                      SizedBox(width: 12),
+                      Icon(Icons.arrow_forward_rounded, size: 22),
+                    ],
+                  ),
                 ),
               ),
             ],

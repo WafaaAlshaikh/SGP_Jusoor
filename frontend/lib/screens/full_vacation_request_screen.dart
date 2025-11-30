@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../services/vacation_service.dart';
 import '../services/activity_service.dart';
+import '../theme/app_colors.dart'; // ✅ استيراد الألوان الجديدة
+
 class VacationRequest {
   int id;
   DateTime startDate;
@@ -105,12 +107,17 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.error_outline, color: Colors.white),
+            Icon(Icons.error_outline, color: Colors.white, size: 20),
             SizedBox(width: 8),
-            Expanded(child: Text(message)),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ),
           ],
         ),
-        backgroundColor: Colors.red,
+        backgroundColor: AppColors.error,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
@@ -123,12 +130,17 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.check_circle, color: Colors.white),
+            Icon(Icons.check_circle, color: Colors.white, size: 20),
             SizedBox(width: 8),
-            Expanded(child: Text(message)),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ),
           ],
         ),
-        backgroundColor: Colors.green,
+        backgroundColor: AppColors.success,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
@@ -140,7 +152,7 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
     // تلوين الأيام غير المتاحة (فيها جلسات) - لون أحمر
     if (unavailableDates.any((date) =>
     date.year == day.year && date.month == day.month && date.day == day.day)) {
-      return Colors.red.withOpacity(0.7);
+      return AppColors.error.withOpacity(0.7);
     }
 
     // تلوين أيام الإجازات
@@ -148,11 +160,11 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
       if (!day.isBefore(req.startDate) && !day.isAfter(req.endDate)) {
         switch (req.status) {
           case 'Approved':
-            return Colors.green.withOpacity(0.7);
+            return AppColors.success.withOpacity(0.7);
           case 'Pending':
-            return Colors.orange.withOpacity(0.7);
+            return AppColors.warning.withOpacity(0.7);
           case 'Rejected':
-            return Colors.red.withOpacity(0.7);
+            return AppColors.error.withOpacity(0.7);
         }
       }
     }
@@ -163,10 +175,10 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
   // الحصول على لون النص بناءً على الخلفية
   Color _getTextColor(DateTime day) {
     final bgColor = _getDayColor(day);
-    if (bgColor == Colors.transparent) return Colors.black;
+    if (bgColor == Colors.transparent) return AppColors.textDark;
 
     final luminance = bgColor.computeLuminance();
-    return luminance > 0.5 ? Colors.black : Colors.white;
+    return luminance > 0.5 ? AppColors.textDark : Colors.white;
   }
 
   // اختيار تاريخ البدء
@@ -179,12 +191,12 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFF7815A0),
+            colorScheme: ColorScheme.light(
+              primary: AppColors.primary,
               onPrimary: Colors.white,
-              onSurface: Colors.black,
+              onSurface: AppColors.textDark,
             ),
-            dialogBackgroundColor: Colors.white,
+            dialogBackgroundColor: AppColors.surface,
           ),
           child: child!,
         );
@@ -203,12 +215,12 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFF7815A0),
+            colorScheme: ColorScheme.light(
+              primary: AppColors.primary,
               onPrimary: Colors.white,
-              onSurface: Colors.black,
+              onSurface: AppColors.textDark,
             ),
-            dialogBackgroundColor: Colors.white,
+            dialogBackgroundColor: AppColors.surface,
           ),
           child: child!,
         );
@@ -300,21 +312,33 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
     final confirmed = await showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Delete Vacation Request", style: TextStyle(color: Color(0xFF7815A0))),
-        content: const Text("Are you sure you want to delete this vacation request?"),
+        title: Text(
+          "Delete Vacation Request",
+          style: TextStyle(
+            color: AppColors.primary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        content: Text("Are you sure you want to delete this vacation request?"),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
+            child: Text(
+              "Cancel",
+              style: TextStyle(color: AppColors.textGray),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: AppColors.error,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            child: const Text("Delete", style: TextStyle(color: Colors.white)),
+            child: Text(
+              "Delete",
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
@@ -338,12 +362,12 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
   Icon _getStatusIcon(String status) {
     switch (status) {
       case 'Approved':
-        return const Icon(Icons.check_circle, color: Colors.green, size: 20);
+        return Icon(Icons.check_circle, color: AppColors.success, size: 20);
       case 'Rejected':
-        return const Icon(Icons.cancel, color: Colors.red, size: 20);
+        return Icon(Icons.cancel, color: AppColors.error, size: 20);
       case 'Pending':
       default:
-        return const Icon(Icons.access_time, color: Colors.orange, size: 20);
+        return Icon(Icons.access_time, color: AppColors.warning, size: 20);
     }
   }
 
@@ -351,12 +375,12 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
   Color _getStatusColor(String status) {
     switch (status) {
       case 'Approved':
-        return Colors.green;
+        return AppColors.success;
       case 'Rejected':
-        return Colors.red;
+        return AppColors.error;
       case 'Pending':
       default:
-        return Colors.orange;
+        return AppColors.warning;
     }
   }
 
@@ -372,21 +396,27 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: FilterChip(
-              label: Text(filter),
+              label: Text(
+                filter,
+                style: TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                ),
+              ),
               selected: isSelected,
               onSelected: (selected) {
                 setState(() => _selectedFilter = filter);
               },
-              backgroundColor: Colors.white,
-              selectedColor: const Color(0xFF7815A0),
+              backgroundColor: AppColors.surface,
+              selectedColor: AppColors.primary,
               labelStyle: TextStyle(
-                color: isSelected ? Colors.white : const Color(0xFF7815A0),
+                color: isSelected ? Colors.white : AppColors.primary,
                 fontWeight: FontWeight.w500,
               ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
                 side: BorderSide(
-                  color: isSelected ? const Color(0xFF7815A0) : Colors.grey[300]!,
+                  color: isSelected ? AppColors.primary : AppColors.accent2,
                 ),
               ),
             ),
@@ -402,17 +432,26 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
     final approvedCount = myRequests.where((req) => req.status == 'Approved').length;
     final rejectedCount = myRequests.where((req) => req.status == 'Rejected').length;
 
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildStatItem(pendingCount, 'Pending', Colors.orange),
-            _buildStatItem(approvedCount, 'Approved', Colors.green),
-            _buildStatItem(rejectedCount, 'Rejected', Colors.red),
+            _buildStatItem(pendingCount, 'Pending', AppColors.warning),
+            _buildStatItem(approvedCount, 'Approved', AppColors.success),
+            _buildStatItem(rejectedCount, 'Rejected', AppColors.error),
           ],
         ),
       ),
@@ -432,15 +471,19 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
             count.toString(),
             style: TextStyle(
               fontSize: 16,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w700,
               color: color,
             ),
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         Text(
           label,
-          style: const TextStyle(fontSize: 12, color: Colors.grey),
+          style: TextStyle(
+            fontSize: 12,
+            color: AppColors.textGray,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
     );
@@ -466,37 +509,42 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           "Vacation Requests",
           style: TextStyle(
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w700,
             fontSize: 20,
+            color: Colors.white,
           ),
         ),
-        backgroundColor: const Color(0xFF7815A0),
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
       ),
       body: Container(
-        color: const Color(0xFFF8F5FF),
+        color: AppColors.background,
         child: isLoading && myRequests.isEmpty
-            ? const Center(
+            ? Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircularProgressIndicator(valueColor: AlwaysStoppedAnimation(Color(0xFF7815A0))),
+              CircularProgressIndicator(valueColor: AlwaysStoppedAnimation(AppColors.primary)),
               SizedBox(height: 16),
               Text(
                 "Loading your vacations...",
-                style: TextStyle(color: Colors.grey),
+                style: TextStyle(
+                  color: AppColors.textGray,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
           ),
         )
             : RefreshIndicator(
           onRefresh: _loadVacations,
-          color: const Color(0xFF7815A0),
+          color: AppColors.primary,
+          backgroundColor: AppColors.background,
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             physics: const AlwaysScrollableScrollPhysics(),
@@ -527,38 +575,47 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
   }
 
   Widget _buildCalendarSection() {
-    return Card(
-      elevation: 6,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
             Row(
               children: [
-                const Icon(Icons.calendar_today, color: Color(0xFF7815A0), size: 20),
-                const SizedBox(width: 8),
-                const Text(
+                Icon(Icons.calendar_today, color: AppColors.primary, size: 20),
+                SizedBox(width: 8),
+                Text(
                   "Vacation Calendar",
                   style: TextStyle(
                     fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF7815A0),
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
                   ),
                 ),
-                const Spacer(),
+                Spacer(),
                 PopupMenuButton<CalendarFormat>(
-                  icon: const Icon(Icons.view_week, color: Color(0xFF7815A0)),
+                  icon: Icon(Icons.view_week, color: AppColors.primary),
                   onSelected: (format) => setState(() => _calendarFormat = format),
                   itemBuilder: (context) => [
-                    const PopupMenuItem(value: CalendarFormat.month, child: Text('Month View')),
-                    const PopupMenuItem(value: CalendarFormat.twoWeeks, child: Text('2 Weeks View')),
-                    const PopupMenuItem(value: CalendarFormat.week, child: Text('Week View')),
+                    PopupMenuItem(value: CalendarFormat.month, child: Text('Month View')),
+                    PopupMenuItem(value: CalendarFormat.twoWeeks, child: Text('2 Weeks View')),
+                    PopupMenuItem(value: CalendarFormat.week, child: Text('Week View')),
                   ],
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             TableCalendar(
               firstDay: DateTime.now(),
               lastDay: DateTime(2100),
@@ -568,25 +625,31 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
               onPageChanged: (focusedDay) => setState(() => _focusedDay = focusedDay),
               calendarStyle: CalendarStyle(
                 todayDecoration: BoxDecoration(
-                  color: const Color(0xFF7815A0),
+                  color: AppColors.primary,
                   shape: BoxShape.circle,
                 ),
-                todayTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                todayTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
                 selectedDecoration: BoxDecoration(
-                  color: Colors.orange.shade400,
+                  color: AppColors.warning,
                   shape: BoxShape.circle,
                 ),
-                weekendTextStyle: const TextStyle(color: Colors.red),
+                weekendTextStyle: TextStyle(color: AppColors.error),
                 outsideDaysVisible: false,
+                defaultTextStyle: TextStyle(
+                  color: AppColors.textDark,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
               headerStyle: HeaderStyle(
                 formatButtonVisible: false,
                 titleCentered: true,
-                titleTextStyle: const TextStyle(
+                titleTextStyle: TextStyle(
                   fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF7815A0),
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primary,
                 ),
+                leftChevronIcon: Icon(Icons.chevron_left, color: AppColors.primary),
+                rightChevronIcon: Icon(Icons.chevron_right, color: AppColors.primary),
               ),
               calendarBuilders: CalendarBuilders(
                 defaultBuilder: (context, day, focusedDay) {
@@ -610,7 +673,7 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
                 },
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             _buildLegend(),
           ],
         ),
@@ -624,10 +687,10 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
       runSpacing: 8,
       alignment: WrapAlignment.center,
       children: [
-        _buildLegendItem(Colors.red, "Sessions", Icons.event_busy),
-        _buildLegendItem(Colors.orange, "Pending", Icons.access_time),
-        _buildLegendItem(Colors.green, "Approved", Icons.check_circle),
-        _buildLegendItem(Colors.red, "Rejected", Icons.cancel),
+        _buildLegendItem(AppColors.error, "Sessions", Icons.event_busy),
+        _buildLegendItem(AppColors.warning, "Pending", Icons.access_time),
+        _buildLegendItem(AppColors.success, "Approved", Icons.check_circle),
+        _buildLegendItem(AppColors.error, "Rejected", Icons.cancel),
       ],
     );
   }
@@ -644,10 +707,14 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 14, color: color),
-          const SizedBox(width: 4),
+          SizedBox(width: 4),
           Text(
             text,
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: color),
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: color
+            ),
           ),
         ],
       ),
@@ -655,9 +722,18 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
   }
 
   Widget _buildRequestForm() {
-    return Card(
-      elevation: 6,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -667,49 +743,53 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
               children: [
                 Icon(
                   isEditing ? Icons.edit : Icons.add_circle,
-                  color: const Color(0xFF7815A0),
+                  color: AppColors.primary,
                   size: 22,
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Text(
                   isEditing ? "Edit Vacation Request" : "New Vacation Request",
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF7815A0),
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             Row(
               children: [
                 Expanded(
                   child: _buildDateButton("Start Date", selectedStart, pickStartDate),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Expanded(
                   child: _buildDateButton("End Date", selectedEnd, pickEndDate),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             TextField(
               controller: reasonController,
               decoration: InputDecoration(
                 labelText: "Reason (optional)",
-                labelStyle: const TextStyle(color: Color(0xFF7815A0)),
+                labelStyle: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w500),
                 hintText: "Enter the reason for your vacation...",
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                focusedBorder: const OutlineInputBorder(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: AppColors.accent2),
+                ),
+                focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.all(Radius.circular(12)),
-                  borderSide: BorderSide(color: Color(0xFF7815A0), width: 2),
+                  borderSide: BorderSide(color: AppColors.primary, width: 2),
                 ),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
               maxLines: 3,
+              style: TextStyle(color: AppColors.textDark),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             if (isEditing) ...[
               Row(
                 children: [
@@ -719,33 +799,41 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        side: const BorderSide(color: Colors.grey),
+                        side: BorderSide(color: AppColors.textLight),
                       ),
-                      child: const Text(
+                      child: Text(
                         "Cancel",
-                        style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          color: AppColors.textGray,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
                       onPressed: isLoading ? null : submitRequest,
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        backgroundColor: const Color(0xFF7815A0),
+                        backgroundColor: AppColors.primary,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         elevation: 2,
                       ),
                       child: isLoading
-                          ? const SizedBox(
+                          ? SizedBox(
                         height: 20,
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
-                          : const Text(
+                          : Text(
                         "Update Request",
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16),
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15
+                        ),
                       ),
                     ),
                   ),
@@ -758,12 +846,12 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
                   onPressed: isLoading ? null : submitRequest,
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: const Color(0xFF7815A0),
+                    backgroundColor: AppColors.primary,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 2,
                   ),
                   child: isLoading
-                      ? const SizedBox(
+                      ? SizedBox(
                     height: 20,
                     width: 20,
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
@@ -771,11 +859,15 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
                       : Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.send, size: 18, color: Colors.white),
-                      const SizedBox(width: 8),
-                      const Text(
+                      Icon(Icons.send, size: 18, color: Colors.white),
+                      SizedBox(width: 8),
+                      Text(
                         "Submit Request",
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16),
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15
+                        ),
                       ),
                     ],
                   ),
@@ -794,17 +886,17 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF7815A0),
+            fontWeight: FontWeight.w600,
+            color: AppColors.primary,
           ),
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: 6),
         ElevatedButton(
           onPressed: onPressed,
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF7815A0),
+            backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -823,7 +915,7 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const Icon(Icons.calendar_today, size: 18, color: Colors.white),
+              Icon(Icons.calendar_today, size: 18, color: Colors.white),
             ],
           ),
         ),
@@ -834,9 +926,18 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
   Widget _buildRequestsList() {
     final requests = filteredRequests;
 
-    return Card(
-      elevation: 6,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -848,23 +949,23 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.list_alt, color: Color(0xFF7815A0), size: 22),
-                    const SizedBox(width: 8),
-                    const Text(
+                    Icon(Icons.list_alt, color: AppColors.primary, size: 22),
+                    SizedBox(width: 8),
+                    Text(
                       "My Vacation Requests",
                       style: TextStyle(
                         fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF7815A0),
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 if (myRequests.isNotEmpty) _buildFilterBar(),
               ],
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
 
             if (requests.isEmpty)
               _buildEmptyState()
@@ -873,7 +974,7 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: requests.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 12),
+                separatorBuilder: (context, index) => SizedBox(height: 12),
                 itemBuilder: (context, index) => _buildRequestCard(requests[index]),
               ),
           ],
@@ -890,17 +991,21 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
           Icon(
             Icons.beach_access,
             size: 80,
-            color: Colors.grey[300],
+            color: AppColors.textLight,
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           Text(
             "No vacation requests",
-            style: TextStyle(fontSize: 18, color: Colors.grey[600], fontWeight: FontWeight.w600),
+            style: TextStyle(
+                fontSize: 18,
+                color: AppColors.textGray,
+                fontWeight: FontWeight.w700
+            ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text(
             _getEmptyStateMessage(),
-            style: const TextStyle(fontSize: 14, color: Colors.grey),
+            style: TextStyle(fontSize: 14, color: AppColors.textLight),
             textAlign: TextAlign.center,
           ),
         ],
@@ -911,105 +1016,113 @@ class _VacationRequestScreenState extends State<VacationRequestScreen> {
   Widget _buildRequestCard(VacationRequest req) {
     final duration = req.endDate.difference(req.startDate).inDays + 1;
 
-    return Card(
-      elevation: 2,
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border(
-            left: BorderSide(color: _getStatusColor(req.status), width: 4),
-          ),
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border(
+          left: BorderSide(color: _getStatusColor(req.status), width: 4),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      _getStatusIcon(req.status),
-                      const SizedBox(width: 8),
-                      Text(
-                        req.status.toUpperCase(),
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: _getStatusColor(req.status),
-                          fontSize: 12,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (req.status == 'Pending')
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit, size: 18, color: Colors.blue),
-                          onPressed: () => _enableEditMode(req),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 36),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete, size: 18, color: Colors.red),
-                          onPressed: () => deleteRequest(req),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 36),
-                        ),
-                      ],
-                    ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      "${DateFormat('MMM dd, yyyy').format(req.startDate)} - ${DateFormat('MMM dd, yyyy').format(req.endDate)}",
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              if (req.reason != null && req.reason!.isNotEmpty) ...[
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 4,
+            offset: Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.note, size: 16, color: Colors.grey[600]),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        req.reason!,
-                        style: const TextStyle(color: Colors.grey, fontSize: 14),
+                    _getStatusIcon(req.status),
+                    SizedBox(width: 8),
+                    Text(
+                      req.status.toUpperCase(),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: _getStatusColor(req.status),
+                        fontSize: 12,
+                        letterSpacing: 0.5,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-              ],
-              Row(
-                children: [
-                  Icon(Icons.schedule, size: 16, color: Colors.grey[600]),
-                  const SizedBox(width: 8),
-                  Text(
-                    "$duration day${duration > 1 ? 's' : ''}",
-                    style: const TextStyle(fontSize: 13, color: Colors.grey),
+                if (req.status == 'Pending')
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.edit, size: 18, color: AppColors.info),
+                        onPressed: () => _enableEditMode(req),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 36),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.delete, size: 18, color: AppColors.error),
+                        onPressed: () => deleteRequest(req),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 36),
+                      ),
+                    ],
                   ),
-                  const Spacer(),
-                  Text(
-                    "Submitted ${DateFormat('MMM dd').format(req.startDate)}",
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ],
+            ),
+            SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.calendar_today, size: 16, color: AppColors.textLight),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "${DateFormat('MMM dd, yyyy').format(req.startDate)} - ${DateFormat('MMM dd, yyyy').format(req.endDate)}",
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 8),
+            if (req.reason != null && req.reason!.isNotEmpty) ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.note, size: 16, color: AppColors.textLight),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      req.reason!,
+                      style: TextStyle(color: AppColors.textGray, fontSize: 14),
+                    ),
                   ),
                 ],
               ),
+              SizedBox(height: 8),
             ],
-          ),
+            Row(
+              children: [
+                Icon(Icons.schedule, size: 16, color: AppColors.textLight),
+                SizedBox(width: 8),
+                Text(
+                  "$duration day${duration > 1 ? 's' : ''}",
+                  style: TextStyle(fontSize: 13, color: AppColors.textGray),
+                ),
+                Spacer(),
+                Text(
+                  "Submitted ${DateFormat('MMM dd').format(req.startDate)}",
+                  style: TextStyle(fontSize: 12, color: AppColors.textLight),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-
+import '../theme/app_colors.dart';
 class MapScreen extends StatefulWidget {
   final double? initialLat;
   final double? initialLng;
@@ -29,7 +29,7 @@ class _MapScreenState extends State<MapScreen> {
   static const LatLng _irbidLocation = LatLng(32.5556, 35.8469);
   static const LatLng _zarqaLocation = LatLng(32.0728, 36.0881);
   static const LatLng _aqabaLocation = LatLng(29.5267, 35.0063);
-  
+
   // Palestinian locations (for reference)
   static const LatLng _jeninLocation = LatLng(32.4645, 35.3027);
   static const LatLng _ramallahLocation = LatLng(31.9466, 35.3027);
@@ -60,7 +60,7 @@ class _MapScreenState extends State<MapScreen> {
         Marker(
           markerId: MarkerId('selected_location'),
           position: _selectedLocation!,
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
           infoWindow: InfoWindow(
             title: 'Selected Location',
             snippet: '${_selectedLocation!.latitude.toStringAsFixed(4)}, ${_selectedLocation!.longitude.toStringAsFixed(4)}',
@@ -96,7 +96,10 @@ class _MapScreenState extends State<MapScreen> {
     );
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Moved to $cityName')),
+      SnackBar(
+        content: Text('Moved to $cityName'),
+        backgroundColor: AppColors.primary,
+      ),
     );
   }
 
@@ -129,7 +132,10 @@ class _MapScreenState extends State<MapScreen> {
     } else {
       print('❌ [MAP] No location selected');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please select a location on the map')),
+        SnackBar(
+          content: Text('Please select a location on the map'),
+          backgroundColor: AppColors.warning,
+        ),
       );
     }
   }
@@ -140,13 +146,13 @@ class _MapScreenState extends State<MapScreen> {
     if (_isNear(position, _irbidLocation)) return 'Irbid, Jordan';
     if (_isNear(position, _zarqaLocation)) return 'Zarqa, Jordan';
     if (_isNear(position, _aqabaLocation)) return 'Aqaba, Jordan';
-    
+
     // Palestinian cities (for reference)
     if (_isNear(position, _jeninLocation)) return 'Jenin, Palestine';
     if (_isNear(position, _ramallahLocation)) return 'Ramallah, Palestine';
     if (_isNear(position, _gazaLocation)) return 'Gaza, Palestine';
     if (_isNear(position, _hebronLocation)) return 'Hebron, Palestine';
-    
+
     return 'Selected location in Jordan';
   }
 
@@ -162,13 +168,13 @@ class _MapScreenState extends State<MapScreen> {
     if (_isNear(position, _irbidLocation)) return 'Irbid';
     if (_isNear(position, _zarqaLocation)) return 'Zarqa';
     if (_isNear(position, _aqabaLocation)) return 'Aqaba';
-    
+
     // Palestinian cities
     if (_isNear(position, _jeninLocation)) return 'Jenin';
     if (_isNear(position, _ramallahLocation)) return 'Ramallah';
     if (_isNear(position, _gazaLocation)) return 'Gaza';
     if (_isNear(position, _hebronLocation)) return 'Hebron';
-    
+
     return 'Jordan';
   }
 
@@ -183,15 +189,20 @@ class _MapScreenState extends State<MapScreen> {
   Widget _buildCityButton(String cityName, LatLng location, Color color) {
     return Material(
       color: color,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(16),
+      elevation: 2,
       child: InkWell(
         onTap: () => _moveToCity(location, cityName),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Text(
             cityName,
-            style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+            style: TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w600
+            ),
           ),
         ),
       ),
@@ -202,8 +213,16 @@ class _MapScreenState extends State<MapScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Select Location - Palestine'),
-        backgroundColor: Color(0xFF7815A0),
+        title: Text(
+          'Select Location',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        backgroundColor: AppColors.primary,
+        elevation: 0,
+        iconTheme: IconThemeData(color: Colors.white),
       ),
       body: Stack(
         children: [
@@ -214,40 +233,68 @@ class _MapScreenState extends State<MapScreen> {
                 return GoogleMap(
                   onMapCreated: _onMapCreated,
                   initialCameraPosition: CameraPosition(
-                    target: _selectedLocation ?? _jeninLocation,
+                    target: _selectedLocation ?? _ammanLocation,
                     zoom: 10,
                   ),
                   markers: _markers,
                   onTap: _onMapTapped,
                   zoomControlsEnabled: true,
                   compassEnabled: true,
-                  myLocationEnabled: false, // Disable my location to avoid crashes
+                  myLocationEnabled: false,
                   myLocationButtonEnabled: false,
                 );
               } catch (e) {
                 print('❌ [MAP] Error creating map: $e');
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.error_outline, size: 48, color: Colors.red),
-                      SizedBox(height: 16),
-                      Text(
-                        'Error loading map',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        'Check your internet connection\nand ensure Google Maps is enabled',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                      SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: Text('Back'),
-                      ),
-                    ],
+                return Container(
+                  color: AppColors.background,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                            Icons.error_outline,
+                            size: 64,
+                            color: AppColors.error
+                        ),
+                        SizedBox(height: 20),
+                        Text(
+                          'Error loading map',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textDark,
+                          ),
+                        ),
+                        SizedBox(height: 12),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 40),
+                          child: Text(
+                            'Check your internet connection and ensure Google Maps is enabled',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: AppColors.textLight,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: 24),
+                        ElevatedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            'Go Back',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               }
@@ -257,49 +304,98 @@ class _MapScreenState extends State<MapScreen> {
           // City buttons - Jordanian Cities
           Positioned(
             top: 20,
-            left: 20,
-            child: Column(
-              children: [
-                _buildCityButton('Amman', _ammanLocation, Color(0xFF7815A0)),
-                SizedBox(height: 10),
-                _buildCityButton('Irbid', _irbidLocation, Colors.blue),
-                SizedBox(height: 10),
-                _buildCityButton('Zarqa', _zarqaLocation, Colors.green),
-                SizedBox(height: 10),
-                _buildCityButton('Aqaba', _aqabaLocation, Colors.orange),
-              ],
-            ),
-          ),
-
-          // Confirmation button
-          Positioned(
-            bottom: 20,
-            left: 20,
-            right: 20,
+            left: 16,
             child: Container(
+              padding: EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black26,
+                    color: Colors.black.withOpacity(0.1),
                     blurRadius: 8,
                     offset: Offset(0, 2),
                   ),
                 ],
               ),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Quick Cities',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                  SizedBox(height: 12),
+                  Column(
+                    children: [
+                      _buildCityButton('Amman', _ammanLocation, AppColors.primary),
+                      SizedBox(height: 8),
+                      _buildCityButton('Irbid', _irbidLocation, AppColors.primaryLight),
+                      SizedBox(height: 8),
+                      _buildCityButton('Zarqa', _zarqaLocation, AppColors.accent4),
+                      SizedBox(height: 8),
+                      _buildCityButton('Aqaba', _aqabaLocation, AppColors.info),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Confirmation button
+          Positioned(
+            bottom: 20,
+            left: 16,
+            right: 16,
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.15),
+                    blurRadius: 12,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
                 children: [
                   Container(
-                    padding: EdgeInsets.all(12),
+                    padding: EdgeInsets.all(16),
                     child: Row(
                       children: [
-                        Icon(Icons.info_outline, size: 16, color: Colors.blue),
-                        SizedBox(width: 8),
+                        Icon(
+                            Icons.location_on,
+                            size: 20,
+                            color: AppColors.primary
+                        ),
+                        SizedBox(width: 12),
                         Expanded(
-                          child: Text(
-                            'Tap on the map or select a city, then press Confirm',
-                            style: TextStyle(fontSize: 12, color: Colors.blue),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Select Location',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textDark,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Tap on the map or select a city',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textLight
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -310,19 +406,23 @@ class _MapScreenState extends State<MapScreen> {
                     child: ElevatedButton(
                       onPressed: _selectAndReturnLocation,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFF7815A0),
+                        backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
                         padding: EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.only(
-                            bottomLeft: Radius.circular(12),
-                            bottomRight: Radius.circular(12),
+                            bottomLeft: Radius.circular(16),
+                            bottomRight: Radius.circular(16),
                           ),
                         ),
+                        elevation: 0,
                       ),
                       child: Text(
                         'Confirm Location',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600
+                        ),
                       ),
                     ),
                   ),
@@ -330,6 +430,55 @@ class _MapScreenState extends State<MapScreen> {
               ),
             ),
           ),
+
+          // Selected location info
+          if (_selectedLocation != null)
+            Positioned(
+              top: 20,
+              right: 16,
+              child: Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Selected:',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textLight,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      '${_selectedLocation!.latitude.toStringAsFixed(4)}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                    Text(
+                      '${_selectedLocation!.longitude.toStringAsFixed(4)}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );

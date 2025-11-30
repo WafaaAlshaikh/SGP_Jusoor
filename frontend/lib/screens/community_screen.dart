@@ -3,6 +3,8 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../services/community_service.dart';
 import '../services/activity_service.dart';
+import '../theme/app_colors.dart'; // ✅ استيراد الألوان الجديدة
+
 class CommunityScreen extends StatefulWidget {
   @override
   _CommunityScreenState createState() => _CommunityScreenState();
@@ -10,14 +12,6 @@ class CommunityScreen extends StatefulWidget {
 
 class _CommunityScreenState extends State<CommunityScreen>
     with TickerProviderStateMixin {
-
-  // الألوان البنفسجية للثيم
-  static const Color primaryColor = Color(0xFF7815A0);
-  static const Color primaryLight = Color(0xFF9F7AEA);
-  static const Color primaryDark = Color(0xFF553C9A);
-  static const Color backgroundColor = Color(0xFFFAF5FF);
-  static const Color cardColor = Color(0xFFFFFFFF);
-  static const Color textColor = Color(0xFF2D3748);
 
   TabController? _tabController;
   List<dynamic> _allPosts = [];
@@ -33,7 +27,7 @@ class _CommunityScreenState extends State<CommunityScreen>
   final TextEditingController _postController = TextEditingController();
   final TextEditingController _commentController = TextEditingController();
   final TextEditingController _editPostController = TextEditingController();
-  final TextEditingController _repostController = TextEditingController(); // ✅ جديد للريبوست
+  final TextEditingController _repostController = TextEditingController();
   File? _selectedMedia;
   final ImagePicker _picker = ImagePicker();
 
@@ -112,7 +106,7 @@ class _CommunityScreenState extends State<CommunityScreen>
 
       await Future.delayed(Duration(milliseconds: 500));
       _createPostAnimation?.reset();
-      // 🆕 أضفنا هذا السطر - إضافة النشاط بعد إنشاء المنشور بنجاح
+
       await ActivityService.addActivity(
           'New post shared in community',
           'post'
@@ -133,35 +127,60 @@ class _CommunityScreenState extends State<CommunityScreen>
     }
   }
 
-// ✅ NEW: دالة الريبوست مع إضافة نص
   Future<void> _repostWithText(String postId) async {
     final String? comment = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Repost'),
+        title: Text(
+          'Repost',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: AppColors.textDark,
+          ),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Do you want to repost this post?'),
+            Text(
+              'Do you want to repost this post?',
+              style: TextStyle(color: AppColors.textGray),
+            ),
             SizedBox(height: 16),
             TextField(
               controller: _repostController,
               decoration: InputDecoration(
                 hintText: 'Add your comment... (optional)',
-                border: OutlineInputBorder(),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.accent2),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.primary),
+                ),
               ),
               maxLines: 3,
+              style: TextStyle(fontSize: 14, color: AppColors.textDark),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textGray),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, _repostController.text),
-            child: Text('Repost'),
+            child: Text(
+              'Repost',
+              style: TextStyle(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
@@ -169,7 +188,6 @@ class _CommunityScreenState extends State<CommunityScreen>
 
     if (comment != null) {
       try {
-        // استخدم الريبوست مع التعليق
         await CommunityService.repost(postId, comment: comment.isNotEmpty ? comment : null);
         _repostController.clear();
         await _loadInitialPosts();
@@ -220,16 +238,28 @@ class _CommunityScreenState extends State<CommunityScreen>
     bool? confirm = await showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Delete Post'),
+        title: Text(
+          'Delete Post',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: AppColors.textDark,
+          ),
+        ),
         content: Text('Are you sure you want to delete this post?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: TextStyle(color: primaryColor)),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.primary),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text('Delete', style: TextStyle(color: Colors.red)),
+            child: Text(
+              'Delete',
+              style: TextStyle(color: AppColors.error),
+            ),
           ),
         ],
       ),
@@ -250,16 +280,28 @@ class _CommunityScreenState extends State<CommunityScreen>
     bool? confirm = await showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Delete Comment'),
+        title: Text(
+          'Delete Comment',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: AppColors.textDark,
+          ),
+        ),
         content: Text('Are you sure you want to delete this comment?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: TextStyle(color: primaryColor)),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.primary),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text('Delete', style: TextStyle(color: Colors.red)),
+            child: Text(
+              'Delete',
+              style: TextStyle(color: AppColors.error),
+            ),
           ),
         ],
       ),
@@ -276,16 +318,13 @@ class _CommunityScreenState extends State<CommunityScreen>
     }
   }
 
-  // ✅ NEW: دالة لحل مشكلة الصور
   String _getImageUrl(String? url) {
     if (url == null || url.isEmpty) return '';
 
-    // إذا الرابط يبدأ بـ http أو https، رجعه كما هو
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return url;
     }
 
-    // إذا الرابط مسار فقط، أضف له الـ base URL
     if (url.startsWith('/uploads/')) {
       return 'http://10.0.2.2:5000$url';
     }
@@ -293,14 +332,13 @@ class _CommunityScreenState extends State<CommunityScreen>
     return url;
   }
 
-  // Beautiful Create Post Widget مع التصميم المحسن
   Widget _buildCreatePostWidget() {
     return AnimatedContainer(
       duration: Duration(milliseconds: 300),
       margin: EdgeInsets.all(16),
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -316,16 +354,17 @@ class _CommunityScreenState extends State<CommunityScreen>
             children: [
               CircleAvatar(
                 radius: 20,
-                backgroundColor: primaryLight.withOpacity(0.2),
-                child: Icon(Icons.person, color: primaryColor),
+                backgroundColor: AppColors.primary.withOpacity(0.1),
+                child: Icon(Icons.person, color: AppColors.primary),
               ),
               SizedBox(width: 12),
               Expanded(
                 child: Text(
                   "What's on your mind?",
                   style: TextStyle(
-                    color: textColor.withOpacity(0.7),
+                    color: AppColors.textGray,
                     fontSize: 16,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
@@ -370,10 +409,10 @@ class _CommunityScreenState extends State<CommunityScreen>
             decoration: InputDecoration(
               hintText: "Share your thoughts...",
               border: InputBorder.none,
-              hintStyle: TextStyle(color: Colors.grey[400]),
+              hintStyle: TextStyle(color: AppColors.textLight),
             ),
             maxLines: 3,
-            style: TextStyle(fontSize: 16, color: textColor),
+            style: TextStyle(fontSize: 16, color: AppColors.textDark),
           ),
 
           SizedBox(height: 16),
@@ -383,19 +422,19 @@ class _CommunityScreenState extends State<CommunityScreen>
                 icon: Icons.photo_library,
                 label: 'Photo',
                 onPressed: _pickImage,
-                color: Colors.green,
+                color: AppColors.success,
               ),
               _buildMediaButton(
                 icon: Icons.videocam,
                 label: 'Video',
                 onPressed: () {},
-                color: primaryColor,
+                color: AppColors.primary,
               ),
               _buildMediaButton(
                 icon: Icons.attach_file,
                 label: 'File',
                 onPressed: () {},
-                color: Colors.orange,
+                color: AppColors.warning,
               ),
               Spacer(),
               AnimatedContainer(
@@ -403,19 +442,19 @@ class _CommunityScreenState extends State<CommunityScreen>
                 child: _isCreatingPost
                     ? CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation(primaryColor),
+                  valueColor: AlwaysStoppedAnimation(AppColors.primary),
                 )
                     : Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [primaryColor, primaryLight],
+                      colors: [AppColors.primary, AppColors.primaryLight],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     borderRadius: BorderRadius.circular(25),
                     boxShadow: [
                       BoxShadow(
-                        color: primaryColor.withOpacity(0.3),
+                        color: AppColors.primary.withOpacity(0.3),
                         blurRadius: 8,
                         offset: Offset(0, 4),
                       ),
@@ -426,7 +465,7 @@ class _CommunityScreenState extends State<CommunityScreen>
                     child: InkWell(
                       onTap: _createPost,
                       borderRadius: BorderRadius.circular(25),
-                      child: IntrinsicWidth( // ✅ هذا الحل الأمثل
+                      child: IntrinsicWidth(
                         child: Container(
                           padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                           child: Row(
@@ -448,7 +487,7 @@ class _CommunityScreenState extends State<CommunityScreen>
                                 'Add Post',
                                 style: TextStyle(
                                   color: Colors.white,
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight: FontWeight.w600,
                                   fontSize: 14,
                                 ),
                               ),
@@ -458,8 +497,6 @@ class _CommunityScreenState extends State<CommunityScreen>
                       ),
                     ),
                   ),
-
-
                 ),
               ),
             ],
@@ -479,23 +516,33 @@ class _CommunityScreenState extends State<CommunityScreen>
       margin: EdgeInsets.only(right: 12),
       child: Column(
         children: [
-          IconButton(
-            icon: Icon(icon, color: color),
-            onPressed: onPressed,
-            style: IconButton.styleFrom(
-              backgroundColor: color.withOpacity(0.1),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              icon: Icon(icon, color: color, size: 20),
+              onPressed: onPressed,
+              padding: EdgeInsets.zero,
             ),
           ),
+          SizedBox(height: 4),
           Text(
             label,
-            style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+            style: TextStyle(
+              fontSize: 10,
+              color: AppColors.textGray,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ),
     );
   }
 
-  // Beautiful Post Widget مع المميزات الجديدة
   Widget _buildPostWidget(dynamic post, {bool isMyPost = false}) {
     if (post == null) return SizedBox.shrink();
 
@@ -508,7 +555,7 @@ class _CommunityScreenState extends State<CommunityScreen>
     final mediaUrl = post['media_url']?.toString();
     final isRepost = post['is_repost'] ?? false;
     final originalPost = post['originalPost'] ?? {};
-    final repostCount = post['repost_count'] ?? 0; // ✅ عدد الريبوستات
+    final repostCount = post['repost_count'] ?? 0;
 
     final isLiked = _likedPosts[postId] ??
         likes.any((like) => (like['user']?['user_id'] ?? '') == 'current_user_id');
@@ -522,436 +569,444 @@ class _CommunityScreenState extends State<CommunityScreen>
       child: Card(
         elevation: 2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Material(
-            color: cardColor,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header مع زر القائمة
-                Container(
-                  padding: EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 20,
-                        backgroundImage: user['profile_picture'] != null
-                            ? NetworkImage(_getImageUrl(user['profile_picture'])) // ✅ إصلاح الصورة
-                            : null,
-                        child: user['profile_picture'] == null
-                            ? Icon(Icons.person, color: Colors.white)
-                            : null,
-                        backgroundColor: primaryLight.withOpacity(0.2),
-                      ),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              user['full_name']?.toString() ?? 'Unknown User',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                                color: textColor,
-                              ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              _formatDate(createdAt),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (isMyPost && !isEditing) _buildPostMenu(postId, content),
-                    ],
+        color: AppColors.surface,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Container(
+              padding: EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundImage: user['profile_picture'] != null
+                        ? NetworkImage(_getImageUrl(user['profile_picture']))
+                        : null,
+                    child: user['profile_picture'] == null
+                        ? Icon(Icons.person, color: Colors.white)
+                        : null,
+                    backgroundColor: AppColors.primary.withOpacity(0.1),
                   ),
-                ),
-
-                // إشارة الريبوست
-                if (isRepost && originalPost.isNotEmpty)
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Row(
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.repeat, size: 16, color: primaryColor),
-                        SizedBox(width: 4),
                         Text(
-                          'Reposted',
+                          user['full_name']?.toString() ?? 'Unknown User',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                            color: AppColors.textDark,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          _formatDate(createdAt),
                           style: TextStyle(
                             fontSize: 12,
-                            color: primaryColor,
+                            color: AppColors.textLight,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
                       ],
                     ),
                   ),
+                  if (isMyPost && !isEditing) _buildPostMenu(postId, content),
+                ],
+              ),
+            ),
 
-// في دالة _buildPostWidget، غير جزء الـ Content ليكون كالتالي:
+            // Repost Indicator
+            if (isRepost && originalPost.isNotEmpty)
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    Icon(Icons.repeat, size: 16, color: AppColors.primary),
+                    SizedBox(width: 4),
+                    Text(
+                      'Reposted',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
-// Content مع إمكانية التعديل + أزرار Save/Cancel
-                if (content.isNotEmpty)
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // ✅ NEW: إذا كان البوست ريبوست وعنده محتوى أصلي، عرضه بشكل خاص
-                        if (isRepost && originalPost.isNotEmpty)
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // التعليق الجديد للريبوست
-                              if (content.contains('───'))
-                                Text(
-                                  content.split('───')[0].trim(),
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    height: 1.4,
-                                    color: textColor,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
+            // Content
+            if (content.isNotEmpty)
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (isRepost && originalPost.isNotEmpty)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (content.contains('───'))
+                            Text(
+                              content.split('───')[0].trim(),
+                              style: TextStyle(
+                                fontSize: 15,
+                                height: 1.4,
+                                color: AppColors.textDark,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
 
-                              if (content.contains('───')) SizedBox(height: 12),
+                          if (content.contains('───')) SizedBox(height: 12),
 
-                              // البوست الأصلي
-                              Container(
-                                padding: EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: backgroundColor,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.grey[300]!),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                          // Original Post
+                          Container(
+                            padding: EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.background,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AppColors.accent2),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Original User Info
+                                Row(
                                   children: [
-                                    // معلومات المستخدم الأصلي
-                                    Row(
-                                      children: [
-                                        CircleAvatar(
-                                          radius: 16,
-                                          backgroundImage: originalPost['user']?['profile_picture'] != null
-                                              ? NetworkImage(_getImageUrl(originalPost['user']?['profile_picture'])) // ✅ إصلاح
-                                              : null,
-                                          child: originalPost['user']?['profile_picture'] == null
-                                              ? Icon(Icons.person, size: 14, color: Colors.white)
-                                              : null,
-                                        ),
-                                        SizedBox(width: 8),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                originalPost['user']?['full_name']?.toString() ?? 'Unknown User',
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 14,
-                                                  color: textColor,
-                                                ),
-                                              ),
-                                              SizedBox(height: 2),
-                                              Text(
-                                                _formatDate(originalPost['created_at']?.toString() ?? ''),
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  color: Colors.grey[600],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
+                                    CircleAvatar(
+                                      radius: 16,
+                                      backgroundImage: originalPost['user']?['profile_picture'] != null
+                                          ? NetworkImage(_getImageUrl(originalPost['user']?['profile_picture']))
+                                          : null,
+                                      child: originalPost['user']?['profile_picture'] == null
+                                          ? Icon(Icons.person, size: 14, color: Colors.white)
+                                          : null,
                                     ),
-                                    SizedBox(height: 8),
-
-                                    // محتوى البوست الأصلي
-                                    if (originalPost['content'] != null && originalPost['content'].toString().isNotEmpty)
-                                      Text(
-                                        content.contains('───')
-                                            ? content.split('───')[1].trim()
-                                            : content,
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          height: 1.4,
-                                          color: textColor.withOpacity(0.8),
-                                        ),
-                                      ),
-
-                                    // ميديا البوست الأصلي
-                                    if (originalPost['media_url'] != null && originalPost['media_url'].toString().isNotEmpty)
-                                      Container(
-                                        margin: EdgeInsets.only(top: 8),
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(6),
-                                          child: Image.network(
-                                            _getImageUrl(originalPost['media_url']), // ✅ إصلاح
-                                            width: double.infinity,
-                                            height: 120,
-                                            fit: BoxFit.cover,
-                                            loadingBuilder: (context, child, loadingProgress) {
-                                              if (loadingProgress == null) return child;
-                                              return Container(
-                                                height: 120,
-                                                child: Center(
-                                                  child: CircularProgressIndicator(
-                                                    value: loadingProgress.expectedTotalBytes != null
-                                                        ? loadingProgress.cumulativeBytesLoaded /
-                                                        loadingProgress.expectedTotalBytes!
-                                                        : null,
-                                                    valueColor: AlwaysStoppedAnimation(primaryColor),
-                                                  ),
-                                                ),
-                                              );
-                                            },
-                                            errorBuilder: (context, error, stackTrace) {
-                                              return Container(
-                                                height: 120,
-                                                color: Colors.grey[200],
-                                                child: Center(
-                                                  child: Icon(Icons.error, color: Colors.grey),
-                                                ),
-                                              );
-                                            },
+                                    SizedBox(width: 8),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            originalPost['user']?['full_name']?.toString() ?? 'Unknown User',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 14,
+                                              color: AppColors.textDark,
+                                            ),
                                           ),
-                                        ),
+                                          SizedBox(height: 2),
+                                          Text(
+                                            _formatDate(originalPost['created_at']?.toString() ?? ''),
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: AppColors.textLight,
+                                            ),
+                                          ),
+                                        ],
                                       ),
+                                    ),
                                   ],
                                 ),
+                                SizedBox(height: 8),
+
+                                // Original Content
+                                if (originalPost['content'] != null && originalPost['content'].toString().isNotEmpty)
+                                  Text(
+                                    content.contains('───')
+                                        ? content.split('───')[1].trim()
+                                        : content,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      height: 1.4,
+                                      color: AppColors.textGray,
+                                    ),
+                                  ),
+
+                                // Original Media
+                                if (originalPost['media_url'] != null && originalPost['media_url'].toString().isNotEmpty)
+                                  Container(
+                                    margin: EdgeInsets.only(top: 8),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(6),
+                                      child: Image.network(
+                                        _getImageUrl(originalPost['media_url']),
+                                        width: double.infinity,
+                                        height: 120,
+                                        fit: BoxFit.cover,
+                                        loadingBuilder: (context, child, loadingProgress) {
+                                          if (loadingProgress == null) return child;
+                                          return Container(
+                                            height: 120,
+                                            child: Center(
+                                              child: CircularProgressIndicator(
+                                                value: loadingProgress.expectedTotalBytes != null
+                                                    ? loadingProgress.cumulativeBytesLoaded /
+                                                    loadingProgress.expectedTotalBytes!
+                                                    : null,
+                                                valueColor: AlwaysStoppedAnimation(AppColors.primary),
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return Container(
+                                            height: 120,
+                                            color: AppColors.accent1,
+                                            child: Center(
+                                              child: Icon(Icons.error, color: AppColors.textLight),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      )
+                    else
+                      isEditing
+                          ? TextField(
+                        controller: _editPostController..text = content,
+                        maxLines: null,
+                        style: TextStyle(fontSize: 15, height: 1.4, color: AppColors.textDark),
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: AppColors.primary),
+                          ),
+                        ),
+                      )
+                          : Text(
+                        content,
+                        style: TextStyle(
+                          fontSize: 15,
+                          height: 1.4,
+                          color: AppColors.textDark,
+                        ),
+                      ),
+
+                    // Edit Buttons
+                    if (isEditing) ...[
+                      SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () {
+                                _updatePost(postId, _editPostController.text);
+                              },
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.primary,
+                                side: BorderSide(color: AppColors.primary),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
                               ),
-                            ],
-                          )
-                        else
-                        // البوست العادي (ليس ريبوست)
-                          isEditing
-                              ? TextField(
-                            controller: _editPostController..text = content,
-                            maxLines: null,
-                            style: TextStyle(fontSize: 15, height: 1.4, color: textColor),
-                            decoration: InputDecoration(
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(color: primaryColor),
+                              child: Text(
+                                'Save',
+                                style: TextStyle(fontWeight: FontWeight.w600),
                               ),
                             ),
-                          )
-                              : Text(
-                            content,
-                            style: TextStyle(fontSize: 15, height: 1.4, color: textColor),
                           ),
-
-                        // أزرار Save و Cancel تظهر فقط في وضع التعديل
-                        if (isEditing) ...[
-                          SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: () {
-                                    _updatePost(postId, _editPostController.text);
-                                  },
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: primaryColor,
-                                    side: BorderSide(color: primaryColor),
-                                  ),
-                                  child: Text('Save'),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () {
+                                setState(() {
+                                  _isEditing[postId] = false;
+                                });
+                              },
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.textGray,
+                                side: BorderSide(color: AppColors.textLight),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
                               ),
-                              SizedBox(width: 8),
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      _isEditing[postId] = false;
-                                    });
-                                  },
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.grey,
-                                    side: BorderSide(color: Colors.grey),
-                                  ),
-                                  child: Text('Cancel'),
-                                ),
+                              child: Text(
+                                'Cancel',
+                                style: TextStyle(fontWeight: FontWeight.w600),
                               ),
-                            ],
+                            ),
                           ),
-                          SizedBox(height: 8),
                         ],
-                      ],
-                    ),
-                  ),
+                      ),
+                      SizedBox(height: 8),
+                    ],
+                  ],
+                ),
+              ),
 
-                // Media
-                if (mediaUrl != null && mediaUrl.isNotEmpty)
-                  Container(
-                    margin: EdgeInsets.only(top: 12),
-                    child: ClipRRect(
-                      child: Image.network(
-                        _getImageUrl(mediaUrl), // ✅ إصلاح الصورة
-                        width: double.infinity,
+            // Media
+            if (mediaUrl != null && mediaUrl.isNotEmpty)
+              Container(
+                margin: EdgeInsets.only(top: 12),
+                child: ClipRRect(
+                  child: Image.network(
+                    _getImageUrl(mediaUrl),
+                    width: double.infinity,
+                    height: 200,
+                    fit: BoxFit.cover,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Container(
                         height: 200,
-                        fit: BoxFit.cover,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return Container(
-                            height: 200,
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                value: loadingProgress.expectedTotalBytes != null
-                                    ? loadingProgress.cumulativeBytesLoaded /
-                                    loadingProgress.expectedTotalBytes!
-                                    : null,
-                                valueColor: AlwaysStoppedAnimation(primaryColor),
-                              ),
-                            ),
-                          );
-                        },
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            height: 200,
-                            color: Colors.grey[200],
-                            child: Center(
-                              child: Icon(Icons.error, color: Colors.grey),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-
-                // Stats مع عدد الريبوستات
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Row(
-                    children: [
-                      _buildStatItem(
-                        icon: Icons.thumb_up,
-                        count: likes.length,
-                        color: Colors.blue,
-                      ),
-                      SizedBox(width: 16),
-                      _buildStatItem(
-                        icon: Icons.comment,
-                        count: comments.length,
-                        color: Colors.green,
-                      ),
-                      SizedBox(width: 16),
-                      _buildStatItem(
-                        icon: Icons.repeat,
-                        count: repostCount, // ✅ استخدام عدد الريبوستات الجديد
-                        color: primaryColor,
-                      ),
-                    ],
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded /
+                                loadingProgress.expectedTotalBytes!
+                                : null,
+                            valueColor: AlwaysStoppedAnimation(AppColors.primary),
+                          ),
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        height: 200,
+                        color: AppColors.accent1,
+                        child: Center(
+                          child: Icon(Icons.error, color: AppColors.textLight),
+                        ),
+                      );
+                    },
                   ),
                 ),
+              ),
 
-                // Actions
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _buildActionButton(
-                          icon: Icons.thumb_up,
-                          label: 'Like',
-                          isActive: isLiked,
-                          onPressed: () => _toggleLike(postId),
-                        ),
-                      ),
-                      Expanded(
-                        child: _buildActionButton(
-                          icon: Icons.comment,
-                          label: 'Comment',
-                          onPressed: () => _toggleComments(postId),
-                        ),
-                      ),
-                      Expanded(
-                        child: _buildActionButton(
-                          icon: Icons.repeat,
-                          label: 'Repost',
-                          onPressed: () => _repostWithText(postId), // ✅ استخدام الريبوست مع نص
-                        ),
-                      ),
-                    ],
+            // Stats
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  _buildStatItem(
+                    icon: Icons.thumb_up,
+                    count: likes.length,
+                    color: AppColors.info,
                   ),
-                ),
-
-                // Comments Section
-                if (showComments)
-                  Container(
-                    padding: EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: backgroundColor,
-                      border: Border(
-                        top: BorderSide(color: Colors.grey[200]!),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (comments.isNotEmpty) ...[
-                          Text(
-                            'Comments (${comments.length})',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: textColor,
-                              fontSize: 16,
-                            ),
-                          ),
-                          SizedBox(height: 12),
-                          ...comments.map((comment) =>
-                              _buildCommentWidget(comment, isMyPost: isMyPost)).toList(),
-                          SizedBox(height: 16),
-                        ],
-
-                        Container(
-                          padding: EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: cardColor,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey[300]!),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _commentController,
-                                  decoration: InputDecoration(
-                                    hintText: 'Write a comment...',
-                                    border: InputBorder.none,
-                                    hintStyle: TextStyle(color: Colors.grey[500]),
-                                    contentPadding: EdgeInsets.symmetric(horizontal: 8),
-                                  ),
-                                  maxLines: null,
-                                  style: TextStyle(fontSize: 14),
-                                ),
-                              ),
-                              SizedBox(width: 8),
-                              Container(
-                                width: 40,
-                                height: 40,
-                                child: FloatingActionButton(
-                                  onPressed: () => _addComment(postId),
-                                  mini: true,
-                                  backgroundColor: primaryColor,
-                                  child: Icon(Icons.add, color: Colors.white, size: 20),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                  SizedBox(width: 16),
+                  _buildStatItem(
+                    icon: Icons.comment,
+                    count: comments.length,
+                    color: AppColors.success,
                   ),
-              ],
+                  SizedBox(width: 16),
+                  _buildStatItem(
+                    icon: Icons.repeat,
+                    count: repostCount,
+                    color: AppColors.primary,
+                  ),
+                ],
+              ),
             ),
-          ),
+
+            // Actions
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildActionButton(
+                      icon: Icons.thumb_up,
+                      label: 'Like',
+                      isActive: isLiked,
+                      onPressed: () => _toggleLike(postId),
+                    ),
+                  ),
+                  Expanded(
+                    child: _buildActionButton(
+                      icon: Icons.comment,
+                      label: 'Comment',
+                      onPressed: () => _toggleComments(postId),
+                    ),
+                  ),
+                  Expanded(
+                    child: _buildActionButton(
+                      icon: Icons.repeat,
+                      label: 'Repost',
+                      onPressed: () => _repostWithText(postId),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Comments Section
+            if (showComments)
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  border: Border(
+                    top: BorderSide(color: AppColors.accent2),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (comments.isNotEmpty) ...[
+                      Text(
+                        'Comments (${comments.length})',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textDark,
+                          fontSize: 16,
+                        ),
+                      ),
+                      SizedBox(height: 12),
+                      ...comments.map((comment) =>
+                          _buildCommentWidget(comment, isMyPost: isMyPost)).toList(),
+                      SizedBox(height: 16),
+                    ],
+
+                    // Comment Input
+                    Container(
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.accent2),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _commentController,
+                              decoration: InputDecoration(
+                                hintText: 'Write a comment...',
+                                border: InputBorder.none,
+                                hintStyle: TextStyle(color: AppColors.textLight),
+                                contentPadding: EdgeInsets.symmetric(horizontal: 8),
+                              ),
+                              maxLines: null,
+                              style: TextStyle(fontSize: 14, color: AppColors.textDark),
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Container(
+                            width: 40,
+                            height: 40,
+                            child: FloatingActionButton(
+                              onPressed: () => _addComment(postId),
+                              mini: true,
+                              backgroundColor: AppColors.primary,
+                              child: Icon(Icons.add, color: Colors.white, size: 20),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -963,10 +1018,9 @@ class _CommunityScreenState extends State<CommunityScreen>
     });
   }
 
-  // زر القائمة للبوستات الشخصية
   Widget _buildPostMenu(String postId, String currentContent) {
     return PopupMenuButton<String>(
-      icon: Icon(Icons.more_vert, color: Colors.grey[400]),
+      icon: Icon(Icons.more_vert, color: AppColors.textLight),
       onSelected: (value) async {
         if (value == 'edit') {
           setState(() {
@@ -979,8 +1033,29 @@ class _CommunityScreenState extends State<CommunityScreen>
       },
       itemBuilder: (context) {
         return [
-          PopupMenuItem(value: 'edit', child: Text('Edit')),
-          PopupMenuItem(value: 'delete', child: Text('Delete', style: TextStyle(color: Colors.red))),
+          PopupMenuItem(
+            value: 'edit',
+            child: Row(
+              children: [
+                Icon(Icons.edit, color: AppColors.primary, size: 18),
+                SizedBox(width: 8),
+                Text('Edit'),
+              ],
+            ),
+          ),
+          PopupMenuItem(
+            value: 'delete',
+            child: Row(
+              children: [
+                Icon(Icons.delete, color: AppColors.error, size: 18),
+                SizedBox(width: 8),
+                Text(
+                  'Delete',
+                  style: TextStyle(color: AppColors.error),
+                ),
+              ],
+            ),
+          ),
         ];
       },
     );
@@ -995,15 +1070,14 @@ class _CommunityScreenState extends State<CommunityScreen>
           _formatCount(count),
           style: TextStyle(
             fontSize: 12,
-            color: Colors.grey[600],
-            fontWeight: FontWeight.w500,
+            color: AppColors.textGray,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ],
     );
   }
 
-  // دالة مساعدة لتنسيق الأرقام الكبيرة
   String _formatCount(int count) {
     if (count < 1000) return count.toString();
     if (count < 1000000) return '${(count / 1000).toStringAsFixed(1)}K';
@@ -1028,15 +1102,15 @@ class _CommunityScreenState extends State<CommunityScreen>
               Icon(
                 icon,
                 size: 20,
-                color: isActive ? primaryColor : Colors.grey[600],
+                color: isActive ? AppColors.primary : AppColors.textLight,
               ),
               SizedBox(height: 2),
               Text(
                 label,
                 style: TextStyle(
                   fontSize: 11,
-                  color: isActive ? primaryColor : Colors.grey[600],
-                  fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                  color: isActive ? AppColors.primary : AppColors.textLight,
+                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
             ],
@@ -1046,7 +1120,6 @@ class _CommunityScreenState extends State<CommunityScreen>
     );
   }
 
-  // ويدجيت التعليق مع إمكانية الحذف
   Widget _buildCommentWidget(dynamic comment, {bool isMyPost = false}) {
     if (comment == null) return SizedBox.shrink();
 
@@ -1063,7 +1136,7 @@ class _CommunityScreenState extends State<CommunityScreen>
           CircleAvatar(
             radius: 16,
             backgroundImage: user['profile_picture'] != null
-                ? NetworkImage(_getImageUrl(user['profile_picture'])) // ✅ إصلاح الصورة
+                ? NetworkImage(_getImageUrl(user['profile_picture']))
                 : null,
             child: user['profile_picture'] == null
                 ? Icon(Icons.person, size: 14, color: Colors.white)
@@ -1074,7 +1147,7 @@ class _CommunityScreenState extends State<CommunityScreen>
             child: Container(
               padding: EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.grey[50],
+                color: AppColors.accent1,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
@@ -1086,8 +1159,9 @@ class _CommunityScreenState extends State<CommunityScreen>
                         child: Text(
                           user['full_name']?.toString() ?? 'Unknown User',
                           style: TextStyle(
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w700,
                             fontSize: 13,
+                            color: AppColors.textDark,
                           ),
                         ),
                       ),
@@ -1097,10 +1171,10 @@ class _CommunityScreenState extends State<CommunityScreen>
                           child: Container(
                             padding: EdgeInsets.all(4),
                             decoration: BoxDecoration(
-                              color: Colors.grey[200],
+                              color: AppColors.accent2,
                               shape: BoxShape.circle,
                             ),
-                            child: Icon(Icons.close, size: 12, color: Colors.grey[600]),
+                            child: Icon(Icons.close, size: 12, color: AppColors.textLight),
                           ),
                         ),
                     ],
@@ -1108,7 +1182,11 @@ class _CommunityScreenState extends State<CommunityScreen>
                   SizedBox(height: 4),
                   Text(
                     commentContent,
-                    style: TextStyle(fontSize: 14, color: textColor),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textGray,
+                      height: 1.4,
+                    ),
                   ),
                 ],
               ),
@@ -1141,7 +1219,6 @@ class _CommunityScreenState extends State<CommunityScreen>
     }
   }
 
-  // ✅ NEW: دالة الريبوست القديمة (للتوافق)
   Future<void> _repost(String postId) async {
     try {
       await CommunityService.repost(postId);
@@ -1178,12 +1255,17 @@ class _CommunityScreenState extends State<CommunityScreen>
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.error, color: Colors.white),
+            Icon(Icons.error, color: Colors.white, size: 20),
             SizedBox(width: 8),
-            Expanded(child: Text(message)),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ),
           ],
         ),
-        backgroundColor: Colors.red,
+        backgroundColor: AppColors.error,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
@@ -1195,12 +1277,17 @@ class _CommunityScreenState extends State<CommunityScreen>
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.check_circle, color: Colors.white),
+            Icon(Icons.check_circle, color: Colors.white, size: 20),
             SizedBox(width: 8),
-            Expanded(child: Text(message)),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ),
           ],
         ),
-        backgroundColor: primaryColor,
+        backgroundColor: AppColors.success,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
@@ -1212,11 +1299,17 @@ class _CommunityScreenState extends State<CommunityScreen>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(primaryColor)),
+          CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation(AppColors.primary),
+          ),
           SizedBox(height: 16),
           Text(
             'Loading posts...',
-            style: TextStyle(color: textColor.withOpacity(0.6)),
+            style: TextStyle(
+              color: AppColors.textGray,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ),
@@ -1228,11 +1321,15 @@ class _CommunityScreenState extends State<CommunityScreen>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.article, size: 64, color: Colors.grey[300]),
+          Icon(Icons.article, size: 64, color: AppColors.textLight),
           SizedBox(height: 16),
           Text(
             message,
-            style: TextStyle(fontSize: 16, color: textColor.withOpacity(0.6)),
+            style: TextStyle(
+              fontSize: 16,
+              color: AppColors.textGray,
+              fontWeight: FontWeight.w500,
+            ),
             textAlign: TextAlign.center,
           ),
         ],
@@ -1244,23 +1341,27 @@ class _CommunityScreenState extends State<CommunityScreen>
   Widget build(BuildContext context) {
     if (_tabController == null || _createPostAnimation == null || _likeAnimation == null) {
       return Scaffold(
-        backgroundColor: backgroundColor,
-        body: Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation(primaryColor))),
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation(AppColors.primary),
+          ),
+        ),
       );
     }
 
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(
           'Community',
           style: TextStyle(
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w700,
             fontSize: 20,
             color: Colors.white,
           ),
         ),
-        backgroundColor: primaryColor,
+        backgroundColor: AppColors.primary,
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.white),
         bottom: TabBar(
@@ -1268,7 +1369,8 @@ class _CommunityScreenState extends State<CommunityScreen>
           indicatorColor: Colors.white,
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white.withOpacity(0.7),
-          labelStyle: TextStyle(fontWeight: FontWeight.bold),
+          labelStyle: TextStyle(fontWeight: FontWeight.w600),
+          unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w500),
           tabs: [
             Tab(text: 'All Posts'),
             Tab(text: 'My Posts'),
@@ -1280,6 +1382,8 @@ class _CommunityScreenState extends State<CommunityScreen>
         children: [
           RefreshIndicator(
             onRefresh: _loadInitialPosts,
+            backgroundColor: AppColors.background,
+            color: AppColors.primary,
             child: ListView(
               physics: AlwaysScrollableScrollPhysics(),
               children: [
@@ -1306,7 +1410,10 @@ class _CommunityScreenState extends State<CommunityScreen>
                     child: Text(
                       'No more posts',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey[500]),
+                      style: TextStyle(
+                        color: AppColors.textLight,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
               ],
@@ -1315,6 +1422,8 @@ class _CommunityScreenState extends State<CommunityScreen>
 
           RefreshIndicator(
             onRefresh: _loadInitialPosts,
+            backgroundColor: AppColors.background,
+            color: AppColors.primary,
             child: ListView(
               physics: AlwaysScrollableScrollPhysics(),
               children: [
@@ -1335,7 +1444,10 @@ class _CommunityScreenState extends State<CommunityScreen>
                     child: Text(
                       'No more posts',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey[500]),
+                      style: TextStyle(
+                        color: AppColors.textLight,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
               ],
@@ -1354,7 +1466,7 @@ class _CommunityScreenState extends State<CommunityScreen>
     _postController.dispose();
     _commentController.dispose();
     _editPostController.dispose();
-    _repostController.dispose(); // ✅ جديد
+    _repostController.dispose();
     super.dispose();
   }
 }

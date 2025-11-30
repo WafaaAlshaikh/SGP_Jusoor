@@ -3,6 +3,8 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../services/community_service.dart';
 import '../services/activity_service.dart';
+import '../theme/app_colors.dart'; // ✅ استيراد الألوان الجديدة
+
 class CreatePostScreen extends StatefulWidget {
   @override
   _CreatePostScreenState createState() => _CreatePostScreenState();
@@ -13,13 +15,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   File? _selectedMedia;
   final ImagePicker _picker = ImagePicker();
   bool _isCreatingPost = false;
-
-  // الألوان البنفسجية للثيم
-  static const Color primaryColor = Color(0xFF7815A0);
-  static const Color primaryLight = Color(0xFF9F7AEA);
-  static const Color backgroundColor = Color(0xFFFAF5FF);
-  static const Color cardColor = Color(0xFFFFFFFF);
-  static const Color textColor = Color(0xFF2D3748);
 
   @override
   void dispose() {
@@ -78,13 +73,19 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.error, color: Colors.white),
+            Icon(Icons.error, color: Colors.white, size: 20),
             SizedBox(width: 8),
-            Expanded(child: Text(message)),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ),
           ],
         ),
-        backgroundColor: Colors.red,
+        backgroundColor: AppColors.error,
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -94,13 +95,19 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.check_circle, color: Colors.white),
+            Icon(Icons.check_circle, color: Colors.white, size: 20),
             SizedBox(width: 8),
-            Expanded(child: Text(message)),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ),
           ],
         ),
-        backgroundColor: primaryColor,
+        backgroundColor: AppColors.success,
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -115,16 +122,27 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       margin: EdgeInsets.only(right: 12),
       child: Column(
         children: [
-          IconButton(
-            icon: Icon(icon, color: color),
-            onPressed: onPressed,
-            style: IconButton.styleFrom(
-              backgroundColor: color.withOpacity(0.1),
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              icon: Icon(icon, color: color, size: 20),
+              onPressed: onPressed,
+              padding: EdgeInsets.zero,
             ),
           ),
+          SizedBox(height: 4),
           Text(
             label,
-            style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+            style: TextStyle(
+              fontSize: 10,
+              color: AppColors.textGray,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ),
@@ -134,17 +152,17 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(
           'Create New Post',
           style: TextStyle(
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w700,
             fontSize: 20,
             color: Colors.white,
           ),
         ),
-        backgroundColor: primaryColor,
+        backgroundColor: AppColors.primary,
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.white),
         actions: [
@@ -156,7 +174,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               valueColor: AlwaysStoppedAnimation(Colors.white),
             )
                 : IconButton(
-              icon: Icon(Icons.send, color: Colors.white),
+              icon: Icon(Icons.send, color: Colors.white, size: 22),
               onPressed: _createPost,
             ),
           ),
@@ -170,7 +188,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             Container(
               padding: EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: cardColor,
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
@@ -187,16 +205,17 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     children: [
                       CircleAvatar(
                         radius: 20,
-                        backgroundColor: primaryLight.withOpacity(0.2),
-                        child: Icon(Icons.person, color: primaryColor),
+                        backgroundColor: AppColors.primary.withOpacity(0.1),
+                        child: Icon(Icons.person, color: AppColors.primary),
                       ),
                       SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           "What's on your mind?",
                           style: TextStyle(
-                            color: textColor.withOpacity(0.7),
+                            color: AppColors.textGray,
                             fontSize: 16,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ),
@@ -223,12 +242,12 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                           child: GestureDetector(
                             onTap: () => setState(() => _selectedMedia = null),
                             child: Container(
-                              padding: EdgeInsets.all(4),
+                              padding: EdgeInsets.all(6),
                               decoration: BoxDecoration(
                                 color: Colors.black54,
                                 shape: BoxShape.circle,
                               ),
-                              child: Icon(Icons.close, color: Colors.white, size: 18),
+                              child: Icon(Icons.close, color: Colors.white, size: 16),
                             ),
                           ),
                         ),
@@ -243,10 +262,15 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     decoration: InputDecoration(
                       hintText: "Share your thoughts...",
                       border: InputBorder.none,
-                      hintStyle: TextStyle(color: Colors.grey[400]),
+                      hintStyle: TextStyle(color: AppColors.textLight),
+                      contentPadding: EdgeInsets.zero,
                     ),
                     maxLines: 8,
-                    style: TextStyle(fontSize: 16, color: textColor),
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: AppColors.textDark,
+                      height: 1.4,
+                    ),
                   ),
 
                   // Actions Row
@@ -258,25 +282,23 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         icon: Icons.photo_library,
                         label: 'Photo',
                         onPressed: _pickImage,
-                        color: Colors.green,
+                        color: AppColors.success,
                       ),
                       _buildMediaButton(
                         icon: Icons.videocam,
                         label: 'Video',
                         onPressed: () {
-                          // يمكنك إضافة اختيار الفيديو لاحقاً
                           _showErrorSnackBar('Video upload coming soon!');
                         },
-                        color: primaryColor,
+                        color: AppColors.primary,
                       ),
                       _buildMediaButton(
                         icon: Icons.attach_file,
                         label: 'File',
                         onPressed: () {
-                          // يمكنك إضافة رفع الملفات لاحقاً
                           _showErrorSnackBar('File upload coming soon!');
                         },
-                        color: Colors.orange,
+                        color: AppColors.warning,
                       ),
                     ],
                   ),
@@ -291,38 +313,50 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               child: ElevatedButton(
                 onPressed: _isCreatingPost ? null : _createPost,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
+                  backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                   padding: EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                   elevation: 2,
+                  disabledBackgroundColor: AppColors.primary.withOpacity(0.5),
                 ),
                 child: _isCreatingPost
                     ? Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation(Colors.white),
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation(Colors.white),
+                      ),
                     ),
                     SizedBox(width: 12),
                     Text(
                       'Publishing...',
                       style: TextStyle(
                         fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
                 )
-                    : Text(
-                  'Publish Post',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                    : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.send, size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      'Publish Post',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -334,8 +368,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               margin: EdgeInsets.symmetric(horizontal: 8),
               padding: EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: primaryLight.withOpacity(0.1),
+                color: AppColors.accent1,
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.accent2),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -343,8 +378,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   Text(
                     '💡 Tips for great posts:',
                     style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: primaryColor,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
                       fontSize: 16,
                     ),
                   ),
@@ -352,8 +387,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   Text(
                     '• Share helpful information\n• Be respectful to others\n• Add relevant images\n• Use clear language',
                     style: TextStyle(
-                      color: textColor.withOpacity(0.8),
+                      color: AppColors.textGray,
                       fontSize: 14,
+                      height: 1.5,
                     ),
                   ),
                 ],

@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/payment_models.dart';
 import '../models/session.dart';
 import '../services/payment_service.dart';
+import '../theme/app_colors.dart';
 
 class PaymentScreen extends StatefulWidget {
   final Invoice invoice;
@@ -59,8 +60,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to load payment methods: ${e.toString()}'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 4),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
         ),
       );
       setState(() {
@@ -71,36 +75,35 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   Widget _buildPaymentMethodsList() {
     if (_availablePaymentMethods.isEmpty) {
-      return Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+      return Container(
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.accent1),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            children: [
-              Icon(Icons.payment_outlined, size: 64, color: Colors.grey[400]),
-              const SizedBox(height: 16),
-              const Text(
-                'No Payment Methods Available',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey,
-                ),
+        child: Column(
+          children: [
+            Icon(Icons.payment_rounded, size: 72, color: AppColors.textLight),
+            const SizedBox(height: 20),
+            Text(
+              'No Payment Methods',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textGray,
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Please try again later or contact our support team',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey,
-                ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Please try again later or contact support',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.textLight,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     }
@@ -109,20 +112,28 @@ class _PaymentScreenState extends State<PaymentScreen> {
       children: _availablePaymentMethods.map((method) {
         final isSelected = _selectedPaymentMethod == method.id;
 
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          margin: const EdgeInsets.only(bottom: 16),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isSelected ? Colors.blue : Colors.grey[300]!,
+              color: isSelected ? AppColors.primary : AppColors.accent2,
               width: isSelected ? 2 : 1,
             ),
-            color: isSelected ? Colors.blue.withOpacity(0.05) : Colors.white,
+            color: isSelected ? AppColors.primary.withOpacity(0.05) : AppColors.surface,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isSelected ? 0.1 : 0.05),
+                blurRadius: isSelected ? 15 : 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
           child: Material(
             color: Colors.transparent,
             child: InkWell(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(20),
               onTap: _isProcessing
                   ? null
                   : () {
@@ -134,20 +145,35 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 }
               },
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
                 child: Row(
                   children: [
-                    Container(
-                      width: 40,
-                      height: 40,
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      width: 52,
+                      height: 52,
                       decoration: BoxDecoration(
-                        color: isSelected ? Colors.blue : Colors.grey[100],
-                        borderRadius: BorderRadius.circular(12),
+                        gradient: isSelected
+                            ? LinearGradient(
+                          colors: [AppColors.primary, AppColors.primaryLight],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                            : null,
+                        color: isSelected ? null : AppColors.background,
+                        borderRadius: BorderRadius.circular(15),
+                        boxShadow: isSelected ? [
+                          BoxShadow(
+                            color: AppColors.primary.withOpacity(0.3),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          )
+                        ] : null,
                       ),
                       child: Icon(
                         _getPaymentMethodIcon(method.id),
-                        color: isSelected ? Colors.white : Colors.grey[600],
-                        size: 20,
+                        color: isSelected ? AppColors.textWhite : AppColors.textGray,
+                        size: 26,
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -157,42 +183,63 @@ class _PaymentScreenState extends State<PaymentScreen> {
                         children: [
                           Text(
                             method.name,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
                               fontSize: 16,
+                              color: AppColors.textDark,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 6),
                           Text(
                             method.description,
                             style: TextStyle(
                               fontSize: 13,
-                              color: Colors.grey[600],
+                              color: AppColors.textGray,
+                              height: 1.4,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          if (method.processingFee > 0) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              'Fee: ${(method.processingFee * 100).toStringAsFixed(1)}%',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.orange[700],
-                                fontWeight: FontWeight.w500,
-                              ),
+                          const SizedBox(height: 8),
+                          if (method.processingFee > 0 || method.verificationTime != null)
+                            Wrap(
+                              spacing: 12,
+                              runSpacing: 6,
+                              children: [
+                                if (method.processingFee > 0)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.warning.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      'Fee: ${(method.processingFee * 100).toStringAsFixed(1)}%',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.warning,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                if (method.verificationTime != null)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.info.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      'Verification: ${method.verificationTime}',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.info,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
-                          ],
-                          if (method.verificationTime != null) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              'Verification: ${method.verificationTime}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.blue[700],
-                              ),
-                            ),
-                          ],
                         ],
                       ),
                     ),
@@ -203,26 +250,38 @@ class _PaymentScreenState extends State<PaymentScreen> {
                           Text(
                             '\$${method.estimatedTotal.toStringAsFixed(2)}',
                             style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 16,
-                              color: isSelected ? Colors.blue : Colors.black87,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 17,
+                              color: isSelected ? AppColors.primary : AppColors.textDark,
                             ),
                           ),
                           if (method.processingFee > 0)
                             Text(
                               'incl. fee',
                               style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey[500],
+                                fontSize: 10,
+                                color: AppColors.textLight,
                               ),
                             ),
                         ],
                       ),
+                      const SizedBox(width: 12),
                     ],
-                    const SizedBox(width: 8),
-                    Icon(
-                      isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-                      color: isSelected ? Colors.blue : Colors.grey[400],
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      decoration: BoxDecoration(
+                        color: isSelected ? AppColors.primary : Colors.transparent,
+                        border: Border.all(
+                          color: isSelected ? AppColors.primary : AppColors.textLight,
+                          width: 2,
+                        ),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.check,
+                        size: 16,
+                        color: isSelected ? AppColors.textWhite : Colors.transparent,
+                      ),
                     ),
                   ],
                 ),
@@ -235,19 +294,22 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   Widget _buildPaymentContent() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildInvoiceCard(),
-          const SizedBox(height: 24),
-          _buildPaymentMethodsSection(),
-          const SizedBox(height: 24),
-          _buildPaymentButton(),
-          const SizedBox(height: 20),
-        ],
-      ),
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.all(20),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate([
+              _buildInvoiceCard(),
+              const SizedBox(height: 28),
+              _buildPaymentMethodsSection(),
+              const SizedBox(height: 28),
+              _buildPaymentButton(),
+              const SizedBox(height: 20),
+            ]),
+          ),
+        ),
+      ],
     );
   }
 
@@ -269,18 +331,29 @@ class _PaymentScreenState extends State<PaymentScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Payment',
+        title: Text(
+          'Complete Payment',
           style: TextStyle(
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             fontSize: 20,
+            color: AppColors.textDark,
           ),
         ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor: AppColors.surface,
+        foregroundColor: AppColors.textDark,
         elevation: 0,
         centerTitle: true,
+        iconTheme: IconThemeData(color: AppColors.textDark),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.help_outline_rounded, size: 22),
+            onPressed: () {
+              // Show help dialog
+            },
+          ),
+        ],
       ),
+      backgroundColor: AppColors.background,
       body: _isLoadingMethods
           ? _buildLoadingState()
           : _buildPaymentContent(),
@@ -292,17 +365,53 @@ class _PaymentScreenState extends State<PaymentScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const CircularProgressIndicator(
-            color: Colors.blue,
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Stack(
+              children: [
+                Center(
+                  child: SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: CircularProgressIndicator(
+                      color: AppColors.primary,
+                      strokeWidth: 3,
+                      backgroundColor: AppColors.primary.withOpacity(0.2),
+                    ),
+                  ),
+                ),
+                Center(
+                  child: Icon(
+                    Icons.payment_rounded,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
           Text(
-            'Loading Payment Methods...',
+            'Loading Payment Methods',
             style: TextStyle(
               fontSize: 16,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
+              color: AppColors.textGray,
+              fontWeight: FontWeight.w600,
             ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Please wait while we prepare your payment options',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textLight,
+            ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -313,13 +422,17 @@ class _PaymentScreenState extends State<PaymentScreen> {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          colors: [AppColors.surface, AppColors.background],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 25,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -328,15 +441,52 @@ class _PaymentScreenState extends State<PaymentScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Header with improved layout
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Invoice #${widget.invoice.invoiceNumber}',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black87,
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [AppColors.primary, AppColors.primaryLight],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.receipt_long_rounded,
+                    color: AppColors.textWhite,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'INVOICE',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textLight,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '#${widget.invoice.invoiceNumber}',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textDark,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
                 ),
                 Container(
@@ -344,36 +494,75 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   decoration: BoxDecoration(
                     color: _getStatusColor(widget.invoice.status),
                     borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _getStatusColor(widget.invoice.status).withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Text(
                     widget.invoice.status.toUpperCase(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                    style: TextStyle(
+                      color: AppColors.textWhite,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: 24),
+
+            // Session Details
+            _buildDetailItem('Child', widget.session.childName, Icons.child_care_rounded),
+            _buildDetailItem('Specialist', widget.session.specialistName, Icons.person_rounded),
+            _buildDetailItem('Institution', widget.session.institutionName, Icons.school_rounded),
+            _buildDetailItem('Session Type', widget.session.sessionType, Icons.work_rounded),
+            _buildDetailItem('Date & Time', '${widget.session.date} • ${widget.session.time}', Icons.calendar_today_rounded),
+
             const SizedBox(height: 20),
-            _buildInvoiceRow('Child', widget.session.childName),
-            _buildInvoiceRow('Specialist', widget.session.specialistName),
-            _buildInvoiceRow('Institution', widget.session.institutionName),
-            _buildInvoiceRow('Session Type', widget.session.sessionType),
-            _buildInvoiceRow('Date & Time', '${widget.session.date} • ${widget.session.time}'),
+            Divider(height: 1, color: AppColors.accent2),
+            const SizedBox(height: 20),
+
+            // Amount Breakdown
+            _buildAmountRow('Amount', widget.invoice.amount),
+            _buildAmountRow('Tax', widget.invoice.taxAmount),
             const SizedBox(height: 16),
-            const Divider(height: 1),
+            Divider(height: 1, color: AppColors.accent2),
             const SizedBox(height: 16),
-            _buildInvoiceRow('Amount', '\$${widget.invoice.amount.toStringAsFixed(2)}'),
-            _buildInvoiceRow('Tax', '\$${widget.invoice.taxAmount.toStringAsFixed(2)}'),
-            const SizedBox(height: 12),
-            const Divider(height: 1),
-            const SizedBox(height: 16),
-            _buildInvoiceRow(
-              'Total Amount',
-              '\$${widget.invoice.totalAmount.toStringAsFixed(2)}',
-              isTotal: true,
+
+            // Total
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Total Amount',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  Text(
+                    '\$${widget.invoice.totalAmount.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 22,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -381,20 +570,47 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'paid':
-        return Colors.green;
-      case 'pending':
-        return Colors.orange;
-      case 'overdue':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
+  Widget _buildDetailItem(String label, String value, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: 18,
+            color: AppColors.textLight,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                color: AppColors.textGray,
+                fontSize: 14,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              value,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: AppColors.textDark,
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.right,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  Widget _buildInvoiceRow(String label, String value, {bool isTotal = false}) {
+  Widget _buildAmountRow(String label, double amount) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -403,17 +619,17 @@ class _PaymentScreenState extends State<PaymentScreen> {
           Text(
             label,
             style: TextStyle(
-              fontWeight: isTotal ? FontWeight.w700 : FontWeight.w500,
-              color: isTotal ? Colors.black : Colors.grey[700],
-              fontSize: isTotal ? 16 : 14,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textGray,
+              fontSize: 15,
             ),
           ),
           Text(
-            value,
+            '\$${amount.toStringAsFixed(2)}',
             style: TextStyle(
-              fontWeight: isTotal ? FontWeight.w700 : FontWeight.w500,
-              color: isTotal ? Colors.blue : Colors.black87,
-              fontSize: isTotal ? 18 : 14,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textDark,
+              fontSize: 15,
             ),
           ),
         ],
@@ -421,27 +637,57 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'paid':
+        return AppColors.success;
+      case 'pending':
+        return AppColors.warning;
+      case 'overdue':
+        return AppColors.error;
+      default:
+        return AppColors.textLight;
+    }
+  }
+
   Widget _buildPaymentMethodsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Payment Method',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: Colors.black87,
-          ),
+        Row(
+          children: [
+            Container(
+              width: 4,
+              height: 20,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [AppColors.primary, AppColors.primaryLight],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Payment Method',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textDark,
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         Text(
           'Choose your preferred payment option',
           style: TextStyle(
             fontSize: 14,
-            color: Colors.grey[600],
+            color: AppColors.textGray,
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 24),
         _buildPaymentMethodsList(),
       ],
     );
@@ -450,36 +696,32 @@ class _PaymentScreenState extends State<PaymentScreen> {
   IconData _getPaymentMethodIcon(String methodId) {
     switch (methodId) {
       case 'credit_card':
-        return Icons.credit_card_outlined;
+        return Icons.credit_card_rounded;
       case 'cash':
-        return Icons.money_outlined;
+        return Icons.money_rounded;
       case 'bank_transfer':
-        return Icons.account_balance_outlined;
+        return Icons.account_balance_rounded;
       default:
-        return Icons.payment_outlined;
+        return Icons.payment_rounded;
     }
   }
 
   Widget _buildPaymentButton() {
     if (_availablePaymentMethods.isEmpty) {
-      return SizedBox(
+      return Container(
         width: double.infinity,
-        height: 56,
-        child: ElevatedButton(
-          onPressed: null,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.grey[300],
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            elevation: 0,
-          ),
+        height: 60,
+        decoration: BoxDecoration(
+          color: AppColors.accent2,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Center(
           child: Text(
             'No Payment Methods Available',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: Colors.grey[600],
+              color: AppColors.textLight,
             ),
           ),
         ),
@@ -490,42 +732,80 @@ class _PaymentScreenState extends State<PaymentScreen> {
           (method) => method.id == _selectedPaymentMethod,
     );
 
-    return SizedBox(
+    return Container(
       width: double.infinity,
-      height: 56,
-      child: ElevatedButton(
-        onPressed: _isProcessing ? null : _processPayment,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.blue,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          elevation: 2,
-          shadowColor: Colors.blue.withOpacity(0.3),
+      height: 60,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppColors.primary, AppColors.primaryLight],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        child: _isProcessing
-            ? const SizedBox(
-          width: 24,
-          height: 24,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.4),
+            blurRadius: 15,
+            offset: const Offset(0, 4),
           ),
-        )
-            : Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'Pay \$${selectedMethod.estimatedTotal.toStringAsFixed(2)}',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: _isProcessing ? null : _processPayment,
+          child: Stack(
+            children: [
+              if (_isProcessing)
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      color: Colors.black.withOpacity(0.2),
+                    ),
+                  ),
+                ),
+              Center(
+                child: _isProcessing
+                    ? SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.textWhite,
+                  ),
+                )
+                    : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Pay \$${selectedMethod.estimatedTotal.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textWhite,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: AppColors.textWhite.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.arrow_forward_rounded,
+                        size: 18,
+                        color: AppColors.textWhite,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            const Icon(Icons.arrow_forward_rounded, size: 20),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -555,8 +835,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
       if (paymentResponse.success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(paymentResponse.message),
-            backgroundColor: Colors.green,
+            content: Row(
+              children: [
+                Icon(Icons.check_circle_rounded, color: AppColors.textWhite),
+                const SizedBox(width: 8),
+                Expanded(child: Text(paymentResponse.message)),
+              ],
+            ),
+            backgroundColor: AppColors.success,
             duration: const Duration(seconds: 3),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -579,8 +865,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Payment failed: ${e.toString()}'),
-          backgroundColor: Colors.red,
+          content: Row(
+            children: [
+              Icon(Icons.error_rounded, color: AppColors.textWhite),
+              const SizedBox(width: 8),
+              Expanded(child: Text('Payment failed: ${e.toString()}')),
+            ],
+          ),
+          backgroundColor: AppColors.error,
           duration: const Duration(seconds: 4),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
@@ -607,7 +899,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
       context: context,
       builder: (context) => Dialog(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(28),
         ),
         child: SingleChildScrollView(
           child: Column(
@@ -616,43 +908,47 @@ class _PaymentScreenState extends State<PaymentScreen> {
               // Header
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(28),
                 decoration: BoxDecoration(
-                  color: Colors.blue,
+                  gradient: LinearGradient(
+                    colors: [AppColors.primary, AppColors.primaryLight],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(24),
-                    topRight: Radius.circular(24),
+                    topLeft: Radius.circular(28),
+                    topRight: Radius.circular(28),
                   ),
                 ),
                 child: Column(
                   children: [
                     Container(
-                      width: 60,
-                      height: 60,
+                      width: 70,
+                      height: 70,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(16),
+                        color: AppColors.textWhite.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.credit_card_rounded,
-                        color: Colors.white,
-                        size: 32,
+                        color: AppColors.textWhite,
+                        size: 36,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    const Text(
+                    const SizedBox(height: 20),
+                    Text(
                       'Card Payment',
                       style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
+                        color: AppColors.textWhite,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
+                    Text(
                       'Enter your card details securely',
                       style: TextStyle(
-                        color: Colors.white70,
+                        color: AppColors.textWhite.withOpacity(0.9),
                         fontSize: 14,
                       ),
                     ),
@@ -662,35 +958,44 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
               // Test Cards Info
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: Colors.amber[50],
+                  color: AppColors.warning.withOpacity(0.1),
                   border: Border(
-                    bottom: BorderSide(color: Colors.orange.shade200),
+                    bottom: BorderSide(color: AppColors.warning.withOpacity(0.2)),
                   ),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, color: Colors.orange[800], size: 20),
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.info_rounded, color: AppColors.warning, size: 18),
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Test Cards',
+                            'Test Card Numbers',
                             style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: Colors.orange[800],
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.warning,
                               fontSize: 13,
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 4),
                           Text(
-                            'Success: 4242 4242 4242 4242 • Decline: 4000 0000 0000 0002',
+                            'Success: 4242 4242 4242 4242\nDecline: 4000 0000 0000 0002',
                             style: TextStyle(
                               fontSize: 11,
-                              color: Colors.orange[700],
+                              color: AppColors.warning,
+                              height: 1.4,
                             ),
                           ),
                         ],
@@ -702,7 +1007,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
               // Form
               Padding(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(28),
                 child: Column(
                   children: [
                     TextField(
@@ -711,25 +1016,43 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       decoration: InputDecoration(
                         labelText: 'Card Number',
                         hintText: '4242 4242 4242 4242',
-                        prefixIcon: const Icon(Icons.credit_card_rounded),
+                        prefixIcon: Icon(Icons.credit_card_rounded, color: AppColors.primary),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: AppColors.accent2),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: AppColors.accent2),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: AppColors.primary, width: 2),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
                     TextField(
                       controller: cardHolderController,
                       decoration: InputDecoration(
                         labelText: 'Cardholder Name',
                         hintText: 'John Doe',
-                        prefixIcon: const Icon(Icons.person_outline),
+                        prefixIcon: Icon(Icons.person_rounded, color: AppColors.primary),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: AppColors.accent2),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: AppColors.accent2),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: AppColors.primary, width: 2),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
                     Row(
                       children: [
                         Expanded(
@@ -739,9 +1062,18 @@ class _PaymentScreenState extends State<PaymentScreen> {
                             decoration: InputDecoration(
                               labelText: 'MM/YY',
                               hintText: '12/25',
-                              prefixIcon: const Icon(Icons.calendar_today_outlined),
+                              prefixIcon: Icon(Icons.calendar_today_rounded, color: AppColors.primary),
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: BorderSide(color: AppColors.accent2),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: BorderSide(color: AppColors.accent2),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: BorderSide(color: AppColors.primary, width: 2),
                               ),
                             ),
                           ),
@@ -754,9 +1086,18 @@ class _PaymentScreenState extends State<PaymentScreen> {
                             decoration: InputDecoration(
                               labelText: 'CVV',
                               hintText: '123',
-                              prefixIcon: const Icon(Icons.lock_outline),
+                              prefixIcon: Icon(Icons.lock_rounded, color: AppColors.primary),
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: BorderSide(color: AppColors.accent2),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: BorderSide(color: AppColors.accent2),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: BorderSide(color: AppColors.primary, width: 2),
                               ),
                             ),
                           ),
@@ -769,7 +1110,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
               // Buttons
               Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
                 child: Row(
                   children: [
                     Expanded(
@@ -784,28 +1125,33 @@ class _PaymentScreenState extends State<PaymentScreen> {
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(14),
                           ),
-                          side: BorderSide(color: Colors.grey[300]!),
+                          side: BorderSide(color: AppColors.accent2),
                         ),
                         child: Text(
                           'Cancel',
                           style: TextStyle(
-                            color: Colors.grey[700],
+                            color: AppColors.textGray,
                             fontWeight: FontWeight.w600,
+                            fontSize: 15,
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () async {
                           if (cardNumberController.text.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
+                              SnackBar(
                                 content: Text('Please enter card number'),
-                                backgroundColor: Colors.red,
+                                backgroundColor: AppColors.error,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
                               ),
                             );
                             return;
@@ -841,9 +1187,19 @@ class _PaymentScreenState extends State<PaymentScreen> {
                             if (paymentResponse.success) {
                               scaffoldMessenger.showSnackBar(
                                 SnackBar(
-                                  content: Text(paymentResponse.message),
-                                  backgroundColor: Colors.green,
+                                  content: Row(
+                                    children: [
+                                      Icon(Icons.check_circle_rounded, color: AppColors.textWhite),
+                                      const SizedBox(width: 8),
+                                      Text(paymentResponse.message),
+                                    ],
+                                  ),
+                                  backgroundColor: AppColors.success,
                                   duration: const Duration(seconds: 3),
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                 ),
                               );
                               if (mounted) {
@@ -852,17 +1208,37 @@ class _PaymentScreenState extends State<PaymentScreen> {
                             } else {
                               scaffoldMessenger.showSnackBar(
                                 SnackBar(
-                                  content: Text(paymentResponse.message),
-                                  backgroundColor: Colors.red,
+                                  content: Row(
+                                    children: [
+                                      Icon(Icons.error_rounded, color: AppColors.textWhite),
+                                      const SizedBox(width: 8),
+                                      Text(paymentResponse.message),
+                                    ],
+                                  ),
+                                  backgroundColor: AppColors.error,
                                   duration: const Duration(seconds: 4),
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                 ),
                               );
                             }
                           } catch (e) {
                             scaffoldMessenger.showSnackBar(
                               SnackBar(
-                                content: Text('Payment error: ${e.toString()}'),
-                                backgroundColor: Colors.red,
+                                content: Row(
+                                  children: [
+                                    Icon(Icons.error_rounded, color: AppColors.textWhite),
+                                    const SizedBox(width: 8),
+                                    Text('Payment error: ${e.toString()}'),
+                                  ],
+                                ),
+                                backgroundColor: AppColors.error,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
                             );
                           } finally {
@@ -879,19 +1255,19 @@ class _PaymentScreenState extends State<PaymentScreen> {
                           cvvController.dispose();
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: AppColors.textWhite,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(14),
                           ),
                           elevation: 2,
                         ),
-                        child: const Text(
+                        child: Text(
                           'Pay Now',
                           style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
                           ),
                         ),
                       ),

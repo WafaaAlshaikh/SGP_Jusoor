@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/auth_sync_service.dart';
 import 'forgot_password_screen.dart';
+import '../theme/app_colors.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -18,266 +19,345 @@ class _LoginScreenState extends State<LoginScreen> {
   bool isLoading = false;
   bool showPassword = false;
 
- void submit() async {
-  if (!_formKey.currentState!.validate()) return;
-  setState(() => isLoading = true);
+  void submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => isLoading = true);
 
-  final response = await ApiService.login({'email': email.trim(), 'password': password});
-  setState(() => isLoading = false);
+    final response = await ApiService.login({'email': email.trim(), 'password': password});
+    setState(() => isLoading = false);
 
-  final message = response['message'] ?? 'Unknown error';
-  final success = response['token'] != null;
+    final message = response['message'] ?? 'Unknown error';
+    final success = response['token'] != null;
 
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(message),
-      backgroundColor: success ? Colors.green : Colors.red,
-    ),
-  );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: success ? Colors.green : Colors.red,
+      ),
+    );
 
-  // طباعة تفصيلية للرد
-  print('=== LOGIN RESPONSE ===');
-  print('Success: ${response['success']}');
-  print('Message: ${response['message']}');
-  print('Token: ${response['token']}');
-  print('User Role: ${response['user']?['role']}');
-  print('User Status: ${response['user']?['status']}');
-  
-  // ✅ طباعة بيانات المؤسسة إذا كان مديراً
-  if (response['user']?['role'] == 'Manager') {
-    print('🏢 Institution Data: ${response['institution']}');
-  }
-  print('=====================');
+    if (success && mounted) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('token', response['token']);
+      await prefs.setString('user_id', response['user']['user_id'].toString());
+      await prefs.setString('user_email', response['user']['email']);
+      await prefs.setString('user_name', response['user']['full_name']);
+      await prefs.setString('user_role', response['user']['role']);
 
-  if (success && mounted) {
-    final prefs = await SharedPreferences.getInstance();
+      if (response['user']['role'] == 'Manager' && response['institution'] != null) {
+        await prefs.setString('institution_data', jsonEncode(response['institution']));
+      }
 
-    await prefs.setString('token', response['token']);
-    await prefs.setString('user_id', response['user']['user_id'].toString());
-    await prefs.setString('user_email', response['user']['email']);
-    await prefs.setString('user_name', response['user']['full_name']);
-    await prefs.setString('user_role', response['user']['role']);
-    
-    // ✅ حفظ بيانات المؤسسة إذا كان مديراً
-    if (response['user']['role'] == 'Manager' && response['institution'] != null) {
-      await prefs.setString('institution_data', jsonEncode(response['institution']));
-      print('🏢 تم حفظ بيانات المؤسسة في التخزين المحلي');
-      print('   Institution Name: ${response['institution']['name']}');
-      print('   Institution Status: ${response['institution']['approval_status']}');
-    }
+      try {
+        final authSync = AuthSyncService();
+        await authSync.syncCurrentUser();
+      } catch (e) {
+        print('❌ خطأ في مزامنة Firebase: $e');
+      }
 
-    print('✅ تم حفظ بيانات المستخدم في التخزين المحلي');
-    print('📝 Token: ${response['token']}');
-    print('👤 User ID: ${response['user']['user_id']}');
-    print('🎯 Role: ${response['user']['role']}');
-
-    try {
-      final authSync = AuthSyncService();
-      await authSync.syncCurrentUser();
-      print('✅ تمت مزامنة Firebase بنجاح');
-    } catch (e) {
-      print('❌ خطأ في مزامنة Firebase: $e');
-    }
-
-    // ✅ تحديث التوجيه لإضافة Manager
-    final role = response['user']['role'];
-    if (role == 'Parent') {
-      Navigator.pushReplacementNamed(context, '/parentDashboard');
-    } else if (role == 'Specialist') {
-      Navigator.pushReplacementNamed(context, '/specialistDashboard');
-    } else if (role == 'Admin') {
-      Navigator.pushReplacementNamed(context, '/adminDashboard');
-    } else if (role == 'Manager') {
-      Navigator.pushReplacementNamed(context, '/managerDashboard');
-    } else {
-      Navigator.pushReplacementNamed(context, '/home');
+      final role = response['user']['role'];
+      if (role == 'Parent') {
+        Navigator.pushReplacementNamed(context, '/parentDashboard');
+      } else if (role == 'Specialist') {
+        Navigator.pushReplacementNamed(context, '/specialistDashboard');
+      } else if (role == 'Admin') {
+        Navigator.pushReplacementNamed(context, '/adminDashboard');
+      } else if (role == 'Manager') {
+        Navigator.pushReplacementNamed(context, '/managerDashboard');
+      } else {
+        Navigator.pushReplacementNamed(context, '/home');
+      }
     }
   }
-}
 
   @override
   Widget build(BuildContext context) {
-    // تحديد إذا كان التطبيق يعمل على الويب
     final bool isWeb = MediaQuery.of(context).size.width > 600;
 
     return Scaffold(
-      backgroundColor: Color(0xFFF0E5FF),
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Center(
           child: Container(
-            // تحديد عرض الحاوية بناءً على المنصة
             width: isWeb ? 500 : double.infinity,
             padding: EdgeInsets.symmetric(
-                horizontal: isWeb ? 40 : 30,
-                vertical: isWeb ? 20 : 40
+              horizontal: isWeb ? 40 : 30,
+              vertical: isWeb ? 20 : 40,
             ),
             child: SingleChildScrollView(
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Tabs: Login / Signup
-                    Container(
-                      decoration: isWeb ? BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black12,
-                            blurRadius: 10,
-                            offset: Offset(0, 4),
-                          )
-                        ],
-                      ) : null,
-                      padding: isWeb ? EdgeInsets.all(20) : EdgeInsets.zero,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Header with Logo and Welcome
+              Container(
+              margin: EdgeInsets.only(bottom: isWeb ? 40 : 30),
+              child: Column(
+                children: [
+                  // Simple elegant logo - Bridge concept
+                  Container(
+                    width: isWeb ? 160 : 140,  // تكبير الحجم
+                    height: isWeb ? 160 : 140, // تكبير الحجم
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Background glow effect
+                        Container(
+                          width: isWeb ? 150 : 130,
+                          height: isWeb ? 150 : 130,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(
+                              colors: [
+                                AppColors.primary.withOpacity(0.1),
+                                Colors.transparent,
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // Main logo - Three connected elements
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // Top - Family icon
+                            Icon(
+                              Icons.groups,
+                              color: AppColors.primary,
+                              size: isWeb ? 45 : 39,  // تكبير الأيقونة
+                            ),
+
+                            SizedBox(height: isWeb ? 12 : 5),
+
+                            // Middle - Connection symbol with full width lines
+                            Container(
+                              width: double.infinity, // يأخذ العرض الكامل
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween, // توزيع الخطوط على الجانبين
+                                children: [
+                                  // Left line - extends to edge
+                                  Expanded(
+                                    child: Container(
+                                      height: 3,  // زيادة سمك الخط
+                                      margin: EdgeInsets.only(right: isWeb ? 15 : 10),
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            AppColors.primary.withOpacity(0.3),
+                                            AppColors.primary,
+                                          ],
+                                        ),
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    ),
+                                  ),
+
+                                  // Heart in the middle
+                                  Container(
+                                    width: isWeb ? 40 : 35,
+                                    height: isWeb ? 40 : 35,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary,
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: AppColors.primary.withOpacity(0.3),
+                                          blurRadius: 8,
+                                          offset: Offset(0, 3),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Icon(
+                                      Icons.favorite,
+                                      color: Colors.white,
+                                      size: isWeb ? 25 : 22,
+                                    ),
+                                  ),
+
+                                  // Right line - extends to edge
+                                  Expanded(
+                                    child: Container(
+                                      height: 3,  // زيادة سمك الخط
+                                      margin: EdgeInsets.only(left: isWeb ? 15 : 10),
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            AppColors.primary,
+                                            AppColors.primary.withOpacity(0.3),
+                                          ],
+                                        ),
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+
+
+
+                  Text(
+                    'Welcome Back',
+                    style: TextStyle(
+                      fontSize: isWeb ? 32 : 28,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textDark,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Sign in to continue your journey',
+                    style: TextStyle(
+                      fontSize: isWeb ? 16 : 14,
+                      color: AppColors.textGray,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+                  // Login Form Card
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(25),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 30,
+                          offset: Offset(0, 15),
+                        ),
+                      ],
+                    ),
+                    padding: EdgeInsets.all(isWeb ? 40 : 30),
+                    child: Form(
+                      key: _formKey,
                       child: Column(
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              TextButton(
-                                onPressed: () {},
-                                child: Text(
-                                  'Log in',
-                                  style: TextStyle(
-                                    fontSize: isWeb ? 22 : 20,
-                                    color: Color(0xFF8E88C7),
-                                    fontWeight: FontWeight.bold,
-                                    decoration: TextDecoration.underline,
-                                  ),
-                                ),
-                              ),
-                              SizedBox(width: 20),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.pushReplacementNamed(context, '/signup');
-                                },
-                                child: Text(
-                                  'Sign up',
-                                  style: TextStyle(
-                                    fontSize: isWeb ? 22 : 20,
-                                    color: Colors.grey[700],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: isWeb ? 30 : 20),
-
-                          // Logo
-                          Image.asset(
-                            'assets/images/jusoor_logo.png',
-                            height: isWeb ? 120 : 100,
-                          ),
-                          SizedBox(height: isWeb ? 30 : 20),
-
-                          // Email
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              'Your Email',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w500,
-                                fontSize: isWeb ? 18 : 16,
-                                color: Color(0xFF7815A0),
-                              ),
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          TextFormField(
-                            decoration: InputDecoration(
-                              hintText: 'contact@dscodetech.com',
-                              filled: true,
-                              fillColor: Colors.grey[100],
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide:
-                                BorderSide(color: Color(0xFF7815A0), width: 1.2),
-                              ),
-                              contentPadding: isWeb
-                                  ? EdgeInsets.symmetric(horizontal: 16, vertical: 18)
-                                  : null,
-                            ),
-                            keyboardType: TextInputType.emailAddress,
+                          // Email Field
+                          _buildTextField(
+                            label: 'Email Address',
+                            hintText: 'your@email.com',
+                            icon: Icons.email_outlined,
+                            isWeb: isWeb,
                             onChanged: (val) => email = val,
-                            validator: (val) =>
-                            val!.isEmpty ? 'Please enter your email' : null,
+                            validator: (val) => val!.isEmpty ? 'Please enter your email' : null,
                           ),
                           SizedBox(height: isWeb ? 25 : 20),
 
-                          // Password
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              'Password',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w500,
-                                fontSize: isWeb ? 18 : 16,
-                                color: Color(0xFF7815A0),
+                          // Password Field
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Password',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: isWeb ? 16 : 14,
+                                  color: AppColors.textDark,
+                                ),
                               ),
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          TextFormField(
-                            decoration: InputDecoration(
-                              filled: true,
-                              fillColor: Colors.grey[100],
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide:
-                                BorderSide(color: Color(0xFF7815A0), width: 1.2),
+                              SizedBox(height: 8),
+                              TextFormField(
+                                decoration: InputDecoration(
+                                  hintText: 'Enter your password',
+                                  hintStyle: TextStyle(color: AppColors.textLight),
+                                  filled: true,
+                                  fillColor: AppColors.card,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(15),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(15),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(15),
+                                    borderSide: BorderSide(color: AppColors.primary, width: 2),
+                                  ),
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: isWeb ? 20 : 16,
+                                  ),
+                                  prefixIcon: Icon(
+                                    Icons.lock_outline,
+                                    color: AppColors.primary,
+                                  ),
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      showPassword ? Icons.visibility_off : Icons.visibility,
+                                      color: AppColors.primary,
+                                    ),
+                                    onPressed: () => setState(() => showPassword = !showPassword),
+                                  ),
+                                ),
+                                obscureText: !showPassword,
+                                onChanged: (val) => password = val,
+                                validator: (val) => val!.isEmpty ? 'Please enter your password' : null,
                               ),
-                              suffixIcon: IconButton(
-                                icon: Icon(showPassword
-                                    ? Icons.visibility_off_outlined
-                                    : Icons.visibility_outlined),
-                                onPressed: () =>
-                                    setState(() => showPassword = !showPassword),
-                                color: Color(0xFF7815A0),
-                              ),
-                              contentPadding: isWeb
-                                  ? EdgeInsets.symmetric(horizontal: 16, vertical: 18)
-                                  : null,
-                            ),
-                            obscureText: !showPassword,
-                            onChanged: (val) => password = val,
-                            validator: (val) =>
-                            val!.isEmpty ? 'Please enter your password' : null,
+                            ],
                           ),
                           SizedBox(height: 10),
 
+                          // Forgot Password
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
                               onPressed: () {
                                 Navigator.push(
                                   context,
-                                  MaterialPageRoute(
-                                      builder: (context) => ForgotPasswordScreen()),
+                                  MaterialPageRoute(builder: (context) => ForgotPasswordScreen()),
                                 );
                               },
                               child: Text(
-                                'Forgot password?',
+                                'Forgot Password?',
                                 style: TextStyle(
-                                  color: Color(0xFF7815A0),
-                                  fontSize: isWeb ? 16 : null,
+                                  color: AppColors.primaryDark,
+                                  fontSize: isWeb ? 14 : 12,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
                           ),
 
-                          SizedBox(height: isWeb ? 30 : 20),
+                          SizedBox(height: isWeb ? 30 : 25),
 
-                          // Continue Button
-                          SizedBox(
+                          // Login Button
+                          Container(
                             width: double.infinity,
+                            height: isWeb ? 60 : 55,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  AppColors.primary,
+                                  AppColors.primaryDark,
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(15),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.primary.withOpacity(0.3),
+                                  blurRadius: 15,
+                                  offset: Offset(0, 8),
+                                ),
+                              ],
+                            ),
                             child: ElevatedButton(
                               style: ElevatedButton.styleFrom(
-                                padding: EdgeInsets.symmetric(vertical: isWeb ? 18 : 16),
-                                backgroundColor: Color(0xFF7815A0),
+                                backgroundColor: Colors.transparent,
+                                shadowColor: Colors.transparent,
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius: BorderRadius.circular(15),
                                 ),
                               ),
                               onPressed: isLoading ? null : submit,
@@ -290,112 +370,50 @@ class _LoginScreenState extends State<LoginScreen> {
                                   strokeWidth: 2,
                                 ),
                               )
-                                  : Text(
-                                'Continue',
-                                style: TextStyle(
-                                    fontSize: isWeb ? 20 : 18,
-                                    color: Colors.white
-                                ),
-                              ),
-                            ),
-                          ),
-
-                          SizedBox(height: isWeb ? 25 : 20),
-
-                          // Divider
-                          Row(
-                            children: [
-                              Expanded(child: Divider(thickness: 1, color: Colors.grey)),
-                              Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 10),
-                                child: Text('Or',
+                                  : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    'Sign In',
                                     style: TextStyle(
-                                      color: Colors.grey[700],
-                                      fontSize: isWeb ? 16 : null,
-                                    )),
+                                      fontSize: isWeb ? 18 : 16,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                  SizedBox(width: 10),
+                                  Icon(Icons.arrow_forward, size: isWeb ? 20 : 18, color: Colors.white),
+                                ],
                               ),
-                              Expanded(child: Divider(thickness: 1, color: Colors.grey)),
-                            ],
-                          ),
-                          SizedBox(height: isWeb ? 25 : 20),
-
-                          // Login with Apple
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                padding: EdgeInsets.symmetric(vertical: isWeb ? 16 : 14),
-                                side: BorderSide(color: Color(0xFF7815A0)),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              icon: Icon(
-                                Icons.apple,
-                                color: Color(0xFF7815A0),
-                                size: isWeb ? 24 : null,
-                              ),
-                              label: Text(
-                                  'Login with Apple',
-                                  style: TextStyle(
-                                    color: Color(0xFF7815A0),
-                                    fontSize: isWeb ? 18 : null,
-                                  )
-                              ),
-                              onPressed: () {},
-                            ),
-                          ),
-                          SizedBox(height: 10),
-
-                          // Login with Google
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                padding: EdgeInsets.symmetric(vertical: isWeb ? 16 : 14),
-                                side: BorderSide(color: Color(0xFF7815A0)),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              icon: Image.asset(
-                                'assets/images/jusoor_logo.png',
-                                height: isWeb ? 24 : 20,
-                              ),
-                              label: Text(
-                                  'Login with Google',
-                                  style: TextStyle(
-                                    color: Color(0xFF7815A0),
-                                    fontSize: isWeb ? 18 : null,
-                                  )
-                              ),
-                              onPressed: () {},
                             ),
                           ),
 
-                          SizedBox(height: isWeb ? 20 : 10),
+                          SizedBox(height: isWeb ? 30 : 25),
 
-                          // Signup link
+                          // Sign Up Link
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                  "Don't have an account? ",
-                                  style: TextStyle(
-                                    color: Colors.grey[800],
-                                    fontSize: isWeb ? 16 : null,
-                                  )
+                                "Don't have an account? ",
+                                style: TextStyle(
+                                  color: AppColors.textGray,
+                                  fontSize: isWeb ? 14 : 12,
+                                ),
                               ),
-                              TextButton(
-                                onPressed: () {
+                              GestureDetector(
+                                onTap: () {
                                   Navigator.pushReplacementNamed(context, '/signup');
                                 },
                                 child: Text(
-                                    'Sign up',
-                                    style: TextStyle(
-                                      color: Color(0xFF7815A0),
-                                      fontSize: isWeb ? 16 : null,
-                                    )
+                                  'Create Account',
+                                  style: TextStyle(
+                                    color: AppColors.primaryDark,
+                                    fontSize: isWeb ? 14 : 12,
+                                    fontWeight: FontWeight.w700,
+                                    decoration: TextDecoration.underline,
+                                  ),
                                 ),
                               ),
                             ],
@@ -403,13 +421,88 @@ class _LoginScreenState extends State<LoginScreen> {
                         ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+
+                  // Bottom decorative element with app purpose
+                  SizedBox(height: isWeb ? 40 : 30),
+                  Column(
+                    children: [
+                      Container(
+                        width: 100,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              AppColors.primary,
+                              AppColors.primaryDark,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildTextField({
+    required String label,
+    required String hintText,
+    required IconData icon,
+    required bool isWeb,
+    required Function(String) onChanged,
+    required String? Function(String?) validator,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: isWeb ? 16 : 14,
+            color: AppColors.textDark,
+          ),
+        ),
+        SizedBox(height: 8),
+        TextFormField(
+          decoration: InputDecoration(
+            hintText: hintText,
+            hintStyle: TextStyle(color: AppColors.textLight),
+            filled: true,
+            fillColor: AppColors.card,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(15),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(15),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(15),
+              borderSide: BorderSide(color: AppColors.primary, width: 2),
+            ),
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: isWeb ? 20 : 16,
+            ),
+            prefixIcon: Icon(
+              icon,
+              color: AppColors.primary,
+            ),
+          ),
+          keyboardType: TextInputType.emailAddress,
+          onChanged: onChanged,
+          validator: validator,
+        ),
+      ],
     );
   }
 }

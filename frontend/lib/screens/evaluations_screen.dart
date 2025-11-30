@@ -31,18 +31,6 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
 
-  // الألوان الجديدة المتناسقة
-  final Color _primaryColor = const Color(0xFF7206AA); // أزرق أنيق
-  final Color _secondaryColor = const Color(0xFF976EF4); // أزرق غامق
-  final Color _accentColor = const Color(0xFFCAA9F8); // أزرق فاتح
-  final Color _backgroundColor = const Color(0xFFF8F9FA); // خلفية فاتحة
-  final Color _surfaceColor = Colors.white; // أسطح بيضاء
-  final Color _textPrimary = const Color(0xFF212529); // نص غامق
-  final Color _textSecondary = const Color(0xFF6C757D); // نص ثانوي
-  final Color _successColor = const Color(0xFF4CAF50); // أخضر نجاح
-  final Color _warningColor = const Color(0xFFFF9800); // برتقالي تحذير
-  final Color _errorColor = const Color(0xFFF44336); // أحمر خطأ
-
   @override
   void initState() {
     super.initState();
@@ -67,7 +55,7 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to load evaluations: $e'),
-          backgroundColor: _errorColor,
+          backgroundColor: AppColors.error,
         ),
       );
     }
@@ -160,18 +148,18 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Delete Evaluation'),
         content: const Text('Are you sure you want to delete this evaluation? This action cannot be undone.'),
-        backgroundColor: _surfaceColor,
+        backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: TextStyle(color: _textSecondary)),
+            child: Text('Cancel', style: TextStyle(color: AppColors.textGray)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: Text(
               'Delete',
-              style: TextStyle(color: _errorColor, fontWeight: FontWeight.bold),
+              style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -190,7 +178,7 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Evaluation deleted successfully', style: TextStyle(color: Colors.white)),
-            backgroundColor: _successColor,
+            backgroundColor: AppColors.success,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
         );
@@ -198,7 +186,7 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error deleting evaluation: $e', style: TextStyle(color: Colors.white)),
-            backgroundColor: _errorColor,
+            backgroundColor: AppColors.error,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
         );
@@ -211,14 +199,14 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        backgroundColor: _surfaceColor,
+        backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(color: _primaryColor),
+            CircularProgressIndicator(color: AppColors.primary),
             const SizedBox(height: 16),
-            Text('Exporting evaluation for $childName...', style: TextStyle(color: _textPrimary)),
+            Text('Exporting evaluation for $childName...', style: TextStyle(color: AppColors.textDark)),
           ],
         ),
       ),
@@ -249,7 +237,7 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
                   ),
                 ],
               ),
-              backgroundColor: _successColor,
+              backgroundColor: AppColors.success,
               duration: const Duration(seconds: 6),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               action: SnackBarAction(
@@ -268,7 +256,7 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('❌ Error exporting $childName: $e', style: TextStyle(color: Colors.white)),
-          backgroundColor: _errorColor,
+          backgroundColor: AppColors.error,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       );
@@ -290,7 +278,7 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Cannot open downloads folder: $e', style: TextStyle(color: Colors.white)),
-          backgroundColor: _warningColor,
+          backgroundColor: AppColors.warning,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       );
@@ -304,7 +292,7 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Cannot open file: $e', style: TextStyle(color: Colors.white)),
-          backgroundColor: _warningColor,
+          backgroundColor: AppColors.warning,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       );
@@ -316,7 +304,7 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('No evaluations to export', style: TextStyle(color: Colors.white)),
-          backgroundColor: _warningColor,
+          backgroundColor: AppColors.warning,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       );
@@ -327,19 +315,19 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
       final shouldExport = await showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text('Export All Evaluations', style: TextStyle(color: _textPrimary)),
-          content: Text('You are about to export ${_filteredEvaluations.length} evaluations to your Downloads folder.', style: TextStyle(color: _textSecondary)),
-          backgroundColor: _surfaceColor,
+          title: Text('Export All Evaluations', style: TextStyle(color: AppColors.textDark)),
+          content: Text('You are about to export ${_filteredEvaluations.length} evaluations to your Downloads folder.', style: TextStyle(color: AppColors.textGray)),
+          backgroundColor: AppColors.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: Text('Cancel', style: TextStyle(color: _textSecondary)),
+              child: Text('Cancel', style: TextStyle(color: AppColors.textGray)),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
               style: ElevatedButton.styleFrom(
-                backgroundColor: _primaryColor,
+                backgroundColor: AppColors.primary,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               child: Text('Export All', style: TextStyle(color: Colors.white)),
@@ -354,18 +342,18 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
         context: context,
         barrierDismissible: false,
         builder: (context) => AlertDialog(
-          backgroundColor: _surfaceColor,
+          backgroundColor: AppColors.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircularProgressIndicator(color: _primaryColor),
+              CircularProgressIndicator(color: AppColors.primary),
               const SizedBox(height: 16),
-              Text('Exporting ${_filteredEvaluations.length} evaluations...', style: TextStyle(color: _textPrimary)),
+              Text('Exporting ${_filteredEvaluations.length} evaluations...', style: TextStyle(color: AppColors.textDark)),
               const SizedBox(height: 8),
               Text(
                 'Files will be saved to Downloads folder',
-                style: TextStyle(fontSize: 12, color: _textSecondary),
+                style: TextStyle(fontSize: 12, color: AppColors.textGray),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -409,7 +397,7 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(resultMessage, style: TextStyle(color: Colors.white)),
-          backgroundColor: failCount == 0 ? _successColor : _warningColor,
+          backgroundColor: failCount == 0 ? AppColors.success : AppColors.warning,
           duration: const Duration(seconds: 6),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           action: successCount > 0
@@ -427,7 +415,7 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('❌ Error exporting PDFs: $e', style: TextStyle(color: Colors.white)),
-          backgroundColor: _errorColor,
+          backgroundColor: AppColors.error,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       );
@@ -438,8 +426,8 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Exported Files', style: TextStyle(color: _textPrimary)),
-        backgroundColor: _surfaceColor,
+        title: Text('Exported Files', style: TextStyle(color: AppColors.textDark)),
+        backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         content: SizedBox(
           width: double.maxFinite,
@@ -452,19 +440,19 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 decoration: BoxDecoration(
-                  color: _backgroundColor,
+                  color: AppColors.background,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: ListTile(
-                  leading: Icon(Icons.picture_as_pdf, color: _errorColor),
-                  title: Text(fileName, style: TextStyle(color: _textPrimary)),
+                  leading: Icon(Icons.picture_as_pdf, color: AppColors.error),
+                  title: Text(fileName, style: TextStyle(color: AppColors.textDark)),
                   subtitle: Text(
                     filePath,
-                    style: TextStyle(fontSize: 10, color: _textSecondary),
+                    style: TextStyle(fontSize: 10, color: AppColors.textGray),
                     overflow: TextOverflow.ellipsis,
                   ),
                   trailing: IconButton(
-                    icon: Icon(Icons.open_in_new, color: _primaryColor),
+                    icon: Icon(Icons.open_in_new, color: AppColors.primary),
                     onPressed: () => _openSavedPDF(filePath),
                   ),
                 ),
@@ -475,7 +463,7 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Close', style: TextStyle(color: _textSecondary)),
+            child: Text('Close', style: TextStyle(color: AppColors.textGray)),
           ),
         ],
       ),
@@ -486,7 +474,7 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: _surfaceColor,
+      backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -500,13 +488,13 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
               height: 4,
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
-                color: _textSecondary.withOpacity(0.3),
+                color: AppColors.textGray.withOpacity(0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
             Text(
               'Filter Evaluations',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _textPrimary),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textDark),
             ),
             const SizedBox(height: 20),
 
@@ -551,8 +539,8 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
                       Navigator.pop(context);
                     },
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: _textSecondary,
-                      side: BorderSide(color: _textSecondary.withOpacity(0.3)),
+                      foregroundColor: AppColors.textGray,
+                      side: BorderSide(color: AppColors.textGray.withOpacity(0.3)),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
@@ -567,7 +555,7 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
                       Navigator.pop(context);
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _primaryColor,
+                      backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -590,7 +578,7 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
       children: [
         Text(
           title,
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: _textPrimary),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textDark),
         ),
         const SizedBox(height: 10),
         Wrap(
@@ -607,22 +595,22 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
                 option.length > 7 ? '${option.substring(0, 3)}' : option,
                 style: TextStyle(
                   fontSize: option.length > 7 ? 12 : 14,
-                  color: isSelected ? Colors.white : _textPrimary,
+                  color: isSelected ? Colors.white : AppColors.textDark,
                 ),
               ),
               selected: isSelected,
               onSelected: (_) => onChanged(option),
-              backgroundColor: isSelected ? _primaryColor : _backgroundColor,
-              selectedColor: _primaryColor,
+              backgroundColor: isSelected ? AppColors.primary : AppColors.background,
+              selectedColor: AppColors.primary,
               checkmarkColor: Colors.white,
               labelStyle: TextStyle(
-                color: isSelected ? Colors.white : _textPrimary,
+                color: isSelected ? Colors.white : AppColors.textDark,
                 fontWeight: FontWeight.w500,
               ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
                 side: BorderSide(
-                  color: isSelected ? _primaryColor : _textSecondary.withOpacity(0.2),
+                  color: isSelected ? AppColors.primary : AppColors.textGray.withOpacity(0.2),
                 ),
               ),
             );
@@ -643,7 +631,7 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
       if (score is int) return score.toDouble();
       if (score is String) return double.tryParse(score) ?? 0.0;
       return 0.0;
-    }).reduce((a, b) => a + b) / total).toDouble(); // ✅ تم الإصلاح هنا
+    }).reduce((a, b) => a + b) / total).toDouble();
 
     final highProgressCount = _evaluations.where((e) {
       final score = e['progress_score'];
@@ -668,16 +656,16 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [_primaryColor, _secondaryColor],
+          colors: [AppColors.primary, AppColors.primaryDark],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: _primaryColor.withOpacity(0.3),
-            blurRadius: 15,
-            offset: const Offset(0, 6),
+            color: AppColors.primary.withOpacity(0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -703,9 +691,9 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
             children: [
               _buildStatItem('Total', total.toString(), Icons.assessment, Colors.white),
               _buildStatItem('Avg Progress', '${averageProgress.round()}%', Icons.trending_up,
-                  _getProgressColor(averageProgress)), // ✅ الآن يعمل
-              _buildStatItem('High', highProgressCount.toString(), Icons.emoji_events, _successColor),
-              _buildStatItem('Low', lowProgressCount.toString(), Icons.warning, _errorColor),
+                  _getProgressColor(averageProgress)),
+              _buildStatItem('High', highProgressCount.toString(), Icons.emoji_events, AppColors.success),
+              _buildStatItem('Low', lowProgressCount.toString(), Icons.warning, AppColors.error),
             ],
           ),
         ],
@@ -745,9 +733,9 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
   }
 
   Color _getProgressColor(double score) {
-    if (score < 40) return _errorColor;
-    if (score < 70) return _warningColor;
-    return _successColor;
+    if (score < 40) return AppColors.error;
+    if (score < 70) return AppColors.warning;
+    return AppColors.success;
   }
 
   IconData _getProgressIcon(double score) {
@@ -798,16 +786,16 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-      elevation: 2,
+      elevation: 1,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
       child: Container(
         decoration: BoxDecoration(
-          color: _surfaceColor,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: _textSecondary.withOpacity(0.1),
+            color: AppColors.textGray.withOpacity(0.1),
           ),
         ),
         child: Padding(
@@ -841,13 +829,13 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            color: _textPrimary,
+                            color: AppColors.textDark,
                           ),
                         ),
                         Text(
                           '$evaluationType Evaluation',
                           style: TextStyle(
-                            color: _textSecondary,
+                            color: AppColors.textGray,
                             fontSize: 14,
                           ),
                         ),
@@ -881,7 +869,7 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
               // Progress Bar
               LinearProgressIndicator(
                 value: progressScore / 100,
-                backgroundColor: _backgroundColor,
+                backgroundColor: AppColors.background,
                 valueColor: AlwaysStoppedAnimation<Color>(progressColor),
                 borderRadius: BorderRadius.circular(4),
               ),
@@ -895,7 +883,7 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: _textSecondary,
+                    color: AppColors.textGray,
                     fontSize: 14,
                   ),
                 ),
@@ -912,13 +900,13 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.calendar_today, size: 14, color: _textSecondary),
+                            Icon(Icons.calendar_today, size: 14, color: AppColors.textGray),
                             const SizedBox(width: 4),
                             Text(
                               _formatDateWithMonth(createdAt),
                               style: TextStyle(
                                 fontSize: 12,
-                                color: _textSecondary,
+                                color: AppColors.textGray,
                               ),
                             ),
                           ],
@@ -927,13 +915,13 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              Icon(Icons.attach_file, size: 14, color: _textSecondary),
+                              Icon(Icons.attach_file, size: 14, color: AppColors.textGray),
                               const SizedBox(width: 4),
                               Text(
                                 attachment.toString(),
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: _textSecondary,
+                                  color: AppColors.textGray,
                                 ),
                               ),
                             ],
@@ -947,12 +935,12 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
                   Row(
                     children: [
                       IconButton(
-                        icon: Icon(Icons.picture_as_pdf, size: 20, color: _primaryColor),
+                        icon: Icon(Icons.picture_as_pdf, size: 20, color: AppColors.primary),
                         onPressed: () => _exportToPDF(evaluation['evaluation_id'], childName),
                         tooltip: 'Export to PDF',
                       ),
                       IconButton(
-                        icon: Icon(Icons.edit, size: 20, color: _textSecondary),
+                        icon: Icon(Icons.edit, size: 20, color: AppColors.textGray),
                         onPressed: () {
                           Navigator.push(
                             context,
@@ -967,7 +955,7 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
                         tooltip: 'Edit Evaluation',
                       ),
                       IconButton(
-                        icon: Icon(Icons.delete, size: 20, color: _errorColor),
+                        icon: Icon(Icons.delete, size: 20, color: AppColors.error),
                         onPressed: () => _deleteEvaluation(evaluation['evaluation_id']),
                         tooltip: 'Delete Evaluation',
                       ),
@@ -985,18 +973,18 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _backgroundColor,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text('My Evaluations', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: _primaryColor,
+        backgroundColor: AppColors.primary,
         elevation: 0,
-        shadowColor: _primaryColor.withOpacity(0.3),
+        shadowColor: AppColors.primary.withOpacity(0.3),
         iconTheme: IconThemeData(color: Colors.white),
         actions: [
           if (_filteredEvaluations.isNotEmpty)
             Badge(
               label: Text(_filteredEvaluations.length.toString(), style: TextStyle(fontSize: 10)),
-              backgroundColor: _errorColor,
+              backgroundColor: AppColors.error,
               textColor: Colors.white,
               child: IconButton(
                 icon: Icon(Icons.picture_as_pdf, color: Colors.white),
@@ -1025,11 +1013,11 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: _primaryColor.withOpacity(0.1),
+                color: AppColors.primary.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: CircularProgressIndicator(
-                color: _primaryColor,
+                color: AppColors.primary,
                 strokeWidth: 3,
               ),
             ),
@@ -1037,7 +1025,7 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
             Text(
               'Loading Evaluations...',
               style: TextStyle(
-                color: _textPrimary,
+                color: AppColors.textDark,
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
               ),
@@ -1046,7 +1034,7 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
             Text(
               '${_evaluations.length} evaluations found',
               style: TextStyle(
-                color: _textSecondary,
+                color: AppColors.textGray,
                 fontSize: 14,
               ),
             ),
@@ -1061,18 +1049,18 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
             child: TextField(
               decoration: InputDecoration(
                 hintText: 'Search by child name or notes...',
-                hintStyle: TextStyle(color: _textSecondary),
-                prefixIcon: Icon(Icons.search, color: _textSecondary),
+                hintStyle: TextStyle(color: AppColors.textGray),
+                prefixIcon: Icon(Icons.search, color: AppColors.textGray),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: _textSecondary.withOpacity(0.2)),
+                  borderSide: BorderSide(color: AppColors.textGray.withOpacity(0.2)),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: _primaryColor),
+                  borderSide: BorderSide(color: AppColors.primary),
                 ),
                 filled: true,
-                fillColor: _surfaceColor,
+                fillColor: AppColors.surface,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               ),
               onChanged: (value) {
@@ -1095,7 +1083,7 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
                   '${_filteredEvaluations.length} evaluation(s) found',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: _textPrimary,
+                    color: AppColors.textDark,
                     fontSize: 16,
                   ),
                 ),
@@ -1103,15 +1091,15 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: _primaryColor.withOpacity(0.1),
+                      color: AppColors.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.filter_alt, size: 14, color: _primaryColor),
+                        Icon(Icons.filter_alt, size: 14, color: AppColors.primary),
                         const SizedBox(width: 4),
-                        Text('Filters Active', style: TextStyle(color: _primaryColor, fontSize: 12)),
+                        Text('Filters Active', style: TextStyle(color: AppColors.primary, fontSize: 12)),
                       ],
                     ),
                   ),
@@ -1134,8 +1122,8 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
                         setState(() => _selectedFilter = 'all');
                         _applyFilters();
                       },
-                      backgroundColor: _primaryColor.withOpacity(0.1),
-                      deleteIconColor: _primaryColor,
+                      backgroundColor: AppColors.primary.withOpacity(0.1),
+                      deleteIconColor: AppColors.primary,
                     ),
                   if (_selectedProgressFilter != 'all')
                     Chip(
@@ -1144,8 +1132,8 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
                         setState(() => _selectedProgressFilter = 'all');
                         _applyFilters();
                       },
-                      backgroundColor: _primaryColor.withOpacity(0.1),
-                      deleteIconColor: _primaryColor,
+                      backgroundColor: AppColors.primary.withOpacity(0.1),
+                      deleteIconColor: AppColors.primary,
                     ),
                   if (_selectedMonthFilter != 'all')
                     Chip(
@@ -1154,8 +1142,8 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
                         setState(() => _selectedMonthFilter = 'all');
                         _applyFilters();
                       },
-                      backgroundColor: _primaryColor.withOpacity(0.1),
-                      deleteIconColor: _primaryColor,
+                      backgroundColor: AppColors.primary.withOpacity(0.1),
+                      deleteIconColor: AppColors.primary,
                     ),
                 ],
               ),
@@ -1168,24 +1156,24 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.assessment, size: 64, color: _textSecondary.withOpacity(0.5)),
+                  Icon(Icons.assessment, size: 64, color: AppColors.textGray.withOpacity(0.5)),
                   const SizedBox(height: 16),
                   Text(
                     'No evaluations found',
-                    style: TextStyle(fontSize: 18, color: _textSecondary),
+                    style: TextStyle(fontSize: 18, color: AppColors.textGray),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Try adjusting your search or filters',
-                    style: TextStyle(color: _textSecondary),
+                    style: TextStyle(color: AppColors.textGray),
                   ),
                 ],
               ),
             )
                 : RefreshIndicator(
               onRefresh: _loadEvaluations,
-              color: _primaryColor,
-              backgroundColor: _surfaceColor,
+              color: AppColors.primary,
+              backgroundColor: AppColors.surface,
               child: ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 itemCount: _filteredEvaluations.length,
@@ -1205,7 +1193,7 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
             ),
           ).then((_) => _loadEvaluations());
         },
-        backgroundColor: _primaryColor,
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: const Icon(Icons.add, size: 28),

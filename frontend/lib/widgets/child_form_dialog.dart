@@ -1,3 +1,4 @@
+
 // lib/screens/manage_children/widgets/child_form_dialog.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -7,17 +8,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../models/child_model.dart';
 import '../../../services/api_service.dart';
 import '../../../screens/map_screen.dart';
-
+import '../theme/app_colors.dart';
 enum ChildFormStep { basicInfo, medicalInfo, selectInstitution, confirmation }
 
 class ChildFormDialog extends StatefulWidget {
   final Child? child;
-  final Map<String, dynamic>? screeningData; // جديد
-  
+  final Map<String, dynamic>? screeningData;
+
   const ChildFormDialog({
-    super.key, 
+    super.key,
     this.child,
-    this.screeningData, // جديد
+    this.screeningData,
   });
 
   @override
@@ -32,6 +33,143 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
 
   bool _isSmartSearching = false;
   List<dynamic> _smartSearchResults = [];
+
+  // Child basic data
+  late String _fullName;
+  late String _dateOfBirth;
+  String _gender = 'Male';
+  String _photo = '';
+  String _childIdentifier = '';
+  String _schoolInfo = '';
+  File? _pickedImage;
+  final ImagePicker _picker = ImagePicker();
+  final TextEditingController _dateController = TextEditingController();
+
+  // Location data
+  String _city = '';
+  String _address = '';
+  double? _locationLat;
+  double? _locationLng;
+
+  // Medical data
+  int? _selectedDiagnosisId;
+  String _suspectedCondition = '';
+  String _symptomsDescription = '';
+  String _medicalHistory = '';
+  String _previousServices = '';
+  String _additionalNotes = '';
+
+  // AI analysis
+  Map<String, dynamic>? _aiAnalysisResult;
+  List<dynamic> _recommendedInstitutions = [];
+  bool _isAnalyzing = false;
+
+  // Institution selection
+  int? _selectedInstitutionId;
+  String _registrationNotes = '';
+  bool _consentGiven = false;
+
+  // Filter states
+  bool _showAdvancedFilters = false;
+  double _minRating = 0.0;
+  double _maxPrice = 1000.0;
+  bool _filterByMatchingServices = false;
+  List<String> _activeFilters = [];
+
+  // Loading state
+  bool _isLoading = false;
+  String? _childId;
+
+  List<Map<String, dynamic>> _diagnoses = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeForm();
+    _currentStep = ChildFormStep.basicInfo;
+    _loadDiagnoses();
+    _processScreeningData();
+  }
+
+  void _processScreeningData() {
+    if (widget.screeningData == null) return;
+
+    print('🎯 Processing screening data in Child Form');
+    final screeningData = widget.screeningData!;
+
+    if (screeningData['suspected_condition'] != null) {
+      _suspectedCondition = screeningData['suspected_condition'].toString();
+    }
+
+    if (screeningData['symptoms_description'] != null) {
+      _symptomsDescription = screeningData['symptoms_description'].toString();
+    }
+
+    if (screeningData['recommended_institutions'] != null) {
+      _recommendedInstitutions = screeningData['recommended_institutions'];
+      print('   - Loaded ${_recommendedInstitutions.length} recommended institutions from screening');
+    }
+  }
+
+  void _initializeForm() {
+    if (widget.child != null) {
+      _fullName = widget.child!.fullName;
+      _dateOfBirth = widget.child!.dateOfBirth;
+      _gender = widget.child!.gender;
+      _photo = widget.child!.photo;
+      _childIdentifier = widget.child!.childIdentifier ?? '';
+      _schoolInfo = widget.child!.schoolInfo ?? '';
+      _medicalHistory = widget.child!.medicalHistory;
+      _selectedDiagnosisId = widget.child!.diagnosisId;
+      _suspectedCondition = widget.child!.suspectedCondition ?? '';
+      _symptomsDescription = widget.child!.symptomsDescription ?? '';
+      _previousServices = widget.child!.previousServices ?? '';
+      _additionalNotes = widget.child!.additionalNotes ?? '';
+    } else {
+      _fullName = '';
+      _dateOfBirth = '';
+      _gender = 'Male';
+      _photo = '';
+      _childIdentifier = '';
+      _schoolInfo = '';
+      _medicalHistory = '';
+      _suspectedCondition = '';
+      _symptomsDescription = '';
+      _previousServices = '';
+      _additionalNotes = '';
+    }
+    _dateController.text = _dateOfBirth;
+  }
+
+  Future<void> _loadDiagnoses() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? '';
+
+      if (token.isEmpty) {
+        throw Exception('No token available');
+      }
+
+      final data = await ApiService.getDiagnoses(token);
+      setState(() {
+        _diagnoses = data;
+      });
+
+      print('Loaded ${_diagnoses.length} diagnoses');
+    } catch (e) {
+      print('Error loading diagnoses: $e');
+      final defaultDiagnoses = [
+        {'diagnosis_id': 1, 'name': 'Autism Spectrum Disorder'},
+        {'diagnosis_id': 2, 'name': 'Attention Deficit Hyperactivity Disorder (ADHD)'},
+        {'diagnosis_id': 3, 'name': 'Down Syndrome'},
+        {'diagnosis_id': 4, 'name': 'Speech and Language Delay'},
+      ];
+      setState(() {
+        _diagnoses = defaultDiagnoses;
+      });
+      print('Using default diagnoses list (${_diagnoses.length} items)');
+    }
+  }
 
   Future<void> _performSmartSearch(String query) async {
     if (query.length < 3) {
@@ -88,317 +226,91 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
     }
   }
 
-  Widget _buildSmartSearchField() {
-    return Column(
-      children: [
-        TextField(
-          controller: _searchController,
-          decoration: InputDecoration(
-            labelText: 'Search by symptoms or behaviors',
-            hintText: 'Example: not speaking, repetitive movements, communication difficulty...',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            suffixIcon: _isSmartSearching
-                ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                : Icon(Icons.search),
-          ),
-          onChanged: _performSmartSearch,
-        ),
+  Future<void> _saveBasicInfo() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
 
-        if (_smartSearchResults.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Suggested Results:',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: _smartSearchResults.map((result) {
-                    return FilterChip(
-                      label: Text(
-                        '${result['arabic_name']} (${(result['confidence'] * 100).toStringAsFixed(0)}%)',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      onSelected: (_) {
-                        setState(() {
-                          _suspectedCondition = result['arabic_name'] ?? result['name'];
-                          _symptomsController.text = 'Symptoms: ${result['matching_keywords']?.join(', ') ?? ''}';
-                        });
-                        _searchController.clear();
-                        _smartSearchResults = [];
-                      },
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ],
-    );
-  }
+    _formKey.currentState?.save();
 
-  // Child basic data
-  late String _fullName;
-  late String _dateOfBirth;
-  String _gender = 'Male';
-  String _photo = '';
-  String _childIdentifier = '';
-  String _schoolInfo = '';
-  File? _pickedImage;
-  final ImagePicker _picker = ImagePicker();
-  final TextEditingController _dateController = TextEditingController();
+    setState(() {
+      _isLoading = true;
+    });
 
-  // ⭐ جديد: بيانات الموقع الجغرافي
-  String _city = '';
-  String _address = '';
-  double? _locationLat;
-  double? _locationLng;
-
-  // Medical data
-  int? _selectedDiagnosisId;
-  String _suspectedCondition = '';
-  String _symptomsDescription = '';
-  String _medicalHistory = '';
-  String _previousServices = '';
-  String _additionalNotes = '';
-
-  // AI analysis
-  Map<String, dynamic>? _aiAnalysisResult;
-  List<dynamic> _recommendedInstitutions = [];
-  bool _isAnalyzing = false;
-
-  // Institution selection
-  int? _selectedInstitutionId;
-  String _registrationNotes = '';
-  bool _consentGiven = false;
-
-  // ⭐ جديد: حالات الفلاتر المتقدمة
-  bool _showAdvancedFilters = false;
-  double _minRating = 0.0;
-  double _maxPrice = 1000.0;
-  bool _filterByMatchingServices = false;
-  List<String> _activeFilters = [];
-
-  // Loading state
-  bool _isLoading = false;
-  String? _childId;
-
-  List<Map<String, dynamic>> _diagnoses = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _initializeForm();
-    _currentStep = ChildFormStep.basicInfo;
-    _loadDiagnoses();
-    _processScreeningData(); 
-  }
-
-  void _processScreeningData() {
-    if (widget.screeningData == null) return;
-    
-    print('🎯 Processing screening data in Child Form');
-    final screeningData = widget.screeningData!;
-    
-    // تعبئة الحقول تلقائياً
-    if (screeningData['suspected_condition'] != null) {
-      _suspectedCondition = screeningData['suspected_condition'].toString();
-    }
-    
-    if (screeningData['symptoms_description'] != null) {
-      _symptomsDescription = screeningData['symptoms_description'].toString();
-    }
-    
-    // تعبئة المؤسسات الموصى بها
-    if (screeningData['recommended_institutions'] != null) {
-      _recommendedInstitutions = screeningData['recommended_institutions'];
-      print('   - Loaded ${_recommendedInstitutions.length} recommended institutions from screening');
-    }
-    
-    // إذا كان من screening، نذهب مباشرة للخطوة الطبية
-    // if (screeningData['from_screening'] == true) {
-    //   WidgetsBinding.instance.addPostFrameCallback((_) {
-    //     setState(() {
-    //       _currentStep = ChildFormStep.medicalInfo;
-    //     });
-        
-    //     // إذا كان هناك تحليل AI، نفعله تلقائياً
-    //     if (_symptomsDescription.isNotEmpty) {
-    //       Future.delayed(Duration(seconds: 1), () {
-    //         _analyzeMedicalCondition();
-    //       });
-    //     }
-    //   });
-    // }
-  }
-
-  void _initializeForm() {
-    if (widget.child != null) {
-      _fullName = widget.child!.fullName;
-      _dateOfBirth = widget.child!.dateOfBirth;
-      _gender = widget.child!.gender;
-      _photo = widget.child!.photo;
-      _childIdentifier = widget.child!.childIdentifier ?? '';
-      _schoolInfo = widget.child!.schoolInfo ?? '';
-      _medicalHistory = widget.child!.medicalHistory;
-      _selectedDiagnosisId = widget.child!.diagnosisId;
-      _suspectedCondition = widget.child!.suspectedCondition ?? '';
-      _symptomsDescription = widget.child!.symptomsDescription ?? '';
-      _previousServices = widget.child!.previousServices ?? '';
-      _additionalNotes = widget.child!.additionalNotes ?? '';
-    } else {
-      _fullName = '';
-      _dateOfBirth = '';
-      _gender = 'Male';
-      _photo = '';
-      _childIdentifier = '';
-      _schoolInfo = '';
-      _medicalHistory = '';
-      _suspectedCondition = '';
-      _symptomsDescription = '';
-      _previousServices = '';
-      _additionalNotes = '';
-    }
-    _dateController.text = _dateOfBirth;
-  }
-
-  Future<void> _loadDiagnoses() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token') ?? '';
 
-      if (token.isEmpty) {
-        throw Exception('No token available');
+      final basicInfo = {
+        'full_name': _fullName,
+        'date_of_birth': _dateController.text,
+        'gender': _gender,
+        'child_identifier': _childIdentifier.isEmpty ? null : _childIdentifier,
+        'school_info': _schoolInfo.isEmpty ? null : _schoolInfo,
+        'photo': _photo.isEmpty ? null : _photo,
+        'city': _city.isEmpty ? null : _city,
+        'address': _address.isEmpty ? null : _address,
+        'location_lat': _locationLat,
+        'location_lng': _locationLng,
+      };
+
+      print('Saving child basic info: $basicInfo');
+
+      final result = await ApiService.saveChildBasicInfo(token, basicInfo);
+
+      if (result['success'] == true) {
+        final childId = result['child_id']?.toString();
+        print('Child ID received: $childId');
+
+        if (childId == null) {
+          throw Exception('Child ID is null from server');
+        }
+
+        setState(() {
+          _childId = childId;
+          _currentStep = ChildFormStep.medicalInfo;
+          _isLoading = false;
+        });
+
+        if (widget.screeningData != null && widget.screeningData!['from_screening'] == true) {
+          print('🎯 Auto-analyzing from screening data...');
+
+          if (widget.screeningData!['suspected_condition'] != null) {
+            _suspectedCondition = widget.screeningData!['suspected_condition'].toString();
+          }
+          if (widget.screeningData!['symptoms_description'] != null) {
+            _symptomsDescription = widget.screeningData!['symptoms_description'].toString();
+          }
+
+          if (widget.screeningData!['recommended_institutions'] != null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              setState(() {
+                _recommendedInstitutions = widget.screeningData!['recommended_institutions'];
+                _currentStep = ChildFormStep.selectInstitution;
+              });
+            });
+          }
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Basic information saved successfully'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      } else {
+        throw Exception(result['message'] ?? 'Failed to save basic information');
       }
-
-      final data = await ApiService.getDiagnoses(token);
-      setState(() {
-        _diagnoses = data;
-      });
-
-      print('Loaded ${_diagnoses.length} diagnoses');
     } catch (e) {
-      print('Error loading diagnoses: $e');
-      final defaultDiagnoses = [
-        {'diagnosis_id': 1, 'name': 'Autism Spectrum Disorder'},
-        {'diagnosis_id': 2, 'name': 'Attention Deficit Hyperactivity Disorder (ADHD)'},
-        {'diagnosis_id': 3, 'name': 'Down Syndrome'},
-        {'diagnosis_id': 4, 'name': 'Speech and Language Delay'},
-        // {'diagnosis_id': 5, 'name': 'Learning Disabilities'},
-        // {'diagnosis_id': 6, 'name': 'Intellectual Disability'},
-        // {'diagnosis_id': 7, 'name': 'Developmental Delay'},
-        // {'diagnosis_id': 8, 'name': 'Behavioral Disorders'},
-        // {'diagnosis_id': 9, 'name': 'Social Communication Disorder'},
-        // {'diagnosis_id': 10, 'name': 'Global Developmental Delay'},
-      ];
       setState(() {
-        _diagnoses = defaultDiagnoses;
-      });
-      print('Using default diagnoses list (${_diagnoses.length} items)');
-    }
-  }
-
-  Future<void> _saveBasicInfo() async {
-  if (!(_formKey.currentState?.validate() ?? false)) return;
-
-  _formKey.currentState?.save();
-
-  setState(() {
-    _isLoading = true;
-  });
-
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token') ?? '';
-
-    final basicInfo = {
-      'full_name': _fullName,
-      'date_of_birth': _dateController.text,
-      'gender': _gender,
-      'child_identifier': _childIdentifier.isEmpty ? null : _childIdentifier,
-      'school_info': _schoolInfo.isEmpty ? null : _schoolInfo,
-      'photo': _photo.isEmpty ? null : _photo,
-      'city': _city.isEmpty ? null : _city,
-      'address': _address.isEmpty ? null : _address,
-      'location_lat': _locationLat,
-      'location_lng': _locationLng,
-    };
-
-    print('Saving child basic info: $basicInfo');
-
-    final result = await ApiService.saveChildBasicInfo(token, basicInfo);
-
-    if (result['success'] == true) {
-      final childId = result['child_id']?.toString();
-      print('Child ID received: $childId');
-
-      if (childId == null) {
-        throw Exception('Child ID is null from server');
-      }
-
-      setState(() {
-        _childId = childId;
-        
-        // ⭐ التعديل هنا: دائماً اذهب لـ medicalInfo أولاً
-        // حتى لو كان من الاستبيان، عشان يعرض Basic Info first
-        _currentStep = ChildFormStep.medicalInfo;
-        
         _isLoading = false;
       });
-
-      // ⭐ جديد: إذا كان من الاستبيان، اعمل تحليل تلقائي بعد حفظ Basic Info
-      if (widget.screeningData != null && widget.screeningData!['from_screening'] == true) {
-        print('🎯 Auto-analyzing from screening data...');
-        
-        // املأ البيانات الطبية تلقائياً من الاستبيان
-        if (widget.screeningData!['suspected_condition'] != null) {
-          _suspectedCondition = widget.screeningData!['suspected_condition'].toString();
-        }
-        if (widget.screeningData!['symptoms_description'] != null) {
-          _symptomsDescription = widget.screeningData!['symptoms_description'].toString();
-        }
-        
-        // انتقل لشاشة المؤسسات مباشرة إذا كان في بيانات
-        if (widget.screeningData!['recommended_institutions'] != null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            setState(() {
-              _recommendedInstitutions = widget.screeningData!['recommended_institutions'];
-              _currentStep = ChildFormStep.selectInstitution;
-            });
-          });
-        }
-      }
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Basic information saved successfully'),
-          backgroundColor: Colors.green,
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: AppColors.error,
         ),
       );
-    } else {
-      throw Exception(result['message'] ?? 'Failed to save basic information');
     }
-  } catch (e) {
-    setState(() {
-      _isLoading = false;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Error: ${e.toString()}'),
-        backgroundColor: Colors.red,
-      ),
-    );
   }
-}
 
   Future<void> _analyzeMedicalCondition() async {
     print('Starting medical analysis');
@@ -487,7 +399,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Analysis complete! Found ${institutionsList.length} institutions'),
-            backgroundColor: Colors.green,
+            backgroundColor: AppColors.success,
           ),
         );
 
@@ -496,7 +408,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(result['message'] ?? 'Analysis failed'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -507,7 +419,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Analysis error: ${e.toString()}'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
     } finally {
@@ -572,7 +484,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Please select an institution'),
-          backgroundColor: Colors.orange,
+          backgroundColor: AppColors.warning,
         ),
       );
       return;
@@ -582,7 +494,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Please give consent to proceed'),
-          backgroundColor: Colors.orange,
+          backgroundColor: AppColors.warning,
         ),
       );
       return;
@@ -612,14 +524,14 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Registration request submitted successfully!'),
-            backgroundColor: Colors.green,
+            backgroundColor: AppColors.success,
           ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(result['message'] ?? 'Registration failed'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -627,7 +539,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error: $e'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
     } finally {
@@ -642,7 +554,6 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
     if (distanceStr.isEmpty || distanceStr == 'غير محسوبة') return false;
 
     try {
-      // إزالة "كم" من النص واستخراج الرقم فقط
       final cleanDistance = distanceStr.replaceAll(' كم', '').trim();
       final distance = double.tryParse(cleanDistance) ?? 9999.0;
       final maxDist = double.tryParse(maxDistance) ?? 0.0;
@@ -654,9 +565,572 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
     }
   }
 
+  Widget _buildSmartSearchField() {
+    return Column(
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              labelText: 'Search by symptoms or behaviors',
+              hintText: 'Example: not speaking, repetitive movements, communication difficulty...',
+              border: InputBorder.none,
+              prefixIcon: Icon(Icons.search, color: AppColors.primary),
+              suffixIcon: _isSmartSearching
+                  ? SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.primary,
+                ),
+              )
+                  : null,
+              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            ),
+            onChanged: _performSmartSearch,
+          ),
+        ),
+
+        if (_smartSearchResults.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.accent1,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.accent3),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Suggested Results:',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: AppColors.textDark,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _smartSearchResults.map((result) {
+                    return FilterChip(
+                      label: Text(
+                        '${result['arabic_name']} (${(result['confidence'] * 100).toStringAsFixed(0)}%)',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                      backgroundColor: AppColors.surface,
+                      selectedColor: AppColors.primaryLight,
+                      onSelected: (_) {
+                        setState(() {
+                          _suspectedCondition = result['arabic_name'] ?? result['name'];
+                          _symptomsController.text = 'Symptoms: ${result['matching_keywords']?.join(', ') ?? ''}';
+                        });
+                        _searchController.clear();
+                        _smartSearchResults = [];
+                      },
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildSection({
+    required String title,
+    required IconData icon,
+    required List<Widget> children,
+    Color? backgroundColor,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: backgroundColor ?? AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, size: 18, color: AppColors.primary),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textDark,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBasicInfoStep() {
+    return SingleChildScrollView(
+      child: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            _buildSection(
+              title: 'Basic Information',
+              icon: Icons.person_outline,
+              children: [
+                TextFormField(
+                  initialValue: _fullName,
+                  decoration: InputDecoration(
+                    labelText: 'Full Name *',
+                    labelStyle: TextStyle(color: AppColors.textGray),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.accent3),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                    ),
+                    prefixIcon: Icon(Icons.person, color: AppColors.primary),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  ),
+                  validator: (v) => v == null || v.isEmpty ? 'Please enter full name' : null,
+                  onSaved: (v) => _fullName = v ?? '',
+                ),
+                const SizedBox(height: 20),
+                TextFormField(
+                  controller: _dateController,
+                  readOnly: true,
+                  decoration: InputDecoration(
+                    labelText: 'Date of Birth *',
+                    labelStyle: TextStyle(color: AppColors.textGray),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.accent3),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                    ),
+                    prefixIcon: Icon(Icons.calendar_today, color: AppColors.primary),
+                    suffixIcon: IconButton(
+                      icon: Icon(Icons.arrow_drop_down, color: AppColors.primary),
+                      onPressed: _pickDate,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  ),
+                  validator: (v) => v == null || v.isEmpty ? 'Please select date of birth' : null,
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _gender,
+                        decoration: InputDecoration(
+                          labelText: 'Gender *',
+                          labelStyle: TextStyle(color: AppColors.textGray),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: AppColors.accent3),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: AppColors.primary, width: 2),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'Male', child: Text('Male')),
+                          DropdownMenuItem(value: 'Female', child: Text('Female')),
+                        ],
+                        onChanged: (v) => setState(() => _gender = v ?? 'Male'),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: TextFormField(
+                        initialValue: _childIdentifier,
+                        decoration: InputDecoration(
+                          labelText: 'Child Identifier',
+                          labelStyle: TextStyle(color: AppColors.textGray),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: AppColors.accent3),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: AppColors.primary, width: 2),
+                          ),
+                          hintText: 'Optional',
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                        ),
+                        onSaved: (v) => _childIdentifier = v ?? '',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                TextFormField(
+                  initialValue: _schoolInfo,
+                  decoration: InputDecoration(
+                    labelText: 'School Information',
+                    labelStyle: TextStyle(color: AppColors.textGray),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.accent3),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                    ),
+                    hintText: 'Optional',
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  ),
+                  maxLines: 2,
+                  onSaved: (v) => _schoolInfo = v ?? '',
+                ),
+                const SizedBox(height: 20),
+                _buildLocationSection(),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMedicalInfoStep() {
+    return SingleChildScrollView(
+      child: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            _buildSection(
+              title: 'Medical Information',
+              icon: Icons.medical_services_outlined,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.accent1,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.accent2),
+                  ),
+                  child: const Column(
+                    children: [
+                      Text(
+                        'Provide at least one of the following:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        '• Symptoms description\n• Suspected condition\n• Diagnosis',
+                        style: TextStyle(fontSize: 12, color: AppColors.textGray),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                TextFormField(
+                  initialValue: _symptomsDescription,
+                  decoration: InputDecoration(
+                    labelText: 'Symptoms Description *',
+                    labelStyle: TextStyle(color: AppColors.textGray),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.accent3),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                    ),
+                    hintText: 'Describe specific behaviors, challenges, or concerns...\nExample: "Difficulty with eye contact, repetitive movements, speech delay"',
+                    alignLabelWithHint: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  ),
+                  maxLines: 4,
+                  onChanged: (value) {
+                    setState(() {
+                      _symptomsDescription = value;
+                    });
+                  },
+                  onSaved: (v) => _symptomsDescription = v ?? '',
+                ),
+                const SizedBox(height: 20),
+
+                TextFormField(
+                  initialValue: _suspectedCondition,
+                  decoration: InputDecoration(
+                    labelText: 'Suspected Condition',
+                    labelStyle: TextStyle(color: AppColors.textGray),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.accent3),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                    ),
+                    hintText: 'Example: Autism Spectrum Disorder, ADHD, Speech Delay...',
+                    prefixIcon: Icon(Icons.psychology, color: AppColors.primary),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      _suspectedCondition = value;
+                    });
+                  },
+                  onSaved: (v) => _suspectedCondition = v ?? '',
+                ),
+                const SizedBox(height: 20),
+
+                DropdownButtonFormField<int>(
+                  value: _selectedDiagnosisId,
+                  decoration: InputDecoration(
+                    labelText: 'Known Diagnosis (Optional)',
+                    labelStyle: TextStyle(color: AppColors.textGray),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.accent3),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                    ),
+                    prefixIcon: Icon(Icons.medical_information, color: AppColors.primary),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  ),
+                  isExpanded: true, // ⭐ هذا يحل مشكلة الoverflow
+                  items: [
+                    const DropdownMenuItem<int>(
+                      value: null,
+                      child: Text(
+                        'No Diagnosis Selected',
+                        style: TextStyle(color: AppColors.textLight),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    ..._diagnoses.map((diagnosis) {
+                      final diagnosisName = diagnosis['name'] ?? 'Unknown';
+                      return DropdownMenuItem<int>(
+                        value: diagnosis['diagnosis_id'],
+                        child: Text(
+                          _truncateDiagnosisName(diagnosisName),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontSize: 14,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ],
+                  onChanged: (v) => setState(() => _selectedDiagnosisId = v),
+                  selectedItemBuilder: (BuildContext context) {
+                    return [
+                      const Text(
+                        'No Diagnosis Selected',
+                        style: TextStyle(color: AppColors.textLight),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      ..._diagnoses.map((diagnosis) {
+                        final diagnosisName = diagnosis['name'] ?? 'Unknown';
+                        return Text(
+                          _truncateDiagnosisName(diagnosisName),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textDark,
+                          ),
+                        );
+                      }).toList(),
+                    ];
+                  },
+                ),
+                const SizedBox(height: 20),
+
+                if (_symptomsDescription.isNotEmpty || _suspectedCondition.isNotEmpty || _selectedDiagnosisId != null)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.check_circle, size: 20, color: AppColors.success),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Medical data ready for analysis',
+                                  style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.success)),
+                              const SizedBox(height: 4),
+                              Text(
+                                _getMedicalDataSummary(),
+                                style: TextStyle(fontSize: 12, color: AppColors.success),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                const SizedBox(height: 20),
+                TextFormField(
+                  initialValue: _medicalHistory,
+                  decoration: InputDecoration(
+                    labelText: 'Medical History',
+                    labelStyle: TextStyle(color: AppColors.textGray),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.accent3),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                    ),
+                    hintText: 'Previous diagnoses, treatments, hospitalizations...',
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  ),
+                  maxLines: 3,
+                  onSaved: (v) => _medicalHistory = v ?? '',
+                ),
+                const SizedBox(height: 20),
+                TextFormField(
+                  initialValue: _previousServices,
+                  decoration: InputDecoration(
+                    labelText: 'Previous Services/Therapies',
+                    labelStyle: TextStyle(color: AppColors.textGray),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.accent3),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                    ),
+                    hintText: 'Speech therapy, occupational therapy, behavioral therapy...',
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  ),
+                  maxLines: 2,
+                  onSaved: (v) => _previousServices = v ?? '',
+                ),
+                const SizedBox(height: 20),
+                TextFormField(
+                  initialValue: _additionalNotes,
+                  decoration: InputDecoration(
+                    labelText: 'Additional Notes',
+                    labelStyle: TextStyle(color: AppColors.textGray),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.accent3),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                    ),
+                    hintText: 'Any other relevant information...',
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  ),
+                  maxLines: 2,
+                  onSaved: (v) => _additionalNotes = v ?? '',
+                ),
+              ],
+            ),
+
+            if (_isAnalyzing) ...[
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 12,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    CircularProgressIndicator(color: AppColors.primary),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Analyzing Symptoms...',
+                      style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textDark),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Finding the best institutions based on the provided information',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 12, color: AppColors.textLight),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+
+  String _truncateDiagnosisName(String name) {
+    if (name.length <= 35) return name;
+    return '${name.substring(0, 32)}...';
+  }
+
   Widget _buildInstitutionSelectionStep() {
-    final hasScreeningRecommendations = widget.screeningData != null;
-    
     final safeInstitutions = _safeConvertInstitutions(_recommendedInstitutions);
 
     String _searchFilter = '';
@@ -680,7 +1154,6 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
       final avgPrice = double.tryParse(institution['avg_price']?.toString() ?? '0') ?? 0.0;
       final matchingServices = institution['available_services'] ?? [];
 
-      // Basic filters
       final matchesSearch = _searchFilter.isEmpty ||
           name.contains(_searchFilter.toLowerCase()) ||
           city.toLowerCase().contains(_searchFilter.toLowerCase());
@@ -692,17 +1165,14 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
       final matchesDistance = _selectedMaxDistance == 'All' ||
           _isWithinDistance(distance, _selectedMaxDistance);
 
-      // ⭐ Advanced filters
       final matchesRating = rating >= _localMinRating;
       final matchesPrice = _localMaxPrice >= 1000.0 || avgPrice <= _localMaxPrice;
-      final matchesServices = !_localFilterByMatchingServices || 
+      final matchesServices = !_localFilterByMatchingServices ||
           (matchingServices is List && matchingServices.isNotEmpty);
 
-      return matchesSearch && matchesCity && matchesSpecialty && 
-             matchesDistance && matchesRating && matchesPrice && matchesServices;
+      return matchesSearch && matchesCity && matchesSpecialty &&
+          matchesDistance && matchesRating && matchesPrice && matchesServices;
     }).toList();
-
-
 
     filteredInstitutions.sort((a, b) {
       switch (_sortBy) {
@@ -730,8 +1200,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
           return scoreB.compareTo(scoreA);
       }
     });
-    
-    // حساب عدد الفلاتر النشطة
+
     int activeFiltersCount = 0;
     if (_searchFilter.isNotEmpty) activeFiltersCount++;
     if (_selectedCity != 'All') activeFiltersCount++;
@@ -743,516 +1212,637 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
 
     return StatefulBuilder(
       builder: (context, setFilterState) {
-        return Column(
-          children: [
-            if (_aiAnalysisResult != null) ...[
-              _buildAnalysisResults(),
-              const SizedBox(height: 16),
-            ],
+        return SingleChildScrollView(
+          child: Column(
+            children: [
+              if (_aiAnalysisResult != null) ...[
+                _buildAnalysisResults(),
+                const SizedBox(height: 20),
+              ],
 
-            // Search and filter section
-            Card(
-              elevation: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    // ⭐ Search Field
-                    TextField(
-                      decoration: InputDecoration(
-                        labelText: 'Search Institutions',
-                        hintText: 'Search by name or city...',
-                        prefixIcon: Icon(Icons.search, color: Color(0xFF7815A0)),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.grey.shade300),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Color(0xFF7815A0), width: 2),
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey.shade50,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              _buildSection(
+                title: 'Find the Perfect Institution',
+                icon: Icons.school,
+                children: [
+                  TextField(
+                    decoration: InputDecoration(
+                      labelText: 'Search Institutions',
+                      labelStyle: TextStyle(color: AppColors.textGray),
+                      hintText: 'Search by name or city...',
+                      prefixIcon: Icon(Icons.search, color: AppColors.primary),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppColors.accent3),
                       ),
-                      onChanged: (value) {
-                        setFilterState(() {
-                          _searchFilter = value;
-                        });
-                      },
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppColors.primary, width: 2),
+                      ),
+                      filled: true,
+                      fillColor: AppColors.background,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                     ),
-                    const SizedBox(height: 16),
+                    onChanged: (value) {
+                      setFilterState(() {
+                        _searchFilter = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
 
-                    // ⭐ Filters Grid (2 columns to avoid overflow)
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            value: _selectedCity,
-                            decoration: InputDecoration(
-                              labelText: 'City',
-                              prefixIcon: Icon(Icons.location_city, size: 18, color: Color(0xFF7815A0)),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                              isDense: true,
+                  // تصميم متجاوب للفلاتر
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      if (constraints.maxWidth < 600) {
+                        // تصميم عمودي للشاشات الصغيرة
+                        return Column(
+                          children: [
+                            DropdownButtonFormField<String>(
+                              value: _selectedCity,
+                              decoration: InputDecoration(
+                                labelText: 'City',
+                                labelStyle: TextStyle(color: AppColors.textGray, fontSize: 14),
+                                prefixIcon: Icon(Icons.location_city, size: 18, color: AppColors.primary),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                              ),
+                              isExpanded: true,
+                              items: cities.map((city) {
+                                return DropdownMenuItem(
+                                  value: city,
+                                  child: Text(
+                                    _truncateText(city, 20),
+                                    style: TextStyle(fontSize: 13),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setFilterState(() {
+                                  _selectedCity = value ?? 'All';
+                                });
+                              },
                             ),
-                            isExpanded: true,
-                            items: cities.map((city) {
-                              return DropdownMenuItem(
-                                value: city,
-                                child: Text(
-                                  city,
-                                  style: TextStyle(fontSize: 13),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              setFilterState(() {
-                                _selectedCity = value ?? 'All';
-                              });
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            value: _selectedSpecialty,
-                            decoration: InputDecoration(
-                              labelText: 'Specialty',
-                              prefixIcon: Icon(Icons.medical_services, size: 18, color: Color(0xFF7815A0)),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                              isDense: true,
+                            const SizedBox(height: 12),
+                            DropdownButtonFormField<String>(
+                              value: _selectedSpecialty,
+                              decoration: InputDecoration(
+                                labelText: 'Specialty',
+                                labelStyle: TextStyle(color: AppColors.textGray, fontSize: 14),
+                                prefixIcon: Icon(Icons.medical_services, size: 18, color: AppColors.primary),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                              ),
+                              isExpanded: true,
+                              items: specialties.map((specialty) {
+                                return DropdownMenuItem(
+                                  value: specialty,
+                                  child: Text(
+                                    _truncateText(specialty, 20),
+                                    style: TextStyle(fontSize: 13),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setFilterState(() {
+                                  _selectedSpecialty = value ?? 'All';
+                                });
+                              },
                             ),
-                            isExpanded: true,
-                            items: specialties.map((specialty) {
-                              return DropdownMenuItem(
-                                value: specialty,
-                                child: Text(
-                                  specialty,
-                                  style: TextStyle(fontSize: 13),
-                                  overflow: TextOverflow.ellipsis,
+                          ],
+                        );
+                      } else {
+                        // تصميم أفقي للشاشات الكبيرة
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                value: _selectedCity,
+                                decoration: InputDecoration(
+                                  labelText: 'City',
+                                  labelStyle: TextStyle(color: AppColors.textGray, fontSize: 14),
+                                  prefixIcon: Icon(Icons.location_city, size: 18, color: AppColors.primary),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                                 ),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              setFilterState(() {
-                                _selectedSpecialty = value ?? 'All';
-                              });
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    
-                    // ⭐ Distance Filter (full width)
-                    DropdownButtonFormField<String>(
-                      value: _selectedMaxDistance,
-                      decoration: InputDecoration(
-                        labelText: 'Max Distance',
-                        prefixIcon: Icon(Icons.social_distance, size: 18, color: Color(0xFF7815A0)),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                        isDense: true,
-                      ),
-                      isExpanded: true,
-                      items: const [
-                        DropdownMenuItem(value: 'All', child: Text('Any Distance')),
-                        DropdownMenuItem(value: '10', child: Text('Within 10 km')),
-                        DropdownMenuItem(value: '25', child: Text('Within 25 km')),
-                        DropdownMenuItem(value: '50', child: Text('Within 50 km')),
-                        DropdownMenuItem(value: '100', child: Text('Within 100 km')),
-                      ],
-                      onChanged: (value) {
-                        setFilterState(() {
-                          _selectedMaxDistance = value ?? 'All';
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Sorting options
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.sort, size: 16, color: Colors.blue.shade700),
-                          const SizedBox(width: 8),
-                          Text('Sort by:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: DropdownButtonHideUnderline(
-                              child: DropdownButton<String>(
-                                value: _sortBy,
-                                isDense: true,
-                                style: TextStyle(fontSize: 12, color: Colors.blue.shade800),
-                                items: const [
-                                  DropdownMenuItem(value: 'match_score', child: Text('Best Match')),
-                                  DropdownMenuItem(value: 'rating', child: Text('Highest Rating')),
-                                  DropdownMenuItem(value: 'price', child: Text('Lowest Price')),
-                                  DropdownMenuItem(value: 'nearest', child: Text('Nearest First')),
-                                  DropdownMenuItem(value: 'name', child: Text('Name A-Z')),
-                                  DropdownMenuItem(value: 'city', child: Text('City')),
-                                ],
+                                isExpanded: true,
+                                items: cities.map((city) {
+                                  return DropdownMenuItem(
+                                    value: city,
+                                    child: Text(
+                                      _truncateText(city, 15),
+                                      style: TextStyle(fontSize: 13),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  );
+                                }).toList(),
                                 onChanged: (value) {
                                   setFilterState(() {
-                                    _sortBy = value ?? 'match_score';
-                                    if (value == 'nearest') {
-                                      _selectedMaxDistance = '50';
-                                    }
+                                    _selectedCity = value ?? 'All';
                                   });
                                 },
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    
-                    const SizedBox(height: 12),
-                    
-                    // Advanced Filters Button with Badge
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              setState(() {
-                                _showAdvancedFilters = !_showAdvancedFilters;
-                              });
-                            },
-                            icon: Icon(
-                              _showAdvancedFilters ? Icons.expand_less : Icons.tune,
-                              size: 18,
-                            ),
-                            label: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  _showAdvancedFilters ? 'Hide Advanced Filters' : 'Advanced Filters',
-                                  style: TextStyle(fontSize: 13),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                value: _selectedSpecialty,
+                                decoration: InputDecoration(
+                                  labelText: 'Specialty',
+                                  labelStyle: TextStyle(color: AppColors.textGray, fontSize: 14),
+                                  prefixIcon: Icon(Icons.medical_services, size: 18, color: AppColors.primary),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                                 ),
-                                if (activeFiltersCount > 0) ...[
-                                  SizedBox(width: 8),
-                                  Container(
-                                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: Colors.orange,
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
+                                isExpanded: true,
+                                items: specialties.map((specialty) {
+                                  return DropdownMenuItem(
+                                    value: specialty,
                                     child: Text(
-                                      '$activeFiltersCount',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
+                                      _truncateText(specialty, 15),
+                                      style: TextStyle(fontSize: 13),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                  ),
-                                ],
-                              ],
+                                  );
+                                }).toList(),
+                                onChanged: (value) {
+                                  setFilterState(() {
+                                    _selectedSpecialty = value ?? 'All';
+                                  });
+                                },
+                              ),
                             ),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Color(0xFF7815A0),
-                              side: BorderSide(color: Color(0xFF7815A0)),
+                          ],
+                        );
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 12),
+
+                  DropdownButtonFormField<String>(
+                    value: _selectedMaxDistance,
+                    decoration: InputDecoration(
+                      labelText: 'Max Distance',
+                      labelStyle: TextStyle(color: AppColors.textGray, fontSize: 14),
+                      prefixIcon: Icon(Icons.social_distance, size: 18, color: AppColors.primary),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    ),
+                    isExpanded: true,
+                    items: const [
+                      DropdownMenuItem(value: 'All', child: Text('Any Distance')),
+                      DropdownMenuItem(value: '10', child: Text('Within 10 km')),
+                      DropdownMenuItem(value: '25', child: Text('Within 25 km')),
+                      DropdownMenuItem(value: '50', child: Text('Within 50 km')),
+                      DropdownMenuItem(value: '100', child: Text('Within 100 km')),
+                    ],
+                    onChanged: (value) {
+                      setFilterState(() {
+                        _selectedMaxDistance = value ?? 'All';
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+
+                  // خيارات الترتيب
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.accent1,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.sort, size: 16, color: AppColors.primary),
+                        const SizedBox(width: 8),
+                        Text('Sort by:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: _sortBy,
+                              isDense: true,
+                              style: TextStyle(fontSize: 12, color: AppColors.primary),
+                              items: const [
+                                DropdownMenuItem(value: 'match_score', child: Text('Best Match')),
+                                DropdownMenuItem(value: 'rating', child: Text('Highest Rating')),
+                                DropdownMenuItem(value: 'price', child: Text('Lowest Price')),
+                                DropdownMenuItem(value: 'nearest', child: Text('Nearest')),
+                                DropdownMenuItem(value: 'name', child: Text('Name A-Z')),
+                              ],
+                              onChanged: (value) {
+                                setFilterState(() {
+                                  _sortBy = value ?? 'match_score';
+                                  if (value == 'nearest') {
+                                    _selectedMaxDistance = '50';
+                                  }
+                                });
+                              },
                             ),
                           ),
                         ),
                       ],
                     ),
-                    
-                    // Advanced Filters Panel
-                    if (_showAdvancedFilters) ...[
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.purple.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.purple.shade200),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(Icons.filter_alt, size: 20, color: Color(0xFF7815A0)),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Advanced Filters',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF7815A0),
-                                  ),
-                                ),
-                                Spacer(),
-                                TextButton.icon(
-                                  onPressed: () {
-                                    setFilterState(() {
-                                      _localMinRating = 0.0;
-                                      _localMaxPrice = 1000.0;
-                                      _localFilterByMatchingServices = false;
-                                      _searchFilter = '';
-                                      _selectedCity = 'All';
-                                      _selectedSpecialty = 'All';
-                                      _selectedMaxDistance = 'All';
-                                      _sortBy = 'match_score';
-                                    });
-                                    setState(() {
-                                      _minRating = 0.0;
-                                      _maxPrice = 1000.0;
-                                      _filterByMatchingServices = false;
-                                    });
-                                  },
-                                  icon: Icon(Icons.refresh, size: 16),
-                                  label: Text('Reset All'),
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: Colors.orange,
-                                    padding: EdgeInsets.symmetric(horizontal: 8),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Divider(color: Colors.purple.shade200),
-                            const SizedBox(height: 12),
+                  ),
 
-                            // فلتر التقييم
-                            Text(
-                              'Minimum Rating: ${_localMinRating.toStringAsFixed(1)} ⭐',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey.shade800,
+                  const SizedBox(height: 12),
+
+                  // زر الفلاتر المتقدمة
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _showAdvancedFilters = !_showAdvancedFilters;
+                        });
+                      },
+                      icon: Icon(
+                        _showAdvancedFilters ? Icons.expand_less : Icons.tune,
+                        size: 18,
+                      ),
+                      label: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _showAdvancedFilters ? 'Hide Advanced Filters' : 'Advanced Filters',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                          if (activeFiltersCount > 0) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                borderRadius: BorderRadius.circular(10),
                               ),
-                            ),
-                            Slider(
-                              value: _localMinRating,
-                              min: 0.0,
-                              max: 5.0,
-                              divisions: 10,
-                              label: _localMinRating.toStringAsFixed(1),
-                              activeColor: Color(0xFF7815A0),
-                              onChanged: (value) {
-                                setFilterState(() {
-                                  _localMinRating = value;
-                                });
-                                setState(() {
-                                  _minRating = value;
-                                });
-                              },
-                            ),
-                            
-                            const SizedBox(height: 16),
-                            
-                            // فلتر السعر
-                            Text(
-                              'Maximum Price per Session: \$${_localMaxPrice.toStringAsFixed(0)}',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey.shade800,
-                              ),
-                            ),
-                            Slider(
-                              value: _localMaxPrice,
-                              min: 0.0,
-                              max: 1000.0,
-                              divisions: 20,
-                              label: '\$${_localMaxPrice.toStringAsFixed(0)}',
-                              activeColor: Colors.green.shade600,
-                              onChanged: (value) {
-                                setFilterState(() {
-                                  _localMaxPrice = value;
-                                });
-                                setState(() {
-                                  _maxPrice = value;
-                                });
-                              },
-                            ),
-                            
-                            const SizedBox(height: 8),
-                            
-                            // فلتر الخدمات المتوافقة
-                            CheckboxListTile(
-                              title: Text(
-                                'Show Only Matching Services',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
+                              child: Text(
+                                '$activeFiltersCount',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
                                 ),
                               ),
-                              subtitle: Text(
-                                'Filter institutions that provide services matching the child\'s condition',
-                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                            ),
+                          ],
+                        ],
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: BorderSide(color: AppColors.primary),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+
+                  if (_showAdvancedFilters) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.accent1,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.accent3),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.filter_alt, size: 20, color: AppColors.primary),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Advanced Filters',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary,
+                                ),
                               ),
-                              value: _localFilterByMatchingServices,
-                              activeColor: Color(0xFF7815A0),
-                              onChanged: (value) {
-                                setFilterState(() {
-                                  _localFilterByMatchingServices = value ?? false;
-                                });
-                                setState(() {
-                                  _filterByMatchingServices = value ?? false;
-                                });
-                              },
-                              contentPadding: EdgeInsets.zero,
-                              dense: true,
+                              const Spacer(),
+                              IconButton(
+                                icon: Icon(Icons.refresh, size: 20, color: AppColors.primary),
+                                onPressed: () {
+                                  setFilterState(() {
+                                    _localMinRating = 0.0;
+                                    _localMaxPrice = 1000.0;
+                                    _localFilterByMatchingServices = false;
+                                  });
+                                  setState(() {
+                                    _minRating = 0.0;
+                                    _maxPrice = 1000.0;
+                                    _filterByMatchingServices = false;
+                                  });
+                                },
+                                tooltip: 'Reset Filters',
+                              ),
+                            ],
+                          ),
+                          Divider(color: AppColors.accent3),
+                          const SizedBox(height: 12),
+
+                          Text(
+                            'Minimum Rating: ${_localMinRating.toStringAsFixed(1)} ⭐',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textDark,
+                            ),
+                          ),
+                          Slider(
+                            value: _localMinRating,
+                            min: 0.0,
+                            max: 5.0,
+                            divisions: 10,
+                            label: _localMinRating.toStringAsFixed(1),
+                            activeColor: AppColors.primary,
+                            onChanged: (value) {
+                              setFilterState(() {
+                                _localMinRating = value;
+                              });
+                              setState(() {
+                                _minRating = value;
+                              });
+                            },
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          Text(
+                            'Maximum Price: \$${_localMaxPrice.toStringAsFixed(0)}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textDark,
+                            ),
+                          ),
+                          Slider(
+                            value: _localMaxPrice,
+                            min: 0.0,
+                            max: 1000.0,
+                            divisions: 20,
+                            label: '\$${_localMaxPrice.toStringAsFixed(0)}',
+                            activeColor: AppColors.success,
+                            onChanged: (value) {
+                              setFilterState(() {
+                                _localMaxPrice = value;
+                              });
+                              setState(() {
+                                _maxPrice = value;
+                              });
+                            },
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          CheckboxListTile(
+                            title: Text(
+                              'Show Only Matching Services',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            subtitle: Text(
+                              'Filter institutions with matching services',
+                              style: TextStyle(fontSize: 11, color: AppColors.textLight),
+                            ),
+                            value: _localFilterByMatchingServices,
+                            activeColor: AppColors.primary,
+                            onChanged: (value) {
+                              setFilterState(() {
+                                _localFilterByMatchingServices = value ?? false;
+                              });
+                              setState(() {
+                                _filterByMatchingServices = value ?? false;
+                              });
+                            },
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+
+              const SizedBox(height: 20),
+
+              _buildSection(
+                title: 'Recommended for you (${filteredInstitutions.length})',
+                icon: Icons.recommend,
+                children: [
+                  if (filteredInstitutions.isEmpty)
+                    _buildNoInstitutionsWidget()
+                  else
+                    Column(
+                      children: [
+                        if (_sortBy == 'match_score' && filteredInstitutions.isNotEmpty) ...[
+                          _buildTopRecommendationCard(filteredInstitutions.first),
+                          const SizedBox(height: 16),
+                        ],
+                        ...filteredInstitutions.map((institution) {
+                          return _buildInstitutionCard(institution);
+                        }).toList(),
+                      ],
+                    ),
+                ],
+              ),
+
+              const SizedBox(height: 20),
+
+              _buildSection(
+                title: 'Registration Details',
+                icon: Icons.assignment,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.warning.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.info, size: 16, color: AppColors.warning),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Registration Process',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.warning,
+                              ),
                             ),
                           ],
                         ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Institutions list
-            _buildSection(
-              title: 'Recommended Institutions (${filteredInstitutions.length})',
-              icon: Icons.school,
-              children: [
-                if (filteredInstitutions.isEmpty)
-                  _buildNoInstitutionsWidget()
-                else
-                  Column(
-                    children: [
-                      if (_sortBy == 'match_score' && filteredInstitutions.isNotEmpty) ...[
-                        _buildTopRecommendationCard(filteredInstitutions.first),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 8),
+                        Text(
+                          '• Request sent to institution\n'
+                              '• Institution reviews and approves\n'
+                              '• You receive notification\n'
+                              '• Sessions booked after approval',
+                          style: TextStyle(fontSize: 12, color: AppColors.warning),
+                        ),
                       ],
-                      ...filteredInstitutions.map((institution) {
-                        return _buildInstitutionCard(institution);
-                      }).toList(),
-                    ],
+                    ),
                   ),
-              ],
-            ),
+                  const SizedBox(height: 16),
 
-            const SizedBox(height: 16),
-
-            // Registration details section
-            _buildSection(
-              title: 'Registration Details',
-              icon: Icons.assignment,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange.shade200),
+                  TextFormField(
+                    initialValue: _registrationNotes,
+                    decoration: InputDecoration(
+                      labelText: 'Notes for Institution (Optional)',
+                      labelStyle: TextStyle(color: AppColors.textGray),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppColors.accent3),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppColors.primary, width: 2),
+                      ),
+                      hintText: 'Any additional information or special requirements...',
+                      alignLabelWithHint: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    ),
+                    maxLines: 3,
+                    onChanged: (v) => _registrationNotes = v,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+                  const SizedBox(height: 16),
+
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.info, size: 16, color: Colors.orange.shade700),
+                          Theme(
+                            data: Theme.of(context).copyWith(
+                              unselectedWidgetColor: AppColors.primary,
+                            ),
+                            child: Checkbox(
+                              value: _consentGiven,
+                              onChanged: (v) => setState(() => _consentGiven = v ?? false),
+                              activeColor: AppColors.primary,
+                              checkColor: Colors.white,
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          ),
                           const SizedBox(width: 8),
-                          Text(
-                            'Registration Process',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: Colors.orange.shade800,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'I give consent for registration and data processing',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: AppColors.success,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'I understand my child\'s information will be shared with the selected institution',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.success,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '• Request will be sent to selected institution\n'
-                            '• Institution will review and approve\n'
-                            '• You will receive notification upon approval\n'
-                            '• Sessions can be booked after approval',
-                        style: TextStyle(fontSize: 12, color: Colors.orange.shade700),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  initialValue: _registrationNotes,
-                  decoration: InputDecoration(
-                    labelText: 'Notes for Institution (Optional)',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    hintText: 'Any additional information, special requirements, or questions for the institution...',
-                    alignLabelWithHint: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  ),
-                  maxLines: 3,
-                  onChanged: (v) => _registrationNotes = v,
-                ),
-                const SizedBox(height: 16),
-
-                Card(
-                  color: Colors.green.shade50,
-                  child: CheckboxListTile(
-                    title: RichText(
-                      text: const TextSpan(
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.green,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        children: [
-                          TextSpan(text: 'I give consent for '),
-                          TextSpan(
-                            text: 'registration and data processing',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          TextSpan(text: '\nI understand that my child\'s information will be shared with the selected institution for evaluation purposes.'),
-                        ],
-                      ),
                     ),
-                    value: _consentGiven,
-                    onChanged: (v) => setState(() => _consentGiven = v ?? false),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    controlAffinity: ListTileControlAffinity.leading,
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         );
       },
     );
   }
 
-  Widget _buildStatChip(String label, String value) {
+// أضف هذه الدالة المساعدة في الكلاس
+  String _truncateText(String text, int maxLength) {
+    if (text.length <= maxLength) return text;
+    return '${text.substring(0, maxLength)}...';
+  }
+
+  Widget _buildAnalysisResults() {
+    final analysis = _aiAnalysisResult!;
+    final suggestedConditions = analysis['analysis']?['suggested_conditions'] ?? [];
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.blue.shade100,
-        borderRadius: BorderRadius.circular(12),
+        color: AppColors.success.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.success.withOpacity(0.3)),
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: Colors.blue.shade800,
-            ),
+          Row(
+            children: [
+              Icon(Icons.psychology, size: 20, color: AppColors.success),
+              const SizedBox(width: 8),
+              Text(
+                'AI Analysis Results',
+                style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.success),
+              ),
+            ],
           ),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              color: Colors.blue.shade600,
+          const SizedBox(height: 12),
+          if (suggestedConditions.isNotEmpty) ...[
+            Text('Suggested Conditions:',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: suggestedConditions.map<Widget>((condition) {
+                final name = condition['name'] ?? 'Unknown';
+                final confidence = condition['confidence'];
+
+                String confidenceText;
+                if (confidence is double) {
+                  confidenceText = '${(confidence * 100).toStringAsFixed(0)}%';
+                } else if (confidence is String) {
+                  confidenceText = confidence;
+                } else {
+                  confidenceText = 'N/A';
+                }
+
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text('$name ($confidenceText)',
+                      style: TextStyle(fontSize: 12, color: AppColors.success)),
+                );
+              }).toList(),
             ),
+          ],
+          const SizedBox(height: 8),
+          Text(
+            'Found ${_safeConvertInstitutions(_recommendedInstitutions).length} suitable institutions',
+            style: TextStyle(fontSize: 12, color: AppColors.success),
           ),
         ],
       ),
@@ -1267,21 +1857,27 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
     final specialties = institution['matching_specialties'] ?? [];
     final isSelected = _selectedInstitutionId == id;
 
-    return Card(
-      elevation: 4,
-      color: Colors.orange.shade50,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.orange.shade300, width: 2),
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primary.withOpacity(0.1),
+            AppColors.primaryLight.withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primary.withOpacity(0.3), width: 2),
       ),
       child: ListTile(
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.orange.shade100,
+            color: AppColors.primary.withOpacity(0.2),
             shape: BoxShape.circle,
           ),
-          child: Icon(Icons.star, color: Colors.orange.shade700),
+          child: Icon(Icons.star, color: AppColors.primary),
         ),
         title: Row(
           children: [
@@ -1290,30 +1886,16 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
-                color: Colors.orange.shade700,
+                color: AppColors.primary,
               ),
             ),
             const Spacer(),
             if (isSelected)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade100,
+                  color: AppColors.success.withOpacity(0.0),
                   borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.check, size: 12, color: Colors.green),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Selected',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green.shade700,
-                      ),
-                    ),
-                  ],
                 ),
               ),
           ],
@@ -1332,7 +1914,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
             if (city.isNotEmpty && city != 'null')
               Row(
                 children: [
-                  Icon(Icons.location_on, size: 12, color: Colors.grey),
+                  Icon(Icons.location_on, size: 12, color: AppColors.textLight),
                   const SizedBox(width: 4),
                   Text(
                     city,
@@ -1344,14 +1926,16 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
               Wrap(
                 spacing: 4,
                 children: (specialties as List).take(3).map<Widget>((specialty) {
-                  return Chip(
-                    label: Text(
-                      specialty.toString(),
-                      style: const TextStyle(fontSize: 10),
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    backgroundColor: Colors.blue.shade100,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
+                    child: Text(
+                      specialty.toString(),
+                      style: TextStyle(fontSize: 10, color: AppColors.primary),
+                    ),
                   );
                 }).toList(),
               ),
@@ -1359,9 +1943,9 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.green.shade100,
+                    color: AppColors.success.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -1369,7 +1953,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: Colors.green.shade700,
+                      color: AppColors.success,
                     ),
                   ),
                 ),
@@ -1379,34 +1963,15 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
         ),
         trailing: Icon(
           isSelected ? Icons.check_circle : Icons.arrow_forward_ios,
-          color: isSelected ? Colors.green : Colors.orange,
+          color: isSelected ? AppColors.success : AppColors.primary,
         ),
         onTap: () {
           setState(() {
             _selectedInstitutionId = id;
           });
-
-          Future.delayed(const Duration(milliseconds: 300), () {
-            Scrollable.ensureVisible(
-              context,
-              duration: const Duration(milliseconds: 500),
-              curve: Curves.easeInOut,
-            );
-          });
         },
       ),
     );
-  }
-
-  double _parseMatchScore(dynamic score) {
-    if (score == null) return 0.0;
-    if (score is double) return score;
-    if (score is int) return score.toDouble();
-    if (score is String) {
-      final clean = score.replaceAll('%', '');
-      return double.tryParse(clean) ?? 0.0;
-    }
-    return 0.0;
   }
 
   Widget _buildInstitutionCard(Map<String, dynamic> institution) {
@@ -1420,37 +1985,37 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
-      color: isSelected ? Colors.blue.shade50 : Colors.white,
+      color: isSelected ? AppColors.primary.withOpacity(0.05) : AppColors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: isSelected ? Colors.blue.shade300 : Colors.grey.shade200,
+          color: isSelected ? AppColors.primary : AppColors.accent3,
           width: isSelected ? 2 : 1,
         ),
       ),
+      elevation: 2,
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: isSelected ? Colors.blue.shade100 : Colors.grey.shade100,
+            color: isSelected ? AppColors.primary.withOpacity(0.2) : AppColors.accent1,
             shape: BoxShape.circle,
           ),
           child: Icon(
             Icons.school,
-            color: isSelected ? Colors.blue : Colors.grey,
+            color: isSelected ? AppColors.primary : AppColors.textLight,
             size: 20,
           ),
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Institution Name
             Text(
               name,
               style: TextStyle(
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                color: isSelected ? Colors.blue.shade800 : Colors.black87,
+                color: isSelected ? AppColors.primary : AppColors.textDark,
               ),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
@@ -1459,12 +2024,12 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
             if (city.isNotEmpty && city != 'null')
               Row(
                 children: [
-                  Icon(Icons.location_on, size: 12, color: Colors.grey.shade600),
+                  Icon(Icons.location_on, size: 12, color: AppColors.textLight),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       city,
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      style: TextStyle(fontSize: 12, color: AppColors.textLight),
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
                     ),
@@ -1477,7 +2042,6 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 4),
-            // Specialties
             if (specialties.isNotEmpty && specialties is List)
               Wrap(
                 spacing: 4,
@@ -1488,13 +2052,13 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: Colors.purple.shade50,
+                        color: AppColors.primary.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: Colors.purple.shade100),
+                        border: Border.all(color: AppColors.primary.withOpacity(0.3)),
                       ),
                       child: Text(
                         specialty.toString(),
-                        style: TextStyle(fontSize: 10, color: Colors.purple.shade700),
+                        style: TextStyle(fontSize: 10, color: AppColors.primary),
                         overflow: TextOverflow.ellipsis,
                         maxLines: 1,
                       ),
@@ -1503,12 +2067,10 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                 }).toList(),
               ),
             const SizedBox(height: 6),
-            // Match Score, Rating, Price & Distance
             Wrap(
               spacing: 6,
               runSpacing: 4,
               children: [
-                // Match Score
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
@@ -1531,106 +2093,102 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                     ],
                   ),
                 ),
-                
-                // Rating
-                if (institution['rating'] != null) 
+
+                if (institution['rating'] != null)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.amber.shade50,
+                      color: AppColors.warning.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: Colors.amber.shade200),
+                      border: Border.all(color: AppColors.warning.withOpacity(0.3)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.star, size: 10, color: Colors.amber.shade700),
+                        Icon(Icons.star, size: 10, color: AppColors.warning),
                         SizedBox(width: 2),
                         Text(
                           '${institution['rating']}',
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
-                            color: Colors.amber.shade900,
+                            color: AppColors.warning,
                           ),
                         ),
                       ],
                     ),
                   ),
-                
-                // Price
+
                 if (institution['avg_price'] != null && double.tryParse(institution['avg_price'].toString()) != null)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.green.shade50,
+                      color: AppColors.success.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: Colors.green.shade200),
+                      border: Border.all(color: AppColors.success.withOpacity(0.3)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.attach_money, size: 10, color: Colors.green.shade700),
+                        Icon(Icons.attach_money, size: 10, color: AppColors.success),
                         Text(
                           '${double.parse(institution['avg_price'].toString()).toStringAsFixed(0)}',
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
-                            color: Colors.green.shade900,
+                            color: AppColors.success,
                           ),
                         ),
                       ],
                     ),
                   ),
-                
-                // Distance
+
                 if (distance != null)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
+                      color: AppColors.info.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: Colors.blue.shade200),
+                      border: Border.all(color: AppColors.info.withOpacity(0.3)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.directions, size: 10, color: Colors.blue.shade700),
+                        Icon(Icons.directions, size: 10, color: AppColors.info),
                         SizedBox(width: 2),
                         Text(
                           distance.toString(),
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
-                            color: Colors.blue.shade900,
+                            color: AppColors.info,
                           ),
                         ),
                       ],
                     ),
                   ),
-                
-                // Available Services Count
-                if (institution['available_services'] != null && 
-                    institution['available_services'] is List && 
+
+                if (institution['available_services'] != null &&
+                    institution['available_services'] is List &&
                     (institution['available_services'] as List).isNotEmpty)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.purple.shade50,
+                      color: AppColors.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: Colors.purple.shade200),
+                      border: Border.all(color: AppColors.primary.withOpacity(0.3)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.medical_services, size: 10, color: Colors.purple.shade700),
+                        Icon(Icons.medical_services, size: 10, color: AppColors.primary),
                         SizedBox(width: 2),
                         Text(
                           '${(institution['available_services'] as List).length} services',
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
-                            color: Colors.purple.shade900,
+                            color: AppColors.primary,
                           ),
                         ),
                       ],
@@ -1641,8 +2199,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
           ],
         ),
         trailing: isSelected
-            ? Icon(Icons.check_circle, color: Colors.green, size: 24)
-            : Icon(Icons.radio_button_unchecked, color: Colors.grey, size: 24),
+            ? Icon(Icons.check_circle, color: AppColors.success, size: 24)
+            : Icon(Icons.radio_button_unchecked, color: AppColors.textLight, size: 24),
         onTap: () {
           setState(() {
             _selectedInstitutionId = id;
@@ -1652,31 +2210,24 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
     );
   }
 
-
-  Color _getMatchScoreColor(String matchScore) {
-    final score = _parseMatchScore(matchScore);
-    if (score >= 80) return Colors.green.shade600;
-    if (score >= 60) return Colors.orange.shade600;
-    return Colors.red.shade600;
-  }
-
   Widget _buildNoInstitutionsWidget() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.orange.shade50,
-        borderRadius: BorderRadius.circular(12),
+        color: AppColors.warning.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.warning.withOpacity(0.3)),
       ),
       child: Column(
         children: [
-          Icon(Icons.search_off, size: 48, color: Colors.orange),
+          Icon(Icons.search_off, size: 48, color: AppColors.warning),
           const SizedBox(height: 12),
           Text(
             'No Suitable Institutions Found',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: Colors.orange.shade700,
+              color: AppColors.warning,
             ),
           ),
           const SizedBox(height: 8),
@@ -1684,7 +2235,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
             'We couldn\'t find institutions matching the current symptoms. '
                 'Try adjusting the symptoms description or suspected condition.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.orange.shade600),
+            style: TextStyle(color: AppColors.warning),
           ),
           const SizedBox(height: 16),
           ElevatedButton(
@@ -1694,10 +2245,259 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
               });
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
+              backgroundColor: AppColors.warning,
               foregroundColor: Colors.white,
             ),
             child: const Text('Edit Medical Information'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConfirmationStep() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.check_circle, size: 80, color: AppColors.success),
+          const SizedBox(height: 16),
+          Text(
+            'Registration Request Submitted!',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textDark),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Your registration request has been sent to the institution. '
+                'You will be notified when it is approved.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 16, color: AppColors.textGray),
+          ),
+          const SizedBox(height: 24),
+          if (_selectedInstitutionId != null)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.accent1,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.accent2),
+              ),
+              child: ListTile(
+                leading: Icon(Icons.school, color: AppColors.primary),
+                title: Text('Selected Institution', style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text(_getInstitutionName(_selectedInstitutionId!)),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocationSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.accent2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.location_on, color: AppColors.primary, size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Child Location',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textDark,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Select the child\'s location on the map to help us find the nearest institutions to you',
+            style: TextStyle(fontSize: 12, color: AppColors.textLight),
+          ),
+          SizedBox(height: 16),
+
+          OutlinedButton.icon(
+            onPressed: _openMapScreen,
+            icon: Icon(Icons.map, color: AppColors.primary),
+            label: Text(
+              _locationLat != null && _locationLng != null
+                  ? 'Edit Location on Map'
+                  : 'Choose Location from Map',
+              style: TextStyle(color: AppColors.primary),
+            ),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: AppColors.primary),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            ),
+          ),
+
+          if (_locationLat != null && _locationLng != null) ...[
+            SizedBox(height: 12),
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.success.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.success.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.check_circle, color: AppColors.success, size: 16),
+                      SizedBox(width: 8),
+                      Text(
+                        'Location Selected',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.success,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 8),
+                  if (_city.isNotEmpty)
+                    Text('City: $_city', style: TextStyle(fontSize: 12)),
+                  if (_address.isNotEmpty)
+                    Text('Address: $_address', style: TextStyle(fontSize: 12)),
+                  Text(
+                    'Coordinates: ${_locationLat!.toStringAsFixed(4)}, ${_locationLng!.toStringAsFixed(4)}',
+                    style: TextStyle(fontSize: 11, color: AppColors.textLight),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavigationButtons() {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildStepIndicator('Basic', _currentStep.index >= 0, 0),
+              _buildStepIndicator('Medical', _currentStep.index >= 1, 1),
+              _buildStepIndicator('Institution', _currentStep.index >= 2, 2),
+              _buildStepIndicator('Confirm', _currentStep.index >= 3, 3),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        Row(
+          children: [
+            if (_currentStep != ChildFormStep.basicInfo)
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _isLoading ? null : _goToPreviousStep,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    side: BorderSide(color: AppColors.primary),
+                  ),
+                  child: Text(
+                    'Back',
+                    style: TextStyle(color: AppColors.primary),
+                  ),
+                ),
+              ),
+
+            if (_currentStep != ChildFormStep.basicInfo) const SizedBox(width: 12),
+
+            Expanded(
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _goToNextStep,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 2,
+                ),
+                child: _isLoading
+                    ? SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+                    : Text(
+                  _getActionButtonText(),
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStepIndicator(String label, bool isActive, int stepIndex) {
+    return Expanded(
+      child: Column(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: isActive ? AppColors.primary : AppColors.textLight.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: isActive
+                  ? Icon(Icons.check, size: 16, color: Colors.white)
+                  : Text(
+                '${stepIndex + 1}',
+                style: TextStyle(
+                  color: isActive ? Colors.white : AppColors.textLight,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: isActive ? AppColors.primary : AppColors.textLight,
+              fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+            ),
           ),
         ],
       ),
@@ -1717,303 +2517,14 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
     }
   }
 
-  Widget _buildBasicInfoStep() {
-    return Form(
-      key: _formKey,
-      child: Column(
-        children: [
-          _buildSection(
-            title: 'Basic Information',
-            icon: Icons.person_outline,
-            children: [
-              TextFormField(
-                initialValue: _fullName,
-                decoration: InputDecoration(
-                  labelText: 'Full Name *',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  prefixIcon: Icon(Icons.person),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                ),
-                validator: (v) => v == null || v.isEmpty ? 'Please enter full name' : null,
-                onSaved: (v) => _fullName = v ?? '',
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _dateController,
-                readOnly: true,
-                decoration: InputDecoration(
-                  labelText: 'Date of Birth *',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  prefixIcon: Icon(Icons.calendar_today),
-                  suffixIcon: IconButton(
-                    icon: Icon(Icons.arrow_drop_down),
-                    onPressed: _pickDate,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                ),
-                validator: (v) => v == null || v.isEmpty ? 'Please select date of birth' : null,
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      value: _gender,
-                      decoration: InputDecoration(
-                        labelText: 'Gender *',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      ),
-                      items: const [
-                        DropdownMenuItem(value: 'Male', child: Text('Male')),
-                        DropdownMenuItem(value: 'Female', child: Text('Female')),
-                      ],
-                      onChanged: (v) => setState(() => _gender = v ?? 'Male'),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: TextFormField(
-                      initialValue: _childIdentifier,
-                      decoration: InputDecoration(
-                        labelText: 'Child Identifier',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        hintText: 'Optional',
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      ),
-                      onSaved: (v) => _childIdentifier = v ?? '',
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                initialValue: _schoolInfo,
-                decoration: InputDecoration(
-                  labelText: 'School Information',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  hintText: 'Optional',
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                ),
-                maxLines: 2,
-                onSaved: (v) => _schoolInfo = v ?? '',
-              ),
-              const SizedBox(height: 16),
-              _buildLocationSection(),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMedicalInfoStep() {
-    return SingleChildScrollView(
-      child: Form(
-        key: _formKey,
-        child: Column(
-          children: [
-            _buildSection(
-              title: 'Medical Information',
-              icon: Icons.medical_services_outlined,
-              children: [
-                Card(
-                  elevation: 2,
-                  child: const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Column(
-                      children: [
-                        Text(
-                          'Provide at least one of the following:',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: Colors.blue,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          '• Symptoms description\n• Suspected condition\n• Diagnosis',
-                          style: TextStyle(fontSize: 12, color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  initialValue: _symptomsDescription,
-                  decoration: InputDecoration(
-                    labelText: 'Symptoms Description *',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    hintText: 'Describe specific behaviors, challenges, or concerns...\nExample: "Difficulty with eye contact, repetitive movements, speech delay"',
-                    alignLabelWithHint: true,
-                    filled: true,
-                    fillColor: Colors.grey.shade50,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  ),
-                  maxLines: 4,
-                  onChanged: (value) {
-                    setState(() {
-                      _symptomsDescription = value;
-                    });
-                  },
-                  onSaved: (v) => _symptomsDescription = v ?? '',
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  initialValue: _suspectedCondition,
-                  decoration: InputDecoration(
-                    labelText: 'Suspected Condition',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    hintText: 'Example: Autism Spectrum Disorder, ADHD, Speech Delay...',
-                    prefixIcon: Icon(Icons.psychology),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  ),
-                  onChanged: (value) {
-                    setState(() {
-                      _suspectedCondition = value;
-                    });
-                  },
-                  onSaved: (v) => _suspectedCondition = v ?? '',
-                ),
-                const SizedBox(height: 16),
-
-                DropdownButtonFormField<int>(
-                  value: _selectedDiagnosisId,
-                  decoration: InputDecoration(
-                    labelText: 'Known Diagnosis (Optional)',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    prefixIcon: Icon(Icons.medical_information),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  ),
-                  items: [
-                    const DropdownMenuItem<int>(
-                      value: null,
-                      child: Text('No Diagnosis Selected', style: TextStyle(color: Colors.grey)),
-                    ),
-                    ..._diagnoses.map((diagnosis) {
-                      return DropdownMenuItem<int>(
-                        value: diagnosis['diagnosis_id'],
-                        child: Text(diagnosis['name'] ?? 'Unknown'),
-                      );
-                    }).toList(),
-                  ],
-                  onChanged: (v) => setState(() => _selectedDiagnosisId = v),
-                ),
-                const SizedBox(height: 16),
-
-                if (_symptomsDescription.isNotEmpty || _suspectedCondition.isNotEmpty || _selectedDiagnosisId != null)
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.green.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.green.shade200),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.check_circle, size: 16, color: Colors.green),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Medical data ready for analysis',
-                                  style: TextStyle(fontWeight: FontWeight.w500)),
-                              const SizedBox(height: 4),
-                              Text(
-                                _getMedicalDataSummary(),
-                                style: TextStyle(fontSize: 12, color: Colors.green.shade700),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                const SizedBox(height: 16),
-                TextFormField(
-                  initialValue: _medicalHistory,
-                  decoration: InputDecoration(
-                    labelText: 'Medical History',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    hintText: 'Previous diagnoses, treatments, hospitalizations...',
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  ),
-                  maxLines: 3,
-                  onSaved: (v) => _medicalHistory = v ?? '',
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  initialValue: _previousServices,
-                  decoration: InputDecoration(
-                    labelText: 'Previous Services/Therapies',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    hintText: 'Speech therapy, occupational therapy, behavioral therapy...',
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  ),
-                  maxLines: 2,
-                  onSaved: (v) => _previousServices = v ?? '',
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  initialValue: _additionalNotes,
-                  decoration: InputDecoration(
-                    labelText: 'Additional Notes',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    hintText: 'Any other relevant information...',
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  ),
-                  maxLines: 2,
-                  onSaved: (v) => _additionalNotes = v ?? '',
-                ),
-              ],
-            ),
-
-            if (_isAnalyzing) ...[
-              const SizedBox(height: 24),
-              Card(
-                child: const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 16),
-                      Text(
-                        'Analyzing Symptoms...',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        'Finding the best institutions based on the provided information',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
   String _getMedicalDataSummary() {
     List<String> parts = [];
-
     if (_symptomsDescription.isNotEmpty) {
       parts.add('${_symptomsDescription.split(' ').length} words of symptoms');
     }
-
     if (_suspectedCondition.isNotEmpty) {
       parts.add('suspected $_suspectedCondition');
     }
-
     if (_selectedDiagnosisId != null) {
       final diagnosis = _diagnoses.firstWhere(
             (d) => d['diagnosis_id'] == _selectedDiagnosisId,
@@ -2021,235 +2532,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
       );
       parts.add('diagnosis: ${diagnosis['name']}');
     }
-
     return parts.join(', ');
-  }
-
-  Widget _buildConfirmationStep() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          Icon(Icons.check_circle, size: 80, color: Colors.green),
-          const SizedBox(height: 16),
-          const Text(
-            'Registration Request Submitted!',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Your registration request has been sent to the institution. '
-                'You will be notified when it is approved.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 16),
-          ),
-          const SizedBox(height: 24),
-          if (_selectedInstitutionId != null)
-            Card(
-              child: ListTile(
-                leading: Icon(Icons.school),
-                title: Text('Selected Institution'),
-                subtitle: Text(_getInstitutionName(_selectedInstitutionId!)),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSection({
-    required String title,
-    required IconData icon,
-    required List<Widget> children,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icon, size: 18, color: Theme.of(context).primaryColor),
-            const SizedBox(width: 8),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        ...children,
-      ],
-    );
-  }
-
-  Widget _buildAnalysisResults() {
-    final analysis = _aiAnalysisResult!;
-    final suggestedConditions = analysis['analysis']?['suggested_conditions'] ?? [];
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.green.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.green.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.psychology, size: 16, color: Colors.green),
-              const SizedBox(width: 8),
-              Text(
-                'AI Analysis Results',
-                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade800),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (suggestedConditions.isNotEmpty) ...[
-            Text('Suggested Conditions:',
-                style: TextStyle(fontWeight: FontWeight.w500)),
-            const SizedBox(height: 4),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: suggestedConditions.map<Widget>((condition) {
-                final name = condition['name'] ?? 'Unknown';
-                final confidence = condition['confidence'];
-
-                String confidenceText;
-                if (confidence is double) {
-                  confidenceText = '${(confidence * 100).toStringAsFixed(0)}%';
-                } else if (confidence is String) {
-                  confidenceText = confidence;
-                } else {
-                  confidenceText = 'N/A';
-                }
-
-                return Chip(
-                  label: Text('$name ($confidenceText)'),
-                  backgroundColor: Colors.green.shade100,
-                  labelStyle: const TextStyle(fontSize: 12),
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                );
-              }).toList(),
-            ),
-          ],
-          const SizedBox(height: 8),
-          Text(
-            'Found ${_safeConvertInstitutions(_recommendedInstitutions).length} suitable institutions',
-            style: TextStyle(fontSize: 12, color: Colors.green.shade700),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _getInstitutionName(int institutionId) {
-    final institution = _recommendedInstitutions.firstWhere(
-          (inst) => inst['id'] == institutionId,
-      orElse: () => {'name': 'Unknown Institution'},
-    );
-    return institution['name'];
-  }
-
-  Future<void> _pickDate() async {
-    DateTime initial = DateTime.tryParse(_dateController.text) ?? DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime(1950),
-      lastDate: DateTime.now(),
-    );
-    if (picked != null) {
-      _dateController.text = '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
-    }
-  }
-
-  Future<void> _pickImage() async {
-    final picked = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
-    if (picked != null) {
-      setState(() {
-        _pickedImage = File(picked.path);
-        _photo = '';
-      });
-    }
-  }
-
-  Widget _buildNavigationButtons() {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildStepIndicator('Basic', _currentStep.index >= 0),
-              _buildStepIndicator('Medical', _currentStep.index >= 1),
-              _buildStepIndicator('Institution', _currentStep.index >= 2),
-              _buildStepIndicator('Confirm', _currentStep.index >= 3),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        Row(
-          children: [
-            if (_currentStep != ChildFormStep.basicInfo)
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _isLoading ? null : _goToPreviousStep,
-                  child: const Text('Back'),
-                ),
-              ),
-
-            if (_currentStep != ChildFormStep.basicInfo) const SizedBox(width: 12),
-
-            Expanded(
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _goToNextStep,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).primaryColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-                child: _isLoading
-                    ? SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-                    : Text(_getActionButtonText()),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStepIndicator(String label, bool isActive) {
-    return Column(
-      children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            color: isActive ? Colors.green : Colors.grey,
-            shape: BoxShape.circle,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10,
-            color: isActive ? Colors.green : Colors.grey,
-          ),
-        ),
-      ],
-    );
   }
 
   void _goToPreviousStep() {
@@ -2271,97 +2554,166 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
   }
 
   void _goToNextStep() {
-  print('_goToNextStep called - Current step: $_currentStep');
+    switch (_currentStep) {
+      case ChildFormStep.basicInfo:
+        _saveBasicInfo();
+        break;
+      case ChildFormStep.medicalInfo:
+        _formKey.currentState?.save();
+        final hasSymptoms = _symptomsDescription.trim().isNotEmpty;
+        final hasSuspectedCondition = _suspectedCondition.trim().isNotEmpty;
+        final hasDiagnosis = _selectedDiagnosisId != null;
 
-  switch (_currentStep) {
-    case ChildFormStep.basicInfo:
-      print('Calling _saveBasicInfo');
-      _saveBasicInfo();
-      break;
-
-    case ChildFormStep.medicalInfo:
-      print('Calling _analyzeMedicalCondition');
-
-      _formKey.currentState?.save();
-
-      final hasSymptoms = _symptomsDescription.trim().isNotEmpty;
-      final hasSuspectedCondition = _suspectedCondition.trim().isNotEmpty;
-      final hasDiagnosis = _selectedDiagnosisId != null;
-
-      print('Medical Data Check:');
-      print('   - Symptoms: $hasSymptoms (${_symptomsDescription.length} chars)');
-      print('   - Suspected Condition: $hasSuspectedCondition ($_suspectedCondition)');
-      print('   - Diagnosis: $hasDiagnosis ($_selectedDiagnosisId)');
-
-      // ⭐ التعديل: إذا كان من الاستبيان وعنده بيانات، اذهب مباشرة للمؤسسات
-      if (widget.screeningData != null && 
-          widget.screeningData!['from_screening'] == true &&
-          widget.screeningData!['recommended_institutions'] != null) {
-        
-        print('🎯 Using pre-loaded institutions from screening');
-        setState(() {
-          _recommendedInstitutions = widget.screeningData!['recommended_institutions'];
-          _currentStep = ChildFormStep.selectInstitution;
-        });
-      }
-      // التحقق العادي إذا ما كان من استبيان
-      else if (!hasSymptoms && !hasSuspectedCondition && !hasDiagnosis) {
-        print('No medical data provided at all');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Please provide at least one of: symptoms description, suspected condition, or diagnosis'),
-            backgroundColor: Colors.orange,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-        return;
-      } else {
-        _analyzeMedicalCondition();
-      }
-      break;
-
-    case ChildFormStep.selectInstitution:
-      print('Calling _requestRegistration');
-      _requestRegistration();
-      break;
-
-    case ChildFormStep.confirmation:
-      print('Closing dialog');
-      Navigator.pop(context, true);
-      break;
+        if (widget.screeningData != null &&
+            widget.screeningData!['from_screening'] == true &&
+            widget.screeningData!['recommended_institutions'] != null) {
+          setState(() {
+            _recommendedInstitutions = widget.screeningData!['recommended_institutions'];
+            _currentStep = ChildFormStep.selectInstitution;
+          });
+        } else if (!hasSymptoms && !hasSuspectedCondition && !hasDiagnosis) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Please provide at least one of: symptoms description, suspected condition, or diagnosis'),
+              backgroundColor: AppColors.warning,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          return;
+        } else {
+          _analyzeMedicalCondition();
+        }
+        break;
+      case ChildFormStep.selectInstitution:
+        _requestRegistration();
+        break;
+      case ChildFormStep.confirmation:
+        Navigator.pop(context, true);
+        break;
+    }
   }
-}
 
   String _getActionButtonText() {
-  switch (_currentStep) {
-    case ChildFormStep.basicInfo:
-      return 'Continue to Recommendations'; // ⭐ غير النص
-    case ChildFormStep.medicalInfo:
-      return widget.screeningData != null ? 'View Recommended Institutions' : 'Analyze & Find Institutions';
-    case ChildFormStep.selectInstitution:
-      return 'Request Registration';
-    case ChildFormStep.confirmation:
-      return 'Finish';
+    switch (_currentStep) {
+      case ChildFormStep.basicInfo:
+        return 'Continue to Recommendations';
+      case ChildFormStep.medicalInfo:
+        return widget.screeningData != null ? 'View Recommended Institutions' : 'Analyze & Find Institutions';
+      case ChildFormStep.selectInstitution:
+        return 'Request Registration';
+      case ChildFormStep.confirmation:
+        return 'Finish';
+    }
   }
-}
 
-String _getStepTitle() {
-  switch (_currentStep) {
-    case ChildFormStep.basicInfo:
-      return 'Add Child - Basic Information';
-    case ChildFormStep.medicalInfo:
-      return widget.screeningData != null ? 'Screening Results Summary' : 'Medical Information';
-    case ChildFormStep.selectInstitution:
-      return 'Recommended Institutions';
-    case ChildFormStep.confirmation:
-      return 'Confirmation';
+  String _getStepTitle() {
+    switch (_currentStep) {
+      case ChildFormStep.basicInfo:
+        return 'Add Child - Basic Information';
+      case ChildFormStep.medicalInfo:
+        return widget.screeningData != null ? 'Screening Results Summary' : 'Medical Information';
+      case ChildFormStep.selectInstitution:
+        return 'Recommended Institutions';
+      case ChildFormStep.confirmation:
+        return 'Confirmation';
+    }
   }
-}
 
-  // ⭐ جديد: دالة فتح شاشة الخريطة واستقبال البيانات
+  double _getProgressValue() {
+    switch (_currentStep) {
+      case ChildFormStep.basicInfo:
+        return 0.25;
+      case ChildFormStep.medicalInfo:
+        return 0.5;
+      case ChildFormStep.selectInstitution:
+        return 0.75;
+      case ChildFormStep.confirmation:
+        return 1.0;
+    }
+  }
+
+  double _parseMatchScore(dynamic score) {
+    if (score == null) return 0.0;
+    if (score is double) return score;
+    if (score is int) return score.toDouble();
+    if (score is String) {
+      final clean = score.replaceAll('%', '');
+      return double.tryParse(clean) ?? 0.0;
+    }
+    return 0.0;
+  }
+
+  Color _getMatchScoreColor(String matchScore) {
+    final score = _parseMatchScore(matchScore);
+    if (score >= 80) return AppColors.success;
+    if (score >= 60) return AppColors.warning;
+    return AppColors.error;
+  }
+
+  String _getInstitutionName(int institutionId) {
+    final institution = _recommendedInstitutions.firstWhere(
+          (inst) => inst['id'] == institutionId,
+      orElse: () => {'name': 'Unknown Institution'},
+    );
+    return institution['name'];
+  }
+
+  Future<void> _pickDate() async {
+    DateTime initial = DateTime.tryParse(_dateController.text) ?? DateTime.now();
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(1950),
+      lastDate: DateTime.now(),
+      builder: (BuildContext context, Widget? child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: AppColors.primary,           // اللون الأساسي
+              onPrimary: Colors.white,              // لون النص على اللون الأساسي
+              surface: AppColors.surface,           // لون الخلفية
+              onSurface: AppColors.textDark,        // لون النص على الخلفية
+              background: AppColors.background,     // لون الخلفية العامة
+            ),
+            textTheme: TextTheme(
+              bodyLarge: TextStyle(color: AppColors.textDark),
+              bodyMedium: TextStyle(color: AppColors.textDark),
+              titleMedium: TextStyle(color: AppColors.textDark, fontWeight: FontWeight.w600),
+              labelLarge: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600),
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                textStyle: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            dialogBackgroundColor: AppColors.background,
+            cardColor: AppColors.surface,
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      _dateController.text = '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+    }
+  }
+
+  Future<void> _pickImage() async {
+    final picked = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (picked != null) {
+      setState(() {
+        _pickedImage = File(picked.path);
+        _photo = '';
+      });
+    }
+  }
+
   Future<void> _openMapScreen() async {
     print('🗺️ Opening map screen...');
-    
+
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -2381,109 +2733,15 @@ String _getStepTitle() {
         _address = result['address'] ?? '';
         _city = result['city'] ?? '';
       });
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('✅ Location selected: $_city'),
-          backgroundColor: Colors.green,
+          backgroundColor: AppColors.success,
           duration: Duration(seconds: 2),
         ),
       );
     }
-  }
-
-  // ⭐ جديد: بناء قسم الموقع الجغرافي
-  Widget _buildLocationSection() {
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.location_on, color: Color(0xFF7815A0), size: 20),
-                SizedBox(width: 8),
-                Text(
-                  'Child Location (Optional)',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade800,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Select the child\'s location on the map to help us find the nearest institutions to you',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-            ),
-            SizedBox(height: 16),
-
-            // Choose location from map button
-            OutlinedButton.icon(
-              onPressed: _openMapScreen,
-              icon: Icon(Icons.map, color: Color(0xFF7815A0)),
-              label: Text(
-                _locationLat != null && _locationLng != null
-                    ? 'Edit Location on Map'
-                    : 'Choose Location from Map',
-                style: TextStyle(color: Color(0xFF7815A0)),
-              ),
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(color: Color(0xFF7815A0)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              ),
-            ),
-
-            // Display selected location
-            if (_locationLat != null && _locationLng != null) ...[
-              SizedBox(height: 12),
-              Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.green.shade200),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.check_circle, color: Colors.green, size: 16),
-                        SizedBox(width: 8),
-                        Text(
-                          'Location Selected',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: Colors.green.shade800,
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 8),
-                    if (_city.isNotEmpty)
-                      Text('City: $_city', style: TextStyle(fontSize: 12)),
-                    if (_address.isNotEmpty)
-                      Text('Address: $_address', style: TextStyle(fontSize: 12)),
-                    Text(
-                      'Coordinates: ${_locationLat!.toStringAsFixed(4)}, ${_locationLng!.toStringAsFixed(4)}',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
   }
 
   @override
@@ -2491,74 +2749,95 @@ String _getStepTitle() {
     final isEdit = widget.child != null;
 
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       elevation: 0,
-      backgroundColor: Colors.white,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isEdit ? 'Edit Child' : 'Add New Child',
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _getStepTitle(),
-                        style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-                      ),
-                    ],
+      backgroundColor: Colors.transparent,
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.9,
+        height: MediaQuery.of(context).size.height * 0.85,
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isEdit ? 'Edit Child' : 'Add New Child',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textDark,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _getStepTitle(),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textLight,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      icon: Icon(Icons.close, color: AppColors.textLight),
+                      onPressed: () => Navigator.pop(context, false),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 24),
+
+              Container(
+                height: 6,
+                decoration: BoxDecoration(
+                  color: AppColors.accent2,
+                  borderRadius: BorderRadius.circular(3),
                 ),
-                IconButton(
-                  icon: Icon(Icons.close, color: Colors.grey.shade600),
-                  onPressed: () => Navigator.pop(context, false),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
+                child: LinearProgressIndicator(
+                  value: _getProgressValue(),
+                  backgroundColor: Colors.transparent,
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(3),
                 ),
-              ],
-            ),
+              ),
 
-            const SizedBox(height: 16),
+              const SizedBox(height: 32),
 
-            LinearProgressIndicator(
-              value: _getProgressValue(),
-              backgroundColor: Colors.grey.shade200,
-              color: Theme.of(context).primaryColor,
-            ),
+              _buildStepContent(),
 
-            const SizedBox(height: 24),
+              const SizedBox(height: 32),
 
-            _buildStepContent(),
-
-            const SizedBox(height: 32),
-
-            _buildNavigationButtons(),
-          ],
+              _buildNavigationButtons(),
+            ],
+          ),
         ),
       ),
     );
-  }
-
-  double _getProgressValue() {
-    switch (_currentStep) {
-      case ChildFormStep.basicInfo:
-        return 0.25;
-      case ChildFormStep.medicalInfo:
-        return 0.5;
-      case ChildFormStep.selectInstitution:
-        return 0.75;
-      case ChildFormStep.confirmation:
-        return 1.0;
-    }
   }
 }
