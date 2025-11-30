@@ -4,7 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import '../l10n/app_localizations.dart';
 import '../services/language_service.dart';
 import '../main.dart';
-
+import '../theme/app_colors.dart'; // تأكد من استيراد ملف الألوان
 
 class ProfileSettingsScreen extends StatefulWidget {
   const ProfileSettingsScreen({super.key});
@@ -30,14 +30,20 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     final l10n = AppLocalizations.of(context);
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(l10n.get('profileSettings')),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
-        elevation: 0.5,
+        title: Text(
+          l10n.get('profileSettings'),
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: AppColors.textWhite,
+          ),
+        ),
+        backgroundColor: AppColors.primary,
+        foregroundColor: AppColors.textWhite,
+        elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(Icons.arrow_back, color: AppColors.textWhite),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -86,6 +92,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   Widget _buildSecuritySection(AppLocalizations l10n) {
     return Card(
       elevation: 2,
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -147,6 +155,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   Widget _buildNotificationsSection(AppLocalizations l10n) {
     return Card(
       elevation: 2,
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -217,6 +227,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
 
     return Card(
       elevation: 2,
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -261,6 +273,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   Widget _buildDataSection(AppLocalizations l10n) {
     return Card(
       elevation: 2,
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -309,6 +323,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   Widget _buildAccountSection(AppLocalizations l10n) {
     return Card(
       elevation: 2,
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -353,6 +369,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   Widget _buildHelpSection(AppLocalizations l10n) {
     return Card(
       elevation: 2,
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -397,6 +415,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   Widget _buildAboutSection(AppLocalizations l10n) {
     return Card(
       elevation: 2,
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -445,12 +465,15 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
           width: double.infinity,
           child: ElevatedButton.icon(
             onPressed: () => _exportData(l10n),
-            icon: const Icon(Icons.download),
+            icon: Icon(Icons.download, color: AppColors.textWhite),
             label: Text(l10n.get('exportAllData')),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.textWhite,
               padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
         ),
@@ -459,12 +482,15 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
           width: double.infinity,
           child: OutlinedButton.icon(
             onPressed: () => _showDeleteAccountDialog(l10n),
-            icon: const Icon(Icons.delete_outline),
-            label: Text(l10n.get('deleteAccount')),
+            icon: Icon(Icons.delete_outline, color: AppColors.error),
+            label: Text(l10n.get('deleteAccount'), style: TextStyle(color: AppColors.error)),
             style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.red,
-              side: const BorderSide(color: Colors.red),
+              foregroundColor: AppColors.error,
+              side: BorderSide(color: AppColors.error),
               padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
         ),
@@ -478,10 +504,10 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
       padding: const EdgeInsets.only(bottom: 16),
       child: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.bold,
-          color: Colors.black87,
+          color: AppColors.textDark,
         ),
       ),
     );
@@ -495,16 +521,19 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   }) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(vertical: 4),
-      leading: Icon(icon, color: Colors.teal),
+      leading: Icon(icon, color: AppColors.primary),
       title: Text(
         title,
-        style: const TextStyle(fontWeight: FontWeight.w500),
+        style: TextStyle(
+          fontWeight: FontWeight.w500,
+          color: AppColors.textDark,
+        ),
       ),
       subtitle: Text(
         subtitle,
-        style: TextStyle(color: Colors.grey[600]),
+        style: TextStyle(color: AppColors.textGray),
       ),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+      trailing: Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textLight),
       onTap: onTap,
     );
   }
@@ -518,19 +547,23 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   }) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(vertical: 4),
-      leading: Icon(icon, color: Colors.teal),
+      leading: Icon(icon, color: AppColors.primary),
       title: Text(
         title,
-        style: const TextStyle(fontWeight: FontWeight.w500),
+        style: TextStyle(
+          fontWeight: FontWeight.w500,
+          color: AppColors.textDark,
+        ),
       ),
       subtitle: Text(
         subtitle,
-        style: TextStyle(color: Colors.grey[600]),
+        style: TextStyle(color: AppColors.textGray),
       ),
       trailing: Switch(
         value: value,
         onChanged: onChanged,
-        activeColor: Colors.teal,
+        activeColor: AppColors.primary,
+        activeTrackColor: AppColors.primary.withOpacity(0.5),
       ),
     );
   }
@@ -540,14 +573,23 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(l10n.get('changePassword')),
+        backgroundColor: AppColors.surface,
+        title: Text(l10n.get('changePassword'), style: TextStyle(color: AppColors.textDark)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               decoration: InputDecoration(
                 labelText: l10n.get('currentPassword'),
-                border: const OutlineInputBorder(),
+                labelStyle: TextStyle(color: AppColors.textGray),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.primary),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.primary),
+                ),
               ),
               obscureText: true,
             ),
@@ -555,7 +597,15 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
             TextField(
               decoration: InputDecoration(
                 labelText: l10n.get('newPassword'),
-                border: const OutlineInputBorder(),
+                labelStyle: TextStyle(color: AppColors.textGray),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.primary),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.primary),
+                ),
               ),
               obscureText: true,
             ),
@@ -563,7 +613,15 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
             TextField(
               decoration: InputDecoration(
                 labelText: l10n.get('confirmNewPassword'),
-                border: const OutlineInputBorder(),
+                labelStyle: TextStyle(color: AppColors.textGray),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.primary),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.primary),
+                ),
               ),
               obscureText: true,
             ),
@@ -572,15 +630,15 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(l10n.get('cancel')),
+            child: Text(l10n.get('cancel'), style: TextStyle(color: AppColors.textGray)),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
               _showSuccessMessage(l10n.get('passwordChangedSuccessfully'));
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-            child: Text(l10n.get('changePassword'), style: const TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            child: Text(l10n.get('changePassword'), style: TextStyle(color: AppColors.textWhite)),
           ),
         ],
       ),
@@ -591,28 +649,29 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(l10n.get('privacySettings')),
+        backgroundColor: AppColors.surface,
+        title: Text(l10n.get('privacySettings'), style: TextStyle(color: AppColors.textDark)),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(l10n.get('privacySettingsContent')),
+              Text(l10n.get('privacySettingsContent'), style: TextStyle(color: AppColors.textGray)),
               const SizedBox(height: 16),
               ListTile(
-                leading: const Icon(Icons.public),
-                title: Text(l10n.get('public')),
-                subtitle: Text(l10n.get('publicDesc')),
+                leading: Icon(Icons.public, color: AppColors.primary),
+                title: Text(l10n.get('public'), style: TextStyle(color: AppColors.textDark)),
+                subtitle: Text(l10n.get('publicDesc'), style: TextStyle(color: AppColors.textGray)),
               ),
               ListTile(
-                leading: const Icon(Icons.people),
-                title: Text(l10n.get('communityOnly')),
-                subtitle: Text(l10n.get('communityOnlyDesc')),
+                leading: Icon(Icons.people, color: AppColors.primary),
+                title: Text(l10n.get('communityOnly'), style: TextStyle(color: AppColors.textDark)),
+                subtitle: Text(l10n.get('communityOnlyDesc'), style: TextStyle(color: AppColors.textGray)),
               ),
               ListTile(
-                leading: const Icon(Icons.lock),
-                title: Text(l10n.get('private')),
-                subtitle: Text(l10n.get('privateDesc')),
+                leading: Icon(Icons.lock, color: AppColors.primary),
+                title: Text(l10n.get('private'), style: TextStyle(color: AppColors.textDark)),
+                subtitle: Text(l10n.get('privateDesc'), style: TextStyle(color: AppColors.textGray)),
               ),
             ],
           ),
@@ -620,7 +679,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(l10n.get('close')),
+            child: Text(l10n.get('close'), style: TextStyle(color: AppColors.textGray)),
           ),
         ],
       ),
@@ -633,6 +692,10 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
 
     showModalBottomSheet(
       context: context,
+      backgroundColor: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (context) => Container(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -640,7 +703,11 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
           children: [
             Text(
               l10n.get('selectLanguage'),
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textDark,
+              ),
             ),
             const SizedBox(height: 20),
             _buildLanguageOption(l10n.get('english'), !isArabic, 'en', l10n),
@@ -652,8 +719,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                 onPressed: () {
                   Navigator.pop(context);
                 },
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-                child: Text(l10n.get('apply'), style: const TextStyle(color: Colors.white)),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                child: Text(l10n.get('apply'), style: TextStyle(color: AppColors.textWhite)),
               ),
             ),
           ],
@@ -664,10 +731,11 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
 
   Widget _buildLanguageOption(String language, bool isSelected, String languageCode, AppLocalizations l10n) {
     return ListTile(
-      title: Text(language),
-      trailing: isSelected ? const Icon(Icons.check, color: Colors.teal) : null,
+      title: Text(language, style: TextStyle(color: AppColors.textDark)),
+      trailing: isSelected ? Icon(Icons.check, color: AppColors.primary) : null,
+      tileColor: isSelected ? AppColors.accent1 : null,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       onTap: () async {
-        // تغيير اللغة فوراً
         final newLocale = Locale(languageCode);
         MyApp.of(context).setLocale(newLocale);
         await LanguageService.setLanguage(languageCode);
@@ -686,7 +754,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(l10n.get('textSize')),
+        backgroundColor: AppColors.surface,
+        title: Text(l10n.get('textSize'), style: TextStyle(color: AppColors.textDark)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -698,15 +767,15 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(l10n.get('cancel')),
+            child: Text(l10n.get('cancel'), style: TextStyle(color: AppColors.textGray)),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
               _showSuccessMessage(l10n.get('textSizeUpdated'));
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-            child: Text(l10n.get('apply'), style: const TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            child: Text(l10n.get('apply'), style: TextStyle(color: AppColors.textWhite)),
           ),
         ],
       ),
@@ -715,8 +784,10 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
 
   Widget _buildTextSizeOption(String size, bool isSelected) {
     return ListTile(
-      title: Text(size),
-      trailing: isSelected ? const Icon(Icons.check, color: Colors.teal) : null,
+      title: Text(size, style: TextStyle(color: AppColors.textDark)),
+      trailing: isSelected ? Icon(Icons.check, color: AppColors.primary) : null,
+      tileColor: isSelected ? AppColors.accent1 : null,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       onTap: () {
         // Handle text size selection
       },
@@ -727,7 +798,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(l10n.get('selectTheme')),
+        backgroundColor: AppColors.surface,
+        title: Text(l10n.get('selectTheme'), style: TextStyle(color: AppColors.textDark)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -739,15 +811,15 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(l10n.get('cancel')),
+            child: Text(l10n.get('cancel'), style: TextStyle(color: AppColors.textGray)),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
               _showSuccessMessage(l10n.get('themeChanged'));
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-            child: Text(l10n.get('apply'), style: const TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            child: Text(l10n.get('apply'), style: TextStyle(color: AppColors.textWhite)),
           ),
         ],
       ),
@@ -756,9 +828,11 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
 
   Widget _buildThemeOption(String theme, IconData icon, bool isSelected) {
     return ListTile(
-      leading: Icon(icon),
-      title: Text(theme),
-      trailing: isSelected ? const Icon(Icons.check, color: Colors.teal) : null,
+      leading: Icon(icon, color: AppColors.primary),
+      title: Text(theme, style: TextStyle(color: AppColors.textDark)),
+      trailing: isSelected ? Icon(Icons.check, color: AppColors.primary) : null,
+      tileColor: isSelected ? AppColors.accent1 : null,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       onTap: () {
         // Handle theme selection
       },
@@ -769,20 +843,21 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(l10n.get('downloadYourData')),
-        content: Text(l10n.get('downloadDataContent')),
+        backgroundColor: AppColors.surface,
+        title: Text(l10n.get('downloadYourData'), style: TextStyle(color: AppColors.textDark)),
+        content: Text(l10n.get('downloadDataContent'), style: TextStyle(color: AppColors.textGray)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(l10n.get('cancel')),
+            child: Text(l10n.get('cancel'), style: TextStyle(color: AppColors.textGray)),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
               _showSuccessMessage(l10n.get('dataExportStarted'));
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-            child: Text(l10n.get('download'), style: const TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            child: Text(l10n.get('download'), style: TextStyle(color: AppColors.textWhite)),
           ),
         ],
       ),
@@ -793,7 +868,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(l10n.get('storageUsage')),
+        backgroundColor: AppColors.surface,
+        title: Text(l10n.get('storageUsage'), style: TextStyle(color: AppColors.textDark)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -803,13 +879,14 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
             _buildStorageItem(l10n.get('cache'), '45 MB'),
             _buildStorageItem(l10n.get('appData'), '35 MB'),
             const SizedBox(height: 16),
-            Text('${l10n.get('total')}: 245 MB', style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text('${l10n.get('total')}: 245 MB',
+                style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark)),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(l10n.get('close')),
+            child: Text(l10n.get('close'), style: TextStyle(color: AppColors.textGray)),
           ),
         ],
       ),
@@ -822,8 +899,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(type),
-          Text(size, style: const TextStyle(fontWeight: FontWeight.w500)),
+          Text(type, style: TextStyle(color: AppColors.textDark)),
+          Text(size, style: TextStyle(fontWeight: FontWeight.w500, color: AppColors.textDark)),
         ],
       ),
     );
@@ -833,20 +910,21 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(l10n.get('clearCache')),
-        content: Text(l10n.get('clearCacheContent')),
+        backgroundColor: AppColors.surface,
+        title: Text(l10n.get('clearCache'), style: TextStyle(color: AppColors.textDark)),
+        content: Text(l10n.get('clearCacheContent'), style: TextStyle(color: AppColors.textGray)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(l10n.get('cancel')),
+            child: Text(l10n.get('cancel'), style: TextStyle(color: AppColors.textGray)),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
               _showSuccessMessage(l10n.get('cacheClearedSuccessfully'));
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-            child: Text(l10n.get('clearCache'), style: const TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            child: Text(l10n.get('clearCache'), style: TextStyle(color: AppColors.textWhite)),
           ),
         ],
       ),
@@ -877,11 +955,12 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(l10n.get('contactSupport')),
+        backgroundColor: AppColors.surface,
+        title: Text(l10n.get('contactSupport'), style: TextStyle(color: AppColors.textDark)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(l10n.get('contactSupportContent')),
+            Text(l10n.get('contactSupportContent'), style: TextStyle(color: AppColors.textGray)),
             const SizedBox(height: 16),
             _buildContactOption(Icons.email, l10n.get('emailSupport'), 'support@jusoor.com', l10n),
             _buildContactOption(Icons.phone, l10n.get('phoneSupport'), '+962 6 123 4567', l10n),
@@ -891,7 +970,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(l10n.get('close')),
+            child: Text(l10n.get('close'), style: TextStyle(color: AppColors.textGray)),
           ),
         ],
       ),
@@ -900,9 +979,9 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
 
   Widget _buildContactOption(IconData icon, String title, String subtitle, AppLocalizations l10n) {
     return ListTile(
-      leading: Icon(icon, color: Colors.teal),
-      title: Text(title),
-      subtitle: Text(subtitle),
+      leading: Icon(icon, color: AppColors.primary),
+      title: Text(title, style: TextStyle(color: AppColors.textDark)),
+      subtitle: Text(subtitle, style: TextStyle(color: AppColors.textGray)),
       onTap: () {
         Navigator.pop(context);
         _showSuccessMessage('${l10n.get('opening')} $title');
@@ -914,21 +993,38 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(l10n.get('sendFeedback')),
+        backgroundColor: AppColors.surface,
+        title: Text(l10n.get('sendFeedback'), style: TextStyle(color: AppColors.textDark)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               decoration: InputDecoration(
                 labelText: l10n.get('subject'),
-                border: const OutlineInputBorder(),
+                labelStyle: TextStyle(color: AppColors.textGray),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.primary),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.primary),
+                ),
               ),
             ),
             const SizedBox(height: 10),
             TextField(
               decoration: InputDecoration(
                 labelText: l10n.get('yourFeedback'),
-                border: const OutlineInputBorder(),
+                labelStyle: TextStyle(color: AppColors.textGray),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.primary),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppColors.primary),
+                ),
               ),
               maxLines: 5,
             ),
@@ -947,15 +1043,15 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(l10n.get('cancel')),
+            child: Text(l10n.get('cancel'), style: TextStyle(color: AppColors.textGray)),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
               _showSuccessMessage(l10n.get('thankYouForFeedback'));
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-            child: Text(l10n.get('sendFeedback'), style: const TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            child: Text(l10n.get('sendFeedback'), style: TextStyle(color: AppColors.textWhite)),
           ),
         ],
       ),
@@ -978,20 +1074,21 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(l10n.get('exportAllData')),
-        content: Text(l10n.get('exportDataContent')),
+        backgroundColor: AppColors.surface,
+        title: Text(l10n.get('exportAllData'), style: TextStyle(color: AppColors.textDark)),
+        content: Text(l10n.get('exportDataContent'), style: TextStyle(color: AppColors.textGray)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(l10n.get('cancel')),
+            child: Text(l10n.get('cancel'), style: TextStyle(color: AppColors.textGray)),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
               _showSuccessMessage(l10n.get('dataExportStartedEmail'));
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-            child: Text(l10n.get('exportData'), style: const TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            child: Text(l10n.get('exportData'), style: TextStyle(color: AppColors.textWhite)),
           ),
         ],
       ),
@@ -1002,17 +1099,18 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(l10n.get('deleteAccount')),
-        content: Text(l10n.get('deleteAccountContent')),
+        backgroundColor: AppColors.surface,
+        title: Text(l10n.get('deleteAccount'), style: TextStyle(color: AppColors.textDark)),
+        content: Text(l10n.get('deleteAccountContent'), style: TextStyle(color: AppColors.textGray)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(l10n.get('cancel')),
+            child: Text(l10n.get('cancel'), style: TextStyle(color: AppColors.textGray)),
           ),
           ElevatedButton(
             onPressed: () => _deleteAccount(l10n),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: Text(l10n.get('deleteAccount'), style: const TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            child: Text(l10n.get('deleteAccount'), style: TextStyle(color: AppColors.textWhite)),
           ),
         ],
       ),
@@ -1020,7 +1118,6 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   }
 
   void _deleteAccount(AppLocalizations l10n) {
-    // TODO: Implement account deletion
     Navigator.pop(context); // Close dialog
     _showSuccessMessage(l10n.get('accountDeletionStarted'));
   }
@@ -1029,8 +1126,10 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.green,
+        backgroundColor: AppColors.success,
         duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }

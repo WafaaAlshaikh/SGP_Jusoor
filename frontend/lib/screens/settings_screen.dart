@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:frontend/screens/profile_screen.dart';
+import '../theme/app_colors.dart'; // ✅ استيراد الألوان الجديدة
+
 class SettingsScreen extends StatefulWidget {
   @override
   _SettingsScreenState createState() => _SettingsScreenState();
@@ -46,8 +48,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Settings saved successfully'),
-        backgroundColor: Color(0xFF7815A0),
+        content: Text(
+          'Settings saved successfully',
+          style: TextStyle(fontWeight: FontWeight.w500),
+        ),
+        backgroundColor: AppColors.success,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -55,21 +62,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFFFAF5FF),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(
           'Settings',
           style: TextStyle(
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w700,
             color: Colors.white,
+            fontSize: 20,
           ),
         ),
-        backgroundColor: Color(0xFF7815A0),
+        backgroundColor: AppColors.primary,
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.white),
         actions: [
           IconButton(
-            icon: Icon(Icons.save),
+            icon: Icon(Icons.save, size: 22),
             onPressed: _saveSettings,
             tooltip: 'Save Settings',
           ),
@@ -311,7 +319,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: ElevatedButton(
                 onPressed: _saveSettings,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF7815A0),
+                  backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                   padding: EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
@@ -323,7 +331,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   'Save All Settings',
                   style: TextStyle(
                     fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -344,13 +352,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       width: double.infinity,
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black12,
-            blurRadius: 10,
-            offset: Offset(0, 3),
+            blurRadius: 8,
+            offset: Offset(0, 2),
           ),
         ],
       ),
@@ -359,23 +367,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           Row(
             children: [
-              Icon(
-                icon,
-                color: Color(0xFF7815A0),
-                size: 24,
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
               ),
-              SizedBox(width: 10),
+              SizedBox(width: 12),
               Text(
                 title,
                 style: TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF2D3748),
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textDark,
                 ),
               ),
             ],
           ),
-          SizedBox(height: 15),
+          SizedBox(height: 16),
           ...children,
         ],
       ),
@@ -396,36 +411,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
           padding: EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: isDestructive
-                ? Colors.red.withOpacity(0.1)
-                : Color(0xFF7815A0).withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
+                ? AppColors.error.withOpacity(0.1)
+                : AppColors.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(
             icon,
-            color: isDestructive ? Colors.red : Color(0xFF7815A0),
+            color: isDestructive ? AppColors.error : AppColors.primary,
             size: 20,
           ),
         ),
         title: Text(
           title,
           style: TextStyle(
-            color: isDestructive ? Colors.red : Color(0xFF2D3748),
-            fontWeight: FontWeight.w500,
+            color: isDestructive ? AppColors.error : AppColors.textDark,
+            fontWeight: FontWeight.w600,
+            fontSize: 15,
           ),
         ),
         subtitle: Text(
           subtitle,
           style: TextStyle(
-            color: Color(0xFF718096),
-            fontSize: 12,
+            color: AppColors.textGray,
+            fontSize: 13,
           ),
         ),
         trailing: Icon(
           Icons.arrow_forward_ios,
-          color: Color(0xFFA0AEC0),
+          color: AppColors.textLight,
           size: 16,
         ),
         onTap: onTap,
+        contentPadding: EdgeInsets.symmetric(horizontal: 4),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
       ),
     );
   }
@@ -443,33 +463,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
         leading: Container(
           padding: EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Color(0xFF7815A0).withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
+            color: AppColors.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(
             icon,
-            color: Color(0xFF7815A0),
+            color: AppColors.primary,
             size: 20,
           ),
         ),
         title: Text(
           title,
           style: TextStyle(
-            color: Color(0xFF2D3748),
-            fontWeight: FontWeight.w500,
+            color: AppColors.textDark,
+            fontWeight: FontWeight.w600,
+            fontSize: 15,
           ),
         ),
         subtitle: Text(
           subtitle,
           style: TextStyle(
-            color: Color(0xFF718096),
-            fontSize: 12,
+            color: AppColors.textGray,
+            fontSize: 13,
           ),
         ),
         trailing: Switch(
           value: value,
           onChanged: onChanged,
-          activeColor: Color(0xFF7815A0),
+          activeColor: AppColors.primary,
+          activeTrackColor: AppColors.primary.withOpacity(0.5),
+        ),
+        contentPadding: EdgeInsets.symmetric(horizontal: 4),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
         ),
       ),
     );
@@ -489,38 +515,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
         leading: Container(
           padding: EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Color(0xFF7815A0).withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
+            color: AppColors.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(
             icon,
-            color: Color(0xFF7815A0),
+            color: AppColors.primary,
             size: 20,
           ),
         ),
         title: Text(
           title,
           style: TextStyle(
-            color: Color(0xFF2D3748),
-            fontWeight: FontWeight.w500,
+            color: AppColors.textDark,
+            fontWeight: FontWeight.w600,
+            fontSize: 15,
           ),
         ),
         subtitle: Text(
           subtitle,
           style: TextStyle(
-            color: Color(0xFF718096),
-            fontSize: 12,
+            color: AppColors.textGray,
+            fontSize: 13,
           ),
         ),
-        trailing: DropdownButton<String>(
-          value: value,
-          onChanged: onChanged,
-          items: items.map((String item) {
-            return DropdownMenuItem<String>(
-              value: item,
-              child: Text(item),
-            );
-          }).toList(),
+        trailing: Container(
+          width: 120,
+          child: DropdownButton<String>(
+            value: value,
+            onChanged: onChanged,
+            isExpanded: true,
+            style: TextStyle(
+              color: AppColors.textDark,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+            items: items.map((String item) {
+              return DropdownMenuItem<String>(
+                value: item,
+                child: Text(item),
+              );
+            }).toList(),
+            underline: SizedBox(),
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        contentPadding: EdgeInsets.symmetric(horizontal: 4),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
         ),
       ),
     );
@@ -530,26 +572,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Clear Cache'),
-        content: Text('This will free up storage space by removing temporary files. Your personal data will not be affected.'),
+        title: Text(
+          'Clear Cache',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: AppColors.textDark,
+          ),
+        ),
+        content: Text(
+          'This will free up storage space by removing temporary files. Your personal data will not be affected.',
+          style: TextStyle(color: AppColors.textGray),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textGray),
+            ),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Cache cleared successfully'),
-                  backgroundColor: Colors.green,
+                  content: Text(
+                    'Cache cleared successfully',
+                    style: TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                  backgroundColor: AppColors.success,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               );
             },
-            child: Text('Clear Cache'),
+            child: Text(
+              'Clear Cache',
+              style: TextStyle(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     );
   }
@@ -558,12 +624,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Sign Out'),
-        content: Text('Are you sure you want to sign out?'),
+        title: Text(
+          'Sign Out',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: AppColors.textDark,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to sign out?',
+          style: TextStyle(color: AppColors.textGray),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textGray),
+            ),
           ),
           TextButton(
             onPressed: () {
@@ -571,14 +649,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
               // Implement sign out logic
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Signed out successfully'),
-                  backgroundColor: Colors.green,
+                  content: Text(
+                    'Signed out successfully',
+                    style: TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                  backgroundColor: AppColors.success,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               );
             },
-            child: Text('Sign Out'),
+            child: Text(
+              'Sign Out',
+              style: TextStyle(
+                color: AppColors.error,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     );
   }
@@ -587,12 +677,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Delete Account'),
-        content: Text('This action cannot be undone. All your data will be permanently deleted.'),
+        title: Text(
+          'Delete Account',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: AppColors.textDark,
+          ),
+        ),
+        content: Text(
+          'This action cannot be undone. All your data will be permanently deleted.',
+          style: TextStyle(color: AppColors.textGray),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textGray),
+            ),
           ),
           TextButton(
             onPressed: () {
@@ -600,17 +702,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
               // Implement delete account logic
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Account deletion request sent'),
-                  backgroundColor: Colors.orange,
+                  content: Text(
+                    'Account deletion request sent',
+                    style: TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                  backgroundColor: AppColors.warning,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               );
             },
             child: Text(
               'Delete Account',
-              style: TextStyle(color: Colors.red),
+              style: TextStyle(
+                color: AppColors.error,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     );
   }

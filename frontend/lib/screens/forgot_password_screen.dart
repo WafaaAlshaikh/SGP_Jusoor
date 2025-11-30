@@ -1,6 +1,6 @@
-// forgot_password_screen.dart
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../theme/app_colors.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   @override
@@ -19,7 +19,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     final email = _emailController.text.trim();
     if (email.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please enter your email'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Please enter your email'),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
@@ -33,14 +36,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       if (response is Map<String, dynamic>) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(response['message'] ?? 'Code sent'),
+            content: Text(response['message'] ?? 'Verification code sent to your email'),
             backgroundColor: Colors.green,
           ),
         );
 
         setState(() => codeSent = true);
 
-        // التركيز التلقائي على الكود بعد ظهوره
         Future.delayed(Duration(milliseconds: 100), () {
           FocusScope.of(context).requestFocus(_codeFocusNode);
         });
@@ -55,7 +57,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     } catch (e) {
       print('Error sending code: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       setState(() => isLoading = false);
@@ -68,7 +73,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     if (code.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please enter the code'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Please enter the code'),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
@@ -81,7 +89,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
       if (response is Map<String, dynamic>) {
         final message = response['message'] ?? '';
-        final success = message.toLowerCase().contains('verified'); // أي رد يحتوي على كلمة verified يعتبر نجاح
+        final success = message.toLowerCase().contains('verified');
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -102,7 +110,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             );
           });
         }
-
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -114,7 +121,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     } catch (e) {
       print('Error verifying code: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       setState(() => isLoading = false);
@@ -131,55 +141,283 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isWeb = MediaQuery.of(context).size.width > 600;
+
     return Scaffold(
-      appBar: AppBar(title: Text('Forgot Password')),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            TextField(
-              controller: _emailController,
-              keyboardType: TextInputType.emailAddress,
-              decoration: InputDecoration(
-                labelText: 'Enter your email',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      backgroundColor: AppColors.backgroundColor,
+      body: SafeArea(
+        child: Center(
+          child: Container(
+            width: isWeb ? 500 : double.infinity,
+            padding: EdgeInsets.symmetric(
+              horizontal: isWeb ? 40 : 30,
+              vertical: isWeb ? 20 : 40,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Header Section
+                  Container(
+                    margin: EdgeInsets.only(bottom: isWeb ? 40 : 30),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.lock_reset_rounded,
+                          size: isWeb ? 80 : 70,
+                          color: AppColors.primary,
+                        ),
+                        SizedBox(height: 20),
+                        Text(
+                          'Forgot Password?',
+                          style: TextStyle(
+                            fontSize: isWeb ? 32 : 28,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textDark,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          codeSent
+                              ? 'Enter the verification code sent to your email'
+                              : 'Enter your email to reset your password',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: isWeb ? 16 : 14,
+                            color: AppColors.textGray,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Form Card
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 25,
+                          offset: Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    padding: EdgeInsets.all(isWeb ? 35 : 25),
+                    child: Column(
+                      children: [
+                        // Email Field
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Email Address',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: isWeb ? 16 : 14,
+                                color: AppColors.textDark,
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            TextFormField(
+                              controller: _emailController,
+                              keyboardType: TextInputType.emailAddress,
+                              decoration: InputDecoration(
+                                hintText: 'your@email.com',
+                                hintStyle: TextStyle(color: AppColors.textGray),
+                                filled: true,
+                                fillColor: AppColors.backgroundColor.withOpacity(0.5),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: AppColors.primary, width: 2),
+                                ),
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: isWeb ? 16 : 14,
+                                ),
+                                prefixIcon: Icon(
+                                  Icons.email_outlined,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: isWeb ? 25 : 20),
+
+                        // Code Field (ظهر فقط بعد إرسال الكود)
+                        if (codeSent)
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Verification Code',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: isWeb ? 16 : 14,
+                                  color: AppColors.textDark,
+                                ),
+                              ),
+                              SizedBox(height: 8),
+                              TextFormField(
+                                controller: _codeController,
+                                focusNode: _codeFocusNode,
+                                keyboardType: TextInputType.number,
+                                textInputAction: TextInputAction.done,
+                                decoration: InputDecoration(
+                                  hintText: 'Enter 6-digit code',
+                                  hintStyle: TextStyle(color: AppColors.textGray),
+                                  filled: true,
+                                  fillColor: AppColors.backgroundColor.withOpacity(0.5),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: AppColors.primary, width: 2),
+                                  ),
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: isWeb ? 16 : 14,
+                                  ),
+                                  prefixIcon: Icon(
+                                    Icons.lock_outline,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Icon(Icons.info_outline, size: 14, color: AppColors.textGray),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Check your email for the verification code',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textGray,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+
+                        SizedBox(height: isWeb ? 30 : 25),
+
+                        // Action Button
+                        Container(
+                          width: double.infinity,
+                          height: isWeb ? 55 : 50,
+                          decoration: BoxDecoration(
+                            color: AppColors.buttonColor,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.buttonColor.withOpacity(0.3),
+                                blurRadius: 10,
+                                offset: Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              shadowColor: Colors.transparent,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            onPressed: isLoading ? null : codeSent ? verifyCode : sendCode,
+                            child: isLoading
+                                ? SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(color: Colors.white),
+                            )
+                                : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  codeSent ? Icons.verified_outlined : Icons.send_outlined,
+                                  color: Colors.white,
+                                  size: isWeb ? 20 : 18,
+                                ),
+                                SizedBox(width: 10),
+                                Text(
+                                  codeSent ? 'Verify Code' : 'Send Code',
+                                  style: TextStyle(
+                                    fontSize: isWeb ? 16 : 14,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        SizedBox(height: isWeb ? 20 : 16),
+
+                        // Back to Login
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              "Remember your password? ",
+                              style: TextStyle(
+                                color: AppColors.textGray,
+                                fontSize: isWeb ? 14 : 12,
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.pushReplacementNamed(context, '/login');
+                              },
+                              child: Text(
+                                'Log In',
+                                style: TextStyle(
+                                  color: AppColors.buttonColor,
+                                  fontSize: isWeb ? 14 : 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Bottom decorative element
+                  SizedBox(height: isWeb ? 40 : 30),
+                  Container(
+                    width: 100,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.buttonColor,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ],
               ),
             ),
-            SizedBox(height: 20),
-            if (codeSent)
-              TextField(
-                controller: _codeController,
-                focusNode: _codeFocusNode,
-                keyboardType: TextInputType.number,
-                textInputAction: TextInputAction.done,
-                decoration: InputDecoration(
-                  labelText: 'Enter code sent to your email',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: isLoading
-                    ? null
-                    : codeSent
-                    ? verifyCode
-                    : sendCode,
-                style: ElevatedButton.styleFrom(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: isLoading
-                    ? CircularProgressIndicator(color: Colors.white)
-                    : Text(
-                  codeSent ? 'Verify Code' : 'Send Code',
-                  style: TextStyle(fontSize: 16),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

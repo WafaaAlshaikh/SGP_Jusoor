@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
+import '../theme/app_colors.dart'; // ✅ استيراد الألوان الجديدة
 
 class AboutScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFFFAF5FF),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(
           'About Us',
           style: TextStyle(
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w700,
             color: Colors.white,
+            fontSize: 20,
           ),
         ),
-        backgroundColor: Color(0xFF7815A0),
+        backgroundColor: AppColors.primary,
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.white),
       ),
@@ -56,7 +58,7 @@ class AboutScreen extends StatelessWidget {
       padding: EdgeInsets.all(25),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF7815A0), Color(0xFF9F7AEA)],
+          colors: [AppColors.primary, AppColors.primaryLight],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -71,17 +73,24 @@ class AboutScreen extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.favorite,
-            color: Colors.white,
-            size: 50,
+          Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.favorite,
+              color: Colors.white,
+              size: 40,
+            ),
           ),
           SizedBox(height: 15),
           Text(
             'Special Needs Support Community',
             style: TextStyle(
               fontSize: 22,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w700,
               color: Colors.white,
             ),
             textAlign: TextAlign.center,
@@ -92,6 +101,7 @@ class AboutScreen extends StatelessWidget {
             style: TextStyle(
               fontSize: 16,
               color: Colors.white.withOpacity(0.9),
+              fontWeight: FontWeight.w500,
             ),
             textAlign: TextAlign.center,
           ),
@@ -109,13 +119,13 @@ class AboutScreen extends StatelessWidget {
       width: double.infinity,
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black12,
-            blurRadius: 10,
-            offset: Offset(0, 3),
+            blurRadius: 8,
+            offset: Offset(0, 2),
           ),
         ],
       ),
@@ -124,18 +134,25 @@ class AboutScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                icon,
-                color: Color(0xFF7815A0),
-                size: 24,
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: AppColors.primary,
+                  size: 22,
+                ),
               ),
-              SizedBox(width: 10),
+              SizedBox(width: 12),
               Text(
                 title,
                 style: TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF2D3748),
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textDark,
                 ),
               ),
             ],
@@ -145,8 +162,9 @@ class AboutScreen extends StatelessWidget {
             content,
             style: TextStyle(
               fontSize: 15,
-              color: Color(0xFF4A5568),
+              color: AppColors.textGray,
               height: 1.5,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -159,13 +177,13 @@ class AboutScreen extends StatelessWidget {
       width: double.infinity,
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black12,
-            blurRadius: 10,
-            offset: Offset(0, 3),
+            blurRadius: 8,
+            offset: Offset(0, 2),
           ),
         ],
       ),
@@ -174,23 +192,30 @@ class AboutScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                Icons.star,
-                color: Color(0xFF7815A0),
-                size: 24,
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.star,
+                  color: AppColors.primary,
+                  size: 22,
+                ),
               ),
-              SizedBox(width: 10),
+              SizedBox(width: 12),
               Text(
                 'What We Offer',
                 style: TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF2D3748),
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textDark,
                 ),
               ),
             ],
           ),
-          SizedBox(height: 15),
+          SizedBox(height: 16),
           _buildFeatureItem('Community Support', 'Connect with other parents and specialists'),
           _buildFeatureItem('Resource Sharing', 'Share experiences, tips, and resources'),
           _buildFeatureItem('Expert Guidance', 'Get advice from qualified specialists'),
@@ -202,14 +227,21 @@ class AboutScreen extends StatelessWidget {
 
   Widget _buildFeatureItem(String title, String subtitle) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
+      padding: EdgeInsets.symmetric(vertical: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.check_circle,
-            color: Color(0xFF48BB78),
-            size: 20,
+          Container(
+            padding: EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: AppColors.success.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.check_circle,
+              color: AppColors.success,
+              size: 18,
+            ),
           ),
           SizedBox(width: 12),
           Expanded(
@@ -220,15 +252,15 @@ class AboutScreen extends StatelessWidget {
                   title,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF2D3748),
+                    color: AppColors.textDark,
                     fontSize: 15,
                   ),
                 ),
-                SizedBox(height: 2),
+                SizedBox(height: 4),
                 Text(
                   subtitle,
                   style: TextStyle(
-                    color: Color(0xFF718096),
+                    color: AppColors.textGray,
                     fontSize: 13,
                   ),
                 ),
@@ -245,13 +277,13 @@ class AboutScreen extends StatelessWidget {
       width: double.infinity,
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black12,
-            blurRadius: 10,
-            offset: Offset(0, 3),
+            blurRadius: 8,
+            offset: Offset(0, 2),
           ),
         ],
       ),
@@ -260,35 +292,43 @@ class AboutScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                Icons.people,
-                color: Color(0xFF7815A0),
-                size: 24,
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.people,
+                  color: AppColors.primary,
+                  size: 22,
+                ),
               ),
-              SizedBox(width: 10),
+              SizedBox(width: 12),
               Text(
                 'Our Team',
                 style: TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF2D3748),
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textDark,
                 ),
               ),
             ],
           ),
-          SizedBox(height: 15),
+          SizedBox(height: 16),
           Text(
             'We are a dedicated team of developers, specialists, and community managers committed to creating a positive impact in the special needs community.',
             style: TextStyle(
               fontSize: 15,
-              color: Color(0xFF4A5568),
+              color: AppColors.textGray,
               height: 1.5,
+              fontWeight: FontWeight.w500,
             ),
           ),
-          SizedBox(height: 15),
+          SizedBox(height: 16),
           Wrap(
-            spacing: 15,
-            runSpacing: 15,
+            spacing: 12,
+            runSpacing: 12,
             children: [
               _buildTeamMember('Development Team', 'Flutter Experts'),
               _buildTeamMember('Specialists', 'Child Development Experts'),
@@ -302,20 +342,21 @@ class AboutScreen extends StatelessWidget {
 
   Widget _buildTeamMember(String name, String role) {
     return Container(
-      padding: EdgeInsets.all(12),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Color(0xFFFAF5FF),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Color(0xFFE9D8FD)),
+        color: AppColors.accent1,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.accent2),
       ),
       child: Column(
         children: [
           CircleAvatar(
             radius: 25,
-            backgroundColor: Color(0xFF7815A0).withOpacity(0.1),
+            backgroundColor: AppColors.primary.withOpacity(0.1),
             child: Icon(
               Icons.person,
-              color: Color(0xFF7815A0),
+              color: AppColors.primary,
+              size: 22,
             ),
           ),
           SizedBox(height: 8),
@@ -323,16 +364,19 @@ class AboutScreen extends StatelessWidget {
             name,
             style: TextStyle(
               fontWeight: FontWeight.w600,
-              color: Color(0xFF2D3748),
+              color: AppColors.textDark,
               fontSize: 13,
             ),
+            textAlign: TextAlign.center,
           ),
+          SizedBox(height: 4),
           Text(
             role,
             style: TextStyle(
-              color: Color(0xFF718096),
+              color: AppColors.textGray,
               fontSize: 11,
             ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -344,13 +388,13 @@ class AboutScreen extends StatelessWidget {
       width: double.infinity,
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black12,
-            blurRadius: 10,
-            offset: Offset(0, 3),
+            blurRadius: 8,
+            offset: Offset(0, 2),
           ),
         ],
       ),
@@ -359,33 +403,48 @@ class AboutScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                Icons.contact_support,
-                color: Color(0xFF7815A0),
-                size: 24,
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.contact_support,
+                  color: AppColors.primary,
+                  size: 22,
+                ),
               ),
-              SizedBox(width: 10),
+              SizedBox(width: 12),
               Text(
                 'Contact Us',
                 style: TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF2D3748),
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textDark,
                 ),
               ),
             ],
           ),
-          SizedBox(height: 15),
+          SizedBox(height: 16),
           _buildContactItem(Icons.email, 'support@specialneeds.com'),
           _buildContactItem(Icons.phone, '+1 (555) 123-4567'),
           _buildContactItem(Icons.language, 'www.specialneeds-support.com'),
-          SizedBox(height: 15),
-          Text(
-            'We\'re here to help! Reach out to us for any questions or support.',
-            style: TextStyle(
-              fontSize: 14,
-              color: Color(0xFF718096),
-              fontStyle: FontStyle.italic,
+          SizedBox(height: 16),
+          Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.accent1,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              'We\'re here to help! Reach out to us for any questions or support.',
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.textGray,
+                fontStyle: FontStyle.italic,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
@@ -395,20 +454,28 @@ class AboutScreen extends StatelessWidget {
 
   Widget _buildContactItem(IconData icon, String text) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
+      padding: EdgeInsets.symmetric(vertical: 10),
       child: Row(
         children: [
-          Icon(
-            icon,
-            color: Color(0xFF7815A0),
-            size: 20,
+          Container(
+            padding: EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon,
+              color: AppColors.primary,
+              size: 18,
+            ),
           ),
           SizedBox(width: 12),
           Text(
             text,
             style: TextStyle(
-              color: Color(0xFF4A5568),
+              color: AppColors.textDark,
               fontSize: 15,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],

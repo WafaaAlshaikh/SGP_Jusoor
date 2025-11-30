@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/session.dart';
 import '../services/api_service.dart';
-import '../utils/app_colors.dart';
+import '../theme/app_colors.dart';
 
 class RescheduleBottomSheet extends StatefulWidget {
   final Session session;
@@ -50,7 +50,11 @@ class _RescheduleBottomSheetState extends State<RescheduleBottomSheet> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to load available slots: ${e.toString()}'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
         ),
       );
     } finally {
@@ -61,9 +65,13 @@ class _RescheduleBottomSheetState extends State<RescheduleBottomSheet> {
   Future<void> _rescheduleSession() async {
     if (_selectedDate == null || _selectedTime == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select both date and time'),
-          backgroundColor: Colors.orange,
+        SnackBar(
+          content: const Text('Please select both date and time'),
+          backgroundColor: AppColors.warning,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
         ),
       );
       return;
@@ -82,7 +90,11 @@ class _RescheduleBottomSheetState extends State<RescheduleBottomSheet> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Cannot reschedule - Current status: ${widget.session.displayStatus ?? widget.session.status}'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
         ),
       );
       return;
@@ -111,9 +123,13 @@ class _RescheduleBottomSheetState extends State<RescheduleBottomSheet> {
       if (success) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Session rescheduled successfully'),
-              backgroundColor: Colors.green,
+            SnackBar(
+              content: const Text('Session rescheduled successfully ✅'),
+              backgroundColor: AppColors.success,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
           );
           Navigator.pop(context);
@@ -127,7 +143,11 @@ class _RescheduleBottomSheetState extends State<RescheduleBottomSheet> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to reschedule: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
         );
       }
@@ -138,7 +158,7 @@ class _RescheduleBottomSheetState extends State<RescheduleBottomSheet> {
     }
   }
 
-// ✅ دالة لتحويل الوقت من AM/PM إلى 24 ساعة
+  // ✅ دالة لتحويل الوقت من AM/PM إلى 24 ساعة
   String _convertTo24HourFormat(String time12Hour) {
     try {
       // إزالة المسافات الزائدة وتحويل للحروف الصغيرة
@@ -177,14 +197,21 @@ class _RescheduleBottomSheetState extends State<RescheduleBottomSheet> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: MediaQuery.of(context).size.height * 0.75,
+      height: MediaQuery.of(context).size.height * 0.85,
       padding: const EdgeInsets.all(24),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(24),
           topRight: Radius.circular(24),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -199,11 +226,13 @@ class _RescheduleBottomSheetState extends State<RescheduleBottomSheet> {
 
           // Date Selection
           _buildDateSelection(),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
           // Time Slots
-          _buildTimeSlots(),
-          const SizedBox(height: 24),
+          Expanded(
+            child: _buildTimeSlots(),
+          ),
+          const SizedBox(height: 16),
 
           // Action Buttons
           _buildActionButtons(),
@@ -212,25 +241,53 @@ class _RescheduleBottomSheetState extends State<RescheduleBottomSheet> {
     );
   }
 
-  // ... باقي الدوال تبقى كما هي بدون تغيير ...
-  // (نفس الدوال اللي في الكود السابق)
-
   Widget _buildHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        const Text(
-          'Reschedule Session',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
+    return Container(
+      padding: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: AppColors.accent2,
+            width: 1,
           ),
         ),
-        IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Reschedule Session',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textDark,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Choose a new date and time',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textGray,
+                ),
+              ),
+            ],
+          ),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              icon: Icon(Icons.close, color: AppColors.textGray),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -238,36 +295,56 @@ class _RescheduleBottomSheetState extends State<RescheduleBottomSheet> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.blue[50],
-        borderRadius: BorderRadius.circular(12),
+        color: AppColors.accent1,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.accent2,
+          width: 1,
+        ),
       ),
       child: Row(
         children: [
-          const Icon(Icons.info, color: Colors.blue),
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.schedule_rounded,
+              color: AppColors.primary,
+              size: 24,
+            ),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Current Schedule',
                   style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   '${widget.session.date} at ${widget.session.time}',
-                  style: const TextStyle(fontSize: 14),
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textDark,
+                  ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   'With ${widget.session.specialistName}',
                   style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
+                    fontSize: 13,
+                    color: AppColors.textGray,
                   ),
                 ),
               ],
@@ -282,59 +359,82 @@ class _RescheduleBottomSheetState extends State<RescheduleBottomSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Select New Date',
           style: TextStyle(
             fontSize: 16,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textDark,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Text(
           'Choose a date within the next 30 days',
           style: TextStyle(
             fontSize: 14,
-            color: Colors.grey[600],
+            color: AppColors.textGray,
           ),
         ),
         const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[300]!),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                _selectedDate == null
-                    ? 'Choose a date'
-                    : '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: _selectedDate == null ? Colors.grey : Colors.black,
+        GestureDetector(
+          onTap: () async {
+            final date = await showDatePicker(
+              context: context,
+              initialDate: DateTime.now().add(const Duration(days: 1)),
+              firstDate: DateTime.now().add(const Duration(days: 1)),
+              lastDate: DateTime.now().add(const Duration(days: 30)),
+              builder: (context, child) {
+                return Theme(
+                  data: Theme.of(context).copyWith(
+                    colorScheme: ColorScheme.light(
+                      primary: AppColors.primary,
+                      onPrimary: AppColors.textWhite,
+                      surface: AppColors.surface,
+                      onSurface: AppColors.textDark,
+                    ),
+                  ),
+                  child: child!,
+                );
+              },
+            );
+            if (date != null) {
+              setState(() {
+                _selectedDate = date;
+                _selectedTime = null;
+              });
+              _loadAvailableSlots();
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _selectedDate == null ? AppColors.accent2 : AppColors.primary,
+                width: 1.5,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _selectedDate == null
+                      ? 'Choose a date'
+                      : '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: _selectedDate == null ? AppColors.textLight : AppColors.textDark,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.calendar_today),
-                onPressed: () async {
-                  final date = await showDatePicker(
-                    context: context,
-                    initialDate: DateTime.now().add(const Duration(days: 1)),
-                    firstDate: DateTime.now().add(const Duration(days: 1)),
-                    lastDate: DateTime.now().add(const Duration(days: 30)),
-                  );
-                  if (date != null) {
-                    setState(() {
-                      _selectedDate = date;
-                      _selectedTime = null;
-                    });
-                    _loadAvailableSlots();
-                  }
-                },
-              ),
-            ],
+                Icon(
+                  Icons.calendar_today_rounded,
+                  color: _selectedDate == null ? AppColors.textLight : AppColors.primary,
+                  size: 20,
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -342,42 +442,69 @@ class _RescheduleBottomSheetState extends State<RescheduleBottomSheet> {
   }
 
   Widget _buildTimeSlots() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Available Time Slots',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textDark,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          _selectedDate == null
+              ? 'Please select a date first'
+              : 'Available slots for ${_selectedDate!.day}/${_selectedDate!.month}',
+          style: TextStyle(
+            fontSize: 14,
+            color: AppColors.textGray,
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        if (_loadingSlots)
+          _buildLoadingState(),
+
+        if (!_loadingSlots && _selectedDate != null)
+          Expanded(
+            child: _availableSlots.isEmpty
+                ? _buildNoSlotsAvailable()
+                : _buildTimeSlotsGrid(),
+          ),
+
+        if (!_loadingSlots && _selectedDate == null)
+          _buildSelectDatePrompt(),
+      ],
+    );
+  }
+
+  Widget _buildLoadingState() {
     return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Available Time Slots',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 40,
+              height: 40,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                color: AppColors.primary,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _selectedDate == null
-                ? 'Please select a date first'
-                : 'Available slots for ${_selectedDate!.day}/${_selectedDate!.month}',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
+            const SizedBox(height: 16),
+            Text(
+              'Loading available slots...',
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.textGray,
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-
-          if (_loadingSlots)
-            const Center(child: CircularProgressIndicator()),
-
-          if (!_loadingSlots && _selectedDate != null)
-            Expanded(
-              child: _availableSlots.isEmpty
-                  ? _buildNoSlotsAvailable()
-                  : _buildTimeSlotsGrid(),
-            ),
-
-          if (!_loadingSlots && _selectedDate == null)
-            _buildSelectDatePrompt(),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -386,9 +513,9 @@ class _RescheduleBottomSheetState extends State<RescheduleBottomSheet> {
     return GridView.builder(
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-        childAspectRatio: 2.5,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 2.2,
       ),
       itemCount: _availableSlots.length,
       itemBuilder: (context, index) {
@@ -397,21 +524,30 @@ class _RescheduleBottomSheetState extends State<RescheduleBottomSheet> {
 
         return GestureDetector(
           onTap: () => setState(() => _selectedTime = slot),
-          child: Container(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
             decoration: BoxDecoration(
-              color: isSelected ? ParentAppColors.primaryTeal : Colors.grey[50],
-              borderRadius: BorderRadius.circular(8),
+              color: isSelected ? AppColors.primary : AppColors.background,
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: isSelected ? ParentAppColors.primaryTeal : Colors.grey[300]!,
+                color: isSelected ? AppColors.primary : AppColors.accent2,
+                width: isSelected ? 2 : 1,
               ),
+              boxShadow: isSelected ? [
+                BoxShadow(
+                  color: AppColors.primary.withOpacity(0.2),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ] : null,
             ),
             child: Center(
               child: Text(
                 slot,
                 style: TextStyle(
                   fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: isSelected ? Colors.white : Colors.black,
+                  fontWeight: FontWeight.w600,
+                  color: isSelected ? AppColors.textWhite : AppColors.textDark,
                 ),
               ),
             ),
@@ -426,28 +562,39 @@ class _RescheduleBottomSheetState extends State<RescheduleBottomSheet> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.schedule, size: 64, color: Colors.grey),
+          Icon(
+            Icons.schedule_rounded,
+            size: 64,
+            color: AppColors.textLight,
+          ),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             'No Available Slots',
             style: TextStyle(
               fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textGray,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'No available time slots for ${_selectedDate!.day}/${_selectedDate!.month}',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
-              color: Colors.grey,
+              color: AppColors.textLight,
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           OutlinedButton(
             onPressed: _loadAvailableSlots,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.primary,
+              side: BorderSide(color: AppColors.primary),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
             child: const Text('Try Again'),
           ),
         ],
@@ -456,66 +603,104 @@ class _RescheduleBottomSheetState extends State<RescheduleBottomSheet> {
   }
 
   Widget _buildSelectDatePrompt() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.calendar_today, size: 64, color: Colors.grey),
-          const SizedBox(height: 16),
-          const Text(
-            'Select a Date',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey,
+    return Expanded(
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.calendar_today_rounded,
+              size: 64,
+              color: AppColors.textLight,
             ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Please select a date to see available time slots',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey,
+            const SizedBox(height: 16),
+            Text(
+              'Select a Date',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textGray,
+              ),
             ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              'Please select a date to see available time slots',
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.textLight,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildActionButtons() {
-    return Row(
-      children: [
-        Expanded(
-          child: OutlinedButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+    return Container(
+      padding: const EdgeInsets.only(top: 16),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(
+            color: AppColors.accent1,
+            width: 1,
           ),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: ElevatedButton(
-            onPressed: _isLoading ? null : _rescheduleSession,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: ParentAppColors.primaryTeal,
-            ),
-            child: _isLoading
-                ? const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Colors.white,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () => Navigator.pop(context),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: BorderSide(color: AppColors.primary),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
-            )
-                : const Text(
-              'Reschedule',
-              style: TextStyle(color: Colors.white),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
-        ),
-      ],
+          const SizedBox(width: 12),
+          Expanded(
+            child: ElevatedButton(
+              onPressed: _isLoading ? null : _rescheduleSession,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.textWhite,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
+              ),
+              child: _isLoading
+                  ? SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.textWhite,
+                ),
+              )
+                  : const Text(
+                'Reschedule',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

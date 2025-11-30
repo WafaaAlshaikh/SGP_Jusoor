@@ -331,8 +331,8 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.pending_actions, size: 20),
-                          const SizedBox(width: 8),
+                          const Icon(Icons.pending_actions, size: 18),
+                          const SizedBox(width:2),
                           Text('Pending ($_pendingCount)'),
                         ],
                       ),
@@ -341,8 +341,8 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.check_circle, size: 20),
-                          const SizedBox(width: 8),
+                          const Icon(Icons.check_circle, size: 18),
+                          const SizedBox(width: 2),
                           Text('Paid (${_paidInvoices.length})'),
                         ],
                       ),
@@ -575,7 +575,7 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
                 value: '$_paymentsThisMonth',
                 subtitle: '\$${_totalThisMonth.toStringAsFixed(2)}',
                 icon: Icons.calendar_month,
-                color: Colors.deepPurpleAccent,
+                color: AppColors.info,
               ),
             ),
           ],
@@ -907,94 +907,118 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
           ),
         ],
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(18),
-        leading: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: statusColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: statusColor.withOpacity(0.2)),
-          ),
-          child: Icon(
-            isPending ? Icons.hourglass_empty : Icons.check_circle,
-            color: statusColor,
-            size: 28,
-          ),
-        ),
-        title: Text(
-          invoice.invoiceNumber,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
           children: [
-            const SizedBox(height: 8),
+            // First Row: Icon, Title, Amount
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.calendar_today, size: 14, color: Colors.grey.shade600),
-                const SizedBox(width: 4),
+                // Icon
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: statusColor.withOpacity(0.2)),
+                  ),
+                  child: Icon(
+                    isPending ? Icons.hourglass_empty : Icons.check_circle,
+                    color: statusColor,
+                    size: 24,
+                  ),
+                ),
+
+                const SizedBox(width: 12),
+
+                // Title
+                Expanded(
+                  child: Text(
+                    invoice.invoiceNumber,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+
+                // Amount
                 Text(
-                  _formatDate(invoice.issuedDate),
+                  '\$${invoice.totalAmount.toStringAsFixed(2)}',
                   style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: statusColor,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: _getStatusColor(invoice.status).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                _getStatusText(invoice.status),
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: _getStatusColor(invoice.status),
+
+            const SizedBox(height: 12),
+
+            // Second Row: Date and Status
+            Row(
+              children: [
+                // Date
+                Row(
+                  children: [
+                    Icon(Icons.calendar_today, size: 14, color: Colors.grey.shade600),
+                    const SizedBox(width: 4),
+                    Text(
+                      _formatDate(invoice.issuedDate),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ),
-          ],
-        ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              '\$${invoice.totalAmount.toStringAsFixed(2)}',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: statusColor,
-              ),
-            ),
-            if (isPending) ...[
-              const SizedBox(height: 8),
-              ElevatedButton(
-                onPressed: () => _navigateToPayment(invoice),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+
+                const Spacer(),
+
+                // Status
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _getStatusColor(invoice.status).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    _getStatusText(invoice.status),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: _getStatusColor(invoice.status),
+                    ),
                   ),
                 ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.payment, size: 14),
-                    SizedBox(width: 4),
-                    Text('Pay', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  ],
+              ],
+            ),
+
+            // Pay Button (only for pending)
+            if (isPending) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => _navigateToPayment(invoice),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.payment, size: 16),
+                      SizedBox(width: 8),
+                      Text('Pay Now', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ],
+                  ),
                 ),
               ),
             ],

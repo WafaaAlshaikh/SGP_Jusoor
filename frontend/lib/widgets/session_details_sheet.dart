@@ -1,7 +1,7 @@
 // lib/widgets/session_details_sheet.dart
 import 'package:flutter/material.dart';
 import '../models/session.dart';
-import '../utils/app_colors.dart';
+import '../theme/app_colors.dart';
 
 class SessionDetailsBottomSheet extends StatelessWidget {
   final Session session;
@@ -23,96 +23,66 @@ class SessionDetailsBottomSheet extends StatelessWidget {
     this.onRated,
   });
 
-  // نظام الألوان المتناسق مع التطبيق
-  final Color _primaryColor = const Color(0xFF7815A0);
-  final Color _secondaryColor = const Color(0xFF976EF4);
-  final Color _accentColor = const Color(0xFFCAA9F8);
-  final Color _backgroundColor = const Color(0xFFF8F9FA);
-  final Color _surfaceColor = Colors.white;
-  final Color _textPrimary = const Color(0xFF212529);
-  final Color _textSecondary = const Color(0xFF6C757D);
-  final Color _successColor = const Color(0xFF4CAF50);
-  final Color _warningColor = const Color(0xFFFF9800);
-  final Color _errorColor = const Color(0xFFF44336);
-
   @override
   Widget build(BuildContext context) {
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: _surfaceColor,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(24),
-          topRight: Radius.circular(24),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(28),
+          topRight: Radius.circular(28),
         ),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
+          // Header with Drag Handle
           _buildHeader(context),
-          const SizedBox(height: 24),
 
-          // Session Details
+          // Content
           Expanded(
             child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Session Status & Quick Info
+                  _buildSessionHeader(),
+                  const SizedBox(height: 24),
+
                   // Basic Info Section
-                  _buildSectionTitle('Session Information'),
-                  const SizedBox(height: 16),
-                  _buildInfoGrid(),
+                  _buildInfoSection(),
                   const SizedBox(height: 24),
 
                   // Specialist Details
-                  _buildSectionTitle('Specialist Details'),
-                  const SizedBox(height: 16),
-                  _buildSpecialistCard(context),
+                  _buildSpecialistSection(),
                   const SizedBox(height: 24),
 
                   // Child Details
-                  _buildSectionTitle('Child Information'),
-                  const SizedBox(height: 16),
-                  _buildChildCard(),
+                  _buildChildSection(),
                   const SizedBox(height: 24),
 
-                  // Additional Information
+                  // Additional Notes
                   if (session.parentNotes != null && session.parentNotes!.isNotEmpty) ...[
-                    _buildSectionTitle('Additional Notes'),
-                    const SizedBox(height: 16),
-                    _buildNotesCard(),
+                    _buildNotesSection(),
                     const SizedBox(height: 24),
                   ],
 
                   // Payment Information
                   if (session.price > 0) ...[
-                    _buildSectionTitle('Payment Information'),
-                    const SizedBox(height: 16),
-                    _buildPaymentCard(),
+                    _buildPaymentSection(),
                     const SizedBox(height: 24),
                   ],
 
-                  // Cancellation Info (if cancelled)
+                  // Cancellation Info
                   if (session.displayStatus == 'cancelled' && session.cancellationReason != null) ...[
-                    _buildSectionTitle('Cancellation Details'),
-                    const SizedBox(height: 16),
-                    _buildCancellationCard(),
+                    _buildCancellationSection(),
                     const SizedBox(height: 24),
                   ],
 
-                  // Rating (if completed)
-                  if (session.displayStatus == 'completed' && session.rating != null) ...[
-                    _buildSectionTitle('Session Rating'),
-                    const SizedBox(height: 16),
-                    _buildRatingCard(),
-                    const SizedBox(height: 24),
-                  ],
-
-                  // Rating Prompt (if completed and not rated)
-                  if (session.displayStatus == 'completed' && session.rating == null) ...[
-                    _buildRatingPromptCard(context),
+                  // Rating Section
+                  if (session.displayStatus == 'completed') ...[
+                    _buildRatingSection(context),
                     const SizedBox(height: 24),
                   ],
                 ],
@@ -128,267 +98,512 @@ class SessionDetailsBottomSheet extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          'Session Details',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: _textPrimary,
-          ),
-        ),
-        IconButton(
-          icon: Icon(Icons.close, size: 24, color: _textSecondary),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: _textPrimary,
-      ),
-    );
-  }
-
-  Widget _buildInfoGrid() {
-    return Container(
+    return Padding(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _backgroundColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _textSecondary.withOpacity(0.2)),
-      ),
       child: Column(
         children: [
-          _buildInfoRow('Status', _buildStatusChip(session.displayStatus)),
+          // Drag Handle
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.textLight.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
           const SizedBox(height: 12),
-          _buildInfoRow('Date', Text(session.date, style: _infoTextStyle())),
-          const SizedBox(height: 12),
-          _buildInfoRow('Time', Text(session.time, style: _infoTextStyle())),
-          const SizedBox(height: 12),
-          _buildInfoRow('Duration', Text('${session.duration} minutes', style: _infoTextStyle())),
-          const SizedBox(height: 12),
-          _buildInfoRow('Type', Text(session.sessionType, style: _infoTextStyle())),
-          const SizedBox(height: 12),
-          _buildInfoRow('Location', Text(session.sessionLocation, style: _infoTextStyle())),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Session Details',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textDark,
+                ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  icon: Icon(Icons.close, size: 20, color: AppColors.textGray),
+                  onPressed: () => Navigator.pop(context),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildInfoRow(String label, Widget value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 100,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontWeight: FontWeight.w500,
-              fontSize: 14,
-              color: _textSecondary,
+  Widget _buildSessionHeader() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primary.withOpacity(0.05),
+            AppColors.accent1.withOpacity(0.1),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.accent2.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          // Status Icon
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: _getStatusColor(session.displayStatus).withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              _getStatusIcon(session.displayStatus),
+              size: 24,
+              color: _getStatusColor(session.displayStatus),
             ),
           ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  session.sessionType,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textDark,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${session.date} • ${session.time}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textGray,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _buildStatusChip(session.displayStatus),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('Session Information'),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.card,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              _buildDetailItem(
+                icon: Icons.calendar_today_outlined,
+                title: 'Date',
+                value: session.date,
+              ),
+              _buildDivider(),
+              _buildDetailItem(
+                icon: Icons.access_time_outlined,
+                title: 'Time',
+                value: session.time,
+              ),
+              _buildDivider(),
+              _buildDetailItem(
+                icon: Icons.timer_outlined,
+                title: 'Duration',
+                value: '${session.duration} minutes',
+              ),
+              _buildDivider(),
+              _buildDetailItem(
+                icon: Icons.category_outlined,
+                title: 'Type',
+                value: session.sessionType,
+              ),
+              _buildDivider(),
+              _buildDetailItem(
+                icon: Icons.location_on_outlined,
+                title: 'Location',
+                value: session.sessionLocation,
+              ),
+            ],
+          ),
         ),
-        const SizedBox(width: 16),
-        Expanded(child: value),
       ],
     );
   }
 
-  Widget _buildSpecialistCard(BuildContext context) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                color: _primaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(30),
-              ),
-              child: Icon(
-                Icons.person,
-                size: 30,
-                color: _primaryColor,
-              ),
+  Widget _buildDetailItem({
+    required IconData icon,
+    required String title,
+    required String value,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    session.specialistName,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: _textPrimary,
-                    ),
+            child: Icon(icon, size: 18, color: AppColors.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textGray,
+                    fontWeight: FontWeight.w500,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Specialist',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: _textSecondary,
-                    ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: AppColors.textDark,
+                    fontWeight: FontWeight.w600,
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(Icons.star, size: 16, color: Colors.amber),
-                      const SizedBox(width: 4),
-                      Text(
-                        '4.8', // Placeholder - should come from API
-                        style: TextStyle(fontSize: 14, color: _textPrimary),
-                      ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDivider() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Divider(
+        height: 1,
+        color: AppColors.textLight.withOpacity(0.2),
+      ),
+    );
+  }
+
+  Widget _buildSpecialistSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('Specialist Details'),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.accent2.withOpacity(0.3)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              // Avatar
+              Container(
+                width: 70,
+                height: 70,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppColors.primary.withOpacity(0.8),
+                      AppColors.primaryLight,
                     ],
                   ),
-                ],
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.person,
+                  size: 32,
+                  color: Colors.white,
+                ),
               ),
-            ),
-            IconButton(
-              icon: Icon(Icons.message, color: _primaryColor),
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('Chat feature coming soon'),
-                    backgroundColor: _primaryColor,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                );
-              },
-            ),
-          ],
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      session.specialistName,
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        'Therapy Specialist',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(Icons.star, size: 16, color: Colors.amber),
+                        const SizedBox(width: 4),
+                        Text(
+                          '4.8',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textDark,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '•',
+                          style: TextStyle(
+                            color: AppColors.textLight,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '25+ Sessions',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textGray,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChildSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('Child Information'),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.accent2.withOpacity(0.3)),
+          ),
+          child: Row(
+            children: [
+              // Child Avatar
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: AppColors.accent1,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.child_care,
+                  size: 28,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      session.childName,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 8,
+                      children: [
+                        if (session.childAge != null)
+                          _buildChildDetail('Age', session.childAge!.toString()),
+                        if (session.childCondition != null)
+                          _buildChildDetail('Condition', session.childCondition!),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChildDetail(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.accent1,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        '$label: $value',
+        style: TextStyle(
+          fontSize: 12,
+          color: AppColors.textDark,
+          fontWeight: FontWeight.w500,
         ),
       ),
     );
   }
 
-  Widget _buildChildCard() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                color: _warningColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(30),
+  Widget _buildNotesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('Additional Notes'),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.accent1.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.accent2),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.note_outlined,
+                size: 20,
+                color: AppColors.primary,
               ),
-              child: Icon(
-                Icons.child_care,
-                size: 30,
-                color: _warningColor,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Parent Notes',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      session.parentNotes!,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textGray,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    session.childName,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: _textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Age: ${session.childAge ?? 'N/A'}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: _textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Condition: ${session.childCondition ?? 'N/A'}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: _textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
+      ],
     );
   }
 
-  Widget _buildNotesCard() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Parent Notes',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: _textPrimary,
+  Widget _buildPaymentSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('Payment Information'),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.accent3.withOpacity(0.3)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              session.parentNotes!,
-              style: TextStyle(fontSize: 14, color: _textPrimary),
-            ),
-          ],
+            ],
+          ),
+          child: Column(
+            children: [
+              _buildPaymentRow('Session Fee', '\$${session.price.toStringAsFixed(2)}'),
+              const SizedBox(height: 8),
+              _buildPaymentRow('Insurance Coverage', '-\$0.00'),
+              const SizedBox(height: 8),
+              _buildPaymentRow('Tax (16%)', '\$${(session.price * 0.16).toStringAsFixed(2)}'),
+              const SizedBox(height: 12),
+              Container(
+                height: 1,
+                color: AppColors.textLight.withOpacity(0.2),
+              ),
+              const SizedBox(height: 12),
+              _buildPaymentRow(
+                'Total Amount',
+                '\$${(session.price * 1.16).toStringAsFixed(2)}',
+                isTotal: true,
+              ),
+            ],
+          ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildPaymentCard() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            _buildPaymentRow('Session Fee', '\$${session.price.toStringAsFixed(2)}'),
-            const SizedBox(height: 8),
-            _buildPaymentRow('Insurance Discount', '-\$0.00'),
-            const SizedBox(height: 8),
-            _buildPaymentRow('Tax', '\$${(session.price * 0.16).toStringAsFixed(2)}'),
-            const Divider(height: 20),
-            _buildPaymentRow(
-              'Total Amount',
-              '\$${(session.price * 1.16).toStringAsFixed(2)}',
-              isTotal: true,
-            ),
-          ],
-        ),
-      ),
+      ],
     );
   }
 
@@ -400,281 +615,374 @@ class SessionDetailsBottomSheet extends StatelessWidget {
           label,
           style: TextStyle(
             fontSize: 14,
-            fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
-            color: isTotal ? _textPrimary : _textSecondary,
+            fontWeight: isTotal ? FontWeight.w700 : FontWeight.w500,
+            color: isTotal ? AppColors.textDark : AppColors.textGray,
           ),
         ),
         Text(
           value,
           style: TextStyle(
-            fontSize: 14,
-            fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
-            color: isTotal ? _primaryColor : _textSecondary,
+            fontSize: 15,
+            fontWeight: isTotal ? FontWeight.w700 : FontWeight.w600,
+            color: isTotal ? AppColors.primary : AppColors.textDark,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildCancellationCard() {
-    return Card(
-      color: _errorColor.withOpacity(0.1),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.info, color: _errorColor),
-                const SizedBox(width: 8),
-                Text(
-                  'Cancellation Reason',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: _errorColor,
-                  ),
+  Widget _buildCancellationSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('Cancellation Details'),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.accent1.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.accent3),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.accent3.withOpacity(0.2),
+                  shape: BoxShape.circle,
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              session.cancellationReason!,
-              style: TextStyle(fontSize: 14, color: _textPrimary),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRatingCard() {
-    return Card(
-      color: _successColor.withOpacity(0.1),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Your Rating',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: _textPrimary,
+                child: Icon(
+                  Icons.info_outline,
+                  size: 18,
+                  color: AppColors.accent4,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                ...List.generate(5, (index) {
-                  return Icon(
-                    Icons.star,
-                    size: 20,
-                    color: index < session.rating!.floor() ? Colors.amber : Colors.grey[300],
-                  );
-                }),
-                const SizedBox(width: 8),
-                Text(
-                  '${session.rating!.toStringAsFixed(1)}/5',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _textPrimary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Cancellation Reason',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      session.cancellationReason!,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textGray,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            if (session.review != null && session.review!.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                session.review!,
-                style: TextStyle(fontSize: 14, color: _textPrimary),
               ),
             ],
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 
-  Widget _buildRatingPromptCard(BuildContext context) { // Add context parameter
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+  Widget _buildRatingSection(BuildContext context) {
+    if (session.rating != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle('Your Rating'),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppColors.accent1.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.accent2.withOpacity(0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    ...List.generate(5, (index) {
+                      return Icon(
+                        Icons.star_rounded,
+                        size: 22,
+                        color: index < session.rating!.floor()
+                            ? Colors.amber
+                            : AppColors.textLight,
+                      );
+                    }),
+                    const SizedBox(width: 12),
+                    Text(
+                      '${session.rating!.toStringAsFixed(1)}/5',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                  ],
+                ),
+                if (session.review != null && session.review!.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    session.review!,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textGray,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      );
+    } else {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.accent1.withOpacity(0.3),
+              AppColors.accent2.withOpacity(0.2),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.accent2.withOpacity(0.4)),
+        ),
+        child: Row(
           children: [
-            Icon(Icons.star_outline, size: 48, color: Colors.amber),
-            const SizedBox(height: 8),
-            Text(
-              'Rate This Session',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: _textPrimary,
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.star_outline_rounded,
+                size: 24,
+                color: AppColors.primary,
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Share your experience to help us improve',
-              style: TextStyle(fontSize: 14, color: _textSecondary),
-              textAlign: TextAlign.center,
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Rate This Session',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Share your experience to help us improve',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textGray,
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.star, size: 18),
-                label: const Text('Rate Now'),
-                onPressed: () {
-                  Navigator.pop(context);
-                  onRateSession?.call();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.amber,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
+            IconButton(
+              onPressed: () {
+                Navigator.pop(context);
+                onRateSession?.call();
+                onRated?.call();
+              },
+              icon: Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 18,
+                color: AppColors.primary,
+              ),
+              style: IconButton.styleFrom(
+                backgroundColor: AppColors.primary.withOpacity(0.1),
+                padding: const EdgeInsets.all(10),
               ),
             ),
           ],
         ),
-      ),
-    );
+      );
+    }
   }
 
   Widget _buildActionButtons(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: Border(
+          top: BorderSide(
+            color: AppColors.textLight.withOpacity(0.2),
+            width: 1,
+          ),
+        ),
+      ),
       child: Row(
         children: [
-          // Set Reminder Button
+          // Main Action Button based on status
           if (session.displayStatus == 'upcoming') ...[
             Expanded(
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.notifications_none, size: 18),
-                label: const Text('Reminder'),
+              child: ElevatedButton.icon(
                 onPressed: onSetReminder,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _primaryColor,
-                  side: BorderSide(color: _primaryColor),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                icon: Icon(Icons.notifications_outlined, size: 20),
+                label: Text('Set Reminder'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 1,
                 ),
               ),
             ),
-            const SizedBox(width: 12),
-          ],
-
-          // Reschedule Button
-          if (session.displayStatus == 'pending') ...[
-            Expanded(
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.schedule, size: 18),
-                label: const Text('Reschedule'),
-                onPressed: onReschedule,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _warningColor,
-                  side: BorderSide(color: _warningColor),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-          ],
-
-          // Rate Session Button
-          if (session.displayStatus == 'completed' && session.rating == null) ...[
+          ] else if (session.displayStatus == 'pending') ...[
             Expanded(
               child: ElevatedButton.icon(
-                icon: const Icon(Icons.star, size: 18),
-                label: const Text('Rate Session'),
+                onPressed: onReschedule,
+                icon: Icon(Icons.schedule_outlined, size: 20),
+                label: Text('Reschedule'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.accent4,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 1,
+                ),
+              ),
+            ),
+          ] else if (session.displayStatus == 'completed' && session.rating == null) ...[
+            Expanded(
+              child: ElevatedButton.icon(
                 onPressed: () {
                   Navigator.pop(context);
                   onRateSession?.call();
                   onRated?.call();
                 },
+                icon: Icon(Icons.star_outline_rounded, size: 20),
+                label: Text('Rate Session'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.amber,
+                  backgroundColor: AppColors.primaryLight,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 1,
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+          ] else ...[
+            const Spacer(),
           ],
-
-          // Share Button
-          Expanded(
-            child: OutlinedButton.icon(
-              icon: const Icon(Icons.share, size: 18),
-              label: const Text('Share'),
-              onPressed: () {
-                Navigator.pop(context);
-                onShareSession?.call();
-              },
-              style: OutlinedButton.styleFrom(
-                foregroundColor: _secondaryColor,
-                side: BorderSide(color: _secondaryColor),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ),
 
           const SizedBox(width: 12),
 
-          // Download Invoice Button
-          if (session.price > 0)
+          // Secondary Actions
+          if (session.displayStatus != 'completed' || session.rating != null) ...[
             Expanded(
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.download, size: 18),
-                label: const Text('Invoice'),
-                onPressed: onDownloadInvoice,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _errorColor,
-                  side: BorderSide(color: _errorColor),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
+              flex: 2,
+              child: Row(
+                children: [
+                  // Share Button
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        onShareSession?.call();
+                      },
+                      icon: Icon(Icons.share_outlined, size: 18),
+                      label: Text('Share'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: BorderSide(color: AppColors.primary),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+
+                  // Invoice Button
+                  if (session.price > 0)
+                    OutlinedButton(
+                      onPressed: onDownloadInvoice,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: BorderSide(color: AppColors.primary),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Icon(Icons.download_outlined, size: 20),
+                    ),
+                ],
               ),
             ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Text(
+      title,
+      style: TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.w700,
+        color: AppColors.textDark,
       ),
     );
   }
 
   Widget _buildStatusChip(String status) {
-    final statusConfig = {
-      'upcoming': {'color': Colors.blue, 'icon': Icons.schedule},
-      'completed': {'color': _successColor, 'icon': Icons.check_circle},
-      'pending': {'color': _warningColor, 'icon': Icons.pending},
-      'cancelled': {'color': _errorColor, 'icon': Icons.cancel},
-    };
-
-    final config = statusConfig[status] ?? statusConfig['pending']!;
-
+    final color = _getStatusColor(status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: config['color'] as Color,
-        borderRadius: BorderRadius.circular(16),
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            config['icon'] as IconData,
+            _getStatusIcon(status),
             size: 14,
-            color: Colors.white,
+            color: color,
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 6),
           Text(
             status.toUpperCase(),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
             ),
           ),
         ],
@@ -682,11 +990,33 @@ class SessionDetailsBottomSheet extends StatelessWidget {
     );
   }
 
-  TextStyle _infoTextStyle() {
-    return TextStyle(
-      fontSize: 14,
-      fontWeight: FontWeight.w500,
-      color: _textPrimary,
-    );
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'upcoming':
+        return AppColors.primary;
+      case 'completed':
+        return AppColors.primaryLight;
+      case 'pending':
+        return AppColors.accent4;
+      case 'cancelled':
+        return AppColors.textGray;
+      default:
+        return AppColors.textGray;
+    }
+  }
+
+  IconData _getStatusIcon(String status) {
+    switch (status) {
+      case 'upcoming':
+        return Icons.schedule_outlined;
+      case 'completed':
+        return Icons.check_circle_outline;
+      case 'pending':
+        return Icons.pending_outlined;
+      case 'cancelled':
+        return Icons.cancel_outlined;
+      default:
+        return Icons.help_outline;
+    }
   }
 }

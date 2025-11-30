@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../../models/child_model.dart';
+import '../models/child_model.dart';
+import '../theme/app_colors.dart';
 
 class ChildCard extends StatelessWidget {
   final Child child;
@@ -16,27 +17,15 @@ class ChildCard extends StatelessWidget {
     required this.onDelete,
   });
 
-  // نظام الألوان المتناسق مع التطبيق
-  final Color _primaryColor = const Color(0xFF7815A0);
-  final Color _secondaryColor = const Color(0xFF976EF4);
-  final Color _accentColor = const Color(0xFFCAA9F8);
-  final Color _backgroundColor = const Color(0xFFF8F9FA);
-  final Color _surfaceColor = Colors.white;
-  final Color _textPrimary = const Color(0xFF212529);
-  final Color _textSecondary = const Color(0xFF6C757D);
-  final Color _successColor = const Color(0xFF4CAF50);
-  final Color _warningColor = const Color(0xFFFF9800);
-  final Color _errorColor = const Color(0xFFF44336);
-
   Color _registrationStatusColor(String status) {
     switch (status) {
       case 'Approved':
-        return _successColor;
+        return AppColors.success;
       case 'Pending':
-        return _warningColor;
+        return AppColors.warning;
       case 'Not Registered':
       default:
-        return _textSecondary;
+        return AppColors.textGray;
     }
   }
 
@@ -45,7 +34,7 @@ class ChildCard extends StatelessWidget {
       case 'Approved':
         return Icons.verified_rounded;
       case 'Pending':
-        return Icons.pending_rounded;
+        return Icons.pending_actions_rounded;
       case 'Not Registered':
       default:
         return Icons.person_outline_rounded;
@@ -67,114 +56,63 @@ class ChildCard extends StatelessWidget {
         return DateFormat('MMM d').format(child.lastSessionDate!);
       }
     }
-    return 'No sessions';
+    return 'No sessions yet';
   }
 
   Color _conditionColor(String? condition) {
     final c = (condition ?? '').toLowerCase();
-    if (c.contains('asd') || c.contains('autism')) return Colors.blue.shade600;
-    if (c.contains('adhd')) return Colors.orange.shade600;
-    if (c.contains('down')) return Colors.purple.shade600;
-    if (c.contains('speech')) return Colors.teal.shade600;
-    return _textSecondary;
+    if (c.contains('asd') || c.contains('autism')) return Color(0xFF6366F1);
+    if (c.contains('adhd')) return Color(0xFFF59E0B);
+    if (c.contains('down')) return Color(0xFF8B5CF6);
+    if (c.contains('speech')) return Color(0xFF06B6D4);
+    return AppColors.textLight;
   }
 
   String _getInitials(String name) {
     if (name.isEmpty) return '?';
-
     final trimmedName = name.trim();
     if (trimmedName.isEmpty) return '?';
-
     final parts = trimmedName.split(' ').where((part) => part.isNotEmpty).toList();
-
     if (parts.isEmpty) return '?';
-
-    // إذا كان هناك جزء واحد فقط
-    if (parts.length == 1) {
-      return parts[0].isNotEmpty ? parts[0][0].toUpperCase() : '?';
-    }
-
-    // إذا كان هناك أكثر من جزء، خذ الحرف الأول من الجزء الأول والأخير
-    final firstPart = parts[0];
-    final lastPart = parts[parts.length - 1];
-
-    if (firstPart.isEmpty && lastPart.isEmpty) return '?';
-    if (firstPart.isEmpty) return lastPart[0].toUpperCase();
-    if (lastPart.isEmpty) return firstPart[0].toUpperCase();
-
-    return '${firstPart[0]}${lastPart[0]}'.toUpperCase();
+    if (parts.length == 1) return parts[0][0].toUpperCase();
+    return '${parts[0][0]}${parts.last[0]}'.toUpperCase();
   }
 
   IconData _getConditionIcon(String? condition) {
     final c = (condition ?? '').toLowerCase();
-    if (c.contains('asd') || c.contains('autism')) return Icons.psychology_rounded;
+    if (c.contains('asd') || c.contains('autism')) return Icons.psychology_alt_rounded;
     if (c.contains('adhd')) return Icons.bolt_rounded;
     if (c.contains('down')) return Icons.favorite_rounded;
     if (c.contains('speech')) return Icons.record_voice_over_rounded;
-    return Icons.medical_services_rounded;
+    return Icons.medical_information_rounded;
   }
 
-  Widget _buildAIIndicator() {
-    if (!child.hasAiAnalysis) return const SizedBox();
-
-    return Tooltip(
-      message: child.aiAnalysisSummary,
-      child: Container(
-        margin: const EdgeInsets.only(left: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: _secondaryColor.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: _secondaryColor.withOpacity(0.3)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.psychology, size: 10, color: _secondaryColor),
-            const SizedBox(width: 2),
-            Text(
-              'AI',
-              style: TextStyle(
-                fontSize: 10,
-                color: _secondaryColor,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSymptomsPreview() {
-    if (child.symptomsDescription == null || child.symptomsDescription!.isEmpty) {
-      return const SizedBox();
-    }
-
-    final symptoms = child.symptomsDescription!;
-    final preview = symptoms.length > 50 ? '${symptoms.substring(0, 50)}...' : symptoms;
-
+  Widget _buildStatusIndicator() {
     return Container(
-      margin: const EdgeInsets.only(top: 4),
-      padding: const EdgeInsets.all(6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: _warningColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: _warningColor.withOpacity(0.2)),
+        color: _registrationStatusColor(child.registrationStatus).withOpacity(0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _registrationStatusColor(child.registrationStatus).withOpacity(0.3),
+          width: 1,
+        ),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.psychology_outlined, size: 12, color: _warningColor),
+          Icon(
+            _registrationStatusIcon(child.registrationStatus),
+            size: 12,
+            color: _registrationStatusColor(child.registrationStatus),
+          ),
           const SizedBox(width: 4),
-          Expanded(
-            child: Text(
-              preview,
-              style: TextStyle(
-                fontSize: 10,
-                color: _warningColor,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+          Text(
+            child.registrationStatus,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: _registrationStatusColor(child.registrationStatus),
             ),
           ),
         ],
@@ -182,401 +120,454 @@ class ChildCard extends StatelessWidget {
     );
   }
 
-  Widget _buildAdditionalInfo() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildAIIndicator() {
+    if (!child.hasAiAnalysis) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.auto_awesome_rounded, size: 10, color: Colors.white),
+          const SizedBox(width: 4),
+          Text(
+            'AI',
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAvatar() {
+    final hasImage = child.photo.isNotEmpty &&
+        !child.photo.contains('base64') &&
+        child.photo.startsWith('http');
+
+    return Stack(
       children: [
-        if (child.childIdentifier != null && child.childIdentifier!.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Text(
-              'ID: ${child.childIdentifier!}',
-              style: TextStyle(fontSize: 11, color: _textSecondary),
+        // Main Avatar with Gradient Border
+        Container(
+          width: 60,
+          height: 60,
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [AppColors.primary, AppColors.primaryLight],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            shape: BoxShape.circle,
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: hasImage
+                ? ClipOval(
+              child: Image.network(
+                child.photo,
+                width: 56,
+                height: 56,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => _buildInitialsAvatar(),
+              ),
+            )
+                : _buildInitialsAvatar(),
+          ),
+        ),
+
+        // Online Status Indicator
+        Positioned(
+          bottom: 2,
+          right: 2,
+          child: Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              color: AppColors.success,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
             ),
           ),
-        if (child.schoolInfo != null && child.schoolInfo!.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Text(
-              'School: ${child.schoolInfo!}',
-              style: TextStyle(fontSize: 11, color: _textSecondary),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
+        ),
       ],
     );
   }
 
-  Widget _buildAvatar({required String name, required String image, double radius = 25}) {
-    // إذا كانت الصورة غير صالحة، استخدم الحروف الأولى
-    if (image.isEmpty || image.contains('base64') || !image.startsWith('http')) {
-      return Container(
-        width: radius * 2,
-        height: radius * 2,
-        decoration: BoxDecoration(
-          color: _conditionColor(child.condition).withOpacity(0.2),
-          shape: BoxShape.circle,
+  Widget _buildInitialsAvatar() {
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primary.withOpacity(0.8),
+            AppColors.primaryLight.withOpacity(0.6),
+          ],
         ),
-        child: Center(
-          child: Text(
-            _getInitials(name),
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Text(
+          _getInitials(child.fullName),
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoItem(IconData icon, String text, {Color? color}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: color ?? AppColors.textLight),
+        const SizedBox(width: 4),
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: 12,
+            color: color ?? AppColors.textLight,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildConditionChip() {
+    if (child.condition == null || child.condition!.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: _conditionColor(child.condition).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            _getConditionIcon(child.condition),
+            size: 12,
+            color: _conditionColor(child.condition),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            child.condition!,
             style: TextStyle(
-              fontSize: radius * 0.6,
-              fontWeight: FontWeight.bold,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
               color: _conditionColor(child.condition),
             ),
           ),
-        ),
-      );
-    }
-
-    // إذا كانت الصورة صالحة، استخدم NetworkImage مع error handling
-    return ClipOval(
-      child: Image.network(
-        image,
-        width: radius * 2,
-        height: radius * 2,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          return Container(
-            width: radius * 2,
-            height: radius * 2,
-            decoration: BoxDecoration(
-              color: _conditionColor(child.condition).withOpacity(0.2),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                _getInitials(name),
-                style: TextStyle(
-                  fontSize: radius * 0.6,
-                  fontWeight: FontWeight.bold,
-                  color: _conditionColor(child.condition),
-                ),
-              ),
-            ),
-          );
-        },
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return Container(
-            width: radius * 2,
-            height: radius * 2,
-            decoration: BoxDecoration(
-              color: _backgroundColor,
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: CircularProgressIndicator(
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                    : null,
-                color: _primaryColor,
-              ),
-            ),
-          );
-        },
+        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: InkWell(
-        onTap: onView,
-        borderRadius: BorderRadius.circular(16),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Material(
+        elevation: 4,
+        borderRadius: BorderRadius.circular(20),
+        color: Colors.white,
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            color: _surfaceColor,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.grey.shade100, width: 1),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Avatar Section
-                Stack(
+                // Header Section
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        color: _conditionColor(child.condition).withOpacity(0.1),
-                        image: child.photo.isNotEmpty
-                            ? DecorationImage(
-                          image: NetworkImage(child.photo),
-                          fit: BoxFit.cover,
-                        )
-                            : null,
-                      ),
-                      child: child.photo.isEmpty
-                          ? Center(
-                        child: Text(
-                          _getInitials(child.fullName),
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: _conditionColor(child.condition),
+                    // Avatar
+                    _buildAvatar(),
+
+                    const SizedBox(width: 16),
+
+                    // Name and Basic Info
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            child.fullName,
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w700,
+                                              color: AppColors.textDark,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        // Status beside the name
+                                        _buildStatusIndicator(),
+                                      ],
+                                    ),
+                                    if (child.age != null)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.primaryLight.withOpacity(0.15),
+                                                borderRadius: BorderRadius.circular(8),
+                                                border: Border.all(
+                                                  color: AppColors.primaryLight.withOpacity(0.3),
+                                                ),
+                                              ),
+                                              child: Text(
+                                                '${child.age} years old',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: AppColors.primary,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              _buildAIIndicator(),
+                            ],
                           ),
-                        ),
-                      )
-                          : null,
-                    ),
-                    Positioned(
-                      bottom: -2,
-                      right: -2,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: _surfaceColor,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          _registrationStatusIcon(child.registrationStatus),
-                          color: _registrationStatusColor(child.registrationStatus),
-                          size: 16,
-                        ),
+
+                          const SizedBox(height: 12),
+
+                          // Condition Chip only
+                          if (child.condition != null && child.condition!.isNotEmpty)
+                            _buildConditionChip(),
+                        ],
                       ),
                     ),
                   ],
                 ),
 
-                const SizedBox(width: 16),
+                const SizedBox(height: 16),
 
-                // Content Section
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Name and Age Row
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              child.fullName,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: _textPrimary,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (child.age != null) ...[
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: _primaryColor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                '${child.age}y',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: _primaryColor,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                          _buildAIIndicator(),
-                        ],
-                      ),
-
-                      const SizedBox(height: 8),
-
-                      // Condition and Status Chips
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 6,
-                        children: [
-                          // Condition Chip
-                          if (child.condition != null && child.condition!.isNotEmpty)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: _conditionColor(child.condition).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: _conditionColor(child.condition).withOpacity(0.3),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    _getConditionIcon(child.condition),
-                                    size: 12,
-                                    color: _conditionColor(child.condition),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    child.condition!,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: _conditionColor(child.condition),
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                          // Registration Status Chip
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: _registrationStatusColor(child.registrationStatus).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                color: _registrationStatusColor(child.registrationStatus).withOpacity(0.3),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  _registrationStatusIcon(child.registrationStatus),
-                                  size: 12,
-                                  color: _registrationStatusColor(child.registrationStatus),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  child.registrationStatus,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: _registrationStatusColor(child.registrationStatus),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 8),
-
-                      // Symptoms Preview
-                      _buildSymptomsPreview(),
-
-                      const SizedBox(height: 8),
-
-                      // Additional Info
-                      _buildAdditionalInfo(),
-
-                      // Last Session and Institution
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.calendar_today_rounded,
-                            size: 12,
-                            color: _textSecondary,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            _lastSessionText,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: _textSecondary,
-                            ),
-                          ),
-
-                          if (child.currentInstitutionName != null && child.currentInstitutionName!.isNotEmpty) ...[
-                            const SizedBox(width: 16),
-                            Icon(
-                              Icons.school_rounded,
-                              size: 12,
-                              color: _textSecondary,
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                child.currentInstitutionName!,
+                // Additional Information
+                if (child.schoolInfo != null && child.schoolInfo!.isNotEmpty ||
+                    child.childIdentifier != null && child.childIdentifier!.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (child.childIdentifier != null && child.childIdentifier!.isNotEmpty)
+                          Row(
+                            children: [
+                              Icon(Icons.badge_rounded, size: 14, color: AppColors.primary),
+                              const SizedBox(width: 8),
+                              Text(
+                                'ID: ${child.childIdentifier!}',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: _textSecondary,
+                                  color: AppColors.textDark,
+                                  fontWeight: FontWeight.w500,
                                 ),
-                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
+                        if (child.schoolInfo != null && child.schoolInfo!.isNotEmpty) ...[
+                          if (child.childIdentifier != null && child.childIdentifier!.isNotEmpty)
+                            const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Icon(Icons.school_rounded, size: 14, color: AppColors.primary),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  child.schoolInfo!,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textDark,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+
+                const SizedBox(height: 16),
+
+                // Footer Section
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.03),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.primary.withOpacity(0.1)),
+                  ),
+                  child: Row(
+                    children: [
+                      // Last Session Info
+                      Expanded(
+                        child: _buildInfoItem(
+                          Icons.calendar_today_rounded,
+                          _lastSessionText,
+                          color: AppColors.primary,
+                        ),
+                      ),
+
+                      // Institution Info
+                      if (child.currentInstitutionName != null && child.currentInstitutionName!.isNotEmpty)
+                        Expanded(
+                          child: _buildInfoItem(
+                            Icons.medical_services_rounded,
+                            child.currentInstitutionName!,
+                            color: AppColors.primary,
+                          ),
+                        ),
+
+                      // Action Buttons
+                      Row(
+                        children: [
+                          // View Button
+                          _buildActionButton(
+                            icon: Icons.remove_red_eye_rounded,
+                            color: AppColors.primary,
+                            onPressed: onView,
+                            tooltip: 'View Details',
+                          ),
+
+                          const SizedBox(width: 8),
+
+                          // Edit Button - Using Light Green
+                          _buildActionButton(
+                            icon: Icons.edit_rounded,
+                            color: Color(0xFF10B981), // Light Green
+                            onPressed: onEdit,
+                            tooltip: 'Edit',
+                          ),
+
+                          const SizedBox(width: 8),
+
+                          // Delete Button
+                          _buildActionButton(
+                            icon: Icons.delete_rounded,
+                            color: AppColors.error,
+                            onPressed: onDelete,
+                            tooltip: 'Delete',
+                          ),
                         ],
                       ),
                     ],
                   ),
                 ),
 
-                const SizedBox(width: 12),
-
-                // Action Buttons
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    color: _backgroundColor,
+                // Symptoms Preview (if available)
+                if (child.symptomsDescription != null && child.symptomsDescription!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.warning.withOpacity(0.1)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.psychology_alt_rounded, size: 16, color: AppColors.warning),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              child.symptomsDescription!.length > 80
+                                  ? '${child.symptomsDescription!.substring(0, 80)}...'
+                                  : child.symptomsDescription!,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textDark,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  child: Column(
-                    children: [
-                      // View Button
-                      IconButton(
-                        onPressed: onView,
-                        icon: Icon(
-                          Icons.visibility_rounded,
-                          color: _primaryColor,
-                          size: 20,
-                        ),
-                        tooltip: 'View Details',
-                        padding: const EdgeInsets.all(6),
-                        constraints: const BoxConstraints(),
-                      ),
-
-                      // Edit Button
-                      IconButton(
-                        onPressed: onEdit,
-                        icon: Icon(
-                          Icons.edit_rounded,
-                          color: _warningColor,
-                          size: 20,
-                        ),
-                        tooltip: 'Edit',
-                        padding: const EdgeInsets.all(6),
-                        constraints: const BoxConstraints(),
-                      ),
-
-                      // Delete Button
-                      IconButton(
-                        onPressed: onDelete,
-                        icon: Icon(
-                          Icons.delete_rounded,
-                          color: _errorColor,
-                          size: 20,
-                        ),
-                        tooltip: 'Delete',
-                        padding: const EdgeInsets.all(6),
-                        constraints: const BoxConstraints(),
-                      ),
-                    ],
-                  ),
-                ),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onPressed,
+    required String tooltip,
+  }) {
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: IconButton(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 18, color: color),
+        tooltip: tooltip,
+        padding: EdgeInsets.zero,
+        splashRadius: 20,
       ),
     );
   }

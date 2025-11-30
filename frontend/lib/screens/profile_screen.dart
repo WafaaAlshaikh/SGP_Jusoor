@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/profile_service.dart';
 import '../services/activity_service.dart';
+import '../theme/app_colors.dart'; // ✅ استيراد الألوان الجديدة
+
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
 
@@ -13,15 +15,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _userData;
   bool _isLoading = true;
   String _errorMessage = '';
-
-  // Colors
-  static const Color primary = Color(0xFF7815A0);
-  static const Color background = Color(0xFFF0E5FF);
-  static const Color textDark = Color(0xFF333333);
-  static const Color textGray = Color(0xFF777777);
-  static const Color textName = Color(0xFFE5DDFD);
-  static const Color cardBackground = Color(0xFFFFFFFF);
-  static const Color dividerColor = Color(0xFFE5DDFD);
 
   @override
   void initState() {
@@ -60,7 +53,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
 
       if (image != null) {
-        // Here you would typically upload the image to your server
         final response = await ProfileService.updateProfile(
           profilePicture: 'uploads/${DateTime.now().millisecondsSinceEpoch}.jpg',
         );
@@ -114,9 +106,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _showSuccessSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
+        content: Text(
+          message,
+          style: TextStyle(fontWeight: FontWeight.w500),
+        ),
+        backgroundColor: AppColors.success,
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -124,9 +120,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
+        content: Text(
+          message,
+          style: TextStyle(fontWeight: FontWeight.w500),
+        ),
+        backgroundColor: AppColors.error,
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -327,7 +327,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         top: 20,
       ),
       decoration: BoxDecoration(
-        color: cardBackground,
+        color: AppColors.surface,
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(25),
           topRight: Radius.circular(25),
@@ -342,7 +342,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: textGray.withOpacity(0.3),
+                color: AppColors.textLight.withOpacity(0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -352,8 +352,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             title,
             style: TextStyle(
               fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: primary,
+              fontWeight: FontWeight.w700,
+              color: AppColors.primary,
             ),
           ),
           SizedBox(height: 20),
@@ -362,18 +362,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Row(
             children: [
               Expanded(
-                child: ElevatedButton(
+                child: OutlinedButton(
                   onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: textGray.withOpacity(0.1),
-                    foregroundColor: textGray,
-                    elevation: 0,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textGray,
+                    side: BorderSide(color: AppColors.textLight),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     padding: EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: Text('Cancel'),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
               SizedBox(width: 12),
@@ -381,15 +383,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: ElevatedButton(
                   onPressed: onSave,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: primary,
+                    backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
                     elevation: 2,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     padding: EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: Text('Save'),
+                  child: Text(
+                    'Save',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
             ],
@@ -411,19 +416,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
       controller: controller,
       obscureText: obscureText,
       keyboardType: keyboardType,
+      style: TextStyle(color: AppColors.textDark),
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon, color: primary),
+        labelStyle: TextStyle(color: AppColors.textGray),
+        prefixIcon: Icon(icon, color: AppColors.primary),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: BorderSide(color: dividerColor),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: AppColors.accent2),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: BorderSide(color: primary, width: 2),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: AppColors.primary, width: 2),
         ),
         filled: true,
-        fillColor: background.withOpacity(0.3),
+        fillColor: AppColors.background,
       ),
     );
   }
@@ -436,15 +443,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [primary, Color(0xFF9C27B0)],
+          colors: [AppColors.primary, AppColors.primaryLight],
         ),
         borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(35),
-          bottomRight: Radius.circular(35),
+          bottomLeft: Radius.circular(30),
+          bottomRight: Radius.circular(30),
         ),
         boxShadow: [
           BoxShadow(
-            color: primary.withOpacity(0.3),
+            color: AppColors.primary.withOpacity(0.3),
             blurRadius: 15,
             offset: Offset(0, 5),
           ),
@@ -469,7 +476,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                 ),
                 child: CircleAvatar(
-                  backgroundColor: textName,
+                  backgroundColor: AppColors.accent1,
                   backgroundImage: _userData?['profile_picture'] != null
                       ? NetworkImage('http://10.0.2.2:5000/${_userData!['profile_picture']}')
                       : null,
@@ -477,7 +484,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ? Icon(
                     Icons.person,
                     size: 45,
-                    color: primary,
+                    color: AppColors.primary,
                   )
                       : null,
                 ),
@@ -504,7 +511,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Icon(
                       Icons.camera_alt,
                       size: 18,
-                      color: primary,
+                      color: AppColors.primary,
                     ),
                   ),
                 ),
@@ -516,7 +523,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _userData?['full_name'] ?? 'No Name',
             style: TextStyle(
               fontSize: 26,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w700,
               color: Colors.white,
             ),
             textAlign: TextAlign.center,
@@ -527,7 +534,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _userData?['specialist_info']?['specialization'] ?? 'Specialist',
               style: TextStyle(
                 fontSize: 16,
-                color: textName,
+                color: Colors.white.withOpacity(0.9),
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -557,13 +564,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       margin: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       decoration: BoxDecoration(
-        color: cardBackground,
-        borderRadius: BorderRadius.circular(20),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: Offset(0, 3),
+            blurRadius: 8,
+            offset: Offset(0, 2),
           ),
         ],
       ),
@@ -578,21 +585,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: primary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
                   ),
                 ),
                 if (onEdit != null)
                   IconButton(
                     onPressed: onEdit,
-                    icon: Icon(Icons.edit, color: primary, size: 22),
+                    icon: Icon(Icons.edit, color: AppColors.primary, size: 20),
                     padding: EdgeInsets.zero,
                     constraints: BoxConstraints(),
                   ),
               ],
             ),
-            SizedBox(height: 15),
+            SizedBox(height: 16),
             ...children,
           ],
         ),
@@ -604,13 +611,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Container(
       margin: EdgeInsets.symmetric(horizontal: 20, vertical: 6),
       decoration: BoxDecoration(
-        color: cardBackground,
-        borderRadius: BorderRadius.circular(15),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
-            blurRadius: 5,
-            offset: Offset(0, 2),
+            blurRadius: 4,
+            offset: Offset(0, 1),
           ),
         ],
       ),
@@ -619,20 +626,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: primary.withOpacity(0.1),
+            color: AppColors.primary.withOpacity(0.1),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, color: primary, size: 20),
+          child: Icon(icon, color: AppColors.primary, size: 20),
         ),
         title: Text(
           text,
           style: TextStyle(
-            fontWeight: FontWeight.w500,
-            color: textDark,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textDark,
+            fontSize: 15,
           ),
         ),
-        trailing: Icon(Icons.arrow_forward_ios, color: textGray, size: 16),
+        trailing: Icon(Icons.arrow_forward_ios, color: AppColors.textLight, size: 16),
         onTap: onTap,
+        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       ),
     );
   }
@@ -641,18 +650,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: background,
+        backgroundColor: AppColors.background,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircularProgressIndicator(color: primary, strokeWidth: 3),
+              CircularProgressIndicator(
+                  color: AppColors.primary,
+                  strokeWidth: 3
+              ),
               SizedBox(height: 20),
               Text(
                 'Loading Profile...',
                 style: TextStyle(
-                  color: textGray,
+                  color: AppColors.textGray,
                   fontSize: 16,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
@@ -663,23 +676,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (_errorMessage.isNotEmpty) {
       return Scaffold(
-        backgroundColor: background,
+        backgroundColor: AppColors.background,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.error_outline, size: 60, color: primary),
+              Icon(Icons.error_outline, size: 60, color: AppColors.primary),
               SizedBox(height: 20),
               Text(
                 'Error loading profile',
-                style: TextStyle(fontSize: 18, color: textDark, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                    fontSize: 18,
+                    color: AppColors.textDark,
+                    fontWeight: FontWeight.w700
+                ),
               ),
               SizedBox(height: 12),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: 40),
                 child: Text(
                   _errorMessage,
-                  style: TextStyle(color: textGray),
+                  style: TextStyle(color: AppColors.textGray),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -687,15 +704,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ElevatedButton(
                 onPressed: _loadProfile,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: primary,
+                  backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                   elevation: 2,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   padding: EdgeInsets.symmetric(horizontal: 30, vertical: 12),
                 ),
-                child: Text('Try Again'),
+                child: Text(
+                  'Try Again',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
               ),
             ],
           ),
@@ -704,16 +724,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return Scaffold(
-      backgroundColor: background,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(
           'My Profile',
           style: TextStyle(
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w700,
             fontSize: 20,
+            color: Colors.white,
           ),
         ),
-        backgroundColor: primary,
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
@@ -751,6 +772,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _buildInfoRow('Email', _userData?['email'] ?? 'No email'),
                 _buildInfoRow('Phone', _userData?['phone'] ?? 'No phone number'),
               ],
+              onEdit: _editPersonalInfo,
             ),
 
             // Professional Information (for Specialists)
@@ -771,6 +793,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     '\$${_userData?['specialist_info']?['salary']?.toStringAsFixed(2) ?? '0.00'}',
                   ),
                 ],
+                onEdit: _editProfessionalInfo,
               ),
 
             // Institution Information
@@ -803,7 +826,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               '$label:',
               style: TextStyle(
                 fontWeight: FontWeight.w600,
-                color: textDark,
+                color: AppColors.textDark,
                 fontSize: 15,
               ),
             ),
@@ -813,7 +836,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Text(
               value,
               style: TextStyle(
-                color: textGray,
+                color: AppColors.textGray,
                 fontSize: 15,
               ),
             ),

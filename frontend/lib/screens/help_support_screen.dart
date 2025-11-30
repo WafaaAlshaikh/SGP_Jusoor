@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
+import '../theme/app_colors.dart'; // ✅ استيراد الألوان الجديدة
 
 class HelpSupportScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFFFAF5FF),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(
           'Help & Support',
           style: TextStyle(
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w700,
             color: Colors.white,
+            fontSize: 20,
           ),
         ),
-        backgroundColor: Color(0xFF7815A0),
+        backgroundColor: AppColors.primary,
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.white),
       ),
@@ -52,7 +54,7 @@ class HelpSupportScreen extends StatelessWidget {
       padding: EdgeInsets.all(25),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF7815A0), Color(0xFF9F7AEA)],
+          colors: [AppColors.primary, AppColors.primaryLight],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -67,17 +69,24 @@ class HelpSupportScreen extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Icon(
-            Icons.help_center,
-            color: Colors.white,
-            size: 50,
+          Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.help_center,
+              color: Colors.white,
+              size: 40,
+            ),
           ),
           SizedBox(height: 15),
           Text(
             'How Can We Help You?',
             style: TextStyle(
               fontSize: 22,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w700,
               color: Colors.white,
             ),
             textAlign: TextAlign.center,
@@ -88,6 +97,7 @@ class HelpSupportScreen extends StatelessWidget {
             style: TextStyle(
               fontSize: 16,
               color: Colors.white.withOpacity(0.9),
+              fontWeight: FontWeight.w500,
             ),
             textAlign: TextAlign.center,
           ),
@@ -101,13 +111,13 @@ class HelpSupportScreen extends StatelessWidget {
       width: double.infinity,
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black12,
-            blurRadius: 10,
-            offset: Offset(0, 3),
+            blurRadius: 8,
+            offset: Offset(0, 2),
           ),
         ],
       ),
@@ -116,23 +126,30 @@ class HelpSupportScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                Icons.quickreply,
-                color: Color(0xFF7815A0),
-                size: 24,
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.quickreply,
+                  color: AppColors.primary,
+                  size: 22,
+                ),
               ),
-              SizedBox(width: 10),
+              SizedBox(width: 12),
               Text(
                 'Quick Help',
                 style: TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF2D3748),
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textDark,
                 ),
               ),
             ],
           ),
-          SizedBox(height: 15),
+          SizedBox(height: 16),
           Wrap(
             spacing: 12,
             runSpacing: 12,
@@ -151,25 +168,32 @@ class HelpSupportScreen extends StatelessWidget {
   Widget _buildQuickHelpItem(String title, IconData icon, String subtitle) {
     return Container(
       width: 150,
-      padding: EdgeInsets.all(15),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Color(0xFFFAF5FF),
+        color: AppColors.accent1,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Color(0xFFE9D8FD)),
+        border: Border.all(color: AppColors.accent2),
       ),
       child: Column(
         children: [
-          Icon(
-            icon,
-            color: Color(0xFF7815A0),
-            size: 30,
+          Container(
+            padding: EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon,
+              color: AppColors.primary,
+              size: 24,
+            ),
           ),
           SizedBox(height: 8),
           Text(
             title,
             style: TextStyle(
               fontWeight: FontWeight.w600,
-              color: Color(0xFF2D3748),
+              color: AppColors.textDark,
               fontSize: 14,
             ),
             textAlign: TextAlign.center,
@@ -178,7 +202,7 @@ class HelpSupportScreen extends StatelessWidget {
           Text(
             subtitle,
             style: TextStyle(
-              color: Color(0xFF718096),
+              color: AppColors.textGray,
               fontSize: 11,
             ),
             textAlign: TextAlign.center,
@@ -193,13 +217,13 @@ class HelpSupportScreen extends StatelessWidget {
       width: double.infinity,
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black12,
-            blurRadius: 10,
-            offset: Offset(0, 3),
+            blurRadius: 8,
+            offset: Offset(0, 2),
           ),
         ],
       ),
@@ -208,23 +232,30 @@ class HelpSupportScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                Icons.question_answer,
-                color: Color(0xFF7815A0),
-                size: 24,
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.question_answer,
+                  color: AppColors.primary,
+                  size: 22,
+                ),
               ),
-              SizedBox(width: 10),
+              SizedBox(width: 12),
               Text(
                 'Frequently Asked Questions',
                 style: TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF2D3748),
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textDark,
                 ),
               ),
             ],
           ),
-          SizedBox(height: 15),
+          SizedBox(height: 16),
           _buildFAQItem(
             'How do I create a post?',
             'Tap on the "Add Post" button in the community section or use the quick action in dashboard. Write your content and add media if needed.',
@@ -249,29 +280,36 @@ class HelpSupportScreen extends StatelessWidget {
   Widget _buildFAQItem(String question, String answer) {
     return Container(
       margin: EdgeInsets.only(bottom: 12),
-      padding: EdgeInsets.all(15),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Color(0xFFF7FAFC),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Color(0xFFE2E8F0)),
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.accent2),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(
-                Icons.help_outline,
-                color: Color(0xFF7815A0),
-                size: 18,
+              Container(
+                padding: EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.help_outline,
+                  color: AppColors.primary,
+                  size: 16,
+                ),
               ),
-              SizedBox(width: 8),
+              SizedBox(width: 12),
               Expanded(
                 child: Text(
                   question,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF2D3748),
+                    color: AppColors.textDark,
                     fontSize: 15,
                   ),
                 ),
@@ -279,12 +317,15 @@ class HelpSupportScreen extends StatelessWidget {
             ],
           ),
           SizedBox(height: 8),
-          Text(
-            answer,
-            style: TextStyle(
-              color: Color(0xFF4A5568),
-              fontSize: 14,
-              height: 1.4,
+          Padding(
+            padding: EdgeInsets.only(left: 28),
+            child: Text(
+              answer,
+              style: TextStyle(
+                color: AppColors.textGray,
+                fontSize: 14,
+                height: 1.4,
+              ),
             ),
           ),
         ],
@@ -297,13 +338,13 @@ class HelpSupportScreen extends StatelessWidget {
       width: double.infinity,
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black12,
-            blurRadius: 10,
-            offset: Offset(0, 3),
+            blurRadius: 8,
+            offset: Offset(0, 2),
           ),
         ],
       ),
@@ -312,23 +353,30 @@ class HelpSupportScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                Icons.support_agent,
-                color: Color(0xFF7815A0),
-                size: 24,
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.support_agent,
+                  color: AppColors.primary,
+                  size: 22,
+                ),
               ),
-              SizedBox(width: 10),
+              SizedBox(width: 12),
               Text(
                 'Contact Support',
                 style: TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF2D3748),
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textDark,
                 ),
               ),
             ],
           ),
-          SizedBox(height: 15),
+          SizedBox(height: 16),
           _buildContactOption(
             Icons.email,
             'Email Support',
@@ -361,24 +409,24 @@ class HelpSupportScreen extends StatelessWidget {
   Widget _buildContactOption(IconData icon, String title, String subtitle, String description) {
     return Container(
       margin: EdgeInsets.only(bottom: 12),
-      padding: EdgeInsets.all(15),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Color(0xFFFAF5FF),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Color(0xFFE9D8FD)),
+        color: AppColors.accent1,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.accent2),
       ),
       child: Row(
         children: [
           Container(
             padding: EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Color(0xFF7815A0).withOpacity(0.1),
+              color: AppColors.primary.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
               icon,
-              color: Color(0xFF7815A0),
-              size: 22,
+              color: AppColors.primary,
+              size: 20,
             ),
           ),
           SizedBox(width: 15),
@@ -390,15 +438,15 @@ class HelpSupportScreen extends StatelessWidget {
                   title,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF2D3748),
+                    color: AppColors.textDark,
                     fontSize: 15,
                   ),
                 ),
-                SizedBox(height: 2),
+                SizedBox(height: 4),
                 Text(
                   subtitle,
                   style: TextStyle(
-                    color: Color(0xFF7815A0),
+                    color: AppColors.primary,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
@@ -407,7 +455,7 @@ class HelpSupportScreen extends StatelessWidget {
                 Text(
                   description,
                   style: TextStyle(
-                    color: Color(0xFF718096),
+                    color: AppColors.textGray,
                     fontSize: 12,
                   ),
                 ),
@@ -416,7 +464,7 @@ class HelpSupportScreen extends StatelessWidget {
           ),
           Icon(
             Icons.arrow_forward_ios,
-            color: Color(0xFFA0AEC0),
+            color: AppColors.textLight,
             size: 16,
           ),
         ],
@@ -429,13 +477,13 @@ class HelpSupportScreen extends StatelessWidget {
       width: double.infinity,
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black12,
-            blurRadius: 10,
-            offset: Offset(0, 3),
+            blurRadius: 8,
+            offset: Offset(0, 2),
           ),
         ],
       ),
@@ -444,28 +492,36 @@ class HelpSupportScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                Icons.library_books,
-                color: Color(0xFF7815A0),
-                size: 24,
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.library_books,
+                  color: AppColors.primary,
+                  size: 22,
+                ),
               ),
-              SizedBox(width: 10),
+              SizedBox(width: 12),
               Text(
                 'Helpful Resources',
                 style: TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF2D3748),
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textDark,
                 ),
               ),
             ],
           ),
-          SizedBox(height: 15),
+          SizedBox(height: 16),
           Text(
             'Additional resources to help you get the most out of our community:',
             style: TextStyle(
-              color: Color(0xFF4A5568),
+              color: AppColors.textGray,
               fontSize: 14,
+              fontWeight: FontWeight.w500,
             ),
           ),
           SizedBox(height: 12),
@@ -485,30 +541,32 @@ class HelpSupportScreen extends StatelessWidget {
         leading: Container(
           padding: EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Color(0xFF7815A0).withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
+            color: AppColors.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(
             icon,
-            color: Color(0xFF7815A0),
+            color: AppColors.primary,
             size: 20,
           ),
         ),
         title: Text(
           title,
           style: TextStyle(
-            color: Color(0xFF2D3748),
+            color: AppColors.textDark,
             fontSize: 15,
+            fontWeight: FontWeight.w500,
           ),
         ),
         trailing: Icon(
           Icons.arrow_forward_ios,
-          color: Color(0xFFA0AEC0),
+          color: AppColors.textLight,
           size: 16,
         ),
         onTap: () {
           // يمكنك إضافة navigation لكل resource
         },
+        contentPadding: EdgeInsets.symmetric(horizontal: 4),
       ),
     );
   }

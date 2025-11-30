@@ -225,7 +225,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(primarySwatch: Colors.blue),
 
-      initialRoute: '/splash',
+      initialRoute: '/login',
 
       // 🚀 جميع الـ Routes (دمج كامل)
       routes: {

@@ -5,6 +5,8 @@ import 'dart:io';
 import '../services/api_service.dart';
 import '../services/evaluation_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../theme/app_colors.dart';
+import 'package:intl/intl.dart';
 
 class ReportsTab extends StatefulWidget {
   final dynamic child;
@@ -24,19 +26,13 @@ class _ReportsTabState extends State<ReportsTab> {
   String _selectedMonthFilter = 'all';
   String _errorMessage = '';
 
-  // الألوان المتناسقة للتصميم
-  final Color _primaryColor = const Color(0xFF7206AA);
-  final Color _secondaryColor = const Color(0xFF976EF4);
-  final Color _accentColor = const Color(0xFFCAA9F8);
-  final Color _backgroundColor = const Color(0xFFF8F9FA);
-  final Color _surfaceColor = Colors.white;
-  final Color _textPrimary = const Color(0xFF212529);
-  final Color _textSecondary = const Color(0xFF6C757D);
-  final Color _successColor = const Color(0xFF4CAF50);
-  final Color _warningColor = const Color(0xFFFF9800);
-  final Color _errorColor = const Color(0xFFF44336);
-
-  final List<String> _typeFilters = ['all', 'Initial', 'Mid', 'Final', 'Follow-up'];
+  final List<String> _typeFilters = [
+    'all',
+    'Initial',
+    'Mid',
+    'Final',
+    'Follow-up'
+  ];
   final List<String> _progressFilters = ['all', 'low', 'medium', 'high'];
   final List<String> _monthFilters = [
     'all', 'January', 'February', 'March', 'April', 'May', 'June',
@@ -50,30 +46,29 @@ class _ReportsTabState extends State<ReportsTab> {
   }
 
   Future<void> _loadData() async {
-    try {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = '';
-      });
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
 
+    try {
       final evaluations = await _loadChildEvaluations();
 
       setState(() {
         _evaluations = evaluations;
-        _filteredEvaluations = evaluations;
-        _isLoading = false;
+        _filteredEvaluations = List<Map<String, dynamic>>.from(evaluations);
       });
     } catch (e) {
       setState(() {
+        _errorMessage = 'Failed to load evaluations. Please try again later.';
+      });
+    } finally {
+      setState(() {
         _isLoading = false;
-        _errorMessage = e.toString();
-        _evaluations = _getDemoEvaluationsForChild();
-        _filteredEvaluations = _evaluations;
       });
     }
   }
 
-  // 🔥 الدالة المحسنة لجلب البيانات من API
   Future<List<dynamic>> _loadChildEvaluations() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -90,103 +85,30 @@ class _ReportsTabState extends State<ReportsTab> {
       if (response != null && response['success'] == true) {
         final allEvaluations = response['data'] ?? [];
 
-        // تصفية التقييمات الخاصة بالطفل الحالي فقط
+        // Filter evaluations by child
         final childEvaluations = allEvaluations.where((eval) {
           final childName = eval['child_name']?.toString() ?? '';
           final evalChildId = eval['child_id']?.toString();
           final currentChildId = widget.child.id.toString();
 
-          final matches = childName.toLowerCase().contains(widget.child.fullName.toLowerCase()) ||
+          final matches = childName.toLowerCase().contains(
+              widget.child.fullName.toLowerCase()) ||
               evalChildId == currentChildId;
 
           return matches;
         }).toList();
 
-        print('✅ Found ${childEvaluations.length} evaluations for ${widget.child.fullName}');
+        print('✅ Found ${childEvaluations.length} evaluations for ${widget.child
+            .fullName}');
 
-        return childEvaluations.isNotEmpty ? childEvaluations : _getDemoEvaluationsForChild();
+        return childEvaluations;
       } else {
-        return _getDemoEvaluationsForChild();
+        return [];
       }
     } catch (e) {
       print('❌ Error loading child evaluations: $e');
-      return _getDemoEvaluationsForChild();
+      return [];
     }
-  }
-
-  // 🔥 دالة التحميل الرئيسية مع FutureBuilder
-
-  List<dynamic> _getDemoEvaluationsForChild() {
-    final childName = widget.child.fullName;
-    final condition = widget.child.condition ?? 'General';
-
-    return [
-      {
-        'evaluation_id': 1,
-        'evaluation_type': 'Initial Assessment',
-        'progress_score': 75,
-        'child_name': childName,
-        'specialist_name': 'د. محمد علي',
-        'created_at': DateTime.now().subtract(const Duration(days: 30)).toIso8601String(),
-        'notes': 'تقييم أولي لحالة $childName - $condition. أظهر الطفل تقدمًا ملحوظًا في المهارات الأساسية.',
-        'child_id': widget.child.id,
-      },
-      {
-        'evaluation_id': 2,
-        'evaluation_type': 'Progress Report',
-        'progress_score': 82,
-        'child_name': childName,
-        'specialist_name': 'د. سارة أحمد',
-        'created_at': DateTime.now().subtract(const Duration(days: 15)).toIso8601String(),
-        'notes': 'تقرير متابعة لتطور حالة $childName. تحسن في التواصل والتفاعل الاجتماعي.',
-        'child_id': widget.child.id,
-      },
-      {
-        'evaluation_id': 3,
-        'evaluation_type': 'Follow-up Evaluation',
-        'progress_score': 90,
-        'child_name': childName,
-        'specialist_name': 'د. خالد محمد',
-        'created_at': DateTime.now().subtract(const Duration(days: 7)).toIso8601String(),
-        'notes': 'متابعة آخر تطورات $childName في البرنامج العلاجي. أداء ممتاز في الجلسات الأخيرة.',
-        'child_id': widget.child.id,
-      },
-    ];
-  }
-
-  // 🔥 دالة محسنة لتحويل النقاط إلى أرقام
-  int _parseProgressScore(dynamic score) {
-    try {
-      if (score == null) {
-        return _getRandomProgressScore();
-      }
-
-      if (score is int) {
-        return score;
-      }
-
-      if (score is double) {
-        return score.round();
-      }
-
-      if (score is String) {
-        final cleanString = score.trim().replaceAll('%', '');
-        final parsed = int.tryParse(cleanString);
-        if (parsed != null) {
-          return parsed;
-        } else {
-          return _getRandomProgressScore();
-        }
-      }
-
-      return _getRandomProgressScore();
-    } catch (e) {
-      return _getRandomProgressScore();
-    }
-  }
-
-  int _getRandomProgressScore() {
-    return 70 + (DateTime.now().millisecond % 26);
   }
 
   void _applyFilters() {
@@ -194,13 +116,15 @@ class _ReportsTabState extends State<ReportsTab> {
 
     // Filter by type
     if (_selectedFilter != 'all') {
-      filtered = filtered.where((e) => e['evaluation_type'] == _selectedFilter).toList();
+      filtered = filtered.where((e) => e['evaluation_type'] == _selectedFilter)
+          .toList();
     }
 
     // Filter by progress
     if (_selectedProgressFilter != 'all') {
       filtered = filtered.where((e) {
-        final progressScore = _parseProgressScore(e['progress_score']).toDouble();
+        final progressScore = _parseProgressScore(e['progress_score'])
+            .toDouble();
         switch (_selectedProgressFilter) {
           case 'low':
             return progressScore < 40;
@@ -232,8 +156,10 @@ class _ReportsTabState extends State<ReportsTab> {
     // Filter by search query
     if (_searchQuery.isNotEmpty) {
       filtered = filtered.where((e) =>
-      e['child_name']?.toString().toLowerCase().contains(_searchQuery.toLowerCase()) == true ||
-          e['notes']?.toString().toLowerCase().contains(_searchQuery.toLowerCase()) == true).toList();
+      e['child_name']?.toString().toLowerCase().contains(
+          _searchQuery.toLowerCase()) == true ||
+          e['notes']?.toString().toLowerCase().contains(
+              _searchQuery.toLowerCase()) == true).toList();
     }
 
     setState(() => _filteredEvaluations = filtered);
@@ -241,23 +167,71 @@ class _ReportsTabState extends State<ReportsTab> {
 
   String _getMonthName(int month) {
     switch (month) {
-      case 1: return 'January';
-      case 2: return 'February';
-      case 3: return 'March';
-      case 4: return 'April';
-      case 5: return 'May';
-      case 6: return 'June';
-      case 7: return 'July';
-      case 8: return 'August';
-      case 9: return 'September';
-      case 10: return 'October';
-      case 11: return 'November';
-      case 12: return 'December';
-      default: return 'Unknown';
+      case 1:
+        return 'January';
+      case 2:
+        return 'February';
+      case 3:
+        return 'March';
+      case 4:
+        return 'April';
+      case 5:
+        return 'May';
+      case 6:
+        return 'June';
+      case 7:
+        return 'July';
+      case 8:
+        return 'August';
+      case 9:
+        return 'September';
+      case 10:
+        return 'October';
+      case 11:
+        return 'November';
+      case 12:
+        return 'December';
+      default:
+        return 'Unknown';
     }
   }
 
-  // 🔥 دالة التحميل الفعلية
+  int _parseProgressScore(dynamic score) {
+    try {
+      if (score == null) {
+        return _getRandomProgressScore();
+      }
+
+      if (score is int) {
+        return score;
+      }
+
+      if (score is double) {
+        return score.round();
+      }
+
+      if (score is String) {
+        final cleanString = score.trim().replaceAll('%', '');
+        final parsed = int.tryParse(cleanString);
+        if (parsed != null) {
+          return parsed;
+        } else {
+          return _getRandomProgressScore();
+        }
+      }
+
+      return _getRandomProgressScore();
+    } catch (e) {
+      return _getRandomProgressScore();
+    }
+  }
+
+  int _getRandomProgressScore() {
+    return 70 + (DateTime
+        .now()
+        .millisecond % 26);
+  }
+
   Future<void> _downloadEvaluation(Map<String, dynamic> evaluation) async {
     try {
       final evaluationId = evaluation['evaluation_id'];
@@ -266,31 +240,37 @@ class _ReportsTabState extends State<ReportsTab> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          backgroundColor: _surfaceColor,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(color: _primaryColor),
-              const SizedBox(height: 16),
-              Text('Exporting $childName report...', style: TextStyle(color: _textPrimary)),
-            ],
-          ),
-        ),
+        builder: (context) =>
+            AlertDialog(
+              backgroundColor: AppColors.surface,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: AppColors.primary),
+                  const SizedBox(height: 16),
+                  Text('Exporting $childName report...',
+                      style: TextStyle(color: AppColors.textDark)),
+                ],
+              ),
+            ),
       );
 
-      final result = await EvaluationService.downloadToPublicDownloads(evaluationId);
+      final result = await EvaluationService.downloadToPublicDownloads(
+          evaluationId);
 
       if (mounted) Navigator.pop(context);
 
       if (result['success'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ PDF for $childName saved successfully', style: TextStyle(color: Colors.white)),
-            backgroundColor: _successColor,
+            content: Text('✅ PDF for $childName saved successfully',
+                style: TextStyle(color: Colors.white)),
+            backgroundColor: AppColors.success,
             duration: const Duration(seconds: 4),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8)),
             action: SnackBarAction(
               label: 'OPEN FILE',
               textColor: Colors.white,
@@ -303,8 +283,9 @@ class _ReportsTabState extends State<ReportsTab> {
       if (mounted) Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('❌ Error exporting report: $e', style: TextStyle(color: Colors.white)),
-          backgroundColor: _errorColor,
+          content: Text('❌ Error exporting report: $e',
+              style: TextStyle(color: Colors.white)),
+          backgroundColor: AppColors.error,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       );
@@ -317,8 +298,9 @@ class _ReportsTabState extends State<ReportsTab> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Cannot open file: $e', style: TextStyle(color: Colors.white)),
-          backgroundColor: _warningColor,
+          content: Text(
+              'Cannot open file: $e', style: TextStyle(color: Colors.white)),
+          backgroundColor: AppColors.warning,
         ),
       );
     }
@@ -328,8 +310,9 @@ class _ReportsTabState extends State<ReportsTab> {
     if (_filteredEvaluations.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('No evaluations to export', style: TextStyle(color: Colors.white)),
-          backgroundColor: _warningColor,
+          content: Text('No evaluations to export',
+              style: TextStyle(color: Colors.white)),
+          backgroundColor: AppColors.warning,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       );
@@ -339,26 +322,35 @@ class _ReportsTabState extends State<ReportsTab> {
     try {
       final shouldExport = await showDialog(
         context: context,
-        builder: (context) => AlertDialog(
-          title: Text('Export All Reports', style: TextStyle(color: _textPrimary)),
-          content: Text('You are about to export ${_filteredEvaluations.length} reports to your Downloads folder.', style: TextStyle(color: _textSecondary)),
-          backgroundColor: _surfaceColor,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text('Cancel', style: TextStyle(color: _textSecondary)),
+        builder: (context) =>
+            AlertDialog(
+              title: Text('Export All Reports',
+                  style: TextStyle(color: AppColors.textDark)),
+              backgroundColor: AppColors.surface,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              content: Text('You are about to export ${_filteredEvaluations
+                  .length} reports to your Downloads folder.',
+                  style: TextStyle(color: AppColors.textLight)),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: Text(
+                      'Cancel', style: TextStyle(color: AppColors.textLight)),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text(
+                      'Export All', style: TextStyle(color: Colors.white)),
+                ),
+              ],
             ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _primaryColor,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Text('Export All', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
       );
 
       if (shouldExport != true) return;
@@ -366,24 +358,27 @@ class _ReportsTabState extends State<ReportsTab> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          backgroundColor: _surfaceColor,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(color: _primaryColor),
-              const SizedBox(height: 16),
-              Text('Exporting ${_filteredEvaluations.length} reports...', style: TextStyle(color: _textPrimary)),
-              const SizedBox(height: 8),
-              Text(
-                'Files will be saved to Downloads folder',
-                style: TextStyle(fontSize: 12, color: _textSecondary),
-                textAlign: TextAlign.center,
+        builder: (context) =>
+            AlertDialog(
+              backgroundColor: AppColors.surface,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: AppColors.primary),
+                  const SizedBox(height: 16),
+                  Text('Exporting ${_filteredEvaluations.length} reports...',
+                      style: TextStyle(color: AppColors.textDark)),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Files will be saved to Downloads folder',
+                    style: TextStyle(fontSize: 12, color: AppColors.textLight),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
       );
 
       int successCount = 0;
@@ -392,7 +387,8 @@ class _ReportsTabState extends State<ReportsTab> {
 
       for (var evaluation in _filteredEvaluations) {
         try {
-          final result = await EvaluationService.downloadToPublicDownloads(evaluation['evaluation_id']);
+          final result = await EvaluationService.downloadToPublicDownloads(
+              evaluation['evaluation_id']);
           if (result['success'] == true) {
             final file = File(result['filePath']);
             if (await file.exists()) {
@@ -404,7 +400,8 @@ class _ReportsTabState extends State<ReportsTab> {
           }
         } catch (e) {
           failCount++;
-          print('Failed to export evaluation ${evaluation['evaluation_id']}: $e');
+          print(
+              'Failed to export evaluation ${evaluation['evaluation_id']}: $e');
         }
       }
 
@@ -412,7 +409,8 @@ class _ReportsTabState extends State<ReportsTab> {
 
       String resultMessage;
       if (successCount > 0 && failCount == 0) {
-        resultMessage = '✅ Successfully exported $successCount reports to Downloads folder';
+        resultMessage =
+        '✅ Successfully exported $successCount reports to Downloads folder';
       } else if (successCount > 0 && failCount > 0) {
         resultMessage = '✅ $successCount files exported, ❌ $failCount failed';
       } else {
@@ -422,7 +420,8 @@ class _ReportsTabState extends State<ReportsTab> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(resultMessage, style: TextStyle(color: Colors.white)),
-          backgroundColor: failCount == 0 ? _successColor : _warningColor,
+          backgroundColor: failCount == 0 ? AppColors.success : AppColors
+              .warning,
           duration: const Duration(seconds: 6),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           action: successCount > 0
@@ -434,13 +433,13 @@ class _ReportsTabState extends State<ReportsTab> {
               : null,
         ),
       );
-
     } catch (e) {
       if (mounted) Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('❌ Error exporting PDFs: $e', style: TextStyle(color: Colors.white)),
-          backgroundColor: _errorColor,
+          content: Text('❌ Error exporting PDFs: $e',
+              style: TextStyle(color: Colors.white)),
+          backgroundColor: AppColors.error,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       );
@@ -450,48 +449,57 @@ class _ReportsTabState extends State<ReportsTab> {
   void _showExportedFiles(List<String> filePaths) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Exported Files', style: TextStyle(color: _textPrimary)),
-        backgroundColor: _surfaceColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: filePaths.length,
-            itemBuilder: (context, index) {
-              final filePath = filePaths[index];
-              final fileName = filePath.split('/').last;
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                decoration: BoxDecoration(
-                  color: _backgroundColor,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: ListTile(
-                  leading: Icon(Icons.picture_as_pdf, color: _errorColor),
-                  title: Text(fileName, style: TextStyle(color: _textPrimary)),
-                  subtitle: Text(
-                    filePath,
-                    style: TextStyle(fontSize: 10, color: _textSecondary),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: IconButton(
-                    icon: Icon(Icons.open_in_new, color: _primaryColor),
-                    onPressed: () => _openSavedPDF(filePath),
-                  ),
-                ),
-              );
-            },
+      builder: (context) =>
+          AlertDialog(
+            title: Text(
+                'Exported Files', style: TextStyle(color: AppColors.textDark)),
+            backgroundColor: AppColors.surface,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16)),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: filePaths.length,
+                itemBuilder: (context, index) {
+                  final filePath = filePaths[index];
+                  final fileName = filePath
+                      .split('/')
+                      .last;
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ListTile(
+                      leading: Icon(
+                          Icons.picture_as_pdf, color: AppColors.error),
+                      title: Text(fileName,
+                          style: TextStyle(color: AppColors.textDark)),
+                      subtitle: Text(
+                        filePath,
+                        style: TextStyle(
+                            fontSize: 10, color: AppColors.textLight),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: IconButton(
+                        icon: Icon(Icons.open_in_new, color: AppColors.primary),
+                        onPressed: () => _openSavedPDF(filePath),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                    'Close', style: TextStyle(color: AppColors.textLight)),
+              ),
+            ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Close', style: TextStyle(color: _textSecondary)),
-          ),
-        ],
-      ),
     );
   }
 
@@ -499,111 +507,121 @@ class _ReportsTabState extends State<ReportsTab> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: _surfaceColor,
+      backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: _textSecondary.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Text(
-              'Filter Reports',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _textPrimary),
-            ),
-            const SizedBox(height: 20),
-
-            _buildFilterSection(
-              'Report Type',
-              _typeFilters,
-              _selectedFilter,
-                  (value) => setState(() => _selectedFilter = value),
-            ),
-
-            const SizedBox(height: 20),
-
-            _buildFilterSection(
-              'Progress Level',
-              _progressFilters,
-              _selectedProgressFilter,
-                  (value) => setState(() => _selectedProgressFilter = value),
-            ),
-
-            const SizedBox(height: 20),
-
-            _buildFilterSection(
-              'Month',
-              _monthFilters,
-              _selectedMonthFilter,
-                  (value) => setState(() => _selectedMonthFilter = value),
-            ),
-
-            const SizedBox(height: 20),
-
-            Row(
+      builder: (context) =>
+          Container(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {
-                      setState(() {
-                        _selectedFilter = 'all';
-                        _selectedProgressFilter = 'all';
-                        _selectedMonthFilter = 'all';
-                      });
-                      _applyFilters();
-                      Navigator.pop(context);
-                    },
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: _textSecondary,
-                      side: BorderSide(color: _textSecondary.withOpacity(0.3)),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    child: const Text('Reset Filters'),
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.textLight.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      _applyFilters();
-                      Navigator.pop(context);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _primaryColor,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    child: const Text('Apply Filters'),
-                  ),
+                Text(
+                  'Filter Reports',
+                  style: TextStyle(fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textDark),
                 ),
+                const SizedBox(height: 20),
+
+                _buildFilterSection(
+                  'Report Type',
+                  _typeFilters,
+                  _selectedFilter,
+                      (value) => setState(() => _selectedFilter = value),
+                ),
+
+                const SizedBox(height: 20),
+
+                _buildFilterSection(
+                  'Progress Level',
+                  _progressFilters,
+                  _selectedProgressFilter,
+                      (value) =>
+                      setState(() => _selectedProgressFilter = value),
+                ),
+
+                const SizedBox(height: 20),
+
+                _buildFilterSection(
+                  'Month',
+                  _monthFilters,
+                  _selectedMonthFilter,
+                      (value) => setState(() => _selectedMonthFilter = value),
+                ),
+
+                const SizedBox(height: 20),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          setState(() {
+                            _selectedFilter = 'all';
+                            _selectedProgressFilter = 'all';
+                            _selectedMonthFilter = 'all';
+                          });
+                          _applyFilters();
+                          Navigator.pop(context);
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textLight,
+                          side: BorderSide(
+                              color: AppColors.textLight.withOpacity(0.3)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        child: const Text('Reset Filters'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          _applyFilters();
+                          Navigator.pop(context);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        child: const Text('Apply Filters'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
               ],
             ),
-            const SizedBox(height: 10),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
-  Widget _buildFilterSection(String title, List<String> options, String selected, Function(String) onChanged) {
+  Widget _buildFilterSection(String title, List<String> options,
+      String selected, Function(String) onChanged) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           title,
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: _textPrimary),
+          style: TextStyle(fontWeight: FontWeight.bold,
+              fontSize: 16,
+              color: AppColors.textDark),
         ),
         const SizedBox(height: 10),
         Wrap(
@@ -620,22 +638,24 @@ class _ReportsTabState extends State<ReportsTab> {
                 option.length > 7 ? '${option.substring(0, 3)}' : option,
                 style: TextStyle(
                   fontSize: option.length > 7 ? 12 : 14,
-                  color: isSelected ? Colors.white : _textPrimary,
+                  color: isSelected ? Colors.white : AppColors.textDark,
                 ),
               ),
               selected: isSelected,
               onSelected: (_) => onChanged(option),
-              backgroundColor: isSelected ? _primaryColor : _backgroundColor,
-              selectedColor: _primaryColor,
+              backgroundColor: isSelected ? AppColors.primary : AppColors
+                  .background,
+              selectedColor: AppColors.primary,
               checkmarkColor: Colors.white,
               labelStyle: TextStyle(
-                color: isSelected ? Colors.white : _textPrimary,
+                color: isSelected ? Colors.white : AppColors.textDark,
                 fontWeight: FontWeight.w500,
               ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
                 side: BorderSide(
-                  color: isSelected ? _primaryColor : _textSecondary.withOpacity(0.2),
+                  color: isSelected ? AppColors.primary : AppColors.textLight
+                      .withOpacity(0.2),
                 ),
               ),
             );
@@ -644,7 +664,6 @@ class _ReportsTabState extends State<ReportsTab> {
       ],
     );
   }
-
 
   void _showEvaluationDetails(Map<String, dynamic> evaluation) {
     double progressScore = 0.0;
@@ -659,81 +678,89 @@ class _ReportsTabState extends State<ReportsTab> {
       }
     }
 
+    // Remove the child's name from the notes if it exists
+    String notes = evaluation['notes']?.toString() ?? '';
+    final childName = evaluation['child_name']?.toString() ?? '';
+    if (childName.isNotEmpty) {
+      // Remove child's name from the notes
+      notes = notes.replaceAll('$childName', 'the child');
+    }
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('${evaluation['evaluation_type']} Details', style: TextStyle(color: _textPrimary)),
-        backgroundColor: _surfaceColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildDetailRow('Child:', evaluation['child_name']?.toString() ?? ''),
-              _buildDetailRow('Specialist:', evaluation['specialist_name']?.toString() ?? ''),
-              _buildDetailRow('Evaluation Type:', evaluation['evaluation_type']?.toString() ?? ''),
-              _buildDetailRow('Progress Score:', '${progressScore.round()}%'),
-              _buildDetailRow('Date:', _formatDateWithMonth(evaluation['created_at']?.toString() ?? '')),
-              const SizedBox(height: 16),
-              if (evaluation['notes'] != null && evaluation['notes'].toString().isNotEmpty)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Notes:',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: _textPrimary,
-                      ),
+      builder: (context) =>
+          AlertDialog(
+            title: Text('${evaluation['evaluation_type']} Details',
+                style: TextStyle(color: AppColors.buttonColor)),
+            backgroundColor: AppColors.surface,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16)),
+            content: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildDetailRow('Specialist:',
+                      evaluation['specialist_name']?.toString() ?? 'Not specified'),
+                  _buildDetailRow('Evaluation Type:',
+                      evaluation['evaluation_type']?.toString() ?? 'N/A'),
+                  _buildDetailRow(
+                      'Progress Score:', '${progressScore.round()}%'),
+                  _buildDetailRow('Date:', _formatDateWithMonth(
+                      evaluation['created_at']?.toString() ?? 'Unknown date')),
+                  const SizedBox(height: 16),
+                  if (notes.isNotEmpty)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Notes:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textName,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          notes,
+                          style: TextStyle(color: AppColors.textGray),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      evaluation['notes'].toString(),
-                      style: TextStyle(color: _textSecondary),
-                    ),
-                  ],
-                ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                    'Close', style: TextStyle(color: AppColors.primary, fontSize: 16, fontWeight: FontWeight.w600)),
+              ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Close', style: TextStyle(color: _textSecondary)),
-          ),
-          ElevatedButton(
-            onPressed: () => _downloadEvaluation(evaluation),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _primaryColor,
-            ),
-            child: Text('Download PDF', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
     );
   }
 
   Widget _buildDetailRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            label,
-            style: TextStyle(
-              fontWeight: FontWeight.w500,
-              color: _textPrimary,
+            '$label ',
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textName,
             ),
           ),
-          const SizedBox(width: 8),
           Expanded(
             child: Text(
               value,
-              style: TextStyle(
-                fontWeight: FontWeight.w400,
-                color: _textSecondary,
+              style: const TextStyle(
+                fontSize: 16,
+                color: AppColors.textGray,
               ),
             ),
           ),
@@ -741,9 +768,6 @@ class _ReportsTabState extends State<ReportsTab> {
       ),
     );
   }
-
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -762,135 +786,207 @@ class _ReportsTabState extends State<ReportsTab> {
     return _buildMainContent();
   }
 
-
   Widget _buildMainContent() {
     return Scaffold(
-      backgroundColor: _backgroundColor,
-      body: Column(
-        children: [
-          // Search Bar
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search reports...',
-                hintStyle: TextStyle(color: _textSecondary),
-                prefixIcon: Icon(Icons.search, color: _textSecondary),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: _textSecondary.withOpacity(0.2)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: _primaryColor),
-                ),
-                filled: true,
-                fillColor: _surfaceColor,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              ),
-              onChanged: (value) {
-                setState(() => _searchQuery = value);
-                _applyFilters();
-              },
-            ),
+      backgroundColor: AppColors.background,
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      color: AppColors.primary,
+      backgroundColor: AppColors.background,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSearchAndFilter(),
+            const SizedBox(height: 20),
+            if (_isLoading)
+              const Center(child: CircularProgressIndicator())
+            else
+              if (_errorMessage.isNotEmpty)
+                _buildErrorState()
+              else
+                if (_filteredEvaluations.isEmpty)
+                  _buildEmptyState()
+                else
+                  _buildEvaluationsList(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEvaluationsList() {
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _filteredEvaluations.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 16),
+      itemBuilder: (context, index) {
+        final evaluation = _filteredEvaluations[index];
+        return _buildEvaluationCard(evaluation);
+      },
+    );
+  }
+
+  Widget _buildEvaluationCard(Map<String, dynamic> evaluation) {
+    final progressScore = _parseProgressScore(evaluation['progress_score']);
+    final evaluationDate = DateTime.parse(evaluation['created_at']);
+    final formattedDate = DateFormat('MMM d, y').format(evaluationDate);
+    final evaluationType = evaluation['evaluation_type'] ?? 'Evaluation';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-
-          // Stats Card
-          _buildStatsCard(),
-
-          // Results Count and Filter Info
-          Padding(
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            // Handle tap
+          },
+          child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '${_filteredEvaluations.length} report(s) found',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: _textPrimary,
-                    fontSize: 16,
-                  ),
-                ),
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    if (_filteredEvaluations.isNotEmpty)
-                      IconButton(
-                        icon: Icon(Icons.picture_as_pdf, color: _primaryColor),
-                        onPressed: _exportAllToPDF,
-                        tooltip: 'Export All Reports',
+                    Text(
+                      evaluationType,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textDark,
                       ),
-                    IconButton(
-                      icon: Icon(Icons.filter_list, color: _primaryColor),
-                      onPressed: _showFilterDialog,
-                      tooltip: 'Filter Reports',
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _getStatusColor(progressScore).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: _getStatusColor(progressScore)
+                            .withOpacity(0.3)),
+                      ),
+                      child: Text(
+                        '${progressScore}%',
+                        style: TextStyle(
+                          color: _getStatusColor(progressScore),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ],
+                ),
+
+                const SizedBox(height: 12),
+
+                // Specialist and Date Row
+                Row(
+                  children: [
+                    Icon(Icons.person_outline, size: 16,
+                        color: AppColors.textLight),
+                    const SizedBox(width: 6),
+                    Text(
+                      evaluation['specialist_name'] ?? 'Specialist',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textLight,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Icon(Icons.calendar_today_outlined, size: 14,
+                        color: AppColors.textLight),
+                    const SizedBox(width: 6),
+                    Text(
+                      formattedDate,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textLight,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 8),
+
+                // Progress Bar
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: progressScore / 100,
+                    minHeight: 6,
+                    backgroundColor: AppColors.accent1,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      _getStatusColor(progressScore),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 4),
+
+                // View Details Button
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () {
+                      _showEvaluationDetails(evaluation);
+                    },
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'View Details',
+                          style: TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        SizedBox(width: 4),
+                        Icon(Icons.arrow_forward_ios, size: 12,
+                            color: AppColors.primary),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
-
-          // Active Filters Row
-          if (_selectedFilter != 'all' || _selectedProgressFilter != 'all' || _selectedMonthFilter != 'all')
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  if (_selectedFilter != 'all')
-                    Chip(
-                      label: Text('Type: $_selectedFilter', style: TextStyle(fontSize: 12)),
-                      onDeleted: () {
-                        setState(() => _selectedFilter = 'all');
-                        _applyFilters();
-                      },
-                      backgroundColor: _primaryColor.withOpacity(0.1),
-                      deleteIconColor: _primaryColor,
-                    ),
-                  if (_selectedProgressFilter != 'all')
-                    Chip(
-                      label: Text('Progress: $_selectedProgressFilter', style: TextStyle(fontSize: 12)),
-                      onDeleted: () {
-                        setState(() => _selectedProgressFilter = 'all');
-                        _applyFilters();
-                      },
-                      backgroundColor: _primaryColor.withOpacity(0.1),
-                      deleteIconColor: _primaryColor,
-                    ),
-                  if (_selectedMonthFilter != 'all')
-                    Chip(
-                      label: Text('Month: $_selectedMonthFilter', style: TextStyle(fontSize: 12)),
-                      onDeleted: () {
-                        setState(() => _selectedMonthFilter = 'all');
-                        _applyFilters();
-                      },
-                      backgroundColor: _primaryColor.withOpacity(0.1),
-                      deleteIconColor: _primaryColor,
-                    ),
-                ],
-              ),
-            ),
-
-          // Reports List
-          Expanded(
-            child: _filteredEvaluations.isEmpty
-                ? _buildNoResultsState()
-                : RefreshIndicator(
-              onRefresh: _loadData,
-              color: _primaryColor,
-              backgroundColor: _surfaceColor,
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                itemCount: _filteredEvaluations.length,
-                itemBuilder: (context, index) => _buildEvaluationCard(_filteredEvaluations[index]),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
+  }
+
+  Color _getStatusColor(int progress) {
+    if (progress >= 75) return AppColors.success;
+    if (progress >= 50) return AppColors.info;
+    if (progress >= 25) return AppColors.warning;
+    return AppColors.error;
   }
 
   Widget _buildLoadingState() {
@@ -902,11 +998,11 @@ class _ReportsTabState extends State<ReportsTab> {
             width: 80,
             height: 80,
             decoration: BoxDecoration(
-              color: _primaryColor.withOpacity(0.1),
+              color: AppColors.primary.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: CircularProgressIndicator(
-              color: _primaryColor,
+              color: AppColors.primary,
               strokeWidth: 3,
             ),
           ),
@@ -914,7 +1010,7 @@ class _ReportsTabState extends State<ReportsTab> {
           Text(
             'Loading Reports...',
             style: TextStyle(
-              color: _textPrimary,
+              color: AppColors.textDark,
               fontSize: 16,
               fontWeight: FontWeight.w500,
             ),
@@ -923,7 +1019,7 @@ class _ReportsTabState extends State<ReportsTab> {
           Text(
             'For ${widget.child.fullName}',
             style: TextStyle(
-              color: _textSecondary,
+              color: AppColors.textLight,
               fontSize: 14,
             ),
           ),
@@ -932,29 +1028,33 @@ class _ReportsTabState extends State<ReportsTab> {
     );
   }
 
-
   Widget _buildErrorState() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.error_outline, size: 64, color: _errorColor),
+          Icon(Icons.error_outline, size: 64, color: AppColors.error),
           const SizedBox(height: 16),
           Text(
             'Failed to load reports',
-            style: TextStyle(fontSize: 16, color: _errorColor),
+            style: TextStyle(fontSize: 16, color: AppColors.error),
           ),
           const SizedBox(height: 8),
           Text(
             _errorMessage,
-            style: TextStyle(fontSize: 12, color: _textSecondary),
+            style: TextStyle(fontSize: 12, color: AppColors.textLight),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: _loadData,
             style: ElevatedButton.styleFrom(
-              backgroundColor: _primaryColor,
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+              elevation: 0,
             ),
             child: Text('Retry', style: TextStyle(color: Colors.white)),
           ),
@@ -965,368 +1065,107 @@ class _ReportsTabState extends State<ReportsTab> {
 
   Widget _buildEmptyState() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.assignment_outlined, size: 80, color: _textSecondary.withOpacity(0.5)),
-          const SizedBox(height: 16),
-          Text(
-            'No Reports Available',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: _textSecondary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Evaluation reports will appear here\nonce they are generated by specialists',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: _textSecondary),
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: _loadData,
-            icon: Icon(Icons.refresh),
-            label: Text('Refresh'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNoResultsState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.search_off, size: 64, color: _textSecondary.withOpacity(0.5)),
-          const SizedBox(height: 16),
-          Text(
-            'No matching reports found',
-            style: TextStyle(fontSize: 18, color: _textSecondary),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Try adjusting your search or filters',
-            style: TextStyle(color: _textSecondary),
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _searchQuery = '';
-                _selectedFilter = 'all';
-                _selectedProgressFilter = 'all';
-                _selectedMonthFilter = 'all';
-              });
-              _applyFilters();
-            },
-            child: Text('Clear All Filters'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatsCard() {
-    final total = _evaluations.length;
-
-    final double averageProgress = _evaluations.isEmpty ? 0.0 :
-    (_evaluations.map((e) {
-      final score = e['progress_score'];
-      if (score == null) return 0.0;
-      if (score is double) return score;
-      if (score is int) return score.toDouble();
-      if (score is String) return double.tryParse(score) ?? 0.0;
-      return 0.0;
-    }).reduce((a, b) => a + b) / total);
-
-    final highProgressCount = _evaluations.where((e) {
-      final score = e['progress_score'];
-      if (score == null) return false;
-      if (score is double) return score >= 70;
-      if (score is int) return score >= 70;
-      if (score is String) return (double.tryParse(score) ?? 0.0) >= 70;
-      return false;
-    }).length;
-
-    final lowProgressCount = _evaluations.where((e) {
-      final score = e['progress_score'];
-      if (score == null) return false;
-      if (score is double) return score < 40;
-      if (score is int) return score < 40;
-      if (score is String) return (double.tryParse(score) ?? 0.0) < 40;
-      return false;
-    }).length;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [_primaryColor, _secondaryColor],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+      child: Text(
+        'No evaluations found',
+        style: TextStyle(
+          color: AppColors.textLight,
+          fontSize: 16,
         ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: _primaryColor.withOpacity(0.3),
-            blurRadius: 15,
-            offset: const Offset(0, 6),
-          ),
-        ],
       ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Icon(Icons.analytics, color: Colors.white, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'Progress Statistics',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+    );
+  }
+
+  Widget _buildSearchAndFilter() {
+    return Column(
+      children: [
+        // Search Bar
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildStatItem('Total', total.toString(), Icons.assessment, Colors.white),
-              _buildStatItem('Avg Progress', '${averageProgress.round()}%', Icons.trending_up,
-                  _getProgressColor(averageProgress)),
-              _buildStatItem('High', highProgressCount.toString(), Icons.emoji_events, _successColor),
-              _buildStatItem('Low', lowProgressCount.toString(), Icons.warning, _errorColor),
-            ],
+          child: TextField(
+            decoration: InputDecoration(
+              hintText: 'Search reports...',
+              hintStyle: const TextStyle(color: AppColors.textLight),
+              prefixIcon: const Icon(
+                  Icons.search, color: AppColors.primaryLight),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16, vertical: 14),
+            ),
+            style: const TextStyle(color: AppColors.textDark),
+            onChanged: (value) {
+              setState(() {
+                _searchQuery = value.toLowerCase();
+                _applyFilters();
+              });
+            },
           ),
-        ],
-      ),
-    );
-  }
+        ),
 
-  Widget _buildStatItem(String label, String value, IconData icon, Color color) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: color, size: 20),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.white70,
-            fontSize: 10,
+        const SizedBox(height: 16),
+
+        // Filter Chips
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _buildFilterChip('All', _selectedFilter == 'all', () {
+                setState(() {
+                  _selectedFilter = 'all';
+                  _applyFilters();
+                });
+              }),
+              const SizedBox(width: 8),
+              ..._typeFilters.where((f) => f != 'all').map((filter) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: _buildFilterChip(
+                    filter,
+                    _selectedFilter == filter,
+                        () {
+                      setState(() {
+                        _selectedFilter = filter;
+                        _applyFilters();
+                      });
+                    },
+                  ),
+                );
+              }).toList(),
+            ],
           ),
         ),
       ],
     );
   }
 
-  Widget _buildEvaluationCard(Map<String, dynamic> evaluation) {
-    double progressScore = 0.0;
-    final score = evaluation['progress_score'];
-    if (score != null) {
-      if (score is double) {
-        progressScore = score;
-      } else if (score is int) {
-        progressScore = score.toDouble();
-      } else if (score is String) {
-        progressScore = double.tryParse(score) ?? 0.0;
-      }
-    }
-
-    final childName = evaluation['child_name'] ?? 'Unknown Child';
-    final evaluationType = evaluation['evaluation_type'] ?? 'Unknown Type';
-    final notes = evaluation['notes'] ?? '';
-    final createdAt = evaluation['created_at'] ?? '';
-    final attachment = evaluation['attachment'];
-
-    final progressColor = _getProgressColor(progressScore);
-
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+  Widget _buildFilterChip(String label, bool isSelected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
       child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: _surfaceColor,
-          borderRadius: BorderRadius.circular(16),
+          color: isSelected ? AppColors.primary : AppColors.accent1,
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: _textSecondary.withOpacity(0.1),
+            color: isSelected ? AppColors.primary : AppColors.accent2,
+            width: 1,
           ),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header Row
-              Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: progressColor.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      _getProgressIcon(progressScore),
-                      color: progressColor,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          childName,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: _textPrimary,
-                          ),
-                        ),
-                        Text(
-                          '$evaluationType Evaluation',
-                          style: TextStyle(
-                            color: _textSecondary,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Progress Badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: progressColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: progressColor.withOpacity(0.3),
-                      ),
-                    ),
-                    child: Text(
-                      '${progressScore.round()}%',
-                      style: TextStyle(
-                        color: progressColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 16),
-
-              // Progress Bar
-              LinearProgressIndicator(
-                value: progressScore / 100,
-                backgroundColor: _backgroundColor,
-                valueColor: AlwaysStoppedAnimation<Color>(progressColor),
-                borderRadius: BorderRadius.circular(4),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Notes
-              if (notes.isNotEmpty) ...[
-                Text(
-                  notes,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: _textSecondary,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
-
-              // Footer Row
-              Row(
-                children: [
-                  // Date and Attachment
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.calendar_today, size: 14, color: _textSecondary),
-                            const SizedBox(width: 4),
-                            Text(
-                              _formatDateWithMonth(createdAt),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: _textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (attachment != null) ...[
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(Icons.attach_file, size: 14, color: _textSecondary),
-                              const SizedBox(width: 4),
-                              Text(
-                                attachment.toString(),
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: _textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-
-                  // Action Buttons
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.picture_as_pdf, size: 20, color: _primaryColor),
-                        onPressed: () => _downloadEvaluation(evaluation),
-                        tooltip: 'Export to PDF',
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.visibility, size: 20, color: _textSecondary),
-                        onPressed: () => _showEvaluationDetails(evaluation),
-                        tooltip: 'View Details',
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ],
+        child: Text(
+          label[0].toUpperCase() + label.substring(1),
+          style: TextStyle(
+            color: isSelected ? Colors.white : AppColors.primary,
+            fontWeight: FontWeight.w500,
+            fontSize: 13,
           ),
         ),
       ),
@@ -1335,9 +1174,9 @@ class _ReportsTabState extends State<ReportsTab> {
 
 // الدوال المساعدة
   Color _getProgressColor(double score) {
-    if (score < 40) return _errorColor;
-    if (score < 70) return _warningColor;
-    return _successColor;
+    if (score < 40) return AppColors.error;
+    if (score < 70) return AppColors.warning;
+    return AppColors.success;
   }
 
   IconData _getProgressIcon(double score) {
@@ -1354,4 +1193,5 @@ class _ReportsTabState extends State<ReportsTab> {
     } catch (e) {
       return dateString;
     }
-  }}
+  }
+}

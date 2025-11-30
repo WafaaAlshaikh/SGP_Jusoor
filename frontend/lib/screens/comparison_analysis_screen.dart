@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/progress_analysis_service.dart';
+import '../theme/app_colors.dart';
 
 class ComparisonAnalysisScreen extends StatefulWidget {
   final int childId;
@@ -134,8 +135,15 @@ class _ComparisonAnalysisScreenState extends State<ComparisonAnalysisScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
+        content: Text(
+          message,
+          style: TextStyle(
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }
@@ -151,21 +159,41 @@ class _ComparisonAnalysisScreenState extends State<ComparisonAnalysisScreen> {
   // ========== UI COMPONENTS ==========
 
   Widget _buildDateComparisonSection() {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: EdgeInsets.all(20),
+        padding: EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(Icons.compare_arrows, color: Colors.blue, size: 24),
+                Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.info.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(Icons.compare_arrows, color: AppColors.info, size: 24),
+                ),
                 SizedBox(width: 12),
                 Text(
                   'Compare Specific Dates',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textDark,
+                  ),
                 ),
               ],
             ),
@@ -173,9 +201,13 @@ class _ComparisonAnalysisScreenState extends State<ComparisonAnalysisScreen> {
 
             Text(
               'Select two specific dates to compare progress between them',
-              style: TextStyle(color: Colors.grey[600], height: 1.4),
+              style: TextStyle(
+                color: AppColors.textGray,
+                height: 1.5,
+                fontSize: 14,
+              ),
             ),
-            SizedBox(height: 20),
+            SizedBox(height: 24),
 
             // Date Selection
             Row(
@@ -184,11 +216,18 @@ class _ComparisonAnalysisScreenState extends State<ComparisonAnalysisScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Start Date', style: TextStyle(fontWeight: FontWeight.w500)),
+                      Text(
+                        'Start Date',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textDark,
+                          fontSize: 14,
+                        ),
+                      ),
                       SizedBox(height: 8),
                       _buildDatePicker(
                         _startDate,
-                        'Select Date',
+                        'Select Start Date',
                             (date) => setState(() => _startDate = date),
                       ),
                     ],
@@ -199,11 +238,18 @@ class _ComparisonAnalysisScreenState extends State<ComparisonAnalysisScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('End Date', style: TextStyle(fontWeight: FontWeight.w500)),
+                      Text(
+                        'End Date',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textDark,
+                          fontSize: 14,
+                        ),
+                      ),
                       SizedBox(height: 8),
                       _buildDatePicker(
                         _endDate,
-                        'Select Date',
+                        'Select End Date',
                             (date) => setState(() => _endDate = date),
                       ),
                     ],
@@ -211,7 +257,7 @@ class _ComparisonAnalysisScreenState extends State<ComparisonAnalysisScreen> {
                 ),
               ],
             ),
-            SizedBox(height: 20),
+            SizedBox(height: 24),
 
             // Compare Button
             SizedBox(
@@ -219,14 +265,29 @@ class _ComparisonAnalysisScreenState extends State<ComparisonAnalysisScreen> {
               child: ElevatedButton.icon(
                 onPressed: _isComparingDates ? null : _compareDates,
                 icon: _isComparingDates
-                    ? SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                    : Icon(Icons.compare_arrows),
-                label: Text(_isComparingDates ? 'Comparing...' : 'Compare Dates'),
+                    ? SizedBox(
+                  height: 16,
+                  width: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+                    : Icon(Icons.compare_arrows, size: 20),
+                label: Text(
+                  _isComparingDates ? 'Comparing...' : 'Compare Dates',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF7815A0),
+                  backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                   padding: EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 2,
+                  disabledBackgroundColor: AppColors.primary.withOpacity(0.5),
                 ),
               ),
             ),
@@ -244,6 +305,20 @@ class _ComparisonAnalysisScreenState extends State<ComparisonAnalysisScreen> {
           initialDate: selectedDate ?? DateTime.now(),
           firstDate: DateTime(2020),
           lastDate: DateTime.now(),
+          builder: (context, child) {
+            return Theme(
+              data: Theme.of(context).copyWith(
+                colorScheme: ColorScheme.light(
+                  primary: AppColors.primary,
+                  onPrimary: Colors.white,
+                  surface: AppColors.surface,
+                  onSurface: AppColors.textDark,
+                ),
+                dialogBackgroundColor: AppColors.surface,
+              ),
+              child: child!,
+            );
+          },
         );
         if (date != null) {
           onDateSelected(date);
@@ -252,20 +327,24 @@ class _ComparisonAnalysisScreenState extends State<ComparisonAnalysisScreen> {
       child: Container(
         padding: EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.grey[50],
+          color: AppColors.card,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey[300]!),
+          border: Border.all(color: AppColors.accent2),
         ),
         child: Row(
           children: [
-            Icon(Icons.calendar_today, color: Colors.grey[600], size: 20),
+            Icon(Icons.calendar_today, color: AppColors.primary, size: 20),
             SizedBox(width: 12),
-            Text(
-              selectedDate != null
-                  ? DateFormat('MMM dd, yyyy').format(selectedDate)
-                  : hint,
-              style: TextStyle(
-                color: selectedDate != null ? Colors.black87 : Colors.grey[500],
+            Expanded(
+              child: Text(
+                selectedDate != null
+                    ? DateFormat('MMM dd, yyyy').format(selectedDate)
+                    : hint,
+                style: TextStyle(
+                  color: selectedDate != null ? AppColors.textDark : AppColors.textLight,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
+                ),
               ),
             ),
           ],
@@ -275,21 +354,41 @@ class _ComparisonAnalysisScreenState extends State<ComparisonAnalysisScreen> {
   }
 
   Widget _buildPeriodAnalysisSection() {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: EdgeInsets.all(20),
+        padding: EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(Icons.timeline, color: Colors.green, size: 24),
+                Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(Icons.timeline, color: AppColors.success, size: 24),
+                ),
                 SizedBox(width: 12),
                 Text(
                   'Analyze Time Periods',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textDark,
+                  ),
                 ),
               ],
             ),
@@ -297,9 +396,13 @@ class _ComparisonAnalysisScreenState extends State<ComparisonAnalysisScreen> {
 
             Text(
               'Quick analysis for standard time periods',
-              style: TextStyle(color: Colors.grey[600], height: 1.4),
+              style: TextStyle(
+                color: AppColors.textGray,
+                height: 1.5,
+                fontSize: 14,
+              ),
             ),
-            SizedBox(height: 20),
+            SizedBox(height: 24),
 
             // Period Selection Grid
             GridView.builder(
@@ -318,25 +421,34 @@ class _ComparisonAnalysisScreenState extends State<ComparisonAnalysisScreen> {
 
                 return InkWell(
                   onTap: () => setState(() => _selectedPeriod = period['value']!),
+                  borderRadius: BorderRadius.circular(12),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: isSelected ? Color(0xFF7815A0).withOpacity(0.1) : Colors.grey[50],
+                      color: isSelected ? AppColors.primary.withOpacity(0.1) : AppColors.card,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: isSelected ? Color(0xFF7815A0) : Colors.grey[300]!,
+                        color: isSelected ? AppColors.primary : AppColors.accent2,
                         width: isSelected ? 2 : 1,
                       ),
+                      boxShadow: isSelected ? [
+                        BoxShadow(
+                          color: AppColors.primary.withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
+                        )
+                      ] : null,
                     ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(period['icon']!, style: TextStyle(fontSize: 20)),
-                        SizedBox(height: 4),
+                        SizedBox(height: 6),
                         Text(
                           period['label']!,
                           style: TextStyle(
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            color: isSelected ? Color(0xFF7815A0) : Colors.grey[700],
+                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                            color: isSelected ? AppColors.primary : AppColors.textGray,
+                            fontSize: 13,
                           ),
                         ),
                       ],
@@ -345,7 +457,7 @@ class _ComparisonAnalysisScreenState extends State<ComparisonAnalysisScreen> {
                 );
               },
             ),
-            SizedBox(height: 20),
+            SizedBox(height: 24),
 
             // Analyze Button
             SizedBox(
@@ -353,14 +465,29 @@ class _ComparisonAnalysisScreenState extends State<ComparisonAnalysisScreen> {
               child: ElevatedButton.icon(
                 onPressed: _isAnalyzingPeriod ? null : _analyzePeriod,
                 icon: _isAnalyzingPeriod
-                    ? SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                    : Icon(Icons.analytics),
-                label: Text(_isAnalyzingPeriod ? 'Analyzing...' : 'Analyze Period'),
+                    ? SizedBox(
+                  height: 16,
+                  width: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+                    : Icon(Icons.analytics, size: 20),
+                label: Text(
+                  _isAnalyzingPeriod ? 'Analyzing...' : 'Analyze Period',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF7815A0),
+                  backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                   padding: EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 2,
+                  disabledBackgroundColor: AppColors.primary.withOpacity(0.5),
                 ),
               ),
             ),
@@ -383,16 +510,21 @@ class _ComparisonAnalysisScreenState extends State<ComparisonAnalysisScreen> {
         if (_periodAnalysisResult != null)
           _buildPeriodAnalysisResults(_periodAnalysisResult!),
 
-        SizedBox(height: 16),
+        SizedBox(height: 20),
 
         Center(
           child: OutlinedButton.icon(
             onPressed: _clearResults,
-            icon: Icon(Icons.clear),
-            label: Text('Clear Results'),
+            icon: Icon(Icons.clear, size: 18),
+            label: Text(
+              'Clear Results',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
             style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.grey,
-              side: BorderSide(color: Colors.grey),
+              foregroundColor: AppColors.textGray,
+              side: BorderSide(color: AppColors.textLight),
+              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
           ),
         ),
@@ -405,58 +537,98 @@ class _ComparisonAnalysisScreenState extends State<ComparisonAnalysisScreen> {
     final improvement = comparison?['improvement'];
     final aiAnalysis = result['ai_direct_comparison'];
 
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: EdgeInsets.all(20),
+        padding: EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(Icons.fact_check, color: Colors.blue, size: 24),
+                Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.info.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(Icons.fact_check, color: AppColors.info, size: 24),
+                ),
                 SizedBox(width: 12),
                 Text(
                   'Date Comparison Results',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textDark,
+                  ),
                 ),
               ],
             ),
-            SizedBox(height: 16),
+            SizedBox(height: 20),
 
             // Improvement Summary
             Container(
               width: double.infinity,
-              padding: EdgeInsets.all(16),
+              padding: EdgeInsets.all(24),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Colors.blue[50]!, Colors.lightBlue[50]!],
+                  colors: [AppColors.info.withOpacity(0.1), AppColors.primary.withOpacity(0.05)],
                 ),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.info.withOpacity(0.2)),
               ),
               child: Column(
                 children: [
                   Text(
                     '${improvement?['score_change'] ?? 0} Points Change',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue[800]),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    '${improvement?['percentage_change']?.toStringAsFixed(1) ?? '0'}% Improvement',
-                    style: TextStyle(fontSize: 16, color: Colors.blue[600]),
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.info,
+                    ),
                   ),
                   SizedBox(height: 8),
-                  Chip(
-                    label: Text(improvement?['trend'] ?? 'Stable'),
-                    backgroundColor: _getTrendColor(improvement?['trend']),
+                  Text(
+                    '${improvement?['percentage_change']?.toStringAsFixed(1) ?? '0'}% Improvement',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: AppColors.info,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(height: 12),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _getTrendColor(improvement?['trend']),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      improvement?['trend'] ?? 'Stable',
+                      style: TextStyle(
+                        color: _getTrendTextColor(improvement?['trend']),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
-            SizedBox(height: 16),
+            SizedBox(height: 20),
 
             // AI Analysis Summary
             if (aiAnalysis != null)
@@ -465,12 +637,28 @@ class _ComparisonAnalysisScreenState extends State<ComparisonAnalysisScreen> {
                 children: [
                   Text(
                     'AI Analysis',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textDark,
+                    ),
                   ),
-                  SizedBox(height: 8),
-                  Text(
-                    aiAnalysis['direct_comparison_summary']?['overview'] ?? 'No analysis available',
-                    style: TextStyle(color: Colors.grey[700], height: 1.4),
+                  SizedBox(height: 12),
+                  Container(
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.card,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.accent1),
+                    ),
+                    child: Text(
+                      aiAnalysis['direct_comparison_summary']?['overview'] ?? 'No analysis available',
+                      style: TextStyle(
+                        color: AppColors.textGray,
+                        height: 1.5,
+                        fontSize: 14,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -485,32 +673,53 @@ class _ComparisonAnalysisScreenState extends State<ComparisonAnalysisScreen> {
     final overview = result['overview'];
     final aiAnalysis = result['ai_period_analysis'];
 
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: EdgeInsets.all(20),
+        padding: EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(Icons.timeline, color: Colors.green, size: 24),
+                Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(Icons.timeline, color: AppColors.success, size: 24),
+                ),
                 SizedBox(width: 12),
                 Text(
                   'Period Analysis Results',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textDark,
+                  ),
                 ),
               ],
             ),
-            SizedBox(height: 16),
+            SizedBox(height: 20),
 
             // Period Summary
             Container(
-              padding: EdgeInsets.all(16),
+              padding: EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.green[50],
-                borderRadius: BorderRadius.circular(12),
+                color: AppColors.success.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.success.withOpacity(0.2)),
               ),
               child: Row(
                 children: [
@@ -518,8 +727,23 @@ class _ComparisonAnalysisScreenState extends State<ComparisonAnalysisScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Period', style: TextStyle(fontWeight: FontWeight.w500)),
-                        Text(period?['type']?.toString().replaceAll('_', ' ') ?? 'N/A'),
+                        Text(
+                          'Period',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textDark,
+                            fontSize: 13,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          period?['type']?.toString().replaceAll('_', ' ') ?? 'N/A',
+                          style: TextStyle(
+                            color: AppColors.success,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -527,8 +751,23 @@ class _ComparisonAnalysisScreenState extends State<ComparisonAnalysisScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Evaluations', style: TextStyle(fontWeight: FontWeight.w500)),
-                        Text(overview?['total_evaluations']?.toString() ?? '0'),
+                        Text(
+                          'Evaluations',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textDark,
+                            fontSize: 13,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          overview?['total_evaluations']?.toString() ?? '0',
+                          style: TextStyle(
+                            color: AppColors.textGray,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -536,15 +775,30 @@ class _ComparisonAnalysisScreenState extends State<ComparisonAnalysisScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Avg Score', style: TextStyle(fontWeight: FontWeight.w500)),
-                        Text(overview?['average_score']?.toString() ?? 'N/A'),
+                        Text(
+                          'Avg Score',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textDark,
+                            fontSize: 13,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          overview?['average_score']?.toString() ?? 'N/A',
+                          style: TextStyle(
+                            color: AppColors.textGray,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        ),
                       ],
                     ),
                   ),
                 ],
               ),
             ),
-            SizedBox(height: 16),
+            SizedBox(height: 20),
 
             // AI Analysis
             if (aiAnalysis != null)
@@ -553,12 +807,28 @@ class _ComparisonAnalysisScreenState extends State<ComparisonAnalysisScreen> {
                 children: [
                   Text(
                     'Period Assessment',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textDark,
+                    ),
                   ),
-                  SizedBox(height: 8),
-                  Text(
-                    aiAnalysis['period_overview']?['summary'] ?? 'No analysis available',
-                    style: TextStyle(color: Colors.grey[700], height: 1.4),
+                  SizedBox(height: 12),
+                  Container(
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.card,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.accent1),
+                    ),
+                    child: Text(
+                      aiAnalysis['period_overview']?['summary'] ?? 'No analysis available',
+                      style: TextStyle(
+                        color: AppColors.textGray,
+                        height: 1.5,
+                        fontSize: 14,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -571,29 +841,45 @@ class _ComparisonAnalysisScreenState extends State<ComparisonAnalysisScreen> {
   Color _getTrendColor(String? trend) {
     switch (trend?.toLowerCase()) {
       case 'improving':
-        return Colors.green[100]!;
+        return AppColors.success.withOpacity(0.2);
       case 'declining':
-        return Colors.red[100]!;
+        return AppColors.error.withOpacity(0.2);
       default:
-        return Colors.orange[100]!;
+        return AppColors.warning.withOpacity(0.2);
+    }
+  }
+
+  Color _getTrendTextColor(String? trend) {
+    switch (trend?.toLowerCase()) {
+      case 'improving':
+        return AppColors.success;
+      case 'declining':
+        return AppColors.error;
+      default:
+        return AppColors.warning;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(
           'Comparison Analysis - ${widget.childName}',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
         ),
-        backgroundColor: Color(0xFF7815A0),
+        backgroundColor: AppColors.primary,
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.white),
+        centerTitle: false,
       ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
+        padding: EdgeInsets.all(20),
         child: Column(
           children: [
             // Error Message
@@ -601,31 +887,41 @@ class _ComparisonAnalysisScreenState extends State<ComparisonAnalysisScreen> {
               Container(
                 width: double.infinity,
                 padding: EdgeInsets.all(16),
-                margin: EdgeInsets.only(bottom: 16),
+                margin: EdgeInsets.only(bottom: 20),
                 decoration: BoxDecoration(
-                  color: Colors.red[50],
+                  color: AppColors.error.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.red),
+                  border: Border.all(color: AppColors.error),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.error, color: Colors.red),
+                    Icon(Icons.error_outline, color: AppColors.error, size: 20),
                     SizedBox(width: 12),
-                    Expanded(child: Text(_errorMessage, style: TextStyle(color: Colors.red[800]))),
+                    Expanded(
+                      child: Text(
+                        _errorMessage,
+                        style: TextStyle(
+                          color: AppColors.error,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
 
             // Date Comparison Section
             _buildDateComparisonSection(),
-            SizedBox(height: 20),
+            SizedBox(height: 24),
 
             // Period Analysis Section
             _buildPeriodAnalysisSection(),
-            SizedBox(height: 20),
+            SizedBox(height: 24),
 
             // Results Section
             _buildResultsSection(),
+            SizedBox(height: 20),
           ],
         ),
       ),
