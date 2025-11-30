@@ -156,6 +156,10 @@ app.use('/api/admin', require('./routes/adminRoutes'));
 // Questionnaire Routes
 app.use('/api/screening', require('./routes/screeningRoutes'));
 
+const teamRoutes = require('./routes/teamRoutes');
+app.use('/api/teams', teamRoutes);
+
+
 
 // ===========================
 // 📌 GLOBAL ERROR HANDLER

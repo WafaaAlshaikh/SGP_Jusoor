@@ -2,6 +2,7 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('../config/db');
 const Child = require('./Child');
 const Specialist = require('./Specialist');
+const User = require('./User');
 
 const Evaluation = sequelize.define('Evaluation', {
   evaluation_id: { 
@@ -56,5 +57,9 @@ const Evaluation = sequelize.define('Evaluation', {
 
 Evaluation.belongsTo(Child, { foreignKey: 'child_id' });
 Evaluation.belongsTo(Specialist, { foreignKey: 'specialist_id' });
-
+Evaluation.belongsTo(User, { 
+  foreignKey: 'specialist_id', 
+  targetKey: 'user_id',
+  as: 'specialistUser' 
+});
 module.exports = Evaluation;

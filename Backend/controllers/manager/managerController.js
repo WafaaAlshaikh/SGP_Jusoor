@@ -1,7 +1,8 @@
-const SessionType = require('../model/SessionType');
-const Manager = require('../model/Manager');
-const User = require('../model/User');
-const Notification = require('../model/Notification');
+const SessionType = require('../../model/SessionType');
+const Manager = require('../../model/Manager');
+const User = require('../../model/User');
+const Notification = require('../../model/Notification');
+const TeamService = require('../../services/teamService');
 const { Op } = require('sequelize');
 
 exports.getPendingSessionTypes = async (req, res) => {

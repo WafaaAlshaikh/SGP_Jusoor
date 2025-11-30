@@ -9,6 +9,8 @@ const aiAnalysisService = require('../services/aiAnalysisServiceAddEvaluation');
 const AutoSchedulingService = require('../services/autoSchedulingService');
 // ✅ استيراد sequelize من ملف config
 const sequelize = require('../config/db');
+// نضيف هذا مع باقي الـ imports في أعلى الملف
+const TeamService = require('../services/teamService');
 
 const {
   getMyEvaluations,
@@ -89,7 +91,6 @@ router.get('/children', authMiddleware, async (req, res) => {
   }
 });
 
-// في evaluationRoutes.js - إصلاح الجزء المتعلق بالـ auto_scheduling
 router.post('/add', authMiddleware, async (req, res) => {
   try {
     const specialistId = req.user.user_id;
@@ -167,6 +168,10 @@ router.post('/add', authMiddleware, async (req, res) => {
       auto_scheduled: scheduledSessions.length > 0,
       created_at: evaluationDate
     });
+
+    // ⭐ ⭐ ⭐ ⭐ ⭐ نضيف هذا السطر هنا ⭐ ⭐ ⭐ ⭐ ⭐
+    await TeamService.updateTeamRoomWithEvaluation(child_id, specialistId, newEvaluation);
+    // ⭐ ⭐ ⭐ ⭐ ⭐ نضيف هذا السطر هنا ⭐ ⭐ ⭐ ⭐ ⭐
     
     const response = {
       success: true,

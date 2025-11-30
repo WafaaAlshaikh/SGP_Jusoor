@@ -1,5 +1,6 @@
 // screens/manager/manager_home_screen.dart
 import 'package:flutter/material.dart';
+import 'package:frontend/screens/manager/manager_children_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_colors.dart';
 import 'dart:convert';
@@ -11,12 +12,18 @@ class ManagerHomeScreen extends StatefulWidget {
   State<ManagerHomeScreen> createState() => _ManagerHomeScreenState();
 }
 
-class _ManagerHomeScreenState extends State<ManagerHomeScreen> with SingleTickerProviderStateMixin {
+class _ManagerHomeScreenState extends State<ManagerHomeScreen> 
+    with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
+  
   late TabController _tabController;
   Map<String, dynamic>? userData;
   Map<String, dynamic>? institutionData;
   int _currentIndex = 0;
   bool _isSidebarOpen = true;
+  bool _isMounted = false;
+
+  @override
+  bool get wantKeepAlive => true;
 
   final List<Map<String, dynamic>> myTabs = [
     {'icon': Icons.person, 'label': 'Profile'},
@@ -34,44 +41,48 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> with SingleTicker
   @override
   void initState() {
     super.initState();
+    _isMounted = true;
     _tabController = TabController(length: myTabs.length, vsync: this);
     _loadUserData();
+    _tabController.addListener(_handleTabChange);
   }
 
-  void _loadUserData() async {
-    final prefs = await SharedPreferences.getInstance();
+  void _handleTabChange() {
+    if (!_isMounted) return;
     
-    setState(() {
-      userData = {
-        'name': prefs.getString('user_name'),
-        'email': prefs.getString('user_email'),
-        'role': prefs.getString('user_role'),
-      };
-      
-      final institutionJson = prefs.getString('institution_data');
-      if (institutionJson != null) {
-        institutionData = jsonDecode(institutionJson);
-      }
-    });
+    if (_tabController.indexIsChanging) {
+      setState(() {
+        _currentIndex = _tabController.index;
+      });
+    }
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+  Widget _buildTabContent(int index) {
+    // بناء التاب حسب الفهرس بشكل مباشر
+    switch (index) {
+      case 0: return _buildManagerInfoTab();
+      case 1: return _buildInstitutionTab();
+      case 2: return _buildSpecialistsTab();
+      case 3: return _buildStatisticsTab();
+      case 4: return _buildServicesTab();
+      case 5: return _buildChatTab();
+      case 6: return _buildCommunityTab();
+      case 7: return _buildDonorsTab();
+      case 8: return ManagerChildrenScreen();
+      case 9: return _buildFeedbackTab();
+      default: return Container();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: _buildAppBar(),
       body: Row(
         children: [
-          // Sidebar
           _buildAnimatedSidebar(),
-          
-          // Main Content - هذا الجزء ثابت ولا يتأثر بالسايدبار
           Expanded(
             child: Container(
               margin: EdgeInsets.all(16),
@@ -88,18 +99,10 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> with SingleTicker
               ),
               child: TabBarView(
                 controller: _tabController,
-                children: [
-                  _buildManagerInfoTab(),
-                  _buildInstitutionTab(),
-                  _buildSpecialistsTab(),
-                  _buildStatisticsTab(),
-                  _buildServicesTab(),
-                  _buildChatTab(),
-                  _buildCommunityTab(),
-                  _buildDonorsTab(),
-                  _buildChildrenTab(),
-                  _buildFeedbackTab(),
-                ],
+                physics: NeverScrollableScrollPhysics(),
+                children: List.generate(myTabs.length, (index) {
+                  return _buildTabContent(index);
+                }),
               ),
             ),
           ),
@@ -107,6 +110,38 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> with SingleTicker
       ),
       floatingActionButton: _buildFloatingActionButton(),
     );
+  }
+
+  // إصلاح دالة تحميل البيانات
+  void _loadUserData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      if (_isMounted) {
+        setState(() {
+          userData = {
+            'name': prefs.getString('user_name'),
+            'email': prefs.getString('user_email'),
+            'role': prefs.getString('user_role'),
+          };
+          
+          final institutionJson = prefs.getString('institution_data');
+          if (institutionJson != null) {
+            institutionData = jsonDecode(institutionJson);
+          }
+        });
+      }
+    } catch (e) {
+      print('Error loading user data: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _isMounted = false;
+    _tabController.removeListener(_handleTabChange);
+    _tabController.dispose();
+    super.dispose();
   }
 
   AppBar _buildAppBar() {
@@ -129,23 +164,30 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> with SingleTicker
       ),
       backgroundColor: AppColors.primary,
       elevation: 0,
-      shape: ContinuousRectangleBorder(
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(30),
-          bottomRight: Radius.circular(30),
-        ),
+      bottom: TabBar(
+        controller: _tabController,
+        isScrollable: true,
+        onTap: (index) {
+          if (_isMounted) {
+            setState(() {
+              _currentIndex = index;
+            });
+          }
+        },
+        tabs: myTabs.map((tab) => Tab(
+          icon: Icon(tab['icon']),
+          text: tab['label'],
+        )).toList(),
       ),
-      actions: [
-        _buildNotificationButton(),
-        _buildProfileMenu(),
-      ],
     );
   }
 
   void _toggleSidebar() {
-    setState(() {
-      _isSidebarOpen = !_isSidebarOpen;
-    });
+    if (_isMounted) {
+      setState(() {
+        _isSidebarOpen = !_isSidebarOpen;
+      });
+    }
   }
 
   Widget _buildAnimatedSidebar() {
@@ -369,10 +411,12 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> with SingleTicker
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: () {
-            setState(() {
-              _currentIndex = index;
-              _tabController.animateTo(index);
-            });
+            _tabController.animateTo(index);
+            if (_isMounted) {
+              setState(() {
+                _currentIndex = index;
+              });
+            }
           },
           borderRadius: BorderRadius.circular(12),
           child: Container(
@@ -459,6 +503,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> with SingleTicker
     );
   }
 
+  // ===== TAB CONTENT WIDGETS =====
   Widget _buildManagerInfoTab() {
     return SingleChildScrollView(
       padding: EdgeInsets.all(24),
@@ -1214,103 +1259,6 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> with SingleTicker
     );
   }
 
-  Widget _buildChildrenTab() {
-    return Column(
-      children: [
-        _buildSectionHeader(
-          'Children Management',
-          'Manage children profiles and progress',
-          Icons.child_care,
-        ),
-        Expanded(
-          child: ListView.builder(
-            padding: EdgeInsets.all(16),
-            itemCount: 8,
-            itemBuilder: (context, index) {
-              final children = [
-                {'name': 'Ahmed Mohammed', 'age': '6 years', 'therapy': 'Speech', 'progress': 'Good'},
-                {'name': 'Sara Ali', 'age': '7 years', 'therapy': 'Occupational', 'progress': 'Excellent'},
-                {'name': 'Omar Hassan', 'age': '5 years', 'therapy': 'Behavioral', 'progress': 'Improving'},
-                {'name': 'Fatima Khalid', 'age': '8 years', 'therapy': 'Psychological', 'progress': 'Stable'},
-                {'name': 'Mohammed Ahmed', 'age': '6 years', 'therapy': 'Speech', 'progress': 'Good'},
-                {'name': 'Layla Sami', 'age': '7 years', 'therapy': 'Physical', 'progress': 'Excellent'},
-                {'name': 'Khalid Omar', 'age': '5 years', 'therapy': 'Special Education', 'progress': 'Improving'},
-                {'name': 'Aisha Mohammed', 'age': '6 years', 'therapy': 'Speech', 'progress': 'Stable'},
-              ];
-              final child = children[index];
-              final name = child['name'] as String;
-              final age = child['age'] as String;
-              final therapy = child['therapy'] as String;
-              final progress = child['progress'] as String;
-              
-              return Container(
-                margin: EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: ListTile(
-                  leading: Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [AppColors.primaryLight, AppColors.primary],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Icon(Icons.child_care, color: AppColors.textWhite),
-                    ),
-                  ),
-                  title: Text(
-                    name,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textDark,
-                    ),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Age: $age'),
-                      Text('Therapy: $therapy'),
-                    ],
-                  ),
-                  trailing: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: _getProgressColor(progress),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      progress,
-                      style: TextStyle(
-                        color: AppColors.textWhite,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  onTap: () => _viewChildDetails(index),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildFeedbackTab() {
     return Column(
       children: [
@@ -1814,84 +1762,6 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> with SingleTicker
     );
   }
 
-  Widget _buildNotificationButton() {
-    return Stack(
-      children: [
-        IconButton(
-          icon: Icon(Icons.notifications_outlined),
-          onPressed: _showNotifications,
-          color: AppColors.textWhite,
-        ),
-        Positioned(
-          right: 8,
-          top: 8,
-          child: Container(
-            padding: EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              color: AppColors.error,
-              shape: BoxShape.circle,
-            ),
-            constraints: BoxConstraints(minWidth: 16, minHeight: 16),
-            child: Text(
-              '3',
-              style: TextStyle(
-                color: AppColors.textWhite,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildProfileMenu() {
-    return PopupMenuButton<String>(
-      icon: CircleAvatar(
-        backgroundColor: AppColors.textWhite.withOpacity(0.2),
-        child: Icon(Icons.person, color: AppColors.textWhite),
-      ),
-      onSelected: (value) {
-        if (value == 'logout') _logout();
-      },
-      itemBuilder: (context) => [
-        PopupMenuItem(
-          value: 'profile',
-          child: Row(
-            children: [
-              Icon(Icons.person, color: AppColors.primary),
-              SizedBox(width: 8),
-              Text('My Profile'),
-            ],
-          ),
-        ),
-        PopupMenuItem(
-          value: 'settings',
-          child: Row(
-            children: [
-              Icon(Icons.settings, color: AppColors.primary),
-              SizedBox(width: 8),
-              Text('Settings'),
-            ],
-          ),
-        ),
-        PopupMenuDivider(),
-        PopupMenuItem(
-          value: 'logout',
-          child: Row(
-            children: [
-              Icon(Icons.logout, color: AppColors.error),
-              SizedBox(width: 8),
-              Text('Logout'),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
   // ===== HELPER METHODS =====
   String _getInitials(String name) {
     return name.split(' ').map((e) => e.isNotEmpty ? e[0] : '').join();
@@ -1912,19 +1782,6 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> with SingleTicker
       case 'rejected':
       case 'inactive':
         return AppColors.error;
-      default:
-        return AppColors.textGray;
-    }
-  }
-
-  Color _getProgressColor(String progress) {
-    switch (progress.toLowerCase()) {
-      case 'excellent':
-      case 'good':
-        return AppColors.success;
-      case 'improving':
-      case 'stable':
-        return AppColors.warning;
       default:
         return AppColors.textGray;
     }
@@ -1958,9 +1815,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> with SingleTicker
   void _logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
-    if (mounted) {
-      Navigator.pushReplacementNamed(context, '/login');
-    }
+    Navigator.pushReplacementNamed(context, '/login');
   }
 
   void _editProfile() {
@@ -2021,15 +1876,6 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> with SingleTicker
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('View Donor Details - Coming Soon'),
-        backgroundColor: AppColors.primary,
-      ),
-    );
-  }
-
-  void _viewChildDetails(int index) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('View Child Details - Coming Soon'),
         backgroundColor: AppColors.primary,
       ),
     );
