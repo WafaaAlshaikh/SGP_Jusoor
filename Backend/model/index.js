@@ -36,6 +36,10 @@ const Questionnaire = require('./Questionnaire')(sequelize, DataTypes);
 const Question = require('./Question')(sequelize, DataTypes);
 const QuestionnaireResponse = require('./QuestionnaireResponse')(sequelize, DataTypes);
 
+const SessionRating = require('./SessionRating');
+const InstitutionReview = require('./InstitutionReview');
+const SpecialistFeedback = require('./SpecialistFeedback');
+
 // ==================== Main Relations ====================
 
 Questionnaire.hasMany(Question, { 
@@ -152,5 +156,8 @@ module.exports = {
   Manager,
   Questionnaire,
   Question,
-  QuestionnaireResponse
+  QuestionnaireResponse,
+  SessionRating,
+  InstitutionReview,
+  SpecialistFeedback
 };

@@ -159,6 +159,9 @@ app.use('/api/screening', require('./routes/screeningRoutes'));
 const teamRoutes = require('./routes/teamRoutes');
 app.use('/api/teams', teamRoutes);
 
+const ratingRoutes = require('./routes/ratingRoutes');
+app.use('/api/ratings', ratingRoutes);
+
 
 
 // ===========================
