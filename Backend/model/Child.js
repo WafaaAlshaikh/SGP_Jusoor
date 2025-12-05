@@ -42,7 +42,7 @@ const Child = sequelize.define('Child', {
   medical_history: { type: DataTypes.TEXT },
   current_institution_id: { type: DataTypes.BIGINT.UNSIGNED },
   registration_status: { 
-    type: DataTypes.ENUM('Pending', 'Approved', 'Not Registered', 'Archived'), 
+    type: DataTypes.ENUM('Pending', 'Approved', 'Not Registered', 'Archived','Inactive','Completed'), 
     defaultValue: 'Not Registered' 
   },
   child_identifier: { 

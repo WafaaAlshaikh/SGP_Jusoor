@@ -107,7 +107,7 @@ app.use('/api/specialist', progressAnalysisRoutes);
 app.use('/api/specialist/approval', require('./routes/specialistApprovalRoutes'));
 
 // Manager
-app.use('/api/manager', require('./routes/managerRoutes'));
+//app.use('/api/manager', require('./routes/managerRoutes'));
 
 // Community
 app.use('/api/community', require('./routes/communityRoutes'));
@@ -159,6 +159,13 @@ app.use('/api/screening', require('./routes/screeningRoutes'));
 const teamRoutes = require('./routes/teamRoutes');
 app.use('/api/teams', teamRoutes);
 
+//Manager
+app.use('/api/DashbordManager', require('./routes/manager/managerDashboardRoutes'));
+// Manager Children Management
+app.use('/api/manager', require('./routes/manager/childrenManagementRoutes'));
+// Manager specialist statistics routes
+app.use('/api/manager', require('./routes/manager/specialistStatsRoutes'));
+app.use('/api/manager/children', require('./routes/manager/addChildRoutes'));
 
 
 // ===========================

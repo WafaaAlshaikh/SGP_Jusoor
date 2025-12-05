@@ -1,200 +1,710 @@
-// screens/manager/manager_home_screen.dart
+// lib/screens/manager/manager_home_screen.dart
 import 'package:flutter/material.dart';
-import 'package:frontend/screens/manager/manager_children_screen.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../theme/app_colors.dart';
-import 'dart:convert';
-
+import '../../theme/app_colors.dart';
+import '../../services/manager_dashboard_service.dart';
+import 'manager/children_management_screen.dart';
+import 'manager/specialist_management_screen.dart';
+import 'package:frontend/screens/login_screen.dart';
 class ManagerHomeScreen extends StatefulWidget {
-  const ManagerHomeScreen({super.key});
-
   @override
-  State<ManagerHomeScreen> createState() => _ManagerHomeScreenState();
+  _ManagerHomeScreenState createState() => _ManagerHomeScreenState();
 }
 
-class _ManagerHomeScreenState extends State<ManagerHomeScreen> 
-    with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
-  
-  late TabController _tabController;
-  Map<String, dynamic>? userData;
-  Map<String, dynamic>? institutionData;
-  int _currentIndex = 0;
-  bool _isSidebarOpen = true;
-  bool _isMounted = false;
+class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
+  bool _isSidebarOpen = false;
+  bool _isLoading = true;
+  Map<String, dynamic> _dashboardData = {};
+  List<Map<String, dynamic>> _chartData = [];
+  List<Map<String, dynamic>> _sidebarItems = [];
 
-  @override
-  bool get wantKeepAlive => true;
-
-  final List<Map<String, dynamic>> myTabs = [
-    {'icon': Icons.person, 'label': 'Profile'},
-    {'icon': Icons.business, 'label': 'Institution'},
-    {'icon': Icons.people, 'label': 'Specialists'},
-    {'icon': Icons.analytics, 'label': 'Analytics'},
-    {'icon': Icons.medical_services, 'label': 'Services'},
-    {'icon': Icons.chat, 'label': 'Chat'},
-    {'icon': Icons.group, 'label': 'Community'},
-    {'icon': Icons.volunteer_activism, 'label': 'Donors'},
-    {'icon': Icons.child_care, 'label': 'Children'},
-    {'icon': Icons.feedback, 'label': 'Feedback'},
-  ];
 
   @override
   void initState() {
     super.initState();
-    _isMounted = true;
-    _tabController = TabController(length: myTabs.length, vsync: this);
-    _loadUserData();
-    _tabController.addListener(_handleTabChange);
+    _loadDashboardData();
   }
 
-  void _handleTabChange() {
-    if (!_isMounted) return;
-    
-    if (_tabController.indexIsChanging) {
+  Future<void> _loadDashboardData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final data = await ManagerDashboardService.getDashboardStats();
+
       setState(() {
-        _currentIndex = _tabController.index;
+        _dashboardData = {
+          'centerName': data['institution']['name'],
+          'totalRevenue': data['revenue']['currentMonth']?.toInt() ?? 0,
+          'activeSessions': data['sessionStats']['totalSessions'] ?? 0,
+          'totalChildren': data['children']['total'] ?? 0,
+          'totalSpecialists': data['specialists']['total'] ?? 0,
+          'monthlyGrowth': data['revenue']['growth']?.toDouble() ?? 0,
+          'pendingRequests': data['pendingRequests']['registrations'] ?? 0,
+          'todaySessions': data['sessionStats']['todaySessions'] ?? 0,
+          'monthlySessions': data['sessionStats']['monthlySessions'] ?? 0,
+          'sessionGrowth': data['sessionStats']['sessionGrowth']?.toDouble() ?? 0,
+        };
+
+        // تحويل sessionDistribution إلى chartData مع ألوان مختلفة
+        final sessionDistribution = data['sessionDistribution'] as List? ?? [];
+        _chartData = sessionDistribution.map<Map<String, dynamic>>((item) {
+          final category = item['category']?.toString() ?? 'Unknown';
+          return {
+            'label': category,
+            'value': item['percentage']?.toDouble() ?? 0,
+            'color': _getColorForCategory(category),
+          };
+        }).toList();
+
+        // إذا ما في بيانات للتوزيع أو كلها صفر، استخدم قيم افتراضية
+        if (_chartData.isEmpty || _chartData.every((item) => item['value'] == 0)) {
+          _chartData = [
+            {'label': 'Speech Therapy', 'value': 40, 'color': AppColors.primary},
+            {'label': 'Behavioral', 'value': 25, 'color': AppColors.success},
+            {'label': 'Occupational', 'value': 20, 'color': AppColors.warning},
+            {'label': 'Educational', 'value': 10, 'color': AppColors.info},
+            {'label': 'Other', 'value': 5, 'color': AppColors.accent3},
+          ];
+        }
+
+        // تحديث sidebar items
+        _sidebarItems = [
+          {
+            'title': 'Children Management',
+            'icon': Icons.child_care_rounded,
+            'count': data['children']['total'] ?? 0,
+          },
+          {
+            'title': 'Specialists Management',
+            'icon': Icons.medical_services_rounded,
+            'count': data['specialists']['total'] ?? 0,
+          },
+          {
+            'title': 'Session Types & Materials',
+            'icon': Icons.category_rounded,
+            'count': sessionDistribution.length,
+          },
+          {
+            'title': 'Financial Reports',
+            'icon': Icons.assessment_rounded,
+            'count': data['revenue']['currentMonth']?.toInt() ?? 0,
+          },
+          {
+            'title': 'Session Management',
+            'icon': Icons.calendar_today_rounded,
+            'count': data['sessionStats']['monthlySessions'] ?? 0,
+          },
+          {
+            'title': 'Quality Control',
+            'icon': Icons.verified_user_rounded,
+            'count': data['sessionStats']['byStatus']['Completed'] ?? 0,
+          },
+          {
+            'title': 'Communication',
+            'icon': Icons.chat_rounded,
+            'count': 0,
+          },
+        ];
+
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading dashboard: $e');
+      setState(() {
+        _isLoading = false;
+        _dashboardData = {
+          'centerName': 'Therapy Care Center',
+          'totalRevenue': 0,
+          'activeSessions': 0,
+          'totalChildren': 0,
+          'totalSpecialists': 0,
+          'monthlyGrowth': 0,
+          'pendingRequests': 0,
+          'todaySessions': 0,
+          'monthlySessions': 0,
+          'sessionGrowth': 0,
+        };
+        _chartData = [
+          {'label': 'Speech Therapy', 'value': 40, 'color': AppColors.primary},
+          {'label': 'Behavioral', 'value': 25, 'color': AppColors.success},
+          {'label': 'Occupational', 'value': 20, 'color': AppColors.warning},
+          {'label': 'Educational', 'value': 10, 'color': AppColors.info},
+          {'label': 'Other', 'value': 5, 'color': AppColors.accent3},
+        ];
       });
     }
   }
 
-  Widget _buildTabContent(int index) {
-    // بناء التاب حسب الفهرس بشكل مباشر
-    switch (index) {
-      case 0: return _buildManagerInfoTab();
-      case 1: return _buildInstitutionTab();
-      case 2: return _buildSpecialistsTab();
-      case 3: return _buildStatisticsTab();
-      case 4: return _buildServicesTab();
-      case 5: return _buildChatTab();
-      case 6: return _buildCommunityTab();
-      case 7: return _buildDonorsTab();
-      case 8: return ManagerChildrenScreen();
-      case 9: return _buildFeedbackTab();
-      default: return Container();
+
+
+
+  Color _getColorForCategory(String category) {
+    final String cleanCategory = category.trim().toLowerCase();
+
+    // تعريف patterns لكل نوع
+    final speechPattern = RegExp(r'(speech|communication)');
+    final behaviorPattern = RegExp(r'(behavior|behaviour|aba)');
+    final occupationalPattern = RegExp(r'(occupational|ot\b)');
+    final psychologicalPattern = RegExp(r'(psychological|support|ps\b)');
+    final assessmentPattern = RegExp(r'(initial.*assessment|assessment.*initial|ia\s*therapy)');
+
+    if (speechPattern.hasMatch(cleanCategory)) {
+      return Color(0xFF8CB6D1);
     }
+    else if (behaviorPattern.hasMatch(cleanCategory)) {
+      return Color(0xFF396A4E);
+    }
+    else if (occupationalPattern.hasMatch(cleanCategory)) {
+      return Color(0xFFFAFDC2);
+    }
+    else if (psychologicalPattern.hasMatch(cleanCategory)) {
+      return Color(0xFF68170E);
+    }
+    else if (assessmentPattern.hasMatch(cleanCategory)) {
+      return Color(0xFF95DFD8);
+    }
+    else {
+      // توليد لون فريد للأنواع الأخرى
+      final colors = [
+        AppColors.primary,
+        AppColors.darkGreen,
+        AppColors.blue,
+        AppColors.green,
+        AppColors.ment,
+        AppColors.accent4,
+        AppColors.accent3,
+        AppColors.yalw,
+        AppColors.yal,
+        AppColors.accent1,
+        AppColors.accent2,
+      ];
+      final int hash = cleanCategory.hashCode.abs();
+      return colors[hash % colors.length];
+    }
+  }
+
+  // في _ManagerHomeScreenState
+  void _handleSidebarItemClick(String title) {
+    setState(() {
+      _isSidebarOpen = false;
+    });
+
+    print('Navigating to: $title');
+
+    if (title == 'Children Management') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChildrenManagementScreen(),
+        ),
+      );
+    }
+
+    if (title == 'Specialists Management') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => SpecialistManagementScreen(),
+        ),
+      );
+    }
+    // يمكنك إضافة باقي الصفحات هنا
+  }
+
+  void _handleLogout() {
+    setState(() {
+      _isSidebarOpen = false;
+    });
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Logout'),
+        content: Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (context) => LoginScreen()));
+
+            },
+            child: Text('Logout', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: _buildAppBar(),
-      body: Row(
+      body: Stack(
         children: [
-          _buildAnimatedSidebar(),
-          Expanded(
-            child: Container(
-              margin: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 10,
-                    offset: Offset(0, 4),
-                  ),
+          // Main Content
+          _isLoading ? _buildLoadingScreen() : _buildMainContent(),
+
+          // Sidebar Overlay
+          if (_isSidebarOpen) _buildSidebarOverlay(),
+
+          // Sidebar
+          AnimatedPositioned(
+            duration: Duration(milliseconds: 300),
+            left: _isSidebarOpen ? 0 : -MediaQuery.of(context).size.width * 0.85,
+            top: 0,
+            bottom: 0,
+            width: MediaQuery.of(context).size.width * 0.85,
+            child: _buildSidebar(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingScreen() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(color: AppColors.primary),
+          SizedBox(height: 20),
+          Text(
+            'Loading Dashboard...',
+            style: TextStyle(
+              fontSize: 18,
+              color: AppColors.textDark,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMainContent() {
+    return Column(
+      children: [
+        // Header
+        _buildHeader(),
+
+        // Main Content
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _loadDashboardData,
+            child: SingleChildScrollView(
+              padding: EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Overview Cards
+                  _buildOverviewCards(),
+                  SizedBox(height: 25),
+
+                  // Chart Section
+                  _buildChartSection(),
+                  SizedBox(height: 25),
+
+                  // Quick Stats
+                  _buildQuickStats(),
+
+                  // Last Updated
+                  _buildLastUpdated(),
                 ],
               ),
-              child: TabBarView(
-                controller: _tabController,
-                physics: NeverScrollableScrollPhysics(),
-                children: List.generate(myTabs.length, (index) {
-                  return _buildTabContent(index);
-                }),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: AppColors.primaryDark,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Menu Icon
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  _isSidebarOpen = true;
+                });
+              },
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.2),
+                ),
+                child: Icon(Icons.menu_rounded, color: Colors.white, size: 22),
+              ),
+            ),
+
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  _dashboardData['centerName'] ?? 'Therapy Care Center',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Management Dashboard',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white.withOpacity(0.8),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+
+            // Refresh Button
+            GestureDetector(
+              onTap: _loadDashboardData,
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.2),
+                ),
+                child: Icon(Icons.refresh_rounded, color: Colors.white, size: 22),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOverviewCards() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildOverviewCard(
+            'Total Revenue',
+            '\$${_dashboardData['totalRevenue']?.toStringAsFixed(0) ?? '0'}',
+            Icons.attach_money_rounded,
+            AppColors.primary,
+            '${_dashboardData['monthlyGrowth'] >= 0 ? '+' : ''}${_dashboardData['monthlyGrowth']?.toStringAsFixed(1) ?? '0'}% this month',
+          ),
+        ),
+        SizedBox(width: 12),
+        Expanded(
+          child: _buildOverviewCard(
+            'Active Sessions',
+            _dashboardData['activeSessions']?.toString() ?? '0',
+            Icons.video_library_rounded,
+            AppColors.success,
+            '${_dashboardData['todaySessions'] ?? 0} today',
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOverviewCard(String title, String value, IconData icon, Color color, String subtitle) {
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            offset: Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          SizedBox(height: 16),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textGray,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textDark,
+            ),
+          ),
+          SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: TextStyle(
+              fontSize: 12,
+              color: subtitle.contains('-') ? Colors.red : AppColors.textLight,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChartSection() {
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            offset: Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Session Distribution',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textDark,
+                ),
+              ),
+              if (_chartData.isNotEmpty)
+                Text(
+                  'Total: ${_dashboardData['activeSessions'] ?? 0}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textGray,
+                  ),
+                ),
+            ],
+          ),
+          SizedBox(height: 16),
+          Container(
+            height: 200,
+            child: _chartData.isNotEmpty
+                ? Row(
+              children: [
+                // Pie Chart
+                Expanded(
+                  flex: 2,
+                  child: CustomPaint(
+                    painter: _PieChartPainter(_chartData),
+                  ),
+                ),
+                SizedBox(width: 20),
+                // Legend
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: _chartData.map((data) {
+                      return _buildChartLegendItem(
+                        data['label'],
+                        '${data['value']?.toStringAsFixed(0) ?? '0'}%',
+                        data['color'],
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            )
+                : Center(
+              child: Text(
+                'No session data available',
+                style: TextStyle(
+                  color: AppColors.textLight,
+                  fontSize: 16,
+                ),
               ),
             ),
           ),
         ],
       ),
-      floatingActionButton: _buildFloatingActionButton(),
     );
   }
 
-  // إصلاح دالة تحميل البيانات
-  void _loadUserData() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      
-      if (_isMounted) {
+  Widget _buildChartLegendItem(String label, String value, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textDark,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textDark,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickStats() {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildQuickStatItem(
+            'Total Children',
+            _dashboardData['totalChildren']?.toString() ?? '0',
+            Icons.child_care_rounded,
+          ),
+        ),
+        SizedBox(width: 12),
+        Expanded(
+          child: _buildQuickStatItem(
+            'Specialists',
+            _dashboardData['totalSpecialists']?.toString() ?? '0',
+            Icons.medical_services_rounded,
+          ),
+        ),
+        SizedBox(width: 12),
+        Expanded(
+          child: _buildQuickStatItem(
+            'Pending',
+            _dashboardData['pendingRequests']?.toString() ?? '0',
+            Icons.pending_actions_rounded,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickStatItem(String title, String value, IconData icon) {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: AppColors.primary, size: 24),
+          SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textDark,
+            ),
+          ),
+          SizedBox(height: 4),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textGray,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLastUpdated() {
+    return Container(
+      margin: EdgeInsets.only(top: 20),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.info_outline_rounded, size: 16, color: AppColors.textLight),
+          SizedBox(width: 8),
+          Text(
+            'Last updated: ${DateTime.now().toString().substring(0, 16)}',
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textLight,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSidebarOverlay() {
+    return GestureDetector(
+      onTap: () {
         setState(() {
-          userData = {
-            'name': prefs.getString('user_name'),
-            'email': prefs.getString('user_email'),
-            'role': prefs.getString('user_role'),
-          };
-          
-          final institutionJson = prefs.getString('institution_data');
-          if (institutionJson != null) {
-            institutionData = jsonDecode(institutionJson);
-          }
+          _isSidebarOpen = false;
         });
-      }
-    } catch (e) {
-      print('Error loading user data: $e');
-    }
-  }
-
-  @override
-  void dispose() {
-    _isMounted = false;
-    _tabController.removeListener(_handleTabChange);
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  AppBar _buildAppBar() {
-    return AppBar(
-      leading: IconButton(
-        icon: Icon(
-          _isSidebarOpen ? Icons.menu_open : Icons.menu,
-          color: AppColors.textWhite,
-          size: 24,
-        ),
-        onPressed: _toggleSidebar,
+      },
+      child: Container(
+        color: Colors.black.withOpacity(0.3),
       ),
-      title: Text(
-        'Manager Dashboard',
-        style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: AppColors.textWhite,
-        ),
-      ),
-      backgroundColor: AppColors.primary,
-      elevation: 0,
-      bottom: TabBar(
-        controller: _tabController,
-        isScrollable: true,
-        onTap: (index) {
-          if (_isMounted) {
-            setState(() {
-              _currentIndex = index;
-            });
-          }
-        },
-        tabs: myTabs.map((tab) => Tab(
-          icon: Icon(tab['icon']),
-          text: tab['label'],
-        )).toList(),
-      ),
-    );
-  }
-
-  void _toggleSidebar() {
-    if (_isMounted) {
-      setState(() {
-        _isSidebarOpen = !_isSidebarOpen;
-      });
-    }
-  }
-
-  Widget _buildAnimatedSidebar() {
-    return AnimatedContainer(
-      duration: Duration(milliseconds: 300),
-      width: _isSidebarOpen ? 280 : 0,
-      child: _isSidebarOpen ? _buildSidebar() : SizedBox.shrink(),
     );
   }
 
@@ -204,1323 +714,119 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen>
         color: AppColors.surface,
         boxShadow: [
           BoxShadow(
-            color: Colors.black26,
-            blurRadius: 15,
-            offset: Offset(2, 0),
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 20,
+            offset: Offset(5, 0),
           ),
         ],
       ),
       child: Column(
         children: [
-          // Header
+          // Sidebar Header
           Container(
             width: double.infinity,
-            padding: EdgeInsets.all(24),
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [AppColors.primary, AppColors.primaryLight],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Stack(
-                  children: [
-                    CircleAvatar(
-                      radius: 35,
-                      backgroundColor: AppColors.surface.withOpacity(0.2),
-                      child: Icon(Icons.person, size: 40, color: AppColors.textWhite),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(
-                        padding: EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: AppColors.success,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: AppColors.surface, width: 2),
-                        ),
-                        child: Icon(Icons.check, size: 12, color: AppColors.textWhite),
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 16),
-                Text(
-                  userData?['name']?.toString() ?? 'Manager Name',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textWhite,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  userData?['email']?.toString() ?? 'email@example.com',
-                  style: TextStyle(
-                    color: AppColors.textWhite.withOpacity(0.8),
-                  ),
-                ),
-                SizedBox(height: 16),
-                if (institutionData?['name'] != null)
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.business, size: 14, color: AppColors.textWhite),
-                        SizedBox(width: 6),
-                        Text(
-                          institutionData!['name']!.toString(),
-                          style: TextStyle(
-                            color: AppColors.textWhite,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          
-          // Quick Stats
-          Container(
-            margin: EdgeInsets.all(16),
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.accent3.withOpacity(0.3)),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildSidebarStatItem('Children', '87'),
-                    _buildSidebarStatItem('Team', '15'),
-                  ],
-                ),
-                SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildSidebarStatItem('Sessions', '24'),
-                    _buildSidebarStatItem('Rating', '4.8'),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          
-          // Navigation Menu
-          Expanded(
-            child: ListView(
-              padding: EdgeInsets.symmetric(horizontal: 8),
-              children: [
-                _buildSidebarMenuItem(Icons.person, 'Profile', 0, 0),
-                _buildSidebarMenuItem(Icons.business, 'Institution', 1, 0),
-                _buildSidebarMenuItem(Icons.people, 'Specialists', 2, 0),
-                _buildSidebarMenuItem(Icons.analytics, 'Analytics', 3, 0),
-                _buildSidebarMenuItem(Icons.medical_services, 'Services', 4, 0),
-                _buildSidebarMenuItem(Icons.chat, 'Chat', 5, 3),
-                _buildSidebarMenuItem(Icons.group, 'Community', 6, 5),
-                _buildSidebarMenuItem(Icons.volunteer_activism, 'Donors', 7, 0),
-                _buildSidebarMenuItem(Icons.child_care, 'Children', 8, 12),
-                _buildSidebarMenuItem(Icons.feedback, 'Feedback', 9, 7),
-              ],
-            ),
-          ),
-          
-          // Footer
-          Container(
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(color: AppColors.accent3.withOpacity(0.3)),
-              ),
-            ),
-            child: Column(
-              children: [
-                _buildSidebarAction('Settings', Icons.settings, () {}),
-                _buildSidebarAction('Help & Support', Icons.help, () {}),
-                SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    icon: Icon(Icons.logout, size: 16),
-                    label: Text('Logout'),
-                    onPressed: _logout,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.error.withOpacity(0.1),
-                      foregroundColor: AppColors.error,
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSidebarStatItem(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: AppColors.primary,
-          ),
-        ),
-        SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: AppColors.textGray,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSidebarMenuItem(IconData icon, String label, int index, int badgeCount) {
-    final isSelected = _currentIndex == index;
-    
-    return Container(
-      margin: EdgeInsets.symmetric(vertical: 4),
-      child: Material(
-        color: isSelected ? AppColors.primary.withOpacity(0.1) : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          onTap: () {
-            _tabController.animateTo(index);
-            if (_isMounted) {
-              setState(() {
-                _currentIndex = index;
-              });
-            }
-          },
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: isSelected ? AppColors.primary : AppColors.primary.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    icon,
-                    size: 20,
-                    color: isSelected ? AppColors.textWhite : AppColors.primary,
-                  ),
-                ),
-                SizedBox(width: 16),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                      color: isSelected ? AppColors.primary : AppColors.textDark,
-                    ),
-                  ),
-                ),
-                if (badgeCount > 0)
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.error,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      badgeCount.toString(),
-                      style: TextStyle(
-                        color: AppColors.textWhite,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSidebarAction(String label, IconData icon, VoidCallback onTap) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(icon, size: 20, color: AppColors.textGray),
-      title: Text(
-        label,
-        style: TextStyle(
-          fontSize: 14,
-          color: AppColors.textGray,
-        ),
-      ),
-      onTap: onTap,
-    );
-  }
-
-  Widget _buildFloatingActionButton() {
-    return AnimatedContainer(
-      duration: Duration(milliseconds: 300),
-      margin: EdgeInsets.only(
-        bottom: 16,
-        right: _isSidebarOpen ? 296 : 16,
-      ),
-      child: FloatingActionButton(
-        onPressed: _showQuickActions,
-        backgroundColor: AppColors.primary,
-        child: Icon(Icons.add, color: AppColors.textWhite),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-      ),
-    );
-  }
-
-  // ===== TAB CONTENT WIDGETS =====
-  Widget _buildManagerInfoTab() {
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(24),
-      child: Column(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [AppColors.primaryLight, AppColors.primary],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
+              color: AppColors.primaryDark,
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.primary.withOpacity(0.3),
-                  blurRadius: 15,
-                  offset: Offset(0, 5),
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 10,
+                  offset: Offset(0, 2),
                 ),
               ],
             ),
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Column(
+            child: SafeArea(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 50,
-                        backgroundColor: AppColors.surface.withOpacity(0.2),
-                        child: Icon(Icons.person, size: 40, color: AppColors.textWhite),
+                  // Close Icon
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _isSidebarOpen = false;
+                      });
+                    },
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(0.2),
                       ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Container(
-                          padding: EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: AppColors.success,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: AppColors.surface, width: 2),
-                          ),
-                          child: Icon(Icons.check, size: 12, color: AppColors.textWhite),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    userData?['name']?.toString() ?? 'Manager Name',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textWhite,
+                      child: Icon(Icons.close_rounded, color: Colors.white, size: 22),
                     ),
                   ),
-                  SizedBox(height: 8),
-                  Text(
-                    userData?['email']?.toString() ?? 'email@example.com',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: AppColors.textWhite.withOpacity(0.8),
-                    ),
-                  ),
-                  SizedBox(height: 16),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      'Professional Manager',
-                      style: TextStyle(
-                        color: AppColors.textWhite,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          SizedBox(height: 24),
-          
-          Row(
-            children: [
-              Expanded(
-                child: _buildInfoCard(
-                  'Institution',
-                  institutionData?['name']?.toString() ?? 'Not assigned',
-                  Icons.business,
-                  AppColors.primaryLight,
-                ),
-              ),
-              SizedBox(width: 12),
-              Expanded(
-                child: _buildInfoCard(
-                  'Status',
-                  'Active',
-                  Icons.verified,
-                  AppColors.success,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 16),
-          
-          Container(
-            padding: EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.card,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Quick Actions',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textDark,
-                  ),
-                ),
-                SizedBox(height: 16),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    _buildActionChip('Edit Profile', Icons.edit, _editProfile),
-                    _buildActionChip('Settings', Icons.settings, () {}),
-                    _buildActionChip('Security', Icons.security, () {}),
-                    _buildActionChip('Help', Icons.help, () {}),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildInstitutionTab() {
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(24),
-      child: Column(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [AppColors.accent1, AppColors.accent2],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface.withOpacity(0.8),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(Icons.business, size: 30, color: AppColors.primary),
-                      ),
-                      SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              institutionData?['name']?.toString() ?? 'Institution Name',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textDark,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Since ${institutionData?['established_year']?.toString() ?? 'N/A'}',
-                              style: TextStyle(
-                                color: AppColors.textGray,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 16),
-                  _buildStatusBadge(),
-                ],
-              ),
-            ),
-          ),
-          SizedBox(height: 24),
-          
-          _buildInfoSection(),
-          SizedBox(height: 24),
-          
-          _buildInstitutionActions(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSpecialistsTab() {
-    return Column(
-      children: [
-        _buildSectionHeader(
-          'Specialists Team',
-          'Manage your professional team',
-          Icons.people,
-        ),
-        Expanded(
-          child: ListView.builder(
-            padding: EdgeInsets.all(16),
-            itemCount: 6,
-            itemBuilder: (context, index) {
-              final specialists = [
-                {'name': 'Dr. Sarah Ahmed', 'specialty': 'Speech Therapy', 'status': 'Active', 'rating': 4.8},
-                {'name': 'Dr. Mohammed Ali', 'specialty': 'Occupational Therapy', 'status': 'Active', 'rating': 4.9},
-                {'name': 'Dr. Fatima Hassan', 'specialty': 'Behavioral Therapy', 'status': 'Busy', 'rating': 4.7},
-                {'name': 'Dr. Khalid Omar', 'specialty': 'Psychological Counseling', 'status': 'Active', 'rating': 4.6},
-                {'name': 'Dr. Layla Mohammed', 'specialty': 'Physical Therapy', 'status': 'Away', 'rating': 4.8},
-                {'name': 'Dr. Ahmed Sami', 'specialty': 'Special Education', 'status': 'Active', 'rating': 4.9},
-              ];
-              final specialist = specialists[index];
-              final name = specialist['name'] as String;
-              final specialty = specialist['specialty'] as String;
-              final status = specialist['status'] as String;
-              final rating = specialist['rating'] as double;
-              
-              return Container(
-                margin: EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: ListTile(
-                  leading: Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [AppColors.primaryLight, AppColors.primary],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        _getInitials(name),
-                        style: TextStyle(
-                          color: AppColors.textWhite,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                  title: Text(
-                    name,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textDark,
-                    ),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(specialty),
-                      SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(Icons.star, size: 14, color: Colors.amber),
-                          SizedBox(width: 4),
-                          Text(rating.toString()),
-                        ],
-                      ),
-                    ],
-                  ),
-                  trailing: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _getStatusColor(status),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      status,
-                      style: TextStyle(
-                        color: AppColors.textWhite,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  onTap: () => _viewSpecialistDetails(index),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatisticsTab() {
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(24),
-      child: Column(
-        children: [
-          _buildSectionHeader(
-            'Analytics Dashboard',
-            'Real-time insights and metrics',
-            Icons.analytics,
-          ),
-          SizedBox(height: 24),
-          
-          GridView(
-            shrinkWrap: true,
-            physics: NeverScrollableScrollPhysics(),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 1.1,
-            ),
-            children: [
-              _buildMetricCard('Total Children', '87', '+12%', Icons.child_care, AppColors.info),
-              _buildMetricCard('Active Specialists', '15', '+5%', Icons.people, AppColors.success),
-              _buildMetricCard('Sessions Today', '24', '+8%', Icons.event_available, AppColors.warning),
-              _buildMetricCard('Revenue', '\$5,240', '+15%', Icons.attach_money, AppColors.primary),
-            ],
-          ),
-          SizedBox(height: 24),
-          
-          Container(
-            padding: EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 8,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Monthly Performance',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textDark,
-                  ),
-                ),
-                SizedBox(height: 16),
-                Container(
-                  height: 200,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: AppColors.accent3),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.bar_chart, size: 50, color: AppColors.primary),
-                        SizedBox(height: 16),
-                        Text(
-                          'Interactive Charts Coming Soon',
-                          style: TextStyle(
-                            color: AppColors.textGray,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildServicesTab() {
-    return Column(
-      children: [
-        _buildSectionHeader(
-          'Services Management',
-          'Manage your offered services',
-          Icons.medical_services,
-        ),
-        Expanded(
-          child: ListView.builder(
-            padding: EdgeInsets.all(16),
-            itemCount: 4,
-            itemBuilder: (context, index) {
-              final services = [
-                {'name': 'Speech Therapy', 'price': '\$50/session', 'status': 'Active', 'duration': '45 min'},
-                {'name': 'Occupational Therapy', 'price': '\$60/session', 'status': 'Active', 'duration': '60 min'},
-                {'name': 'Behavioral Therapy', 'price': '\$70/session', 'status': 'Inactive', 'duration': '50 min'},
-                {'name': 'Psychological Counseling', 'price': '\$80/session', 'status': 'Active', 'duration': '60 min'},
-              ];
-              final service = services[index];
-              final name = service['name'] as String;
-              final price = service['price'] as String;
-              final status = service['status'] as String;
-              final duration = service['duration'] as String;
-              
-              return Container(
-                margin: EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: ListTile(
-                  leading: Container(
-                    padding: EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(Icons.medical_services, color: AppColors.primary),
-                  ),
-                  title: Text(
-                    name,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textDark,
-                    ),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(price),
-                      SizedBox(height: 4),
-                      Text('Duration: $duration'),
-                    ],
-                  ),
-                  trailing: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: _getStatusColor(status),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      status,
-                      style: TextStyle(
-                        color: AppColors.textWhite,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  onTap: () => _editService(index),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildChatTab() {
-    return Column(
-      children: [
-        _buildSectionHeader(
-          'Messages',
-          'Chat with parents and specialists',
-          Icons.chat,
-        ),
-        Expanded(
-          child: ListView.builder(
-            padding: EdgeInsets.all(16),
-            itemCount: 6,
-            itemBuilder: (context, index) {
-              final chats = [
-                {'name': 'Parent Ahmed', 'lastMsg': 'Thank you for the update!', 'unread': 2, 'time': '2:30 PM'},
-                {'name': 'Specialist Sara', 'lastMsg': 'Need to discuss session plan', 'unread': 1, 'time': '1:45 PM'},
-                {'name': 'Parent Mohammed', 'lastMsg': 'When is the next appointment?', 'unread': 0, 'time': '11:20 AM'},
-                {'name': 'Specialist Ali', 'lastMsg': 'Progress report ready', 'unread': 0, 'time': 'Yesterday'},
-                {'name': 'Parent Fatima', 'lastMsg': 'Payment completed', 'unread': 3, 'time': 'Yesterday'},
-                {'name': 'Admin Support', 'lastMsg': 'System maintenance notice', 'unread': 0, 'time': '2 days ago'},
-              ];
-              final chat = chats[index];
-              final name = chat['name'] as String;
-              final lastMsg = chat['lastMsg'] as String;
-              final unread = chat['unread'] as int;
-              final time = chat['time'] as String;
-              
-              return Container(
-                margin: EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: ListTile(
-                  leading: Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [AppColors.primaryLight, AppColors.primary],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        _getInitials(name),
-                        style: TextStyle(
-                          color: AppColors.textWhite,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                  title: Text(
-                    name,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textDark,
-                    ),
-                  ),
-                  subtitle: Text(
-                    lastMsg,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: AppColors.textGray,
-                    ),
-                  ),
-                  trailing: Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Text(
-                        time,
+                        _dashboardData['centerName'] ?? 'Management Center',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Management Center',
                         style: TextStyle(
                           fontSize: 12,
-                          color: AppColors.textLight,
-                        ),
-                      ),
-                      if (unread > 0)
-                        Container(
-                          padding: EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: AppColors.error,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Text(
-                            unread.toString(),
-                            style: TextStyle(
-                              color: AppColors.textWhite,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  onTap: () => _openChat(index),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCommunityTab() {
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(24),
-      child: Column(
-        children: [
-          _buildSectionHeader(
-            'Community Hub',
-            'Engage with your community',
-            Icons.group,
-          ),
-          SizedBox(height: 24),
-          
-          GridView(
-            shrinkWrap: true,
-            physics: NeverScrollableScrollPhysics(),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: 1.2,
-            ),
-            children: [
-              _buildCommunityCard('Events', Icons.event, 'Upcoming events', AppColors.primary),
-              _buildCommunityCard('Workshops', Icons.workspaces, 'Educational sessions', AppColors.success),
-              _buildCommunityCard('Support Groups', Icons.group, 'Parent communities', AppColors.info),
-              _buildCommunityCard('Resources', Icons.library_books, 'Learning materials', AppColors.warning),
-            ],
-          ),
-          SizedBox(height: 24),
-          
-          Container(
-            padding: EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Recent Activities',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textDark,
-                  ),
-                ),
-                SizedBox(height: 16),
-                _buildActivityItem('New parent joined the community', '2 hours ago', Icons.person_add),
-                _buildActivityItem('Workshop scheduled for next week', '1 day ago', Icons.event),
-                _buildActivityItem('New specialist approved', '2 days ago', Icons.verified),
-                _buildActivityItem('Community donation received', '3 days ago', Icons.volunteer_activism),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDonorsTab() {
-    return Column(
-      children: [
-        _buildSectionHeader(
-          'Donors & Sponsors',
-          'Manage your supporters',
-          Icons.volunteer_activism,
-        ),
-        Expanded(
-          child: ListView.builder(
-            padding: EdgeInsets.all(16),
-            itemCount: 4,
-            itemBuilder: (context, index) {
-              final donors = [
-                {'name': 'Al-Rajhi Foundation', 'type': 'Corporate Sponsor', 'amount': '\$10,000', 'date': '2024'},
-                {'name': 'Community Fund', 'type': 'Community Organization', 'amount': '\$5,000', 'date': '2024'},
-                {'name': 'Individual Donor', 'type': 'Private Donation', 'amount': '\$2,500', 'date': '2024'},
-                {'name': 'Education Grant', 'type': 'Government Grant', 'amount': '\$15,000', 'date': '2024'},
-              ];
-              final donor = donors[index];
-              final name = donor['name'] as String;
-              final type = donor['type'] as String;
-              final amount = donor['amount'] as String;
-              final date = donor['date'] as String;
-              
-              return Container(
-                margin: EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: ListTile(
-                  leading: Container(
-                    padding: EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(Icons.volunteer_activism, color: AppColors.primary),
-                  ),
-                  title: Text(
-                    name,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textDark,
-                    ),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(type),
-                      SizedBox(height: 4),
-                      Text(
-                        amount,
-                        style: TextStyle(
-                          color: AppColors.success,
-                          fontWeight: FontWeight.bold,
+                          color: Colors.white.withOpacity(0.8),
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
                   ),
-                  trailing: Text(
-                    date,
-                    style: TextStyle(
-                      color: AppColors.textLight,
-                    ),
-                  ),
-                  onTap: () => _viewDonorDetails(index),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
 
-  Widget _buildFeedbackTab() {
-    return Column(
-      children: [
-        _buildSectionHeader(
-          'Feedback & Reviews',
-          'What parents are saying',
-          Icons.feedback,
-        ),
-        Expanded(
-          child: ListView.builder(
-            padding: EdgeInsets.all(16),
-            itemCount: 5,
-            itemBuilder: (context, index) {
-              final feedbacks = [
-                {'name': 'Parent Ahmed', 'rating': 5, 'comment': 'Excellent service! My child has improved significantly.', 'date': '2 days ago'},
-                {'name': 'Parent Sara', 'rating': 4, 'comment': 'Very professional staff and caring environment.', 'date': '1 week ago'},
-                {'name': 'Parent Mohammed', 'rating': 5, 'comment': 'My child improved a lot thanks to the dedicated specialists.', 'date': '2 weeks ago'},
-                {'name': 'Parent Fatima', 'rating': 3, 'comment': 'Good service but needs improvement in scheduling.', 'date': '3 weeks ago'},
-                {'name': 'Parent Khalid', 'rating': 5, 'comment': 'Highly recommended! The best center in town.', 'date': '1 month ago'},
-              ];
-              final feedback = feedbacks[index];
-              final name = feedback['name'] as String;
-              final rating = feedback['rating'] as int;
-              final comment = feedback['comment'] as String;
-              final date = feedback['date'] as String;
-              
-              return Container(
-                margin: EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [AppColors.primaryLight, AppColors.primary],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Center(
-                              child: Text(
-                                _getInitials(name),
-                                style: TextStyle(
-                                  color: AppColors.textWhite,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  name,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.textDark,
-                                  ),
-                                ),
-                                Row(
-                                  children: List.generate(5, (starIndex) => Icon(
-                                    Icons.star,
-                                    size: 16,
-                                    color: starIndex < rating ? Colors.amber : Colors.grey,
-                                  )),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Text(
-                            date,
-                            style: TextStyle(
-                              color: AppColors.textLight,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 12),
-                      Text(
-                        comment,
-                        style: TextStyle(
-                          color: AppColors.textDark,
-                        ),
-                      ),
-                      SizedBox(height: 12),
-                      Row(
-                        children: [
-                          TextButton.icon(
-                            icon: Icon(Icons.thumb_up, size: 16),
-                            label: Text('Helpful'),
-                            onPressed: () {},
-                            style: TextButton.styleFrom(
-                              foregroundColor: AppColors.primary,
-                            ),
-                          ),
-                          TextButton.icon(
-                            icon: Icon(Icons.reply, size: 16),
-                            label: Text('Reply'),
-                            onPressed: () {},
-                            style: TextButton.styleFrom(
-                              foregroundColor: AppColors.primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ===== HELPER WIDGETS =====
-  Widget _buildInfoCard(String title, String value, IconData icon, Color color) {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, size: 20, color: color),
-          ),
-          SizedBox(height: 12),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.textGray,
+                  Container(width: 44, height: 44),
+                ],
+              ),
             ),
           ),
-          SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textDark,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildActionChip(String label, IconData icon, VoidCallback onTap) {
-    return ActionChip(
-      avatar: Icon(icon, size: 16, color: AppColors.primary),
-      label: Text(label),
-      onPressed: onTap,
-      backgroundColor: AppColors.accent1,
-      labelStyle: TextStyle(color: AppColors.primary),
-    );
-  }
-
-  Widget _buildStatusBadge() {
-    final status = institutionData?['approval_status']?.toString() ?? 'Pending';
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: _getStatusColor(status).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _getStatusColor(status)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(_getStatusIcon(status), size: 16, color: _getStatusColor(status)),
-          SizedBox(width: 8),
-          Text(
-            status,
-            style: TextStyle(
-              color: _getStatusColor(status),
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title, String subtitle, IconData icon) {
-    return Container(
-      padding: EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, size: 24, color: AppColors.primary),
-          ),
-          SizedBox(width: 16),
+          // Sidebar Content
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textDark,
+            child: SingleChildScrollView(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  ..._sidebarItems.map((item) {
+                    return _buildSidebarItem(item);
+                  }).toList(),
+
+                  // Logout Button
+                  SizedBox(height: 20),
+                  Container(
+                    margin: EdgeInsets.only(top: 20),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: _handleLogout,
+                        child: ListTile(
+                          leading: Icon(Icons.logout_rounded, color: Colors.red),
+                          title: Text(
+                            'Logout',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.red,
+                            ),
+                          ),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    color: AppColors.textGray,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
@@ -1528,429 +834,89 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen>
     );
   }
 
-  Widget _buildMetricCard(String title, String value, String change, IconData icon, Color color) {
+  Widget _buildSidebarItem(Map<String, dynamic> item) {
     return Container(
+      margin: EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, size: 20, color: color),
-                ),
-                Text(
-                  change,
-                  style: TextStyle(
-                    color: change.contains('+') ? AppColors.success : AppColors.error,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 12),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textDark,
-              ),
-            ),
-            SizedBox(height: 4),
-            Text(
-              title,
-              style: TextStyle(
-                color: AppColors.textGray,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCommunityCard(String title, IconData icon, String subtitle, Color color) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 24, color: color),
-            ),
-            SizedBox(height: 12),
-            Text(
-              title,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _handleSidebarItemClick(item['title']),
+          child: ListTile(
+            leading: Icon(item['icon'], color: AppColors.primary, size: 24),
+            title: Text(
+              item['title'],
               style: TextStyle(
                 fontSize: 16,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w600,
                 color: AppColors.textDark,
               ),
             ),
-            SizedBox(height: 4),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.textGray,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActivityItem(String activity, String time, IconData icon) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Container(
-            padding: EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, size: 16, color: AppColors.primary),
-          ),
-          SizedBox(width: 12),
-          Expanded(child: Text(activity)),
-          Text(
-            time,
-            style: TextStyle(
-              color: AppColors.textLight,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoSection() {
-    return Container(
-      padding: EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Institution Details',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textDark,
-            ),
-          ),
-          SizedBox(height: 16),
-          _buildDetailRow('Contact Email', institutionData?['contact_email']?.toString()),
-          _buildDetailRow('Contact Phone', institutionData?['contact_phone']?.toString()),
-          _buildDetailRow('License', institutionData?['license_number']?.toString()),
-          _buildDetailRow('Address', institutionData?['location_address']?.toString()),
-          _buildDetailRow('City', institutionData?['city']?.toString()),
-          _buildDetailRow('Region', institutionData?['region']?.toString()),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String? value) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 120,
-            child: Text(
-              '$label:',
-              style: TextStyle(
-                fontWeight: FontWeight.w500,
-                color: AppColors.textGray,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value ?? 'Not specified',
-              style: TextStyle(
-                color: AppColors.textDark,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInstitutionActions() {
-    return Row(
-      children: [
-        Expanded(
-          child: ElevatedButton.icon(
-            icon: Icon(Icons.edit),
-            label: Text('Edit Info'),
-            onPressed: _editInstitution,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.textWhite,
-              padding: EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
+            trailing: (item['count'] as int) > 0 ? Container(
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.primary,
                 borderRadius: BorderRadius.circular(12),
               ),
-            ),
-          ),
-        ),
-        SizedBox(width: 12),
-        Expanded(
-          child: OutlinedButton.icon(
-            icon: Icon(Icons.photo),
-            label: Text('Add Photos'),
-            onPressed: _addInstitutionPhotos,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.primary,
-              side: BorderSide(color: AppColors.primary),
-              padding: EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ===== HELPER METHODS =====
-  String _getInitials(String name) {
-    return name.split(' ').map((e) => e.isNotEmpty ? e[0] : '').join();
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'approved':
-      case 'active':
-      case 'excellent':
-      case 'good':
-        return AppColors.success;
-      case 'pending':
-      case 'busy':
-      case 'improving':
-      case 'stable':
-        return AppColors.warning;
-      case 'rejected':
-      case 'inactive':
-        return AppColors.error;
-      default:
-        return AppColors.textGray;
-    }
-  }
-
-  IconData _getStatusIcon(String status) {
-    switch (status.toLowerCase()) {
-      case 'approved':
-      case 'active':
-        return Icons.check_circle;
-      case 'pending':
-        return Icons.pending;
-      case 'rejected':
-      case 'inactive':
-        return Icons.cancel;
-      default:
-        return Icons.help;
-    }
-  }
-
-  // ===== ACTION METHODS =====
-  void _showNotifications() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('You have 3 new notifications'),
-        backgroundColor: AppColors.primary,
-      ),
-    );
-  }
-
-  void _logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-    Navigator.pushReplacementNamed(context, '/login');
-  }
-
-  void _editProfile() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Edit Profile - Coming Soon'),
-        backgroundColor: AppColors.primary,
-      ),
-    );
-  }
-
-  void _editInstitution() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Edit Institution - Coming Soon'),
-        backgroundColor: AppColors.primary,
-      ),
-    );
-  }
-
-  void _addInstitutionPhotos() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Add Photos - Coming Soon'),
-        backgroundColor: AppColors.primary,
-      ),
-    );
-  }
-
-  void _viewSpecialistDetails(int index) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('View Specialist Details - Coming Soon'),
-        backgroundColor: AppColors.primary,
-      ),
-    );
-  }
-
-  void _editService(int index) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Edit Service - Coming Soon'),
-        backgroundColor: AppColors.primary,
-      ),
-    );
-  }
-
-  void _openChat(int index) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Open Chat - Coming Soon'),
-        backgroundColor: AppColors.primary,
-      ),
-    );
-  }
-
-  void _viewDonorDetails(int index) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('View Donor Details - Coming Soon'),
-        backgroundColor: AppColors.primary,
-      ),
-    );
-  }
-
-  void _showQuickActions() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(20),
-            topRight: Radius.circular(20),
-          ),
-        ),
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Quick Actions',
+              child: Text(
+                item['count'].toString(),
                 style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textDark,
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-              SizedBox(height: 20),
-              _buildQuickActionItem('Add New Specialist', Icons.person_add, _addSpecialist),
-              _buildQuickActionItem('Add New Child', Icons.child_care, _addChild),
-              _buildQuickActionItem('Schedule Event', Icons.event, () {}),
-              _buildQuickActionItem('Send Announcement', Icons.announcement, () {}),
-            ],
+            ) : null,
+            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildQuickActionItem(String title, IconData icon, VoidCallback onTap) {
-    return ListTile(
-      leading: Container(
-        padding: EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: AppColors.primary.withOpacity(0.1),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: AppColors.primary),
-      ),
-      title: Text(title),
-      onTap: () {
-        Navigator.pop(context);
-        onTap();
-      },
-    );
+// Custom Pie Chart Painter (نفس الكود السابق)
+class _PieChartPainter extends CustomPainter {
+  final List<Map<String, dynamic>> data;
+
+  _PieChartPainter(this.data);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 * 0.8;
+
+    double startAngle = -90 * (3.141592653589793 / 180);
+
+    for (var item in data) {
+      final sweepAngle = (item['value'] / 100) * 360 * (3.141592653589793 / 180);
+
+      final paint = Paint()
+        ..color = item['color']
+        ..style = PaintingStyle.fill;
+
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        startAngle,
+        sweepAngle,
+        true,
+        paint,
+      );
+
+      startAngle += sweepAngle;
+    }
+
+    final centerPaint = Paint()
+      ..color = AppColors.background
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(center, radius * 0.6, centerPaint);
   }
 
-  void _addSpecialist() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Add Specialist - Coming Soon'),
-        backgroundColor: AppColors.primary,
-      ),
-    );
-  }
-
-  void _addChild() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Add Child - Coming Soon'),
-        backgroundColor: AppColors.primary,
-      ),
-    );
-  }
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
