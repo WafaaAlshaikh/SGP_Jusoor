@@ -5,6 +5,15 @@ class AppColors {
   static const Color primary = Color(0xFF1A5A7A); // أزرق رئيسي
   static const Color primaryLight = Color(0xFF5BA4D0); // أفتح للتفاصيل
   static const Color primaryDark = Color(0xFF144A65); // أغمق للهيدر والأزرار
+  static const Color ment = Color(0xFF0F8A80);
+  static const Color blue = Color(0xFF5993B1);
+  static const Color yal = Color(0xFFF4F4D0);
+  static const Color yalw = Color(0xFFFAEAB1);
+  static const Color green = Color(0xFF34656D);
+  static const Color darkGreen = Color(0xFF334443);
+  static const Color red = Color(0xFFF499BB);
+
+
 
   // Background & Surface - خلفيات مريحة للعين
   static const Color background = Color(0xFFF0F7FF); // أزرق فاتح مريح
@@ -49,4 +58,7 @@ class AppColors {
   static const Color buttonColor = Color(0xFF1A5A7A);
   static const Color textColor = Color(0xFF1A2B3C);
   static const Color cardColor = Color(0xFFFFFFFF);
+
+
+
 }
