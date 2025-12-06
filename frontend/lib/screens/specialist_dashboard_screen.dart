@@ -22,6 +22,8 @@ import 'package:frontend/screens/ai_insights_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/activity_service.dart';
 import 'add_session_screen.dart';
+import '../widgets/specialist_rating_card.dart';
+import '../screens/specialist_ratings_screen.dart';
 
 class SpecialistDashboardScreen extends StatefulWidget {
   const SpecialistDashboardScreen({Key? key}) : super(key: key);
@@ -42,6 +44,11 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
   List<Map<String, dynamic>> recentActivities = [];
   final int unreadMessagesCount = 2;
 
+  double _specialistRating = 0.0;
+  int _totalRatings = 0;
+  bool _isLoadingRatings = false;
+  List<Map<String, dynamic>> _recentRatings = [];
+
   // 🔥 تحديد إذا كان على ويب أو موبايل
   bool get isWeb => MediaQuery.of(context).size.width > 600;
 
@@ -53,6 +60,7 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
     _loadRecentActivities();
     _startActivitiesAutoRefresh();
     _checkAndAddSampleActivities();
+    _loadRatingData();
   }
 
   @override
@@ -82,6 +90,38 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
     }
   }
 
+  Future<void> _loadRatingData() async {
+  setState(() => _isLoadingRatings = true);
+  
+  try {
+    final stats = await SpecialistService.getRatingStats();
+    
+    // طباعة كاملة للاستجابة
+    print('📊 getRatingStats response:');
+    print('  Type: ${stats.runtimeType}');
+    print('  Keys: ${stats.keys.toList()}');
+    print('  Full data: $stats');
+    
+    if (stats['success'] == true) {
+      final data = stats['data'];
+      print('📊 Data type: ${data.runtimeType}');
+      print('📊 Data keys: ${data.keys.toList()}');
+      print('📊 average_rating value: ${data['average_rating']} (type: ${data['average_rating']?.runtimeType})');
+      print('📊 total_ratings value: ${data['total_ratings']} (type: ${data['total_ratings']?.runtimeType})');
+      
+      // استخدم هذا التحويل البسيط
+      setState(() {
+        _specialistRating = double.tryParse(data['average_rating']?.toString() ?? '0') ?? 0.0;
+        _totalRatings = int.tryParse(data['total_ratings']?.toString() ?? '0') ?? 0;
+      });
+    }
+  } catch (e, stackTrace) {
+    print('❌ Error loading rating data: $e');
+    print('📋 Stack trace: $stackTrace');
+  } finally {
+    setState(() => _isLoadingRatings = false);
+  }
+}
   bool _hasActivitiesChanged(List<Map<String, dynamic>> newActivities) {
     if (recentActivities.length != newActivities.length) {
       return true;
@@ -606,6 +646,14 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
                     Navigator.push(context, MaterialPageRoute(builder: (context) => CommunityScreen()));
                   },
                 ),
+                // في _buildWebDrawerItem أضيفي:
+_buildWebDrawerItem(
+  icon: Icons.star,
+  title: 'My Ratings',
+  onTap: () => Navigator.push(context, 
+    MaterialPageRoute(builder: (context) => SpecialistRatingsScreen()),
+  ),
+),
                 _buildWebDrawerItem(
                   icon: Icons.psychology,
                   title: 'AI Insights',
@@ -962,6 +1010,17 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
                       Navigator.push(context, MaterialPageRoute(builder: (context) => CommunityScreen()));
                     },
                   ),
+                  _buildDrawerItem(
+  icon: Icons.star,
+  title: 'My Ratings',
+  onTap: () {
+    Navigator.pop(context);
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => SpecialistRatingsScreen()),
+    );
+  },
+),
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                     child: Divider(height: 1),
@@ -1022,38 +1081,58 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
     );
   }
 
+  
   Widget _buildSummaryCards() {
-    return SizedBox(
-      height: 200,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          SizedBox(width: MediaQuery.of(context).size.width * 0.6, child: _SummaryCard(icon: Icons.calendar_month, title: 'Upcoming Sessions ', count: dashboardData['upcomingSessionsCount'] ?? 0, buttonText: 'View ➔', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SpecialistSessionsScreen())))),
-          SizedBox(width: MediaQuery.of(context).size.width * 0.6, child: _SummaryCard(icon: Icons.people, title: 'My Children', count: dashboardData['childrenCount'] ?? 0, buttonText: 'View ➔', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SpecialistChildrenScreen())))),
-          SizedBox(width: MediaQuery.of(context).size.width * 0.6, child: _SummaryCard(icon: Icons.mail_outline, title: 'New Messages', count: unreadMessagesCount, buttonText: 'Open Messages ➔',onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ChatListScreen())))),
-          SizedBox(
-              width: MediaQuery.of(context).size.width * 0.6,
-              child: _SummaryCard(
-                  icon: Icons.psychology_outlined,
-                  title: 'AI Insight Center',
-                  count: 3,
-                  buttonText: 'View  ➔',
-                  onTap: () {
-                    Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => const AIInsightsScreen()
-                        )
-                    );
-                  }
-              )
+  final screenWidth = MediaQuery.of(context).size.width;
+  final isSmallScreen = screenWidth < 360;
+  
+  return SizedBox(
+    height: isSmallScreen ? 180 : 200, // تقليل الارتفاع للشاشات الصغيرة
+    child: ListView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      children: [
+        SizedBox(
+          width: isSmallScreen ? screenWidth * 0.55 : screenWidth * 0.6, // تقليل العرض
+          child: SpecialistRatingCard(
+            rating: _specialistRating,
+            totalRatings: _totalRatings,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => SpecialistRatingsScreen()),
+            ),
+            showDetails: false, // غيري إلى false لتقليل الحجم
+            compact: true, // إذا كان ال widget يدعم وضع المدمج
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickActions() {
+        ),
+        const SizedBox(width: 12), // مسافة أقل
+        SizedBox(
+          width: isSmallScreen ? screenWidth * 0.55 : screenWidth * 0.6,
+          child: _SummaryCard(
+            icon: Icons.calendar_month,
+            title: 'Upcoming Sessions',
+            count: dashboardData['upcomingSessionsCount'] ?? 0,
+            buttonText: 'View ➔',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SpecialistSessionsScreen())),
+          ),
+        ),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: isSmallScreen ? screenWidth * 0.55 : screenWidth * 0.6,
+          child: _SummaryCard(
+            icon: Icons.people,
+            title: 'My Children',
+            count: dashboardData['childrenCount'] ?? 0,
+            buttonText: 'View ➔',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SpecialistChildrenScreen())),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+   // في دالة _buildQuickActions أضيفي بعد return:
+Widget _buildQuickActions() {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       const Text("Quick Actions", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textDark)),
       const SizedBox(height: 12),
@@ -1066,24 +1145,59 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
     ]);
   }
 
-  Widget _buildRecentActivityFeed() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 24),
-        const Text(
-            "Recent Activity",
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textDark)
-        ),
-        const SizedBox(height: 12),
+  // في دالة _buildRecentActivityFeed أضيفي قبل return:
+Widget _buildRecentActivityFeed() {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const SizedBox(height: 24),
+      const Text(
+        "Recent Activity",
+        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textDark),
+      ),
+      const SizedBox(height: 12),
+      
+      // أضيفي تقييمات حديثة
+      if (_totalRatings > 0)
+        _buildRecentRatingActivity(),
+      
+      if (recentActivities.isEmpty)
+        _buildEmptyActivityState()
+      else
+        ...recentActivities.map((activity) => _buildActivityItem(activity)).toList(),
+    ],
+  );
+}
 
-        if (recentActivities.isEmpty)
-          _buildEmptyActivityState()
-        else
-          ...recentActivities.map((activity) => _buildActivityItem(activity)).toList(),
-      ],
-    );
-  }
+// دالة جديدة لعرض نشاط التقييمات
+Widget _buildRecentRatingActivity() {
+  return ListTile(
+    leading: Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.amber.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Icon(Icons.star, color: Colors.amber, size: 20),
+    ),
+    title: Text(
+      'Your current rating: ${_specialistRating.toStringAsFixed(1)}/5.0',
+      style: const TextStyle(fontWeight: FontWeight.w500),
+    ),
+    subtitle: Text(
+      'Based on $_totalRatings reviews',
+      style: const TextStyle(color: AppColors.textGray, fontSize: 12),
+    ),
+    trailing: IconButton(
+      icon: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+      onPressed: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => SpecialistRatingsScreen()),
+      ),
+    ),
+    contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+  );
+}
 
   Widget _buildEmptyActivityState() {
     return const ListTile(

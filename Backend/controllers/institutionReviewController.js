@@ -24,7 +24,27 @@ const addInstitutionReview = async (req, res) => {
       would_recommend = true
     } = req.body;
 
-    console.log('🏥 Adding institution review:', { institutionId, parentId });
+    console.log('🏥 Adding institution review:', { 
+      institutionId, 
+      parentId,
+      facilities_rating,
+      staff_rating,
+      cleanliness_rating,
+      accessibility_rating
+    });
+
+    // التحقق من وجود جميع التقييمات المطلوبة
+    if (
+      facilities_rating === undefined ||
+      staff_rating === undefined ||
+      cleanliness_rating === undefined ||
+      accessibility_rating === undefined
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'يرجى إدخال جميع التقييمات المطلوبة'
+      });
+    }
 
     // 1. التحقق من وجود المؤسسة
     const institution = await Institution.findByPk(institutionId);
@@ -44,9 +64,12 @@ const addInstitutionReview = async (req, res) => {
       },
       include: [{
         model: Child,
+        as: 'child',
         where: { parent_id: parentId }
       }]
     });
+
+    console.log(`📊 Visit count: ${visitCount}`);
 
     if (visitCount < 1) {
       return res.status(400).json({
@@ -55,7 +78,17 @@ const addInstitutionReview = async (req, res) => {
       });
     }
 
-    // 3. التحقق إذا سبق التقييم
+    // 3. حساب التقييم العام
+    const overall_rating = (
+      parseFloat(facilities_rating) +
+      parseFloat(staff_rating) +
+      parseFloat(cleanliness_rating) +
+      parseFloat(accessibility_rating)
+    ) / 4;
+
+    console.log(`📈 Overall rating calculated: ${overall_rating.toFixed(2)}`);
+
+    // 4. التحقق إذا سبق التقييم
     const existingReview = await InstitutionReview.findOne({
       where: {
         institution_id: institutionId,
@@ -67,10 +100,11 @@ const addInstitutionReview = async (req, res) => {
     if (existingReview) {
       // تحديث المراجعة الحالية
       review = await existingReview.update({
-        facilities_rating,
-        staff_rating,
-        cleanliness_rating,
-        accessibility_rating,
+        facilities_rating: parseFloat(facilities_rating),
+        staff_rating: parseFloat(staff_rating),
+        cleanliness_rating: parseFloat(cleanliness_rating),
+        accessibility_rating: parseFloat(accessibility_rating),
+        overall_rating: parseFloat(overall_rating.toFixed(2)),
         review_text: review_text || existingReview.review_text,
         would_recommend,
         based_on_visits: visitCount,
@@ -81,24 +115,35 @@ const addInstitutionReview = async (req, res) => {
       review = await InstitutionReview.create({
         parent_id: parentId,
         institution_id: institutionId,
-        facilities_rating,
-        staff_rating,
-        cleanliness_rating,
-        accessibility_rating,
+        facilities_rating: parseFloat(facilities_rating),
+        staff_rating: parseFloat(staff_rating),
+        cleanliness_rating: parseFloat(cleanliness_rating),
+        accessibility_rating: parseFloat(accessibility_rating),
+        overall_rating: parseFloat(overall_rating.toFixed(2)),
         review_text,
         would_recommend,
-        based_on_visits: visitCount
+        based_on_visits: visitCount,
+        created_at: new Date(),
+        updated_at: new Date()
       });
     }
 
-    // 4. تحديث متوسط تقييم المؤسسة
-    await updateInstitutionAverageRating(institutionId);
+    console.log('✅ Review saved successfully:', review.institution_review_id);
 
-    res.status(existingReview ? 200 : 201).json({
-      success: true,
-      message: existingReview ? 'تم تحديث مراجعتك' : 'تم إضافة المراجعة بنجاح',
-      data: review
-    });
+    // 5. تحديث متوسط تقييم المؤسسة
+    try {
+  // 4. تحديث متوسط تقييم المؤسسة
+  await updateInstitutionAverageRating(institutionId);
+} catch (updateError) {
+  console.error('⚠️ Warning: Failed to update institution average:', updateError);
+  // لا ترمي خطأ هنا حتى لا تفسد الاستجابة الناجحة
+}
+
+res.status(existingReview ? 200 : 201).json({
+  success: true,
+  message: existingReview ? 'تم تحديث مراجعتك' : 'تم إضافة المراجعة بنجاح',
+  data: review
+});
 
   } catch (error) {
     console.error('❌ Error adding institution review:', error);
@@ -237,27 +282,46 @@ const getMyInstitutionReviews = async (req, res) => {
 /**
  * تحديث متوسط تقييم المؤسسة
  */
+
 const updateInstitutionAverageRating = async (institutionId) => {
   try {
     const stats = await InstitutionReview.findOne({
-      where: { institution_id: institutionId },
+      where: { 
+        institution_id: institutionId,
+        // إزالة شرط status لأن الحقل غير موجود
+      },
       attributes: [
         [sequelize.fn('AVG', sequelize.col('overall_rating')), 'avg_rating'],
-        [sequelize.fn('COUNT', sequelize.col('institution_review_id')), 'total_reviews']
+        [sequelize.fn('AVG', sequelize.col('facilities_rating')), 'avg_facilities'],
+        [sequelize.fn('AVG', sequelize.col('staff_rating')), 'avg_staff'],
+        [sequelize.fn('AVG', sequelize.col('cleanliness_rating')), 'avg_cleanliness'],
+        [sequelize.fn('AVG', sequelize.col('accessibility_rating')), 'avg_accessibility'],
+        [sequelize.fn('COUNT', sequelize.col('institution_review_id')), 'total_reviews'],
+        [sequelize.fn('SUM', sequelize.literal('CASE WHEN would_recommend = true THEN 1 ELSE 0 END')), 'recommendations']
       ],
       raw: true
     });
 
+    console.log('📊 Institution stats:', stats);
+
+    // تحديث جدول المؤسسات
     await Institution.update({
       average_rating: parseFloat(stats.avg_rating || 0).toFixed(1),
+      facilities_rating: parseFloat(stats.avg_facilities || 0).toFixed(1),
+      staff_rating: parseFloat(stats.avg_staff || 0).toFixed(1),
+      cleanliness_rating: parseFloat(stats.avg_cleanliness || 0).toFixed(1),
+      accessibility_rating: parseFloat(stats.avg_accessibility || 0).toFixed(1),
       total_reviews: parseInt(stats.total_reviews || 0),
       last_review_update: new Date()
     }, {
       where: { institution_id: institutionId }
     });
 
+    console.log('✅ Institution rating updated');
+
   } catch (error) {
-    console.error('Error updating institution average:', error);
+    console.error('❌ Error updating institution average:', error);
+    // لا ترمي خطأ هنا حتى لا تؤثر على العملية الرئيسية
   }
 };
 

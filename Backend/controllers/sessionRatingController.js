@@ -304,9 +304,155 @@ const getRatingTag = (rating) => {
   return tags[rating] || 'جيد';
 };
 
+/**
+ * جلب تقييمات أخصائي معين (للعرض الخاص بالأخصائي)
+ */
+const getSpecialistRatingsForSpecialist = async (req, res) => {
+  try {
+    const specialistId = req.user.user_id;
+    const { page = 1, limit = 10 } = req.query;
+    const offset = (page - 1) * limit;
+
+    const { rows: ratings, count } = await SessionRating.findAndCountAll({
+      where: { specialist_id: specialistId },
+      include: [
+        {
+          model: require('../model/User'),
+          as: 'parent',
+          attributes: ['full_name']
+        },
+        {
+          model: require('../model/Session'),
+          attributes: ['date'],
+          include: [{
+            model: require('../model/Child'),
+            as: 'child',
+            attributes: ['full_name']
+          }]
+        }
+      ],
+      order: [['rated_at', 'DESC']],
+      limit: parseInt(limit),
+      offset: offset
+    });
+
+    // حساب الإحصائيات
+    const stats = await SessionRating.findOne({
+      where: { specialist_id: specialistId },
+      attributes: [
+        [sequelize.fn('AVG', sequelize.col('rating')), 'average_rating'],
+        [sequelize.fn('COUNT', sequelize.col('session_rating_id')), 'total_ratings'],
+        [sequelize.fn('SUM', sequelize.literal('CASE WHEN rating = 5 THEN 1 ELSE 0 END')), 'five_star'],
+        [sequelize.fn('SUM', sequelize.literal('CASE WHEN rating = 1 THEN 1 ELSE 0 END')), 'one_star']
+      ],
+      raw: true
+    });
+
+    // توزيع التقييمات
+    const distribution = {};
+    for (let i = 1; i <= 5; i++) {
+      const count = await SessionRating.count({
+        where: { 
+          specialist_id: specialistId,
+          rating: i 
+        }
+      });
+      distribution[i] = count;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        ratings: ratings.map(r => ({
+          id: r.session_rating_id,
+          session_id: r.session_id,
+          specialist_id: r.specialist_id,
+          parent_id: r.parent_id,
+          child_id: r.child_id,
+          rating: r.rating,
+          rating_tag: r.rating_tag,
+          comment: r.comment,
+          session_type: r.session_type,
+          rated_at: r.rated_at,
+          parent_name: r.parent.full_name,
+          child_name: r.Session.child.full_name,
+          session_date: r.Session.date
+        })),
+        statistics: {
+          average_rating: parseFloat(stats.average_rating || 0).toFixed(1),
+          total_ratings: parseInt(stats.total_ratings || 0),
+          five_star_count: parseInt(stats.five_star || 0),
+          one_star_count: parseInt(stats.one_star || 0),
+          distribution: distribution
+        }
+      },
+      pagination: {
+        current_page: parseInt(page),
+        total_pages: Math.ceil(count / limit),
+        total_items: count
+      }
+    });
+
+  } catch (error) {
+    console.error('Error getting specialist ratings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'حدث خطأ في جلب التقييمات'
+    });
+  }
+};
+
+/**
+ * جلب إحصائيات التقييمات السريعة للأخصائي
+ */
+const getSpecialistRatingStats = async (req, res) => {
+  try {
+    const specialistId = req.user.user_id;
+
+    const stats = await SessionRating.findOne({
+      where: { specialist_id: specialistId },
+      attributes: [
+        [sequelize.fn('AVG', sequelize.col('rating')), 'average_rating'],
+        [sequelize.fn('COUNT', sequelize.col('session_rating_id')), 'total_ratings'],
+        [sequelize.fn('COUNT', sequelize.literal('DISTINCT parent_id')), 'unique_parents']
+      ],
+      raw: true
+    });
+
+    // عدد التقييمات في آخر 30 يوم
+    const recentCount = await SessionRating.count({
+      where: {
+        specialist_id: specialistId,
+        rated_at: {
+          [Op.gte]: sequelize.literal("DATE_SUB(NOW(), INTERVAL 30 DAY)")
+        }
+      }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        average_rating: parseFloat(stats.average_rating || 0),
+        total_ratings: parseInt(stats.total_ratings || 0),
+        unique_parents: parseInt(stats.unique_parents || 0),
+        recent_ratings_count: recentCount
+      }
+    });
+
+  } catch (error) {
+    console.error('Error getting specialist rating stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'حدث خطأ في جلب إحصائيات التقييمات'
+    });
+  }
+};
+
 module.exports = {
   rateSession,
   getSessionRatings,
   getSpecialistRatings,
-  getMyRatings
+  getMyRatings,
+  getSpecialistRatingsForSpecialist,
+  getSpecialistRatingStats
 };

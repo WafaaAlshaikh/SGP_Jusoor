@@ -16,7 +16,7 @@ class ImprovedInstitutionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = institution['name'] ?? 'مؤسسة غير معروفة';
+    final name = institution['name'] ?? 'Unknown Institution';
     final city = institution['city'] ?? '';
     final matchScore = institution['match_score'] ?? '0%';
     final specialties = institution['matching_specialties'] ?? [];
@@ -200,7 +200,7 @@ class ImprovedInstitutionCard extends StatelessWidget {
                     // Match Score
                     _buildStatItem(
                       icon: Icons.verified_rounded,
-                      label: 'توافق',
+                      label: 'Match',
                       value: matchScore,
                       color: _getMatchScoreColor(matchScore),
                     ),
@@ -208,7 +208,7 @@ class ImprovedInstitutionCard extends StatelessWidget {
                     if (rating != null)
                       _buildStatItem(
                         icon: Icons.star_rounded,
-                        label: 'تقييم',
+                        label: 'Rating',
                         value: rating.toString(),
                         color: Colors.amber.shade700,
                       ),
@@ -216,7 +216,7 @@ class ImprovedInstitutionCard extends StatelessWidget {
                     if (avgPrice != null)
                       _buildStatItem(
                         icon: Icons.attach_money_rounded,
-                        label: 'سعر',
+                        label: 'Price',
                         value: '\$${avgPrice}',
                         color: Colors.green.shade600,
                       ),
@@ -224,7 +224,7 @@ class ImprovedInstitutionCard extends StatelessWidget {
                     if (distance != null && distance != 'null')
                       _buildStatItem(
                         icon: Icons.social_distance_rounded,
-                        label: 'مسافة',
+                        label: 'Distance',
                         value: distance,
                         color: Colors.blue.shade600,
                       ),
@@ -232,7 +232,7 @@ class ImprovedInstitutionCard extends StatelessWidget {
                     if (servicesCount > 0)
                       _buildStatItem(
                         icon: Icons.medical_services_rounded,
-                        label: 'خدمات',
+                        label: 'Services',
                         value: servicesCount.toString(),
                         color: Colors.purple.shade600,
                       ),

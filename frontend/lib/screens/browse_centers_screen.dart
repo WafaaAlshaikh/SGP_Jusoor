@@ -1,9 +1,11 @@
+// lib/screens/browse_centers_screen.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:math' show cos, sqrt, asin;
 import 'dart:async';
 import '../theme/app_colors.dart';
 import '../services/api_service.dart';
+import '../services/rating_service.dart';
 import 'map_screen.dart';
 import 'institution_reviews_screen.dart';
 
@@ -21,7 +23,7 @@ class _BrowseCentersScreenState extends State<BrowseCentersScreen> {
   String _searchQuery = '';
   
   // Basic Filters
-  String _sortBy = 'name'; // name, rating, price, distance
+  String _sortBy = 'name';
   
   // Advanced Filters
   bool _showAdvancedFilters = false;
@@ -44,7 +46,7 @@ class _BrowseCentersScreenState extends State<BrowseCentersScreen> {
   
   List<String> _availableCities = ['All'];
   
-  // User location for distance sorting
+  // User location
   double? _userLat;
   double? _userLng;
   String? _userLocationName;
@@ -53,10 +55,9 @@ class _BrowseCentersScreenState extends State<BrowseCentersScreen> {
   bool _showAIRecommendations = false;
   bool _isLoadingAI = false;
   String? _aiSummary;
-  Map<int, int> _matchScores = {}; // institution_id -> score
-  Map<int, String> _aiReasonings = {}; // institution_id -> reasoning
+  Map<int, int> _matchScores = {};
+  Map<int, String> _aiReasonings = {};
 
-  // Debouncer for filter updates
   Timer? _debounceTimer;
 
   @override
@@ -82,15 +83,7 @@ class _BrowseCentersScreenState extends State<BrowseCentersScreen> {
         throw Exception('Please login first to view centers');
       }
 
-      print('🔑 Token: ${token.length > 20 ? token.substring(0, 20) : token}...');
-      print('🌐 Loading institutions...');
-
       final response = await ApiService.getInstitutions(token);
-      
-      print('✅ Received ${response.length} institutions');
-      if (response.isNotEmpty) {
-        print('📊 Sample: ${response[0]['name']} - ${response[0]['city']}');
-      }
       
       setState(() {
         _allInstitutions = response;
@@ -99,9 +92,7 @@ class _BrowseCentersScreenState extends State<BrowseCentersScreen> {
         _isLoading = false;
       });
       
-      print('🎯 Before filters: ${_filteredInstitutions.length}');
       _applyFilters();
-      print('🎯 After filters: ${_filteredInstitutions.length}');
     } catch (e) {
       print('❌ Error loading institutions: $e');
       setState(() => _isLoading = false);
@@ -132,10 +123,7 @@ class _BrowseCentersScreenState extends State<BrowseCentersScreen> {
   }
 
   void _applyFilters() {
-    if (!mounted) return; // Safety check
-    
-    print('\n🔍 Applying Filters...');
-    print('Starting with: ${_allInstitutions.length} institutions');
+    if (!mounted) return;
     
     List<dynamic> filtered = List.from(_allInstitutions);
 
@@ -146,7 +134,6 @@ class _BrowseCentersScreenState extends State<BrowseCentersScreen> {
         final query = _searchQuery.toLowerCase();
         return name.contains(query) || city.contains(query);
       }).toList();
-      print('After search: ${filtered.length}');
     }
 
     if (_selectedCity != 'All') {
@@ -157,17 +144,14 @@ class _BrowseCentersScreenState extends State<BrowseCentersScreen> {
       filtered = filtered.where((inst) => _getNumericRating(inst['rating']) >= _minRating).toList();
     }
 
-    // Price filter - only if not at max range
     if (_priceRange.start > 0 || _priceRange.end < 1000) {
       filtered = filtered.where((inst) {
         final price = _getNumericPrice(inst['price_range']);
-        // Skip institutions with no price data when filtering
         if (price == 0 && _priceRange.start > 0) return false;
         return price >= _priceRange.start && price <= _priceRange.end;
       }).toList();
     }
 
-    // Condition filter
     if (_selectedConditions.isNotEmpty) {
       filtered = filtered.where((inst) {
         final conditions = inst['conditions_supported']?.toString().toLowerCase() ?? '';
@@ -177,7 +161,6 @@ class _BrowseCentersScreenState extends State<BrowseCentersScreen> {
       }).toList();
     }
 
-    // Service type filter
     if (_selectedServiceTypes.isNotEmpty) {
       filtered = filtered.where((inst) {
         final services = inst['services_offered']?.toString().toLowerCase() ?? '';
@@ -187,7 +170,6 @@ class _BrowseCentersScreenState extends State<BrowseCentersScreen> {
       }).toList();
     }
 
-    // Sort
     switch (_sortBy) {
       case 'rating':
         filtered.sort((a, b) => _getNumericRating(b['rating']).compareTo(_getNumericRating(a['rating'])));
@@ -215,8 +197,6 @@ class _BrowseCentersScreenState extends State<BrowseCentersScreen> {
         filtered.sort((a, b) => (a['name']?.toString() ?? '').compareTo(b['name']?.toString() ?? ''));
     }
 
-    print('✅ Final filtered count: ${filtered.length}');
-    
     if (mounted) {
       setState(() => _filteredInstitutions = filtered);
     }
@@ -255,7 +235,6 @@ class _BrowseCentersScreenState extends State<BrowseCentersScreen> {
     _applyFilters();
   }
 
-  // Calculate distance between two points using Haversine formula
   double _calculateDistance(double lat1, double lon1, dynamic lat2, dynamic lon2) {
     if (lat2 == null || lon2 == null) return double.infinity;
     
@@ -264,7 +243,7 @@ class _BrowseCentersScreenState extends State<BrowseCentersScreen> {
     
     if (lat2Double == 0 && lon2Double == 0) return double.infinity;
     
-    const double earthRadius = 6371; // kilometers
+    const double earthRadius = 6371;
     final dLat = _toRadians(lat2Double - lat1);
     final dLon = _toRadians(lon2Double - lon1);
     
@@ -292,7 +271,7 @@ class _BrowseCentersScreenState extends State<BrowseCentersScreen> {
               _userLat = lat;
               _userLng = lng;
               _userLocationName = locationName;
-              _sortBy = 'distance'; // Auto-switch to distance sorting
+              _sortBy = 'distance';
             });
             _applyFilters();
           },
@@ -352,13 +331,11 @@ class _BrowseCentersScreenState extends State<BrowseCentersScreen> {
             }
           }
 
-          // Sort by AI match score when enabled
           _sortBy = 'ai_match';
         });
 
         _applyFilters();
 
-        // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('✨ AI Recommendations loaded!'),
@@ -387,7 +364,6 @@ class _BrowseCentersScreenState extends State<BrowseCentersScreen> {
         title: const Text('Browse Centers', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
         leading: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: () => Navigator.pop(context)),
         actions: [
-          // AI Recommendations Button
           _isLoadingAI
               ? Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -437,7 +413,7 @@ class _BrowseCentersScreenState extends State<BrowseCentersScreen> {
           TextField(
             onChanged: (value) {
               setState(() => _searchQuery = value);
-              _applyFiltersDebounced(); // Use debounced for search
+              _applyFiltersDebounced();
             },
             decoration: InputDecoration(
               hintText: 'Search by name or city...',
@@ -498,7 +474,7 @@ class _BrowseCentersScreenState extends State<BrowseCentersScreen> {
   Widget _buildAdvancedFilters() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      constraints: const BoxConstraints(maxHeight: 350), // تحديد الحد الأقصى للارتفاع
+      constraints: const BoxConstraints(maxHeight: 350),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -826,35 +802,14 @@ class _BrowseCentersScreenState extends State<BrowseCentersScreen> {
                   ],
                 ],
               ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Reviews button
-                  IconButton(
-                    icon: Icon(Icons.rate_review, size: 20, color: AppColors.primary),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => InstitutionReviewsScreen(
-                            institutionId: instId ?? 0,
-                            institutionName: name,
-                          ),
-                        ),
-                      );
-                    },
-                    tooltip: 'View Reviews',
-                  ),
-                  Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.primary),
-                ],
-              ),
+              trailing: Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.primary),
               onTap: () {
-                // Navigate to reviews for now
+                // ✅ تم إصلاح هذا الجزء - إزالة التعليقات
                 Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (context) => InstitutionReviewsScreen(
-                      institutionId: instId ?? 0,
+                      institutionId: instId?.toString() ?? '0',
                       institutionName: name,
                     ),
                   ),

@@ -16,6 +16,7 @@ import 'community_screen.dart';
 import 'parent_child_evaluations_screen.dart';
 import 'browse_centers_screen.dart';
 import 'start_screening_screen.dart';
+import 'my_ratings_screen.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
   const ParentDashboardScreen({super.key});
@@ -1512,6 +1513,31 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                       Navigator.push(context, MaterialPageRoute(builder: (context) => ChatListScreen()));
                     },
                   ),
+                  _buildDrawerItem(
+  icon: Icons.star,
+  title: 'تقييماتي',
+  onTap: () {
+    Navigator.pop(context);
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const MyRatingsScreen()),
+    );
+  },
+),
+
+_buildDrawerItem(
+  icon: Icons.business,
+  title: 'مراجعات المراكز',
+  onTap: () {
+    Navigator.pop(context);
+    // يمكنك ربطها بشاشة BrowseCentersScreen مع إضافة تبويب للمراجعات
+    // أو إنشاء شاشة جديدة خاصة بمراجعات المراكز
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const BrowseCentersScreen()),
+    );
+  },
+),
                   _buildDrawerItem(
                     icon: Icons.payment,
                     title: 'Payments',

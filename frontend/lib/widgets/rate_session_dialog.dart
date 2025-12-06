@@ -1,19 +1,17 @@
-// lib/widgets/rate_session_dialog.dart
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../models/session.dart';
-import '../services/api_service.dart';
-import '../theme/app_colors.dart';
+import 'package:frontend/models/session.dart';
+import 'package:frontend/services/rating_service.dart';
+import 'package:frontend/theme/app_colors.dart';
 
 class RateSessionDialog extends StatefulWidget {
   final Session session;
-  final VoidCallback? onRated;
+  final VoidCallback onRated;
 
   const RateSessionDialog({
-    super.key,
+    Key? key,
     required this.session,
-    this.onRated,
-  });
+    required this.onRated,
+  }) : super(key: key);
 
   @override
   State<RateSessionDialog> createState() => _RateSessionDialogState();
@@ -21,371 +19,256 @@ class RateSessionDialog extends StatefulWidget {
 
 class _RateSessionDialogState extends State<RateSessionDialog> {
   double _rating = 0.0;
-  final TextEditingController _reviewController = TextEditingController();
+  TextEditingController _commentController = TextEditingController();
   bool _isSubmitting = false;
+
+  final Map<int, String> _ratingTags = {
+    1: 'سيء جداً',
+    2: 'سيء',
+    3: 'متوسط',
+    4: 'جيد',
+    5: 'ممتاز',
+  };
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-      ),
-      elevation: 0,
-      backgroundColor: Colors.transparent,
-      child: _buildDialogContent(),
-    );
-  }
-
-  Widget _buildDialogContent() {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Header
-          _buildHeader(),
-
-          // Content
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Session Info
-                  _buildSessionInfo(),
-                  const SizedBox(height: 24),
-
-                  // Rating Section
-                  _buildRatingSection(),
-                  const SizedBox(height: 20),
-
-                  // Review Section
-                  _buildReviewSection(),
-                  const SizedBox(height: 8),
-                ],
-              ),
-            ),
-          ),
-
-          // Actions
-          _buildActionButtons(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
+      backgroundColor: AppColors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
         ),
-      ),
-      child: Column(
-        children: [
-          Icon(
-            Icons.star_rate_rounded,
-            color: AppColors.textWhite,
-            size: 32,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Rate Your Session',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textWhite,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSessionInfo() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.cream,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.accent1,
-          width: 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.child_care_rounded,
-              color: AppColors.primary,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  widget.session.childName,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textDark,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'With ${widget.session.specialistName}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textGray,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${widget.session.date} • ${widget.session.time}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textLight,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRatingSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'How was your session?',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textDark,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Rate your experience with ${widget.session.specialistName}',
-          style: TextStyle(
-            fontSize: 14,
-            color: AppColors.textGray,
-          ),
-        ),
-        const SizedBox(height: 20),
-
-        // Star Rating
-        Center(
-          child: Column(
-            children: [
-              // Stars
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(5, (index) {
-                  final starRating = index + 1;
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _rating = starRating.toDouble();
-                      });
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Icon(
-                        starRating <= _rating
-                            ? Icons.star_rounded
-                            : Icons.star_border_rounded,
-                        size: 48,
-                        color: starRating <= _rating
-                            ? Colors.amber
-                            : AppColors.textLight,
-                      ),
-                    ),
-                  );
-                }),
-              ),
-              const SizedBox(height: 16),
-
-              // Rating Text and Label
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: _rating == 0
-                    ? Text(
-                  'Tap to rate',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: AppColors.textLight,
-                    fontWeight: FontWeight.w500,
-                  ),
-                )
-                    : Column(
+                // Header
+                Row(
                   children: [
-                    Text(
-                      '${_rating.toStringAsFixed(1)}/5',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.amber,
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        shape: BoxShape.circle,
                       ),
+                      child: Icon(Icons.star, color: AppColors.primary, size: 28),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _getRatingLabel(_rating),
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppColors.textGray,
-                        fontWeight: FontWeight.w500,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'تقييم الجلسة',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textDark,
+                            ),
+                          ),
+                          Text(
+                            widget.session.childName,
+                            style: TextStyle(
+                              color: AppColors.textGray,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
 
-  Widget _buildReviewSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Additional Feedback',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textDark,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Optional - Share your experience to help us improve',
-          style: TextStyle(
-            fontSize: 14,
-            color: AppColors.textGray,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: AppColors.accent2,
-              width: 1,
+                const SizedBox(height: 24),
+
+                // Session Info
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'تفاصيل الجلسة',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textDark,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildSessionInfoRow('المختص', widget.session.specialistName),
+                      _buildSessionInfoRow('التاريخ', widget.session.date),
+                      _buildSessionInfoRow('الوقت', widget.session.time),
+                      _buildSessionInfoRow('النوع', widget.session.sessionType),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Rating Stars
+                Center(
+                  child: Column(
+                    children: [
+                      Text(
+                        'كيف تقيم هذه الجلسة؟',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textDark,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (_rating > 0)
+                        Text(
+                          _ratingTags[_rating.toInt()] ?? '',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 8,
+                        children: List.generate(5, (index) {
+                          return IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _rating = (index + 1).toDouble();
+                              });
+                            },
+                            icon: Icon(
+                              Icons.star_rounded,
+                              size: 32,
+                              color: index < _rating.floor()
+                                  ? Colors.amber
+                                  : AppColors.textLight.withOpacity(0.3),
+                            ),
+                          );
+                        }),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${_rating.toStringAsFixed(1)} / 5.0',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textDark,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Comment
+                Text(
+                  'تعليق (اختياري)',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textDark,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _commentController,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    hintText: 'اكتب تعليقك عن الجلسة...',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.textLight.withOpacity(0.3)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                    ),
+                    contentPadding: const EdgeInsets.all(12),
+                  ),
+                ),
+
+                const SizedBox(height: 32),
+
+                // Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textGray,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          side: BorderSide(color: AppColors.textGray.withOpacity(0.3)),
+                        ),
+                        child: const Text('إلغاء'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _rating == 0 ? null : _submitRating,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          disabledBackgroundColor: AppColors.primary.withOpacity(0.5),
+                        ),
+                        child: _isSubmitting
+                            ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                            : const Text('تقييم الجلسة'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          child: TextField(
-            controller: _reviewController,
-            maxLines: 4,
-            decoration: const InputDecoration(
-              hintText: 'Tell us about your session experience...',
-              border: InputBorder.none,
-              contentPadding: EdgeInsets.all(16),
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Consider mentioning: specialist approach, session effectiveness, areas for improvement',
-          style: TextStyle(
-            fontSize: 12,
-            color: AppColors.textLight,
-            fontStyle: FontStyle.italic,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActionButtons() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(20),
-          bottomRight: Radius.circular(20),
         ),
       ),
+    );
+  }
+
+  Widget _buildSessionInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Expanded(
-            child: OutlinedButton(
-              onPressed: _isSubmitting ? null : () => Navigator.pop(context),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                side: BorderSide(color: AppColors.primary),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(fontWeight: FontWeight.w500),
+          SizedBox(
+            width: 70,
+            child: Text(
+              '$label:',
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                color: AppColors.textGray,
               ),
             ),
           ),
-          const SizedBox(width: 12),
           Expanded(
-            child: ElevatedButton(
-              onPressed: _isSubmitting ? null : _submitRating,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: AppColors.textWhite,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 0,
-              ),
-              child: _isSubmitting
-                  ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
-                  : const Text(
-                'Submit Rating',
-                style: TextStyle(
-                  fontWeight: FontWeight.w500,
-                ),
+            child: Text(
+              value,
+              style: TextStyle(
+                color: AppColors.textDark,
               ),
             ),
           ),
@@ -394,82 +277,69 @@ class _RateSessionDialogState extends State<RateSessionDialog> {
     );
   }
 
-  String _getRatingLabel(double rating) {
-    if (rating <= 1) return 'Needs Improvement';
-    if (rating <= 2) return 'Fair';
-    if (rating <= 3) return 'Good';
-    if (rating <= 4) return 'Very Good';
-    return 'Excellent';
-  }
-
   Future<void> _submitRating() async {
-    if (_rating == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Please select a rating'),
-          backgroundColor: AppColors.warning,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-      );
-      return;
-    }
+    if (_rating == 0) return;
 
     setState(() => _isSubmitting = true);
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token') ?? '';
+      print('🎯 بدء عملية التقييم...');
+      print('📱 Session ID: ${widget.session.sessionId}');
+      print('⭐ Rating: $_rating');
+      print('📝 Comment: ${_commentController.text}');
 
-      if (token.isEmpty) {
-        throw Exception('Authentication token not found');
-      }
-
-      print('🚀 Submitting rating for session: ${widget.session.sessionId}');
-
-      final success = await ApiService.rateSession(
-        token,
-        widget.session.sessionId,
-        _rating,
-        _reviewController.text.isNotEmpty ? _reviewController.text : null,
+      final result = await RatingService.rateSession(
+        sessionId: widget.session.sessionId,
+        rating: _rating,
+        comment: _commentController.text.isNotEmpty ? _commentController.text : null,
+        ratingTag: _ratingTags[_rating.toInt()],
       );
 
-      if (success) {
+      print('✅ استجابة الخادم: $result');
+
+      if (result['success'] == true) {
+        // تأخير بسيط لمنع المشاكل
+        await Future.delayed(const Duration(milliseconds: 300));
+
         if (mounted) {
+          // أغلق الـ Dialog أولاً
+          Navigator.pop(context);
+
+          // انتظر قليلاً قبل إظهار Snackbar
+          await Future.delayed(const Duration(milliseconds: 100));
+
+          // أظهر رسالة النجاح
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Thank you for your feedback! 🌟'),
+              content: Text(result['message'] ?? 'تم التقييم بنجاح'),
               backgroundColor: AppColors.success,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
+              duration: const Duration(seconds: 2),
             ),
           );
-          Navigator.pop(context);
-          widget.onRated?.call();
+
+          // انتظر قبل استدعاء onRated
+          await Future.delayed(const Duration(milliseconds: 500));
+
+          // استدعاء دالة التحديث
+          widget.onRated();
         }
       } else {
-        throw Exception('Failed to submit rating');
+        throw Exception(result['message'] ?? 'Failed to rate session');
       }
     } catch (e) {
-      print('❌ Rating submission error: $e');
+      print('❌ خطأ في التقييم: $e');
+
       if (mounted) {
+        // في حالة الخطأ، ابقي Dialog مفتوحاً
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to submit rating: ${e.toString()}'),
+            content: Text('فشل التقييم: ${e.toString()}'),
             backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
+            duration: const Duration(seconds: 3),
           ),
         );
-      }
-    } finally {
-      if (mounted) {
+
+        // أعِد تعيين حالة الإرسال
         setState(() => _isSubmitting = false);
       }
     }
@@ -477,7 +347,7 @@ class _RateSessionDialogState extends State<RateSessionDialog> {
 
   @override
   void dispose() {
-    _reviewController.dispose();
+    _commentController.dispose();
     super.dispose();
   }
 }

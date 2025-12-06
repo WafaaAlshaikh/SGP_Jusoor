@@ -108,4 +108,17 @@ router.get('/manager/specialists/:specialistId/report',
   ratingStatsController.getSpecialistDetailedReport
 );
 
+// إضافة routes جديدة
+router.get(
+  '/specialist-ratings',
+  authMiddleware,
+  sessionRatingController.getSpecialistRatingsForSpecialist
+);
+
+router.get(
+  '/specialist-stats',
+  authMiddleware,
+  sessionRatingController.getSpecialistRatingStats
+);
+
 module.exports = router;

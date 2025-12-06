@@ -1790,32 +1790,7 @@ static Future<Map<String, dynamic>> login(Map<String, dynamic> data) async {
     }
   }
 
-  // Get reviews for an institution
-  static Future<Map<String, dynamic>> getInstitutionReviews(
-    String token, {
-    required int institutionId,
-    String sort = 'recent',
-    int limit = 20,
-  }) async {
-    try {
-      final response = await http.get(
-        Uri.parse('${_buildUrl('reviews/institution/$institutionId')}?sort=$sort&limit=$limit'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
 
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        return {'success': false, 'reviews': []};
-      }
-    } catch (e) {
-      print('Error fetching reviews: $e');
-      return {'success': false, 'reviews': []};
-    }
-  }
 
   // Create a review
   static Future<Map<String, dynamic>> createReview(
@@ -2084,4 +2059,40 @@ static Future<Map<String, dynamic>> login(Map<String, dynamic> data) async {
       }
     };
   }
+
+
+  // إضافة دوال التقييم إلى ApiService
+static Future<Map<String, dynamic>> getMyRatings() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token') ?? '';
+    
+    final response = await http.get(
+      Uri.parse('$baseUrl/ratings/my-ratings'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    
+    return jsonDecode(response.body);
+  } catch (e) {
+    print('Error getting my ratings: $e');
+    rethrow;
+  }
+}
+
+static Future<Map<String, dynamic>> getInstitutionReviews(String institutionId) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token') ?? '';
+    
+    final response = await http.get(
+      Uri.parse('$baseUrl/ratings/institutions/$institutionId/reviews'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    
+    return jsonDecode(response.body);
+  } catch (e) {
+    print('Error getting institution reviews: $e');
+    rethrow;
+  }
+}
 }

@@ -14,20 +14,21 @@ class Session {
   final String sessionLocation;
   final String status;
   final String? reportUrl;
-  final double? rating;
+  final double? rating; // ← التقييم
+  final String? ratingComment; // ← تعليق التقييم
+  final DateTime? ratedAt; // ← وقت التقييم
+  final bool? isRated; // ← هل تم التقييم؟
   final String? cancellationReason;
-  final double sessionTypePrice;// أضيفي هذا
+  final double sessionTypePrice;
   final bool isPaid;
   final String paymentStatus;
   final bool canCancel;
   final bool canPay;
-
-
-  // الخصائص الجديدة
   final String? parentNotes;
   final String? review;
   final int? childAge;
   final String? childCondition;
+  final bool canRate; // ← هل يمكن تقييم الجلسة؟
 
   Session({
     required this.sessionId,
@@ -43,24 +44,28 @@ class Session {
     required this.status,
     this.reportUrl,
     this.rating,
+    this.ratingComment,
+    this.ratedAt,
+    this.isRated,
     this.cancellationReason,
-    required this.sessionTypePrice, // أضيفي هذا
-
-
-    // الخصائص الجديدة
-    this.parentNotes,
-    this.review,
-    this.childAge,
-    this.childCondition,
+    required this.sessionTypePrice,
     required this.isPaid,
     required this.paymentStatus,
     required this.canCancel,
     required this.canPay,
+    this.parentNotes,
+    this.review,
+    this.childAge,
+    this.childCondition,
+    required this.canRate, // ← تمت الإضافة
   });
 
   factory Session.fromJson(Map<String, dynamic> json) {
     final status = json['status']?.toString() ?? '';
     final isPaid = json['is_paid'] ?? false;
+    final isRated = json['is_rated'] ?? false;
+    final canRate = status == 'Completed' && !isRated;
+
     return Session(
       sessionId: json['sessionId']?.toString() ?? json['id']?.toString() ?? '',
       childName: json['childName'] ?? '',
@@ -75,19 +80,20 @@ class Session {
       status: json['status'] ?? '',
       reportUrl: json['reportUrl'],
       rating: json['rating']?.toDouble(),
+      ratingComment: json['rating_comment'],
+      ratedAt: json['rated_at'] != null ? DateTime.parse(json['rated_at']) : null,
+      isRated: isRated,
       cancellationReason: json['cancellationReason'],
-
       isPaid: isPaid,
       paymentStatus: json['payment_status'] ?? 'Pending',
-      canCancel: status == 'Scheduled', // يمكن الإلغاء إذا كانت مجدولة
-      canPay: status == 'Scheduled' && !isPaid, // يمكن الدفع إذا لم تكن مدفوعة
-
-      // الخصائص الجديدة
+      canCancel: status == 'Scheduled',
+      canPay: status == 'Scheduled' && !isPaid,
       parentNotes: json['parentNotes'],
       review: json['review'],
       childAge: json['childAge'] ?? json['age'],
       childCondition: json['childCondition'] ?? json['condition'],
-      sessionTypePrice: _getPriceFromSessionType(json['sessionType']), // استخدمي الدالة مباشرة
+      sessionTypePrice: _getPriceFromSessionType(json['sessionType']),
+      canRate: canRate, // ← تعيين القيمة
     );
   }
 
