@@ -18,7 +18,7 @@ class _ChildrenListScreenState extends State<ChildrenListScreen> {
   List<dynamic> _childrenList = [];
   String _searchQuery = '';
   String _selectedFilter = 'All';
-  List<String> _filters = ['All', 'Active', 'Completed', 'Pending', 'Inactive'];
+  List<String> _filters = ['All', 'Active', 'Completed', 'Pending', 'Inactive','Archived'];
   Map<String, dynamic>? _institutionInfo;
 
   @override
@@ -132,6 +132,7 @@ class _ChildrenListScreenState extends State<ChildrenListScreen> {
       case 'Approved': return 'Active';
       case 'Inactive': return 'Inactive';
       case 'Completed': return 'Completed';
+      case 'Archived': return 'Archived';
       default: return status;
     }
   }
@@ -148,6 +149,9 @@ class _ChildrenListScreenState extends State<ChildrenListScreen> {
         return AppColors.warning;
       case 'inactive':
         return AppColors.info;
+      case 'Archived':
+        return AppColors.textGray;
+
       default:
         return AppColors.textGray;
     }
@@ -214,12 +218,16 @@ class _ChildrenListScreenState extends State<ChildrenListScreen> {
     final age = child['age']?.toString() ?? '0';
     final gender = child['gender']?.toString() ?? 'Unknown';
     final progress = child['progress'] is num ? child['progress'].toDouble() : 0.0;
+    final childId = child['child_id'] ?? 0;
 
     final statusColor = _getStatusColor(status);
     final progressPercentage = (progress * 100).round();
     final firstLetter = childName.isNotEmpty ? childName.substring(0, 1) : '?';
     final lastSession = _formatDate(child['lastSession']?.toString());
     final registrationDate = _formatDate(child['registrationDate']?.toString());
+
+    // Check if child is archived
+    final bool isArchived = status == 'Archived';
 
     return GestureDetector(
       onTap: () => _navigateToChildDetails(child),
@@ -360,42 +368,44 @@ class _ChildrenListScreenState extends State<ChildrenListScreen> {
               ),
               SizedBox(height: 20),
 
-              // Progress Section
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Progress Score',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textDark,
+              // Progress Section (لا تظهر للأرشيف)
+              if (!isArchived) ...[
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Progress Score',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textDark,
+                          ),
                         ),
-                      ),
-                      Text(
-                        '$progressPercentage%',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: statusColor,
+                        Text(
+                          '$progressPercentage%',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: statusColor,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 8),
-                  LinearProgressIndicator(
-                    value: progress.clamp(0.0, 1.0),
-                    backgroundColor: AppColors.accent1,
-                    valueColor: AlwaysStoppedAnimation<Color>(statusColor),
-                    borderRadius: BorderRadius.circular(10),
-                    minHeight: 10,
-                  ),
-                ],
-              ),
-              SizedBox(height: 16),
+                      ],
+                    ),
+                    SizedBox(height: 8),
+                    LinearProgressIndicator(
+                      value: progress.clamp(0.0, 1.0),
+                      backgroundColor: AppColors.accent1,
+                      valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                      borderRadius: BorderRadius.circular(10),
+                      minHeight: 10,
+                    ),
+                  ],
+                ),
+                SizedBox(height: 16),
+              ],
 
               // Stats Row
               Container(
@@ -425,33 +435,752 @@ class _ChildrenListScreenState extends State<ChildrenListScreen> {
               ),
               SizedBox(height: 10),
 
-              // View Details Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => _navigateToChildDetails(child),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: statusColor.withOpacity(0.1),
-                    foregroundColor: statusColor,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              // Buttons Row (مختلف حسب الحالة)
+              Row(
+                children: [
+                  // View Details Button
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _navigateToChildDetails(child),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: statusColor.withOpacity(0.1),
+                        foregroundColor: statusColor,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: EdgeInsets.symmetric(vertical: 14),
+                        elevation: 0,
+                      ),
+                      icon: Icon(Icons.visibility_rounded, size: 18),
+                      label: Text(
+                        'View Details',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
-                    padding: EdgeInsets.symmetric(vertical: 14),
-                    elevation: 0,
                   ),
-                  icon: Icon(Icons.visibility_rounded, size: 18),
-                  label: Text(
-                    'View Full Details',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
+                  SizedBox(width: 10),
+
+                  // Conditional Button: Archive or Restore
+                  SizedBox(
+                    width: 48,
+                    child: ElevatedButton(
+                      onPressed: isArchived
+                          ? () => _showRestoreConfirmationDialog(childId, childName)
+                          : () => _showArchiveConfirmationDialog(childId, childName),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isArchived
+                            ? AppColors.ment.withOpacity(0.1)
+                            : AppColors.error.withOpacity(0.1),
+                        foregroundColor: isArchived
+                            ? AppColors.ment
+                            : AppColors.error,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: EdgeInsets.symmetric(vertical: 14),
+                        elevation: 0,
+                      ),
+                      child: Icon(
+                        isArchived
+                            ? Icons.restore_from_trash_rounded
+                            : Icons.delete_outline_rounded,
+                        size: 20,
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Future<void> _showRestoreConfirmationDialog(int childId, String childName) async {
+    bool? shouldRestore = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.restore_from_trash_rounded, color: AppColors.ment),
+            SizedBox(width: 10),
+            Text(
+              'Restore Child',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textDark,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to restore "$childName"?',
+              style: TextStyle(
+                fontSize: 16,
+                color: AppColors.textGray,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'This action will:',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textDark,
+              ),
+            ),
+            SizedBox(height: 4),
+            Padding(
+              padding: EdgeInsets.only(left: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('• Change child status from "Archived" to "Active"'),
+                  Text('• Make child visible in active list'),
+                  Text('• Child can now have new sessions'),
+                  Text('• Parents will be notified'),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: AppColors.textLight,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.ment,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(
+              'Yes, Restore',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldRestore == true) {
+      await _performRestore(childId, childName);
+    }
+  }
+  Future<void> _performRestore(int childId, String childName) async {
+    setState(() => _isLoading = true);
+
+    try {
+      // استخدمي دالة restore المخصصة
+      final response = await ManagerChildrenService.restoreArchivedChild(childId);
+
+      if (response['success'] == true) {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Successfully restored "$childName"'),
+            backgroundColor: AppColors.ment,
+            duration: Duration(seconds: 3),
+          ),
+        );
+
+        // Refresh the list
+        await _refreshData();
+
+        // Show success dialog
+        await _showRestoreSuccessDialog(childName);
+      }
+    } catch (e) {
+      print('Error restoring child: $e');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to restore child: ${e.toString()}'),
+          backgroundColor: AppColors.error,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _showRestoreSuccessDialog(String childName) async {
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.check_circle_rounded, color: AppColors.ment),
+            SizedBox(width: 10),
+            Text(
+              'Restore Completed',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textDark,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Successfully restored "$childName"',
+              style: TextStyle(
+                fontSize: 16,
+                color: AppColors.textGray,
+              ),
+            ),
+            SizedBox(height: 16),
+
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.ment.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Next Steps:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.ment,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text('• Child is now visible in Active list'),
+                  Text('• You can now schedule new sessions'),
+                  Text('• Parents have been notified'),
+                  Text('• Progress tracking resumed'),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'OK',
+              style: TextStyle(
+                color: AppColors.ment,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showArchiveConfirmationDialog(int childId, String childName) async {
+    bool? shouldContinue = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: AppColors.warning),
+            SizedBox(width: 10),
+            Text(
+              'Archive Child',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textDark,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to archive "$childName"?',
+              style: TextStyle(
+                fontSize: 16,
+                color: AppColors.textGray,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'This action will:',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textDark,
+              ),
+            ),
+            SizedBox(height: 4),
+            Padding(
+              padding: EdgeInsets.only(left: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('• Cancel all upcoming sessions'),
+                  Text('• Change child status to "Archived"'),
+                  // Text('• Remove from active children list'),
+                  Text('• Can be restored later if needed'),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: AppColors.textLight,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(
+              'Yes, Archive',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldContinue == true) {
+      await _startArchiveProcess(childId, childName);
+    }
+  }
+
+  Future<void> _startArchiveProcess(int childId, String childName) async {
+    setState(() => _isLoading = true);
+
+    try {
+      // Step 1: Check if child can be archived
+      final checkResponse = await ManagerChildrenService.checkChildArchiveEligibility(childId);
+
+      if (checkResponse['success'] == true) {
+        final data = checkResponse['data'];
+        final canArchiveDirectly = data['eligibility_check']['can_archive_directly'] ?? false;
+        final hasUpcomingSessions = data['eligibility_check']['has_upcoming_sessions'] ?? false;
+        final upcomingCount = data['eligibility_check']['upcoming_sessions_count'] ?? 0;
+        final sessionDetails = data['session_details'];
+
+        if (canArchiveDirectly) {
+          // No upcoming sessions - archive directly
+          await _showFinalConfirmationDialog(childId, childName, upcomingCount: 0);
+        } else if (hasUpcomingSessions) {
+          // Has upcoming sessions - show warning
+          await _showUpcomingSessionsWarning(
+              childId,
+              childName,
+              upcomingCount,
+              sessionDetails
+          );
+        }
+      }
+    } catch (e) {
+      print('Error checking archive eligibility: $e');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: AppColors.error,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _showUpcomingSessionsWarning(
+      int childId,
+      String childName,
+      int upcomingCount,
+      Map<String, dynamic> sessionDetails
+      ) async {
+    final scheduled = sessionDetails['scheduled'] as List? ?? [];
+    final rescheduled = sessionDetails['rescheduled'] as List? ?? [];
+    final pending = sessionDetails['pending'] as List? ?? [];
+
+    bool? proceedWithForce = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.error_outline_rounded, color: AppColors.warning),
+            SizedBox(width: 10),
+            Text(
+              'Upcoming Sessions Found',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textDark,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '"$childName" has $upcomingCount upcoming session(s):',
+              style: TextStyle(
+                fontSize: 16,
+                color: AppColors.textGray,
+              ),
+            ),
+            SizedBox(height: 12),
+
+            if (scheduled.isNotEmpty) ...[
+              Text(
+                'Scheduled Sessions:',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+              SizedBox(height: 4),
+              ...scheduled.take(3).map((session) =>
+                  Text('• ${session['formatted_date']} at ${session['formatted_time']}')
+              ),
+              if (scheduled.length > 3)
+                Text('... and ${scheduled.length - 3} more'),
+              SizedBox(height: 8),
+            ],
+
+            if (rescheduled.isNotEmpty) ...[
+              Text(
+                'Rescheduled Sessions:',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+              SizedBox(height: 4),
+              ...rescheduled.take(3).map((session) =>
+                  Text('• ${session['formatted_date']} at ${session['formatted_time']}')
+              ),
+              if (rescheduled.length > 3)
+                Text('... and ${rescheduled.length - 3} more'),
+              SizedBox(height: 8),
+            ],
+
+            SizedBox(height: 12),
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, size: 16, color: AppColors.warning),
+                      SizedBox(width: 4),
+                      Text(
+                        'Warning:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.warning,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'If you proceed, all upcoming sessions will be cancelled automatically.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textGray,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: AppColors.textLight,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(
+              'Cancel Sessions & Archive',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (proceedWithForce == true) {
+      await _showFinalConfirmationDialog(childId, childName, upcomingCount: upcomingCount);
+    }
+  }
+
+  Future<void> _showFinalConfirmationDialog(
+      int childId,
+      String childName,
+      {int upcomingCount = 0}
+      ) async {
+    bool? confirmArchive = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.delete_forever_rounded, color: AppColors.error),
+            SizedBox(width: 10),
+            Text(
+              'Final Confirmation',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textDark,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you absolutely sure?',
+              style: TextStyle(
+                fontSize: 16,
+                color: AppColors.textGray,
+              ),
+            ),
+            SizedBox(height: 12),
+            if (upcomingCount > 0) ...[
+              Text(
+                '$upcomingCount session(s) will be cancelled.',
+                style: TextStyle(
+                  color: AppColors.warning,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              SizedBox(height: 8),
+            ],
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.error.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'This action is irreversible and will:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text('• Remove "$childName" from active list'),
+                  Text('• Cancel all associated sessions'),
+                  Text('• Update specialist statistics'),
+                  Text('• Notify parents automatically'),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'No, Go Back',
+              style: TextStyle(
+                color: AppColors.textLight,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(
+              'Yes, Archive Child',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmArchive == true) {
+      await _performForceArchive(childId, childName);
+    }
+  }
+
+  Future<void> _performForceArchive(int childId, String childName) async {
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await ManagerChildrenService.forceArchiveChild(childId);
+
+      if (response['success'] == true) {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Successfully archived "$childName"'),
+            backgroundColor: AppColors.ment,
+            duration: Duration(seconds: 3),
+          ),
+        );
+
+        // Refresh the list
+        await _refreshData();
+
+        // Show detailed success dialog
+        await _showArchiveSuccessDialog(response['data']);
+      }
+    } catch (e) {
+      print('Error archiving child: $e');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to archive child: ${e.toString()}'),
+          backgroundColor: AppColors.error,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _showArchiveSuccessDialog(Map<String, dynamic> data) async {
+    final childInfo = data['child_info'];
+    final sessionsCancelled = data['sessions_cancelled'];
+    final summary = data['summary'];
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.check_circle_rounded, color: AppColors.ment),
+            SizedBox(width: 10),
+            Text(
+              'Archive Completed',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textDark,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Successfully archived "${childInfo['child_name']}"',
+              style: TextStyle(
+                fontSize: 16,
+                color: AppColors.textGray,
+              ),
+            ),
+            SizedBox(height: 16),
+
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.ment.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Summary:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.ment,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text('• ${sessionsCancelled['total_cancelled']} session(s) cancelled'),
+                  Text('• ${sessionsCancelled['upcoming_cancelled']} were upcoming'),
+                  Text('• ${sessionsCancelled['past_cancelled']} were past/current'),
+                  Text('• Child status changed to "Archived"'),
+                ],
+              ),
+            ),
+            SizedBox(height: 8),
+
+            Text(
+              summary['message'],
+              style: TextStyle(
+                fontSize: 14,
+                fontStyle: FontStyle.italic,
+                color: AppColors.textGray,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'OK',
+              style: TextStyle(
+                color: AppColors.ment,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -235,21 +235,26 @@ exports.getChildDetailedInfo = async (req, res) => {
 
     // 7. إحصائيات التقييمات
     console.log('13. Analyzing evaluations...');
-    const evaluationStats = {
-      total: evaluations.length,
-      by_type: evaluations.reduce((acc, evalu) => {
-        acc[evalu.evaluation_type] = (acc[evalu.evaluation_type] || 0) + 1;
-        return acc;
-      }, {}),
-      average_score: evaluations.length > 0 
-        ? evaluations.reduce((sum, evalu) => sum + (evalu.progress_score || 0), 0) / evaluations.length
-        : null,
-      progress_trend: evaluations.map(evalu => ({
-        date: evalu.created_at,
-        score: evalu.progress_score,
-        type: evalu.evaluation_type
-      })).sort((a, b) => new Date(a.date) - new Date(b.date))
-    };
+   const evaluationStats = {
+  total: evaluations.length,
+  by_type: evaluations.reduce((acc, evalu) => {
+    acc[evalu.evaluation_type] = (acc[evalu.evaluation_type] || 0) + 1;
+    return acc;
+  }, {}),
+  average_score: evaluations.length > 0 
+    ? parseFloat(
+        evaluations.reduce((sum, evalu) => {
+          const score = parseFloat(evalu.progress_score);
+          return sum + (isNaN(score) ? 0 : score);
+        }, 0) / evaluations.length
+      ).toFixed(2)
+    : null,
+  progress_trend: evaluations.map(evalu => ({
+    date: evalu.created_at,
+    score: evalu.progress_score,
+    type: evalu.evaluation_type
+  })).sort((a, b) => new Date(a.date) - new Date(b.date))
+};
 
     // 8. جلسات الأسبوع الحالي
     console.log('14. Getting this week sessions...');
@@ -294,6 +299,7 @@ exports.getChildDetailedInfo = async (req, res) => {
         full_name: child.full_name,
         date_of_birth: child.date_of_birth,
         gender: child.gender,
+        photo: child.photo,
         child_identifier: child.child_identifier,
         registration_status: child.registration_status,
         registration_date: child.created_at,
@@ -566,7 +572,7 @@ exports.getChildrenManagementData = async (req, res) => {
     const childrenByStatus = await Child.findAll({
       where: {
         current_institution_id: institutionId,
-        registration_status: ['Pending', 'Approved', 'Inactive', 'Completed']
+        registration_status: ['Pending', 'Approved', 'Inactive', 'Completed','Archived']
       },
       include: [
         {
@@ -603,7 +609,8 @@ exports.getChildrenManagementData = async (req, res) => {
       Pending: 0,
       Approved: 0,
       Inactive: 0,
-      Completed: 0
+      Completed: 0,
+      Archived:0
     };
 
     childrenByStatus.forEach(child => {
@@ -929,6 +936,510 @@ exports.getDetailedStatistics = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching detailed statistics',
+      error: error.message
+    });
+  }
+};
+
+
+// Function to check child archive eligibility (check only)
+exports.checkChildArchiveEligibility = async (req, res) => {
+  console.log('=== START checkChildArchiveEligibility ===');
+  
+  try {
+    const managerId = req.user.user_id;
+    const { childId } = req.params;
+    
+    console.log('1. Manager ID:', managerId, 'Child ID:', childId);
+    
+    if (!childId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Child ID is required'
+      });
+    }
+
+    // Get manager and institution information
+    const manager = await Manager.findOne({
+      where: { 
+        manager_id: managerId, 
+        is_active: true 
+      },
+      include: [{
+        model: Institution,
+        attributes: ['institution_id', 'name']
+      }]
+    });
+
+    if (!manager || !manager.Institution) {
+      console.log('❌ ERROR: Manager or institution not found');
+      return res.status(404).json({
+        success: false,
+        message: 'Manager or institution not found'
+      });
+    }
+
+    const institutionId = manager.Institution.institution_id;
+    console.log('2. Institution ID:', institutionId);
+
+    // Check if child exists in the institution
+    const child = await Child.findOne({
+      where: {
+        child_id: childId,
+        current_institution_id: institutionId,
+        registration_status: { [Op.ne]: 'Archived' }
+      }
+    });
+
+    if (!child) {
+      console.log('❌ ERROR: Child not found or already archived');
+      return res.status(404).json({
+        success: false,
+        message: 'Child not found or already archived'
+      });
+    }
+
+    console.log('3. Child found:', child.full_name);
+
+    // Check for upcoming non-cancelled sessions
+    const now = new Date();
+    
+    const upcomingSessions = await Session.findAll({
+      where: {
+        child_id: childId,
+        institution_id: institutionId,
+        [Op.or]: [
+          {
+            [Op.and]: [
+              sequelize.where(
+                sequelize.fn('CONCAT', sequelize.col('date'), ' ', sequelize.col('time')),
+                {
+                  [Op.gt]: now
+                }
+              ),
+              {
+                status: {
+                  [Op.notIn]: ['Cancelled', 'Rejected', 'Completed', 'Absent']
+                }
+              }
+            ]
+          },
+          {
+            status: 'Rescheduled'
+          }
+        ]
+      },
+      attributes: ['session_id', 'date', 'time', 'status', 'session_type']
+    });
+
+    console.log(`4. Found ${upcomingSessions.length} upcoming sessions`);
+
+    // Get total active sessions count
+    const allActiveSessions = await Session.count({
+      where: {
+        child_id: childId,
+        institution_id: institutionId,
+        status: {
+          [Op.notIn]: ['Cancelled', 'Rejected', 'Completed']
+        }
+      }
+    });
+
+    // Classify sessions
+    const scheduledSessions = upcomingSessions.filter(s => 
+      s.status === 'Scheduled' || s.status === 'Confirmed'
+    );
+    
+    const rescheduledSessions = upcomingSessions.filter(s => 
+      s.status === 'Rescheduled'
+    );
+    
+    const pendingSessions = upcomingSessions.filter(s => 
+      s.status === 'Pending Manager Approval' || 
+      s.status === 'Pending Specialist Approval' ||
+      s.status === 'Pending Approval'
+    );
+    
+    const otherSessions = upcomingSessions.filter(s => 
+      !['Scheduled', 'Confirmed', 'Rescheduled', 'Pending Manager Approval', 
+        'Pending Specialist Approval', 'Pending Approval'].includes(s.status)
+    );
+
+    // Format dates in readable format
+    const formatSessionInfo = (session) => {
+      const sessionDate = new Date(session.date + ' ' + session.time);
+      return {
+        session_id: session.session_id,
+        date: session.date,
+        time: session.time,
+        status: session.status,
+        session_type: session.session_type,
+        formatted_date: sessionDate.toLocaleDateString('en-US'),
+        formatted_time: sessionDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        is_future: sessionDate > now
+      };
+    };
+
+    // Prepare response
+    const response = {
+      success: true,
+      data: {
+        child_info: {
+          child_id: child.child_id,
+          child_name: child.full_name,
+          current_status: child.registration_status
+        },
+        eligibility_check: {
+          can_archive_directly: upcomingSessions.length === 0, // Can archive directly?
+          has_upcoming_sessions: upcomingSessions.length > 0,
+          upcoming_sessions_count: upcomingSessions.length,
+          all_active_sessions_count: allActiveSessions,
+          message: upcomingSessions.length === 0 
+            ? 'Child can be archived directly because there are no upcoming sessions'
+            : 'There are upcoming sessions, they must be cancelled first or use force archive'
+        },
+        session_details: {
+          scheduled: scheduledSessions.map(formatSessionInfo),
+          rescheduled: rescheduledSessions.map(formatSessionInfo),
+          pending: pendingSessions.map(formatSessionInfo),
+          other: otherSessions.map(formatSessionInfo),
+          total_upcoming: upcomingSessions.length
+        },
+        actions_available: {
+          direct_archive: upcomingSessions.length === 0, // Can archive directly?
+          force_archive: true, // Can force archive?
+          view_details: true // Can view details?
+        },
+        warnings: upcomingSessions.length > 0 ? [
+          `This child has ${upcomingSessions.length} upcoming session(s)`,
+          'If you want to archive the child, all active sessions will be cancelled automatically',
+          'This may affect specialist and parent statistics'
+        ] : []
+      }
+    };
+
+    console.log('5. Sending eligibility check response');
+    console.log('=== END checkChildArchiveEligibility ===');
+    
+    res.status(200).json(response);
+
+  } catch (error) {
+    console.error('❌ ERROR in checkChildArchiveEligibility:', error);
+    console.error('Stack trace:', error.stack);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error occurred while checking child archive eligibility',
+      error: error.message
+    });
+  }
+};
+
+// Function to force archive child (even if has upcoming sessions)
+exports.forceArchiveChild = async (req, res) => {
+  console.log('=== START forceArchiveChild ===');
+  
+  try {
+    const managerId = req.user.user_id;
+    const { childId } = req.params;
+    
+    console.log('1. Manager ID:', managerId, 'Child ID:', childId);
+    
+    if (!childId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Child ID is required'
+      });
+    }
+
+    // Get manager and institution information
+    const manager = await Manager.findOne({
+      where: { 
+        manager_id: managerId, 
+        is_active: true 
+      },
+      include: [{
+        model: Institution,
+        attributes: ['institution_id', 'name']
+      }]
+    });
+
+    if (!manager || !manager.Institution) {
+      console.log('❌ ERROR: Manager or institution not found');
+      return res.status(404).json({
+        success: false,
+        message: 'Manager or institution not found'
+      });
+    }
+
+    const institutionId = manager.Institution.institution_id;
+    console.log('2. Institution ID:', institutionId);
+
+    // Check if child exists in the institution
+    const child = await Child.findOne({
+      where: {
+        child_id: childId,
+        current_institution_id: institutionId,
+        registration_status: { [Op.ne]: 'Archived' }
+      }
+    });
+
+    if (!child) {
+      console.log('❌ ERROR: Child not found or already archived');
+      return res.status(404).json({
+        success: false,
+        message: 'Child not found or already archived'
+      });
+    }
+
+    console.log('3. Child found:', child.full_name);
+
+    // Start database transaction
+    const transaction = await sequelize.transaction();
+    
+    try {
+      // 1. Get all active sessions for the child
+      console.log('4. Fetching all active sessions for child...');
+      
+      const allActiveSessions = await Session.findAll({
+        where: {
+          child_id: childId,
+          institution_id: institutionId,
+          status: {
+            [Op.notIn]: ['Cancelled', 'Rejected', 'Completed']
+          }
+        },
+        transaction,
+        include: [{
+          model: SessionType,
+          attributes: ['name', 'duration']
+        }]
+      });
+
+      console.log(`5. Found ${allActiveSessions.length} active sessions to cancel`);
+
+      // 2. Cancel each session with reason recording
+      const cancelledSessions = [];
+      
+      for (const session of allActiveSessions) {
+        const sessionDateTime = new Date(session.date + ' ' + session.time);
+        const sessionEndTime = new Date(sessionDateTime);
+        const duration = session.SessionType?.duration || 60;
+        sessionEndTime.setMinutes(sessionEndTime.getMinutes() + duration);
+        
+        const isUpcoming = sessionDateTime > new Date();
+        
+        await session.update({
+          status: 'Cancelled',
+          manager_notes: `Automatically cancelled due to child archiving (ID: ${childId})`,
+          updated_at: new Date()
+        }, { transaction });
+        
+        cancelledSessions.push({
+          session_id: session.session_id,
+          date: session.date,
+          time: session.time,
+          session_type: session.SessionType?.name || 'Unknown',
+          was_upcoming: isUpcoming,
+          cancelled_at: new Date()
+        });
+        
+        console.log(`   - Cancelled session ${session.session_id} (${isUpcoming ? 'Upcoming' : 'Past/Current'})`);
+      }
+
+      // 3. Update child status to Archived
+      console.log('6. Updating child status to Archived...');
+      
+      await child.update({
+        registration_status: 'Archived',
+        archived_at: new Date(),
+        archived_by_manager_id: managerId,
+        archived_reason: 'Force archive by manager',
+        updated_at: new Date()
+      }, { transaction });
+
+      console.log('7. Child status updated to Archived');
+
+      // 4. Save all changes
+      await transaction.commit();
+      
+      console.log('8. Transaction committed successfully');
+
+      // 5. Analyze cancelled sessions
+      const upcomingCancelled = cancelledSessions.filter(s => s.was_upcoming).length;
+      const pastCancelled = cancelledSessions.length - upcomingCancelled;
+
+      // 6. Return success message
+      const response = {
+        success: true,
+        message: 'Child archived successfully and all active sessions cancelled',
+        data: {
+          child_info: {
+            child_id: child.child_id,
+            child_name: child.full_name,
+            previous_status: child.previous_status || 'Unknown',
+            new_status: 'Archived',
+            archived_at: new Date(),
+            archived_by: managerId
+          },
+          sessions_cancelled: {
+            total_cancelled: cancelledSessions.length,
+            upcoming_cancelled: upcomingCancelled,
+            past_cancelled: pastCancelled,
+            details: cancelledSessions.map(s => ({
+              session_id: s.session_id,
+              date: s.date,
+              time: s.time,
+              session_type: s.session_type,
+              was_upcoming: s.was_upcoming,
+              cancelled_at: s.cancelled_at
+            }))
+          },
+          summary: {
+            action: 'force_archive',
+            message: 'Child force archived with all active sessions cancelled',
+            warning: 'Upcoming and pending sessions were automatically cancelled',
+            recommendations: [
+              'Parents have been automatically notified about session cancellations',
+              'Specialist statistics have been updated',
+              'Child can be restored from archive if needed'
+            ]
+          }
+        }
+      };
+
+      console.log('9. Sending success response');
+      console.log('=== END forceArchiveChild ===');
+      
+      res.status(200).json(response);
+
+    } catch (transactionError) {
+      // In case of error, rollback all changes
+      await transaction.rollback();
+      
+      console.error('❌ ERROR in transaction:', transactionError);
+      
+      throw transactionError;
+    }
+
+  } catch (error) {
+    console.error('❌ ERROR in forceArchiveChild:', error);
+    console.error('Stack trace:', error.stack);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error occurred while trying to force archive child',
+      error: error.message
+    });
+  }
+};
+
+// دالة لاستعادة الطفل من الأرشيف
+exports.restoreArchivedChild = async (req, res) => {
+  console.log('=== START restoreArchivedChild ===');
+  
+  try {
+    const managerId = req.user.user_id;
+    const { childId } = req.params;
+    const { status } = req.body;
+    
+    console.log('1. Manager ID:', managerId, 'Child ID:', childId);
+    
+    if (!childId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Child ID is required'
+      });
+    }
+
+    // الحصول على معلومات المدير والمؤسسة
+    const manager = await Manager.findOne({
+      where: { 
+        manager_id: managerId, 
+        is_active: true 
+      },
+      include: [{
+        model: Institution,
+        attributes: ['institution_id', 'name']
+      }]
+    });
+
+    if (!manager || !manager.Institution) {
+      console.log('❌ ERROR: Manager or institution not found');
+      return res.status(404).json({
+        success: false,
+        message: 'Manager or institution not found'
+      });
+    }
+
+    const institutionId = manager.Institution.institution_id;
+    console.log('2. Institution ID:', institutionId);
+
+    // التحقق من وجود الطفل في المؤسسة ومؤرشف
+    const child = await Child.findOne({
+      where: {
+        child_id: childId,
+        current_institution_id: institutionId,
+        registration_status: 'Archived'
+      }
+    });
+
+    if (!child) {
+      console.log('❌ ERROR: Child not found or not archived');
+      return res.status(404).json({
+        success: false,
+        message: 'Child not found or not archived'
+      });
+    }
+
+    console.log('3. Child found:', child.full_name);
+
+    // تحديث حالة الطفل
+    await child.update({
+      registration_status: status || 'Approved',
+      restored_at: new Date(),
+      restored_by_manager_id: managerId,
+      updated_at: new Date()
+    });
+
+    console.log('4. Child status restored to:', status || 'Approved');
+
+    const response = {
+      success: true,
+      message: 'Child restored successfully',
+      data: {
+        child_info: {
+          child_id: child.child_id,
+          child_name: child.full_name,
+          previous_status: 'Archived',
+          new_status: status || 'Approved',
+          restored_at: new Date(),
+          restored_by: managerId
+        },
+        summary: {
+          action: 'restore_from_archive',
+          message: 'Child has been restored and can now have new sessions',
+          recommendations: [
+            'Consider scheduling new sessions for the child',
+            'Notify specialists about the child\'s return',
+            'Update progress tracking'
+          ]
+        }
+      }
+    };
+
+    console.log('5. Sending response');
+    console.log('=== END restoreArchivedChild ===');
+    
+    res.status(200).json(response);
+
+  } catch (error) {
+    console.error('❌ ERROR in restoreArchivedChild:', error);
+    console.error('Stack trace:', error.stack);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error occurred while trying to restore child',
       error: error.message
     });
   }

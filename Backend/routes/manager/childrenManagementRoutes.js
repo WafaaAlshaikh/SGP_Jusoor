@@ -5,7 +5,10 @@ const {
   getChildrenManagementData, 
   getDetailedStatistics,
   debugChildrenData,
-  getChildDetailedInfo
+  getChildDetailedInfo,
+  checkChildArchiveEligibility, // فنكشن جديدة: للتحقق فقط
+  forceArchiveChild ,// فنكشن جديدة: للتنفيذ الفعلي
+  restoreArchivedChild
 } = require('../../controllers/manager/childrenManagementController');
 
 // جميع المسارات تتطلب مصادقة المدير
@@ -35,4 +38,14 @@ router.get('/children-management/debug', debugChildrenData);
 
 // مسار للحصول على معلومات مفصلة عن طفل معين
 router.get('/child/:childId/detailed-info', getChildDetailedInfo);
+
+// مسار للتحقق من إمكانية أرشفة الطفل (تحقق فقط)
+router.get('/child/:childId/check-archive', checkChildArchiveEligibility);
+
+// مسار لأرشفة الطفل بالقوة (تنفيذ حتى لو هناك جلسات)
+router.delete('/child/:childId/force-archive', forceArchiveChild);
+
+// مسار لاستعادة الطفل من الأرشيف
+router.put('/child/:childId/restore', restoreArchivedChild);
+
 module.exports = router;

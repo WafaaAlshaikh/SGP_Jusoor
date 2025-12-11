@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import '../../theme/app_colors.dart';
+import '../../services/manager_specialist_service.dart';
+import 'specialist_report_screen.dart';
+import 'specialist_schedule_screen.dart';
 
 class SpecialistsListScreen extends StatefulWidget {
   @override
@@ -7,10 +11,17 @@ class SpecialistsListScreen extends StatefulWidget {
 }
 
 class _SpecialistsListScreenState extends State<SpecialistsListScreen> {
-  List<Map<String, dynamic>> _specialists = [];
-  List<Map<String, dynamic>> _filteredSpecialists = [];
+  List<dynamic> _specialists = [];
+  List<dynamic> _filteredSpecialists = [];
   TextEditingController _searchController = TextEditingController();
   String _selectedFilter = 'All';
+  String _selectedSpecialtyFilter = 'All';
+  String _selectedRatingFilter = 'All';
+  bool _isLoading = true;
+  String _errorMessage = '';
+  List<String> _specialties = [];
+  List<String> _ratingFilters = ['All', '5 Stars', '4 Stars', '3 Stars', '2 Stars', '1 Star'];
+  bool _showFilters = false;
 
   @override
   void initState() {
@@ -18,149 +29,78 @@ class _SpecialistsListScreenState extends State<SpecialistsListScreen> {
     _loadSpecialists();
   }
 
-  void _loadSpecialists() {
-    // بيانات تجريبية
+  Future<void> _loadSpecialists() async {
     setState(() {
-      _specialists = [
-        {
-          'id': 'SP001',
-          'name': 'Dr. Sarah Ahmed',
-          'specialty': 'Speech Therapy',
-          'status': 'Active',
-          'sessionsThisMonth': 56,
-          'salary': 8500,
-          'rating': 4.8,
-          'childrenAssigned': 12,
-          'nextVacation': '2025-12-20',
-          'schedule': 'Mon-Fri, 9AM-5PM',
-          'email': 'sarah.ahmed@therapy.com',
-          'phone': '+1234567890',
-          'joinDate': '2023-01-15',
-          'performance': 'Excellent',
-          'notes': 'Very dedicated specialist',
-        },
-        {
-          'id': 'SP002',
-          'name': 'Dr. Michael Chen',
-          'specialty': 'Behavioral Therapy',
-          'status': 'Active',
-          'sessionsThisMonth': 48,
-          'salary': 9200,
-          'rating': 4.9,
-          'childrenAssigned': 8,
-          'nextVacation': '2025-12-15',
-          'schedule': 'Sun-Thu, 8AM-4PM',
-          'email': 'michael.chen@therapy.com',
-          'phone': '+1234567891',
-          'joinDate': '2022-11-20',
-          'performance': 'Outstanding',
-          'notes': 'Excellent with behavioral cases',
-        },
-        {
-          'id': 'SP003',
-          'name': 'Dr. Lisa Johnson',
-          'specialty': 'Occupational Therapy',
-          'status': 'Absent',
-          'sessionsThisMonth': 32,
-          'salary': 7800,
-          'rating': 4.7,
-          'childrenAssigned': 10,
-          'nextVacation': 'On Leave',
-          'schedule': 'Mon-Sat, 10AM-6PM',
-          'email': 'lisa.johnson@therapy.com',
-          'phone': '+1234567892',
-          'joinDate': '2023-03-10',
-          'performance': 'Good',
-          'notes': 'Currently on medical leave',
-        },
-        {
-          'id': 'SP004',
-          'name': 'Dr. James Wilson',
-          'specialty': 'Educational Therapy',
-          'status': 'Active',
-          'sessionsThisMonth': 61,
-          'salary': 8800,
-          'rating': 4.6,
-          'childrenAssigned': 15,
-          'nextVacation': '2026-01-10',
-          'schedule': 'Tue-Sat, 9AM-5PM',
-          'email': 'james.wilson@therapy.com',
-          'phone': '+1234567893',
-          'joinDate': '2022-08-05',
-          'performance': 'Excellent',
-          'notes': 'Highly experienced with educational therapy',
-        },
-        {
-          'id': 'SP005',
-          'name': 'Dr. Fatima Al-Masri',
-          'specialty': 'Play Therapy',
-          'status': 'Inactive',
-          'sessionsThisMonth': 0,
-          'salary': 0,
-          'rating': 4.5,
-          'childrenAssigned': 0,
-          'nextVacation': '-',
-          'schedule': 'Not Available',
-          'email': 'fatima.almasri@therapy.com',
-          'phone': '+1234567894',
-          'joinDate': '2023-06-20',
-          'performance': 'N/A',
-          'notes': 'On extended leave',
-        },
-        {
-          'id': 'SP006',
-          'name': 'Dr. Robert Garcia',
-          'specialty': 'Speech Therapy',
-          'status': 'Active',
-          'sessionsThisMonth': 52,
-          'salary': 8200,
-          'rating': 4.7,
-          'childrenAssigned': 9,
-          'nextVacation': '2026-02-15',
-          'schedule': 'Mon-Fri, 8AM-4PM',
-          'email': 'robert.garcia@therapy.com',
-          'phone': '+1234567895',
-          'joinDate': '2023-04-12',
-          'performance': 'Very Good',
-          'notes': 'Specialized in speech disorders',
-        },
-        {
-          'id': 'SP007',
-          'name': 'Dr. Amina Hassan',
-          'specialty': 'Music Therapy',
-          'status': 'Active',
-          'sessionsThisMonth': 45,
-          'salary': 7900,
-          'rating': 4.8,
-          'childrenAssigned': 7,
-          'nextVacation': '2025-12-25',
-          'schedule': 'Sun-Wed, 9AM-5PM',
-          'email': 'amina.hassan@therapy.com',
-          'phone': '+1234567896',
-          'joinDate': '2023-02-28',
-          'performance': 'Excellent',
-          'notes': 'Creative approach with music therapy',
-        },
-        {
-          'id': 'SP008',
-          'name': 'Dr. David Miller',
-          'specialty': 'Art Therapy',
-          'status': 'Active',
-          'sessionsThisMonth': 38,
-          'salary': 8100,
-          'rating': 4.6,
-          'childrenAssigned': 6,
-          'nextVacation': '2026-03-01',
-          'schedule': 'Thu-Sun, 10AM-6PM',
-          'email': 'david.miller@therapy.com',
-          'phone': '+1234567897',
-          'joinDate': '2023-05-15',
-          'performance': 'Good',
-          'notes': 'Great with artistic children',
-        },
-      ];
-      _filteredSpecialists = _specialists;
+      _isLoading = true;
+      _errorMessage = '';
     });
+
+    try {
+      final response = await ManagerSpecialistService.getAllSpecialists();
+
+      if (response['success'] == true) {
+        final data = response['data'];
+        List<dynamic> specialistsList = _extractSpecialistsList(data);
+        _extractSpecialties(specialistsList);
+        specialistsList = _fixSpecialistNames(specialistsList);
+
+        setState(() {
+          _specialists = specialistsList;
+          _filteredSpecialists = _specialists;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _errorMessage = response['message'] ?? 'Failed to load specialists';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Load specialists error: $e');
+      setState(() {
+        _errorMessage = 'Connection error. Please try again.';
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _extractSpecialties(List<dynamic> specialists) {
+    Set<String> specialtySet = {'All'};
+
+    for (var specialist in specialists) {
+      String? specialty = specialist['specialization'] ??
+          specialist['specialty'] ??
+          specialist['professional_info']?['specialization'] ??
+          specialist['display_specialty'];
+
+      if (specialty != null && specialty.isNotEmpty && specialty != 'null') {
+        specialtySet.add(specialty);
+      }
+    }
+
+    _specialties = specialtySet.toList();
+  }
+
+  List<dynamic> _extractSpecialistsList(dynamic data) {
+    if (data == null) return [];
+
+    if (data is List) return data;
+
+    if (data is Map) {
+      if (data['all_specialists'] is List) return data['all_specialists'];
+      if (data['data'] is Map && data['data']['all_specialists'] is List) {
+        return data['data']['all_specialists'];
+      }
+      if (data['specialists'] is List) return data['specialists'];
+
+      for (var key in data.keys) {
+        if (data[key] is List && (data[key] as List).isNotEmpty) {
+          return data[key];
+        }
+      }
+    }
+
+    return [];
   }
 
   void _filterSpecialists() {
@@ -168,338 +108,647 @@ class _SpecialistsListScreenState extends State<SpecialistsListScreen> {
 
     setState(() {
       _filteredSpecialists = _specialists.where((specialist) {
-        bool matchesSearch = specialist['name'].toLowerCase().contains(searchText) ||
-            specialist['specialty'].toLowerCase().contains(searchText) ||
-            specialist['email'].toLowerCase().contains(searchText);
+        String name = specialist['display_name']?.toString().toLowerCase() ?? '';
+        String specialty = specialist['display_specialty']?.toString().toLowerCase() ?? '';
+        String email = specialist['display_email']?.toString().toLowerCase() ?? '';
+        String status = specialist['display_status']?.toString().toLowerCase() ?? '';
+        double rating = specialist['display_rating']?.toDouble() ?? 0;
 
-        bool matchesFilter = _selectedFilter == 'All' ||
-            specialist['status'] == _selectedFilter ||
-            specialist['specialty'] == _selectedFilter;
+        // Search logic with better matching
+        bool matchesSearch = searchText.isEmpty ||
+            name.contains(searchText) ||
+            specialty.contains(searchText) ||
+            email.contains(searchText);
 
-        return matchesSearch && matchesFilter;
+        // Status filter
+        bool matchesStatusFilter = _selectedFilter == 'All' ||
+            status == _selectedFilter.toLowerCase();
+
+        // Specialty filter
+        bool matchesSpecialtyFilter = _selectedSpecialtyFilter == 'All' ||
+            specialty == _selectedSpecialtyFilter.toLowerCase();
+
+        // Rating filter - New logic with ranges
+        bool matchesRatingFilter = true;
+        if (_selectedRatingFilter != 'All') {
+          if (_selectedRatingFilter == '5 Stars') {
+            matchesRatingFilter = rating >= 4.5 && rating <= 5.0;
+          } else if (_selectedRatingFilter == '4 Stars') {
+            matchesRatingFilter = rating >= 3.5 && rating < 4.5;
+          } else if (_selectedRatingFilter == '3 Stars') {
+            matchesRatingFilter = rating >= 2.5 && rating < 3.5;
+          } else if (_selectedRatingFilter == '2 Stars') {
+            matchesRatingFilter = rating >= 1.5 && rating < 2.5;
+          } else if (_selectedRatingFilter == '1 Star') {
+            matchesRatingFilter = rating >= 0.5 && rating < 1.5;
+          }
+        }
+
+        return matchesSearch && matchesStatusFilter && matchesSpecialtyFilter && matchesRatingFilter;
       }).toList();
     });
   }
 
-  void _showSpecialistDetails(Map<String, dynamic> specialist) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => Container(
-        padding: EdgeInsets.all(20),
-        height: MediaQuery.of(context).size.height * 0.85,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  specialist['name'],
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textDark,
+  Widget _buildFilterSection() {
+    return AnimatedContainer(
+      duration: Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: Border(
+          bottom: BorderSide(color: AppColors.accent2.withOpacity(0.2), width: 1),
+        ),
+        boxShadow: _showFilters ? [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ] : null,
+      ),
+      child: Column(
+        children: [
+          // Filter Header
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () {
+                setState(() {
+                  _showFilters = !_showFilters;
+                });
+              },
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: _showFilters ? AppColors.primary.withOpacity(0.1) : AppColors.background,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _showFilters ? AppColors.primary : AppColors.accent2,
+                    width: 1.5,
                   ),
                 ),
-                IconButton(
-                  icon: Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Basic Information
-                    _buildDetailSection(
-                      title: 'Basic Information',
+                    Row(
                       children: [
-                        _buildDetailItem('ID', specialist['id']),
-                        _buildDetailItem('Specialty', specialist['specialty']),
-                        _buildDetailItem('Status', specialist['status']),
-                        _buildDetailItem('Rating', '${specialist['rating']}/5'),
-                        _buildDetailItem('Join Date', specialist['joinDate']),
-                      ],
-                    ),
-
-                    SizedBox(height: 20),
-
-                    // Contact Information
-                    _buildDetailSection(
-                      title: 'Contact Information',
-                      children: [
-                        _buildDetailItem('Email', specialist['email']),
-                        _buildDetailItem('Phone', specialist['phone']),
-                      ],
-                    ),
-
-                    SizedBox(height: 20),
-
-                    // Work Information
-                    _buildDetailSection(
-                      title: 'Work Information',
-                      children: [
-                        _buildDetailItem('Schedule', specialist['schedule']),
-                        _buildDetailItem('Sessions This Month', specialist['sessionsThisMonth'].toString()),
-                        _buildDetailItem('Children Assigned', specialist['childrenAssigned'].toString()),
-                        _buildDetailItem('Monthly Salary', '\$${specialist['salary']}'),
-                        _buildDetailItem('Performance', specialist['performance']),
-                        _buildDetailItem('Next Vacation', specialist['nextVacation']),
-                      ],
-                    ),
-
-                    SizedBox(height: 20),
-
-                    // Notes
-                    _buildDetailSection(
-                      title: 'Notes',
-                      children: [
+                        Icon(
+                          Icons.filter_list_rounded,
+                          size: 20,
+                          color: _showFilters ? AppColors.primary : AppColors.textGray,
+                        ),
+                        SizedBox(width: 8),
                         Text(
-                          specialist['notes'],
+                          'Filters',
                           style: TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textGray,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: _showFilters ? AppColors.primary : AppColors.textDark,
                           ),
                         ),
+                        SizedBox(width: 8),
+                        if (_selectedFilter != 'All' || _selectedSpecialtyFilter != 'All' || _selectedRatingFilter != 'All')
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '${[
+                                _selectedFilter != 'All' ? 1 : 0,
+                                _selectedSpecialtyFilter != 'All' ? 1 : 0,
+                                _selectedRatingFilter != 'All' ? 1 : 0
+                              ].where((x) => x > 0).length}',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
                       ],
                     ),
-
-                    SizedBox(height: 30),
-
-                    // Action Buttons
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () => _editSpecialist(specialist),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              foregroundColor: Colors.white,
-                              padding: EdgeInsets.symmetric(vertical: 15),
-                            ),
-                            icon: Icon(Icons.edit),
-                            label: Text('Edit Specialist'),
-                          ),
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () => _viewSchedule(specialist),
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: AppColors.primary),
-                              padding: EdgeInsets.symmetric(vertical: 15),
-                            ),
-                            icon: Icon(Icons.schedule),
-                            label: Text('View Schedule'),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    SizedBox(height: 10),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () => _adjustSalary(specialist),
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: Colors.green),
-                              padding: EdgeInsets.symmetric(vertical: 15),
-                            ),
-                            icon: Icon(Icons.attach_money, color: Colors.green),
-                            label: Text('Adjust Salary', style: TextStyle(color: Colors.green)),
-                          ),
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () => _deactivateSpecialist(specialist),
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: Colors.red),
-                              padding: EdgeInsets.symmetric(vertical: 15),
-                            ),
-                            icon: Icon(Icons.block, color: Colors.red),
-                            label: Text(
-                              specialist['status'] == 'Active' ? 'Deactivate' : 'Activate',
-                              style: TextStyle(color: Colors.red),
-                            ),
-                          ),
-                        ),
-                      ],
+                    Icon(
+                      _showFilters ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                      color: _showFilters ? AppColors.primary : AppColors.textGray,
+                      size: 22,
                     ),
                   ],
                 ),
               ),
             ),
+          ),
+
+          // Filters Content
+          if (_showFilters) ...[
+            Divider(height: 0, color: AppColors.accent2.withOpacity(0.2)),
+
+            // Status Filters
+            _buildFilterCategory(
+              title: 'Status',
+              icon: Icons.verified_rounded,
+              children: ['All', 'Approved', 'Pending', 'Archived'].map((status) {
+                return _buildFilterChip(
+                  label: status,
+                  icon: status == 'Approved' ? Icons.check_circle_rounded :
+                  status == 'Pending' ? Icons.pending_rounded :
+                  status == 'Archived' ? Icons.archive_rounded : null,
+                  isSelected: _selectedFilter == status,
+                  onTap: () {
+                    setState(() {
+                      _selectedFilter = status;
+                      _filterSpecialists();
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+
+            // Specialty Filters
+            if (_specialties.length > 1)
+              _buildFilterCategory(
+                title: 'Specialty',
+                icon: Icons.medical_services_rounded,
+                children: _specialties.map((specialty) {
+                  return _buildFilterChip(
+                    label: specialty,
+                    icon: Icons.work_rounded,
+                    isSelected: _selectedSpecialtyFilter == specialty,
+                    onTap: () {
+                      setState(() {
+                        _selectedSpecialtyFilter = specialty;
+                        _filterSpecialists();
+                      });
+                    },
+                  );
+                }).toList(),
+              ),
+
+            // Rating Filters
+            _buildFilterCategory(
+              title: 'Rating',
+              icon: Icons.star_rounded,
+              children: _ratingFilters.map((rating) {
+                return _buildFilterChip(
+                  label: rating,
+                  icon: rating != 'All' ? Icons.star_rounded : null,
+                  iconColor: rating != 'All' ? Colors.amber : null,
+                  isSelected: _selectedRatingFilter == rating,
+                  onTap: () {
+                    setState(() {
+                      _selectedRatingFilter = rating;
+                      _filterSpecialists();
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+
+            SizedBox(height: 12),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterCategory({
+    required String title,
+    required IconData icon,
+    required List<Widget> children,
+  }) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: AppColors.primary),
+              SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textDark,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: children,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip({
+    required String label,
+    IconData? icon,
+    Color? iconColor,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? AppColors.primary : AppColors.accent2,
+            width: isSelected ? 0 : 1.5,
+          ),
+          boxShadow: isSelected ? [
+            BoxShadow(
+              color: AppColors.primary.withOpacity(0.3),
+              blurRadius: 6,
+              offset: Offset(0, 2),
+            ),
+          ] : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null)
+              Padding(
+                padding: EdgeInsets.only(right: 6),
+                child: Icon(
+                  icon,
+                  size: 16,
+                  color: isSelected ? Colors.white : (iconColor ?? AppColors.textGray),
+                ),
+              ),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : AppColors.textDark,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildDetailSection({required String title, required List<Widget> children}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: AppColors.textDark,
-          ),
-        ),
-        SizedBox(height: 10),
-        Container(
-          padding: EdgeInsets.all(15),
-          decoration: BoxDecoration(
-            color: AppColors.accent1,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: children,
-          ),
-        ),
-      ],
-    );
+  List<dynamic> _fixSpecialistNames(List<dynamic> specialists) {
+    return specialists.map((specialist) {
+      Map<String, dynamic> newSpec = Map.from(specialist);
+
+      String? name = newSpec['full_name'] ??
+          newSpec['name'] ??
+          newSpec['personal_info']?['full_name'];
+
+      String? email = newSpec['email'] ?? newSpec['personal_info']?['email'];
+
+      String? specialty = newSpec['specialization'] ??
+          newSpec['specialty'] ??
+          newSpec['professional_info']?['specialization'];
+
+      String? status = newSpec['status'] ??
+          newSpec['account_status'] ??
+          newSpec['approval_status'] ??
+          newSpec['professional_info']?['approval_status'] ??
+          'Unknown';
+
+      double? rating = newSpec['rating']?.toDouble() ??
+          newSpec['average_rating']?.toDouble() ??
+          newSpec['professional_info']?['average_rating']?.toDouble() ??
+          newSpec['display_rating']?.toDouble() ?? 0.0;
+
+      newSpec['display_name'] = name ?? 'Specialist';
+      newSpec['display_email'] = email ?? '';
+      newSpec['display_specialty'] = specialty ?? 'Not Specified';
+      newSpec['display_status'] = status;
+      newSpec['display_rating'] = rating;
+
+      return newSpec;
+    }).toList();
   }
 
-  Widget _buildDetailItem(String label, String value) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 120,
-            child: Text(
-              '$label:',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: AppColors.textGray,
-              ),
-            ),
-          ),
-          SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              value,
-              style: TextStyle(color: AppColors.textDark),
-            ),
+  Widget _buildSpecialistCard(Map<String, dynamic> specialist, int index) {
+    final specialistId = specialist['specialist_id'] ?? specialist['id'] ?? 0;
+    final name = specialist['display_name'] ?? 'Specialist';
+    final specialty = specialist['display_specialty'] ?? 'Not Specified';
+    final status = specialist['display_status'] ?? 'Unknown';
+    final rating = specialist['display_rating']?.toDouble() ?? 0;
+    final email = specialist['display_email'] ?? '';
+    final hasRating = rating > 0;
+
+    // 🔥 استخراج رابط الصورة
+    String? profilePictureUrl;
+
+    // جرب كل الاحتمالات للحصول على الصورة
+    if (specialist['profile_picture'] != null) {
+      profilePictureUrl = specialist['profile_picture'];
+    } else if (specialist['personal_info']?['profile_picture'] != null) {
+      profilePictureUrl = specialist['personal_info']['profile_picture'];
+    } else if (specialist['specialist_info']?['personal_info']?['profile_picture'] != null) {
+      profilePictureUrl = specialist['specialist_info']['personal_info']['profile_picture'];
+    }
+
+    // تأكد من أن الرابط يبدأ بـ http
+    if (profilePictureUrl != null && !profilePictureUrl.startsWith('http')) {
+      profilePictureUrl = 'http://10.0.2.2:5000/${profilePictureUrl.replaceAll(RegExp(r'^\/'), '')}';
+    }
+
+    Color statusColor = _getStatusColor(status);
+    Color avatarColor = _getAvatarColor(index);
+
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 12,
+            offset: Offset(0, 4),
           ),
         ],
       ),
-    );
-  }
-
-  void _editSpecialist(Map<String, dynamic> specialist) {
-    Navigator.pop(context); // Close details sheet first
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Edit Specialist'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: TextEditingController(text: specialist['name']),
-                decoration: InputDecoration(labelText: 'Full Name'),
-              ),
-              SizedBox(height: 10),
-              TextField(
-                controller: TextEditingController(text: specialist['specialty']),
-                decoration: InputDecoration(labelText: 'Specialty'),
-              ),
-              SizedBox(height: 10),
-              TextField(
-                controller: TextEditingController(text: specialist['email']),
-                decoration: InputDecoration(labelText: 'Email'),
-              ),
-              SizedBox(height: 10),
-              TextField(
-                controller: TextEditingController(text: specialist['phone']),
-                decoration: InputDecoration(labelText: 'Phone'),
-              ),
-              SizedBox(height: 10),
-              TextField(
-                controller: TextEditingController(text: specialist['salary'].toString()),
-                decoration: InputDecoration(labelText: 'Monthly Salary'),
-                keyboardType: TextInputType.number,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Specialist updated successfully'),
-                  backgroundColor: AppColors.ment,
-                ),
-              );
-            },
-            child: Text('Save Changes'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _viewSchedule(Map<String, dynamic> specialist) {
-    Navigator.pop(context); // Close details sheet
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => Scaffold(
-          appBar: AppBar(
-            title: Text('${specialist['name']} - Schedule'),
-          ),
-          body: Padding(
-            padding: EdgeInsets.all(20),
-            child: Column(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => _navigateToReport(specialistId, name),
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Card(
-                  child: ListTile(
-                    leading: Icon(Icons.schedule, color: AppColors.primary),
-                    title: Text('Working Schedule'),
-                    subtitle: Text(specialist['schedule']),
-                  ),
+                // Avatar Section
+                Column(
+                  children: [
+                    Stack(
+                      children: [
+                        Container(
+                          width: 60,
+                          height: 60,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 5,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: ClipOval(
+                            child: profilePictureUrl != null && profilePictureUrl.isNotEmpty
+                                ? Image.network(
+                              profilePictureUrl,
+                              fit: BoxFit.cover,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Center(
+                                  child: CircularProgressIndicator(
+                                    value: loadingProgress.expectedTotalBytes != null
+                                        ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                        : null,
+                                    color: avatarColor,
+                                  ),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  color: avatarColor,
+                                  child: Center(
+                                    child: Text(
+                                      name.split(' ')
+                                          .map((n) => n.isNotEmpty ? n[0].toUpperCase() : '')
+                                          .take(2)
+                                          .join(),
+                                      style: TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            )
+                                : Container(
+                              color: avatarColor,
+                              child: Center(
+                                child: Text(
+                                  name.split(' ')
+                                      .map((n) => n.isNotEmpty ? n[0].toUpperCase() : '')
+                                      .take(2)
+                                      .join(),
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (hasRating)
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                color: Colors.amber,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: AppColors.surface, width: 2),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 3,
+                                    offset: Offset(0, 1),
+                                  ),
+                                ],
+                              ),
+                              child: Center(
+                                child: Text(
+                                  rating.toStringAsFixed(0),
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    SizedBox(height: 8),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        status.toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: statusColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                SizedBox(height: 20),
-                Text(
-                  'Weekly Schedule',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 10),
+                SizedBox(width: 16),
+
+                // Information Section (باقي الكود كما هو)
                 Expanded(
-                  child: ListView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildScheduleDay('Monday', '9:00 AM - 5:00 PM'),
-                      _buildScheduleDay('Tuesday', '9:00 AM - 5:00 PM'),
-                      _buildScheduleDay('Wednesday', '9:00 AM - 5:00 PM'),
-                      _buildScheduleDay('Thursday', '9:00 AM - 5:00 PM'),
-                      _buildScheduleDay('Friday', '9:00 AM - 5:00 PM'),
-                      _buildScheduleDay('Saturday', '10:00 AM - 2:00 PM'),
-                      _buildScheduleDay('Sunday', 'Off'),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              name,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textDark,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (hasRating)
+                            Container(
+                              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.star_rounded, size: 14, color: Colors.amber),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    rating.toStringAsFixed(1),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textDark,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                      SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(Icons.work_rounded, size: 14, color: AppColors.primary),
+                          SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              specialty,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textGray,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(Icons.email_rounded, size: 14, color: AppColors.textLight),
+                          SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              email,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textLight,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
+                ),
+
+                // Action Menu (باقي الكود كما هو)
+                PopupMenuButton<String>(
+                  icon: Icon(
+                    Icons.more_vert_rounded,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  offset: Offset(0, 40),
+                  onSelected: (value) async {
+                    if (value == 'report') {
+                      await _navigateToReport(specialistId, name);
+                    } else if (value == 'schedule') {
+                      await _navigateToSchedule(specialistId, name);
+                    } else if (value == 'archive') {
+                      await _archiveSpecialist(specialistId, name);
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'report',
+                      child: Row(
+                        children: [
+                          Icon(Icons.analytics_rounded, color: AppColors.primary, size: 18),
+                          SizedBox(width: 8),
+                          Text('View Report'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'schedule',
+                      child: Row(
+                        children: [
+                          Icon(Icons.schedule_rounded, color: AppColors.primary, size: 18),
+                          SizedBox(width: 8),
+                          Text('View Schedule'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'archive',
+                      child: Row(
+                        children: [
+                          Icon(Icons.archive_rounded, color: AppColors.warning, size: 18),
+                          SizedBox(width: 8),
+                          Text('Archive'),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -508,305 +757,336 @@ class _SpecialistsListScreenState extends State<SpecialistsListScreen> {
       ),
     );
   }
-
-  Widget _buildScheduleDay(String day, String hours) {
-    return Card(
-      child: ListTile(
-        title: Text(day),
-        trailing: Text(hours),
+  Future<void> _navigateToReport(int specialistId, String name) async {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SpecialistReportScreen(
+          specialistId: specialistId,
+          specialistName: name,
+        ),
       ),
     );
   }
 
-  void _adjustSalary(Map<String, dynamic> specialist) {
-    Navigator.pop(context); // Close details sheet
+  Future<void> _navigateToSchedule(int specialistId, String name) async {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SpecialistScheduleScreen.fromReport(
+          specialistId: specialistId,
+          specialistName: name,
+        ),
+      ),
+    );
+  }
 
+  Future<void> _archiveSpecialist(int specialistId, String name) async {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Adjust Salary'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Current Salary: \$${specialist['salary']}'),
-            SizedBox(height: 20),
-            TextField(
-              controller: TextEditingController(text: specialist['salary'].toString()),
-              decoration: InputDecoration(
-                labelText: 'New Salary',
-                prefixText: '\$',
-              ),
-              keyboardType: TextInputType.number,
+        backgroundColor: AppColors.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Archive Specialist?', style: TextStyle(fontWeight: FontWeight.w600)),
+        content: Text('Are you sure you want to archive "$name"?\n\nArchived specialists can be restored later.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: TextStyle(color: AppColors.textGray)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await ManagerSpecialistService.archiveSpecialist(
+                  specialistId: specialistId,
+                  forceArchive: false,
+                );
+                await _loadSpecialists();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Specialist archived successfully'),
+                    backgroundColor: AppColors.success,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error: ${e.toString()}'),
+                    backgroundColor: AppColors.error,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.warning,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Salary updated successfully'),
-                  backgroundColor: AppColors.ment,
-                ),
-              );
-            },
-            child: Text('Update Salary'),
+            child: Text('Archive'),
           ),
         ],
       ),
     );
   }
 
-  void _deactivateSpecialist(Map<String, dynamic> specialist) {
-    Navigator.pop(context); // Close details sheet
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(specialist['status'] == 'Active' ? 'Deactivate Specialist' : 'Activate Specialist'),
-        content: Text('Are you sure you want to ${specialist['status'] == 'Active' ? 'deactivate' : 'activate'} ${specialist['name']}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                int index = _specialists.indexWhere((s) => s['id'] == specialist['id']);
-                if (index != -1) {
-                  _specialists[index]['status'] = specialist['status'] == 'Active' ? 'Inactive' : 'Active';
-                  if (_specialists[index]['status'] == 'Inactive') {
-                    _specialists[index]['salary'] = 0;
-                  } else {
-                    _specialists[index]['salary'] = 7800;
-                  }
-                  _filterSpecialists();
-                }
-              });
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Specialist ${specialist['status'] == 'Active' ? 'deactivated' : 'activated'} successfully'),
-                  backgroundColor: specialist['status'] == 'Active' ? Colors.orange : AppColors.ment,
-                ),
-              );
-            },
-            child: Text(specialist['status'] == 'Active' ? 'Deactivate' : 'Activate'),
-          ),
-        ],
-      ),
-    );
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved': return AppColors.success;
+      case 'active': return AppColors.primary;
+      case 'pending': return AppColors.warning;
+      case 'archived': return AppColors.textGray;
+      case 'rejected': return AppColors.error;
+      default: return AppColors.textGray;
+    }
   }
 
-  void _addNewSpecialist() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Add New Specialist'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                decoration: InputDecoration(labelText: 'Full Name'),
-              ),
-              SizedBox(height: 10),
-              TextField(
-                decoration: InputDecoration(labelText: 'Email'),
-              ),
-              SizedBox(height: 10),
-              TextField(
-                decoration: InputDecoration(labelText: 'Phone'),
-              ),
-              SizedBox(height: 10),
-              DropdownButtonFormField(
-                decoration: InputDecoration(labelText: 'Specialty'),
-                items: [
-                  'Speech Therapy',
-                  'Behavioral Therapy',
-                  'Occupational Therapy',
-                  'Educational Therapy',
-                  'Play Therapy',
-                  'Music Therapy',
-                  'Art Therapy',
-                ].map((specialty) {
-                  return DropdownMenuItem(
-                    value: specialty,
-                    child: Text(specialty),
-                  );
-                }).toList(),
-                onChanged: (value) {},
-              ),
-              SizedBox(height: 10),
-              TextField(
-                decoration: InputDecoration(
-                  labelText: 'Monthly Salary',
-                  prefixText: '\$',
-                ),
-                keyboardType: TextInputType.number,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Specialist added successfully'),
-                  backgroundColor: AppColors.ment,
-                ),
-              );
-            },
-            child: Text('Add Specialist'),
-          ),
-        ],
-      ),
-    );
+  Color _getAvatarColor(int index) {
+    List<Color> colors = [
+      AppColors.primary,
+      AppColors.ment,
+      AppColors.blue,
+      AppColors.green,
+      AppColors.darkGreen,
+    ];
+    return colors[index % colors.length];
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('All Specialists'),
+        title: Text(
+          'Specialists',
+          style: TextStyle(
+            color: AppColors.textDark,
+            fontWeight: FontWeight.w700,
+            fontSize: 20,
+          ),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: AppColors.textDark),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.primary),
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.add_circle_outline, color: AppColors.primary),
-            onPressed: _addNewSpecialist,
+            icon: Icon(Icons.refresh_rounded, color: AppColors.primary),
+            onPressed: _loadSpecialists,
+            tooltip: 'Refresh',
           ),
         ],
       ),
       body: Column(
         children: [
-          // Search and Filter
-          Padding(
-            padding: EdgeInsets.all(16),
+          // Enhanced Search Bar
+          Container(
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 16),
+            color: AppColors.surface,
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Search Bar
-                TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: 'Search specialists...',
-                    prefixIcon: Icon(Icons.search),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  onChanged: (value) => _filterSpecialists(),
-                ),
-
-                SizedBox(height: 16),
-
-                // Filter Chips
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      FilterChip(
-                        label: Text('All'),
-                        selected: _selectedFilter == 'All',
-                        onSelected: (selected) {
-                          setState(() {
-                            _selectedFilter = 'All';
-                            _filterSpecialists();
-                          });
-                        },
-                      ),
-                      SizedBox(width: 8),
-                      FilterChip(
-                        label: Text('Active'),
-                        selected: _selectedFilter == 'Active',
-                        onSelected: (selected) {
-                          setState(() {
-                            _selectedFilter = 'Active';
-                            _filterSpecialists();
-                          });
-                        },
-                      ),
-                      SizedBox(width: 8),
-                      FilterChip(
-                        label: Text('Speech Therapy'),
-                        selected: _selectedFilter == 'Speech Therapy',
-                        onSelected: (selected) {
-                          setState(() {
-                            _selectedFilter = 'Speech Therapy';
-                            _filterSpecialists();
-                          });
-                        },
-                      ),
-                      SizedBox(width: 8),
-                      FilterChip(
-                        label: Text('Behavioral'),
-                        selected: _selectedFilter == 'Behavioral Therapy',
-                        onSelected: (selected) {
-                          setState(() {
-                            _selectedFilter = 'Behavioral Therapy';
-                            _filterSpecialists();
-                          });
-                        },
+                // Search Field
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.06),
+                        blurRadius: 8,
+                        offset: Offset(0, 3),
                       ),
                     ],
                   ),
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search by name, specialty, or email...',
+                      hintStyle: TextStyle(color: AppColors.textLight, fontSize: 14),
+                      prefixIcon: Padding(
+                        padding: EdgeInsets.only(left: 16, right: 8),
+                        child: Icon(Icons.search_rounded, color: AppColors.primary, size: 22),
+                      ),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                        icon: Icon(Icons.clear_rounded, size: 20, color: AppColors.textLight),
+                        onPressed: () {
+                          _searchController.clear();
+                          _filterSpecialists();
+                        },
+                      )
+                          : null,
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(vertical: 15, horizontal: 0),
+                    ),
+                    style: TextStyle(fontSize: 14, color: AppColors.textDark),
+                    onChanged: (value) => _filterSpecialists(),
+                  ),
                 ),
+
               ],
             ),
           ),
 
-          // Results Count
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+          // Filters Section
+          _buildFilterSection(),
+
+          // Results Header
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              border: Border(
+                bottom: BorderSide(color: AppColors.accent2.withOpacity(0.1), width: 1),
+              ),
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  '${_filteredSpecialists.length} Specialists Found',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textGray,
+                Row(
+                  children: [
+                    Text(
+                      'Specialists',
+                      style: TextStyle(
+                        color: AppColors.textDark,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${_filteredSpecialists.length}',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_filteredSpecialists.length != _specialists.length)
+                  TextButton.icon(
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() {
+                        _selectedFilter = 'All';
+                        _selectedSpecialtyFilter = 'All';
+                        _selectedRatingFilter = 'All';
+                        _showFilters = false;
+                        _filteredSpecialists = _specialists;
+                      });
+                    },
+                    icon: Icon(Icons.filter_alt_off_rounded, size: 16),
+                    label: Text('Clear All'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    ),
                   ),
-                ),
-                TextButton.icon(
-                  onPressed: () {},
-                  icon: Icon(Icons.download, size: 16),
-                  label: Text('Export'),
-                ),
               ],
             ),
           ),
 
-          // Specialists List
+          // Content Area
           Expanded(
-            child: _filteredSpecialists.isEmpty
+            child: _isLoading
                 ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.people_outline, size: 60, color: AppColors.textLight),
-                  SizedBox(height: 16),
+                  CircularProgressIndicator(color: AppColors.primary),
+                  SizedBox(height: 20),
                   Text(
-                    'No specialists found',
+                    'Loading Specialists...',
+                    style: TextStyle(color: AppColors.textGray),
+                  ),
+                ],
+              ),
+            )
+                : _errorMessage.isNotEmpty
+                ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline_rounded, size: 64, color: AppColors.error),
+                  SizedBox(height: 20),
+                  Text(
+                    _errorMessage,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.textGray, fontSize: 16),
+                  ),
+                  SizedBox(height: 20),
+                  ElevatedButton.icon(
+                    onPressed: _loadSpecialists,
+                    icon: Icon(Icons.refresh_rounded, size: 18),
+                    label: Text('Try Again'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ],
+              ),
+            )
+                : _filteredSpecialists.isEmpty
+                ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.people_outline_rounded, size: 80, color: AppColors.accent4),
+                  SizedBox(height: 20),
+                  Text(
+                    'No Specialists Found',
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 18,
                       color: AppColors.textGray,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 40),
+                    child: Text(
+                      'Try adjusting your search criteria or filters to find what you\'re looking for.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.textLight, fontSize: 13),
+                    ),
+                  ),
+                  SizedBox(height: 20),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() {
+                        _selectedFilter = 'All';
+                        _selectedSpecialtyFilter = 'All';
+                        _selectedRatingFilter = 'All';
+                        _showFilters = false;
+                        _filteredSpecialists = _specialists;
+                      });
+                    },
+                    icon: Icon(Icons.clear_all_rounded, size: 18),
+                    label: Text('Clear All Filters'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
                 ],
@@ -816,72 +1096,9 @@ class _SpecialistsListScreenState extends State<SpecialistsListScreen> {
               padding: EdgeInsets.all(16),
               itemCount: _filteredSpecialists.length,
               itemBuilder: (context, index) {
-                final specialist = _filteredSpecialists[index];
-                Color statusColor = _getStatusColor(specialist['status']);
-
-                return Card(
-                  margin: EdgeInsets.only(bottom: 12),
-                  child: ListTile(
-                    leading: Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          specialist['name'].split(' ').map((n) => n[0]).take(2).join(),
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: statusColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                    title: Text(
-                      specialist['name'],
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(height: 4),
-                        Text(specialist['specialty']),
-                        SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Container(
-                              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: statusColor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                specialist['status'],
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: statusColor,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: 8),
-                            Icon(Icons.star, size: 14, color: Colors.amber),
-                            Text(
-                              ' ${specialist['rating']}',
-                              style: TextStyle(fontSize: 12),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    trailing: Icon(Icons.chevron_right),
-                    onTap: () => _showSpecialistDetails(specialist),
-                  ),
+                return _buildSpecialistCard(
+                  _filteredSpecialists[index],
+                  index,
                 );
               },
             ),
@@ -889,14 +1106,5 @@ class _SpecialistsListScreenState extends State<SpecialistsListScreen> {
         ],
       ),
     );
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'active': return AppColors.primary;
-      case 'absent': return AppColors.warning;
-      case 'inactive': return AppColors.textGray;
-      default: return AppColors.textGray;
-    }
   }
 }

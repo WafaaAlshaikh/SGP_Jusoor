@@ -178,6 +178,7 @@ class ManagerSessionTypeService {
   }
 
 // ==================== Delete Session Type ====================
+  // ==================== Delete Session Type ====================
   static Future<Map<String, dynamic>> deleteSessionType({
     required int sessionTypeId,
   }) async {
@@ -195,13 +196,36 @@ class ManagerSessionTypeService {
         },
       );
 
+      print('Delete Response Status: ${response.statusCode}');
+      print('Delete Response Body: ${response.body}');
+
       final responseBody = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
         return responseBody;
+      } else if (response.statusCode == 400) {
+        // حالة خاصة: الجلسات المستقبلية تمنع الحذف أو النوع محذوف مسبقاً
+        final errorMessage = responseBody['message'] ?? 'Cannot delete session type';
+        final details = responseBody['blocked_by'] ?? responseBody['details'];
+
+        if (details != null) {
+          throw Exception('$errorMessage. $details');
+        } else {
+          throw Exception(errorMessage);
+        }
+      } else if (response.statusCode == 404) {
+        throw Exception('Session type not found or already deleted');
+      } else if (response.statusCode == 500) {
+        throw Exception('Server error: ${responseBody['message'] ?? 'Internal server error'}');
       } else {
-        throw Exception('Failed to delete session type: ${responseBody['message']}');
+        throw Exception('Failed to delete session type: ${responseBody['message'] ?? 'Unknown error (${response.statusCode})'}');
       }
+    } on http.ClientException catch (e) {
+      print('Network Error deleting session type: $e');
+      throw Exception('Network error: ${e.message}');
+    } on FormatException catch (e) {
+      print('Format Error deleting session type: $e');
+      throw Exception('Invalid response from server');
     } catch (e) {
       print('Delete Session Type Error: $e');
       rethrow;

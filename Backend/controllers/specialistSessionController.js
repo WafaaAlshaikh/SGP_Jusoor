@@ -119,27 +119,65 @@ exports.requestDeleteSession = async (req, res) => {
 exports.requestSessionUpdate = async (req, res) => {
   try {
     const { id } = req.params;
-    const { date, time, status, session_type, reason } = req.body; 
+    const { date, time, status, session_type, reason } = req.body;
     const specialistId = req.user.user_id;
 
-    const session = await Session.findOne({ 
+    const session = await Session.findOne({
       where: { session_id: id, specialist_id: specialistId },
       include: [
-        { 
-          model: Child, 
+        {
+          model: Child,
           as: 'child',
-          attributes: ['child_id', 'full_name', 'parent_id'] 
+          attributes: ['child_id', 'full_name', 'parent_id']
         }
       ]
     });
 
     if (!session) return res.status(404).json({ message: 'Session not found' });
 
+    // ✅ التحقق: إذا كانت الحالة "Completed" أو "Absent" → تحديث مباشر
+    const immediateStatuses = ['Completed', 'Absent'];
+    
+    if (immediateStatuses.includes(status)) {
+      // تحديث مباشر دون انتظار موافقة
+      await Session.update(
+        {
+          status: status,
+          is_pending: false,
+          reason: reason || null,
+          // إذا كانت الحالة مكتملة، نضيف تاريخ الانتهاء
+          ...(status === 'Completed' && { completed_at: new Date() })
+        },
+        {
+          where: { session_id: id, specialist_id: specialistId }
+        }
+      );
+
+      // إرسال إشعار للأهل بالتغيير المباشر
+      if (session.child && session.child.parent_id) {
+        await Notification.create({
+          user_id: session.child.parent_id,
+          title: `Session ${status.toLowerCase()}`,
+          message: `The specialist has marked ${session.child.full_name}'s session as ${status}. ${reason ? `Reason: ${reason}` : ''}`,
+          type: 'session_update',
+          related_id: session.session_id,
+          is_read: false
+        });
+      }
+
+      return res.status(200).json({
+        message: `Session marked as ${status} successfully.`,
+        reason: reason || 'No reason provided',
+        updatedImmediately: true
+      });
+    }
+
+    // ⭐ إذا لم تكن الحالة "Completed" أو "Absent" → طلب تعديل عادي (Rescheduled)
     await Session.update(
       {
         status: 'Pending Approval',
         is_pending: true,
-        reason: reason || null 
+        reason: reason || null
       },
       {
         where: { session_id: id, specialist_id: specialistId }
@@ -158,7 +196,7 @@ exports.requestSessionUpdate = async (req, res) => {
       is_pending: true,
       is_visible: false,
       original_session_id: session.session_id,
-      reason: reason || 'Rescheduled from original session' 
+      reason: reason || 'Rescheduled from original session'
     });
 
     if (session.child && session.child.parent_id) {

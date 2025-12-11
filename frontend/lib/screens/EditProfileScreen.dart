@@ -20,8 +20,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final ImagePicker _imagePicker = ImagePicker();
 
   // بيانات المستخدم الحالية
-  Map<String, dynamic> _currentUserData = {};
-  Map<String, dynamic> _editedData = {};
+  Map<String, String> _currentUserData = {};
+  Map<String, String> _editedData = {};
 
   // متغيرات النموذج
   late TextEditingController _fullNameController;
@@ -37,10 +37,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   String? _selectedImagePath;
   XFile? _pickedImageFile;
 
+
+  bool _isUploadingImage = false;
+  String? _profilePictureUrl;
+
+
   @override
   void initState() {
     super.initState();
     _initializeData();
+    _profilePictureUrl = _currentUserData['profile_picture'];
   }
 
   @override
@@ -71,14 +77,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       setState(() {
         final parentData = response['parent'] ?? {};
         _currentUserData = {
-          'full_name': parentData['name'] ?? '',
-          'email': parentData['email'] ?? '',
-          'phone': parentData['phone'] ?? '',
-          'address': parentData['address'] ?? '',
-          'occupation': parentData['occupation'] ?? '',
-          'profile_picture': parentData['profile_picture'] ?? '',
+          'full_name': parentData['name']?.toString() ?? '',
+          'email': parentData['email']?.toString() ?? '',
+          'phone': parentData['phone']?.toString() ?? '',
+          'address': parentData['address']?.toString() ?? '',
+          'occupation': parentData['occupation']?.toString() ?? '',
+          'profile_picture': parentData['profile_picture']?.toString() ?? '',
         };
 
+        _profilePictureUrl = _currentUserData['profile_picture'];
         _editedData = Map.from(_currentUserData);
 
         _fullNameController = TextEditingController(text: _currentUserData['full_name']);
@@ -108,17 +115,59 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       );
 
       if (image != null) {
+        // التحقق من حجم الصورة
+        final isValidSize = await ApiService.validateImageSize(File(image.path));
+        if (!isValidSize) {
+          _showErrorSnackBar('Image size must be less than 5MB');
+          return;
+        }
+
         setState(() {
           _pickedImageFile = image;
           _selectedImagePath = image.path;
         });
+
+        // رفع الصورة فوراً
+        await _uploadProfilePicture();
       }
     } catch (e) {
       _showErrorSnackBar('Failed to pick image: $e');
     }
   }
 
+  Future<void> _uploadProfilePicture() async {
+    if (_pickedImageFile == null) return;
+
+    setState(() {
+      _isUploadingImage = true;
+    });
+
+    try {
+      final result = await ApiService.uploadParentProfilePicture(File(_pickedImageFile!.path));
+
+      if (result['success'] == true) {
+        final newProfilePicture = result['profile_picture']?.toString() ?? '';
+
+        setState(() {
+          _profilePictureUrl = newProfilePicture;
+          _currentUserData['profile_picture'] = newProfilePicture;
+          _editedData['profile_picture'] = newProfilePicture;
+        });
+
+        _showSuccessSnackBar('Profile picture updated successfully');
+      }
+    } catch (e) {
+      _showErrorSnackBar('Failed to upload image: $e');
+    } finally {
+      setState(() {
+        _isUploadingImage = false;
+      });
+    }
+  }
+
   void _showImageSourceDialog() {
+    final hasExistingImage = _profilePictureUrl != null && _profilePictureUrl!.isNotEmpty;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -194,6 +243,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         _pickImage(ImageSource.gallery);
                       },
                     ),
+
+                    // إضافة خيار حذف الصورة إذا كانت موجودة
+                    if (hasExistingImage) ...[
+                      const SizedBox(height: 12),
+                      _buildImageSourceOption(
+                        icon: Icons.delete_outline_rounded,
+                        title: 'Remove Photo',
+                        subtitle: 'Delete current profile picture',
+                        color: AppColors.error,
+                        onTap: () {
+                          Navigator.pop(context);
+                          _removeProfilePicture();
+                        },
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -204,6 +268,49 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _removeProfilePicture() async {
+    final confirm = await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Remove Profile Picture'),
+        content: Text('Are you sure you want to remove your profile picture?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Remove', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        // إرسال طلب لحذف الصورة من السيرفر
+        final updateResult = await ApiService.updateParentProfile({
+          'profile_picture': null, // استخدم null بدلاً من ''
+        });
+
+        if (updateResult) {
+          setState(() {
+            _profilePictureUrl = null;
+            _selectedImagePath = null;
+            _pickedImageFile = null;
+            _currentUserData['profile_picture'] = '';
+            _editedData['profile_picture'] = '';
+          });
+
+          _showSuccessSnackBar('Profile picture removed');
+        }
+      } catch (e) {
+        _showErrorSnackBar('Failed to remove picture: $e');
+      }
+    }
   }
 
   Widget _buildImageSourceOption({
@@ -276,7 +383,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Widget _buildProfileImage() {
-    final currentImage = _currentUserData['profile_picture'] ?? '';
+    final currentImage = _profilePictureUrl ?? _currentUserData['profile_picture'] ?? '';
 
     return Stack(
       children: [
@@ -329,13 +436,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     : (currentImage.isNotEmpty
                     ? NetworkImage(currentImage)
                     : const AssetImage('assets/images/default_avatar.png') as ImageProvider),
-                child: _selectedImagePath == null && currentImage.isEmpty
+                child: _isUploadingImage
+                    ? Center(
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                  ),
+                )
+                    : (_selectedImagePath == null && currentImage.isEmpty
                     ? Icon(
                   Icons.person_rounded,
                   size: 50,
                   color: AppColors.textLight,
                 )
-                    : null,
+                    : null),
               ),
             ),
           ),
@@ -346,16 +459,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           bottom: 6,
           right: 6,
           child: GestureDetector(
-            onTap: _showImageSourceDialog,
+            onTap: _isUploadingImage ? null : _showImageSourceDialog,
             child: Container(
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                gradient: LinearGradient(
+                gradient: _isUploadingImage
+                    ? null
+                    : LinearGradient(
                   colors: [AppColors.primary, AppColors.primaryLight],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
+                color: _isUploadingImage ? Colors.grey : null,
                 shape: BoxShape.circle,
                 border: Border.all(color: AppColors.surface, width: 3),
                 boxShadow: [
@@ -366,7 +482,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                 ],
               ),
-              child: Icon(
+              child: _isUploadingImage
+                  ? Center(
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                ),
+              )
+                  : Icon(
                 Icons.camera_alt_rounded,
                 color: AppColors.textWhite,
                 size: 20,
@@ -446,8 +573,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   bool get _hasChanges {
     if (_pickedImageFile != null) return true;
 
+    if ((_profilePictureUrl ?? '') != (_currentUserData['profile_picture'] ?? '')) {
+      return true;
+    }
+
     for (final key in _currentUserData.keys) {
-      if (_editedData[key] != _currentUserData[key]) {
+      if (key != 'profile_picture' && _editedData[key] != _currentUserData[key]) {
         return true;
       }
     }
@@ -469,14 +600,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     });
 
     try {
-      if (_pickedImageFile != null) {
-        final imageUrl = await ApiService.uploadProfileImage(_pickedImageFile!.path);
-        if (imageUrl != null) {
-          _editedData['profile_picture'] = imageUrl;
+      // إزالة حقل الصورة لأنه تم رفعه منفصلاً
+      final Map<String, dynamic> updateData = {};
+
+      // أضف فقط الحقول التي تغيرت
+      for (final key in _editedData.keys) {
+        if (key != 'profile_picture' && _editedData[key] != _currentUserData[key]) {
+          updateData[key] = _editedData[key];
         }
       }
 
-      final success = await ApiService.updateParentProfile(_editedData);
+      // إذا لم يكن هناك بيانات للتحديث
+      if (updateData.isEmpty) {
+        Navigator.pop(context, true);
+        return;
+      }
+
+      // طباعة البيانات للتأكد من نوعها
+      print('📤 Sending update data: $updateData');
+      print('📤 Data type: ${updateData.runtimeType}');
+
+      final success = await ApiService.updateParentProfile(updateData);
 
       if (success) {
         _showSuccessSnackBar('Profile updated successfully');

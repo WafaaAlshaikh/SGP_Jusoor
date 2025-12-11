@@ -3,6 +3,27 @@ import '../../theme/app_colors.dart';
 import '../../services/manager_specialist_service.dart';
 
 class SpecialistScheduleScreen extends StatefulWidget {
+  final int? specialistId;
+  final String? specialistName;
+
+  // Constructor العادي
+  const SpecialistScheduleScreen({
+    this.specialistId,
+    this.specialistName,
+    Key? key,
+  }) : super(key: key);
+
+  // Constructor للتنقل من صفحة الـ Report
+  factory SpecialistScheduleScreen.fromReport({
+    required int specialistId,
+    required String specialistName,
+  }) {
+    return SpecialistScheduleScreen(
+      specialistId: specialistId,
+      specialistName: specialistName,
+    );
+  }
+
   @override
   _SpecialistScheduleScreenState createState() => _SpecialistScheduleScreenState();
 }
@@ -21,6 +42,20 @@ class _SpecialistScheduleScreenState extends State<SpecialistScheduleScreen> {
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // إذا تم تمرير specialistId من الـ Report، قم بتحميل بياناته مباشرة
+    if (widget.specialistId != null && _selectedSpecialist.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadSpecialistDetails(widget.specialistId!);
+        setState(() {
+          _showAllSpecialists = false;
+        });
+      });
+    }
   }
 
   Future<void> _loadData() async {
@@ -63,7 +98,6 @@ class _SpecialistScheduleScreenState extends State<SpecialistScheduleScreen> {
         _isLoading = false;
       });
 
-      // عرض رسالة خطأ
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -262,7 +296,7 @@ class _SpecialistScheduleScreenState extends State<SpecialistScheduleScreen> {
                   ),
                   child: Center(
                     child: Text(
-                      specialist['name'].split(' ').map((n) => n[0]).take(2).join(),
+                      (specialist['name'] as String).split(' ').map((n) => n.isNotEmpty ? n[0] : '').take(2).join(),
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -527,10 +561,14 @@ class _SpecialistScheduleScreenState extends State<SpecialistScheduleScreen> {
               final schedule = daySchedules[index];
 
               // البحث عن الأخصائي للحصول على معلومات إضافية
-              final specialist = _allSpecialists.firstWhere(
-                    (spec) => spec['id'] == schedule['specialist_id'],
-                orElse: () => {},
-              );
+              Map<String, dynamic> specialist = {};
+              try {
+                specialist = _allSpecialists.firstWhere(
+                      (spec) => spec['id'] == schedule['specialist_id'],
+                );
+              } catch (e) {
+                // إذا لم يتم العثور على الأخصائي، استخدم البيانات الأساسية
+              }
 
               return Container(
                 margin: EdgeInsets.only(bottom: 12),
@@ -560,7 +598,7 @@ class _SpecialistScheduleScreenState extends State<SpecialistScheduleScreen> {
                     ),
                     child: Center(
                       child: Text(
-                        schedule['specialistName'].split(' ').map((n) => n[0]).take(2).join(),
+                        (schedule['specialistName'] as String).split(' ').map((n) => n.isNotEmpty ? n[0] : '').take(2).join(),
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
@@ -597,7 +635,7 @@ class _SpecialistScheduleScreenState extends State<SpecialistScheduleScreen> {
                             Icon(Icons.access_time_rounded, size: 14, color: AppColors.primary),
                             SizedBox(width: 6),
                             Text(
-                              schedule['time'],
+                              schedule['time'] ?? '',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -715,7 +753,7 @@ class _SpecialistScheduleScreenState extends State<SpecialistScheduleScreen> {
                       ),
                       child: Center(
                         child: Text(
-                          _selectedSpecialist['name'].split(' ').map((n) => n[0]).take(2).join(),
+                          (_selectedSpecialist['name'] as String).split(' ').map((n) => n.isNotEmpty ? n[0] : '').take(2).join(),
                           style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
@@ -1540,7 +1578,9 @@ class _SpecialistScheduleScreenState extends State<SpecialistScheduleScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(
-          'Specialist Schedules',
+          widget.specialistName != null
+              ? '${widget.specialistName}\'s Schedule'
+              : 'Specialist Schedules',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w700,
@@ -1586,100 +1626,101 @@ class _SpecialistScheduleScreenState extends State<SpecialistScheduleScreen> {
               child: _buildDaySelector(),
             ),
 
-          // Toggle Button
-          Container(
-            margin: EdgeInsets.fromLTRB(16, 0, 16, 16),
-            padding: EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: AppColors.accent2,
-                width: 1.5,
+          // Toggle Button (يظهر فقط إذا لم يكن هناك أخصائي محدد)
+          if (widget.specialistId == null || _showAllSpecialists)
+            Container(
+              margin: EdgeInsets.fromLTRB(16, 0, 16, 16),
+              padding: EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: AppColors.accent2,
+                  width: 1.5,
+                ),
               ),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () => setState(() => _showAllSpecialists = true),
-                      child: Container(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          color: _showAllSpecialists ? AppColors.primary : Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.people_alt_rounded,
-                              size: 18,
-                              color: _showAllSpecialists ? Colors.white : AppColors.textGray,
-                            ),
-                            SizedBox(width: 8),
-                            Text(
-                              'All Specialists',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => setState(() => _showAllSpecialists = true),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: _showAllSpecialists ? AppColors.primary : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.people_alt_rounded,
+                                size: 18,
                                 color: _showAllSpecialists ? Colors.white : AppColors.textGray,
                               ),
-                            ),
-                          ],
+                              SizedBox(width: 8),
+                              Text(
+                                'All Specialists',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: _showAllSpecialists ? Colors.white : AppColors.textGray,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                Expanded(
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () => setState(() {
-                        _showAllSpecialists = false;
-                        _selectedSpecialist = {};
-                      }),
-                      child: Container(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          color: !_showAllSpecialists && _selectedSpecialist.isEmpty
-                              ? AppColors.primary
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.calendar_today_rounded,
-                              size: 18,
-                              color: !_showAllSpecialists && _selectedSpecialist.isEmpty
-                                  ? Colors.white
-                                  : AppColors.textGray,
-                            ),
-                            SizedBox(width: 8),
-                            Text(
-                              'Daily View',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
+                  Expanded(
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => setState(() {
+                          _showAllSpecialists = false;
+                          _selectedSpecialist = {};
+                        }),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: !_showAllSpecialists && _selectedSpecialist.isEmpty
+                                ? AppColors.primary
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.calendar_today_rounded,
+                                size: 18,
                                 color: !_showAllSpecialists && _selectedSpecialist.isEmpty
                                     ? Colors.white
                                     : AppColors.textGray,
                               ),
-                            ),
-                          ],
+                              SizedBox(width: 8),
+                              Text(
+                                'Daily View',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: !_showAllSpecialists && _selectedSpecialist.isEmpty
+                                      ? Colors.white
+                                      : AppColors.textGray,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
 
           // Content
           Expanded(

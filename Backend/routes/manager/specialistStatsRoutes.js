@@ -184,6 +184,17 @@ router.get('/specialists', specialistStatsController.getAllSpecialists);
  * @access  Private/Manager
  */
 router.get('/specialists/:specialistId', specialistStatsController.getSpecialistDetails);
+
+
+router.get('/specialists/:id/report', specialistStatsController.getSpecialistComprehensiveReport);
+
+
+// 🔹 جلب الجلسات المستقبلية لأخصائي (قبل الأرشيف)
+router.get('/specialists/:id/upcoming-sessions', specialistStatsController.getSpecialistUpcomingSessions);
+
+// 🔹 أرشفة أخصائي (تحويل إلى Archived)
+router.put('/specialists/:id/archive', specialistStatsController.archiveSpecialist);
+router.put('/specialists/:id/salary', specialistStatsController.updateSpecialistSalary);
 module.exports = router;
 
 

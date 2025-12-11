@@ -1,33 +1,84 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/authMiddleware');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const groqService = require('../services/GroqService');
 const Child = require('../model/Child');
 const Diagnosis = require('../model/Diagnosis');
-const { getParentDashboard,
-        rescheduleSession,
-        updateParentProfile,
-        getChildEvaluations
- } = require('../controllers/parentController');
+const { 
+  getParentDashboard,
+  rescheduleSession,
+  updateParentProfile,
+  getChildEvaluations,
+  uploadParentProfilePicture // ✅ إضافة الدالة الجديدة
+} = require('../controllers/parentController');
 
+// ========== Multer Configuration for Parent Profile Pictures ==========
+const parentStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = 'uploads/parents/';
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const userId = req.user.user_id;
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `parent_${userId}_${uniqueSuffix}${ext}`);
+  }
+});
+
+const parentUpload = multer({
+  storage: parentStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: function (req, file, cb) {
+    const allowedTypes =[
+      'image/jpeg',
+      'image/jpg', 
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'image/bmp',
+      'image/svg+xml',
+      'application/octet-stream' // إضافة هذا!
+    ];
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    
+    if (allowedTypes.includes(file.mimetype) && allowedExtensions.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed (JPG, PNG, GIF, WEBP)'), false);
+    }
+  }
+});
+
+// ========== Routes ==========
+
+// 🔹 رفع صورة الأهل
+router.post('/upload-profile-picture', 
+  authMiddleware, 
+  parentUpload.single('profile_picture'),
+  uploadParentProfilePicture
+);
+
+// 🔹 داشبورد الأهل
 router.get('/dashboard', authMiddleware, getParentDashboard);
-router.put('/profile', authMiddleware, updateParentProfile); // ⬅️ أضف هذا الراوت
+
+// 🔹 تحديث بروفايل الأهل
+router.put('/profile', authMiddleware, updateParentProfile);
+
+// 🔹 تغيير موعد الجلسة
 router.patch('/sessions/:sessionId/reschedule', authMiddleware, rescheduleSession);
+
+// 🔹 تقييمات الأطفال
 router.get('/child-evaluations', authMiddleware, getChildEvaluations);
 
-
-
-
-
-
-
-
-
-
-/**
- * GET /api/parent/daily-tip
- * Get AI-generated daily tip
- */
+// 🔹 النصائح اليومية (AI)
 router.get('/daily-tip', authMiddleware, async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -104,8 +155,7 @@ router.get('/daily-tip', authMiddleware, async (req, res) => {
   }
 });
 
-
-// أضف في parentRoutes.js
+// 🔹 اختبار Groq API
 router.get('/test-groq', authMiddleware, async (req, res) => {
   try {
     console.log('🧪 Testing Groq API...');
@@ -163,8 +213,7 @@ router.get('/test-groq', authMiddleware, async (req, res) => {
   }
 });
 
-
-// في parentRoutes.js أضف:
+// 🔹 قائمة نماذج Groq
 router.get('/groq-models', authMiddleware, async (req, res) => {
   try {
     const models = await groqService.getAvailableModels();
@@ -181,10 +230,8 @@ router.get('/groq-models', authMiddleware, async (req, res) => {
     });
   }
 });
-/**
- * GET /api/parent/weekly-tips
- * Get multiple tips for the week
- */
+
+// 🔹 النصائح الأسبوعية (AI)
 router.get('/weekly-tips', authMiddleware, async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -238,10 +285,7 @@ router.get('/weekly-tips', authMiddleware, async (req, res) => {
   }
 });
 
-/**
- * GET /api/parent/ai-health
- * Check AI service health
- */
+// 🔹 التحقق من صحة خدمة AI
 router.get('/ai-health', authMiddleware, async (req, res) => {
   try {
     const health = await groqService.healthCheck();
@@ -253,6 +297,5 @@ router.get('/ai-health', authMiddleware, async (req, res) => {
     });
   }
 });
-
 
 module.exports = router;

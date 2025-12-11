@@ -54,11 +54,11 @@ const SessionRating = sequelize.define('SessionRating', {
     }
   },
   
-  // التاج السريع (اختياري)
   rating_tag: {
-    type: DataTypes.ENUM('ممتاز', 'جيد جداً', 'جيد', 'مقبول', 'سيء'),
-    allowNull: true
-  },
+  type: DataTypes.ENUM('Excellent', 'Very Good', 'Good', 'Acceptable', 'Bad'),
+  allowNull: true
+},
+
   
   // التعليق القصير (اختياري)
   comment: {

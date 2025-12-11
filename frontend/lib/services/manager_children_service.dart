@@ -425,5 +425,122 @@ class ManagerChildrenService {
       rethrow;
     }
   }
+// 1. Check child archive eligibility (تحقق فقط)
+  static Future<Map<String, dynamic>> checkChildArchiveEligibility(int childId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null) {
+        throw Exception('No authentication token found');
+      }
+
+      final response = await http.get(
+        Uri.parse('$_baseUrl/manager/child/$childId/check-archive'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      print('Check Archive Response: ${response.statusCode} - ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data;
+      } else if (response.statusCode == 400) {
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['message'] ?? 'Child has upcoming sessions');
+      } else if (response.statusCode == 404) {
+        throw Exception('Child not found');
+      } else {
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['message'] ?? 'Failed to check archive eligibility');
+      }
+    } catch (e) {
+      print('Error in checkChildArchiveEligibility: $e');
+      rethrow;
+    }
+  }
+
+  // 2. Force archive child (حتى لو فيه جلسات)
+  static Future<Map<String, dynamic>> forceArchiveChild(int childId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null) {
+        throw Exception('No authentication token found');
+      }
+
+      final response = await http.delete(
+        Uri.parse('$_baseUrl/manager/child/$childId/force-archive'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      print('Force Archive Response: ${response.statusCode} - ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data;
+      } else if (response.statusCode == 400) {
+        throw Exception('Cannot archive child');
+      } else if (response.statusCode == 404) {
+        throw Exception('Child not found');
+      } else if (response.statusCode == 403) {
+        throw Exception('You are not authorized to perform this action');
+      } else {
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['message'] ?? 'Failed to archive child');
+      }
+    } catch (e) {
+      print('Error in forceArchiveChild: $e');
+      rethrow;
+    }
+  }
+// 3. Restore archived child
+  static Future<Map<String, dynamic>> restoreArchivedChild(int childId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null) {
+        throw Exception('No authentication token found');
+      }
+
+      final response = await http.put(
+        Uri.parse('$_baseUrl/manager/child/$childId/restore'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'status': 'Approved', // هذا هو الاسم الحقيقي في الداتابيز Approved
+        }),
+      );
+
+      print('Restore Response: ${response.statusCode} - ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data;
+      } else if (response.statusCode == 400) {
+        throw Exception('Cannot restore child');
+      } else if (response.statusCode == 404) {
+        throw Exception('Child not found');
+      } else if (response.statusCode == 403) {
+        throw Exception('You are not authorized to perform this action');
+      } else {
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['message'] ?? 'Failed to restore child');
+      }
+    } catch (e) {
+      print('Error in restoreArchivedChild: $e');
+      rethrow;
+    }
+  }
 
 }

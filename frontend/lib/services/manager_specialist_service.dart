@@ -317,4 +317,135 @@ class ManagerSpecialistService {
       rethrow;
     }
   }
+
+
+  // ==================== جلب التقرير الشامل للأخصائي ====================
+  static Future<Map<String, dynamic>> getSpecialistComprehensiveReport(int specialistId) async {
+    try {
+      final token = await _getToken();
+      if (token == null) {
+        throw Exception('No authentication token found');
+      }
+
+      final response = await http.get(
+        Uri.parse('$_baseUrl/manager/specialists/$specialistId/report'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to load specialist report: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Get Specialist Report Error: $e');
+      rethrow;
+    }
+  }
+
+  // ==================== جلب الجلسات المستقبلية للأخصائي ====================
+  static Future<Map<String, dynamic>> getSpecialistUpcomingSessions(int specialistId) async {
+    try {
+      final token = await _getToken();
+      if (token == null) {
+        throw Exception('No authentication token found');
+      }
+
+      final response = await http.get(
+        Uri.parse('$_baseUrl/manager/specialists/$specialistId/upcoming-sessions'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to load upcoming sessions: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Get Upcoming Sessions Error: $e');
+      rethrow;
+    }
+  }
+
+  // ==================== أرشفة الأخصائي ====================
+  static Future<Map<String, dynamic>> archiveSpecialist({
+    required int specialistId,
+    bool forceArchive = false,
+  }) async {
+    try {
+      final token = await _getToken();
+      if (token == null) {
+        throw Exception('No authentication token found');
+      }
+
+      final requestBody = {
+        'forceArchive': forceArchive,
+      };
+
+      final response = await http.put(
+        Uri.parse('$_baseUrl/manager/specialists/$specialistId/archive'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(requestBody),
+      );
+
+      final responseBody = jsonDecode(response.body);
+
+      if (response.statusCode == 200 || response.statusCode == 400) {
+        return responseBody;
+      } else {
+        throw Exception('Failed to archive specialist: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Archive Specialist Error: $e');
+      rethrow;
+    }
+  }
+
+  // ==================== تعديل راتب الأخصائي ====================
+  static Future<Map<String, dynamic>> updateSpecialistSalary({
+    required int specialistId,
+    required double newSalary,
+  }) async {
+    try {
+      final token = await _getToken();
+      if (token == null) {
+        throw Exception('No authentication token found');
+      }
+
+      final requestBody = {
+        'salary': newSalary,
+      };
+
+      final response = await http.put(
+        Uri.parse('$_baseUrl/manager/specialists/$specialistId/salary'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(requestBody),
+      );
+
+      final responseBody = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return responseBody;
+      } else {
+        throw Exception(
+            'Failed to update salary: ${responseBody['message'] ?? response.statusCode}');
+      }
+    } catch (e) {
+      print('Update Specialist Salary Error: $e');
+      rethrow;
+    }
+  }
+
 }

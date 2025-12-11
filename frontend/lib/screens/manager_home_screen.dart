@@ -4,7 +4,14 @@ import '../../theme/app_colors.dart';
 import '../../services/manager_dashboard_service.dart';
 import 'manager/children_management_screen.dart';
 import 'manager/specialist_management_screen.dart';
+import 'manager/financial_report_screen.dart';
+import 'manager/donations_screen.dart';
+import 'manager/institution_profile_screen.dart';
+import 'manager/institution_reviews_dashboard.dart';
+import 'package:frontend/screens/community_screen.dart';
+import 'package:frontend/screens/chat_list_screen.dart';
 import 'package:frontend/screens/login_screen.dart';
+
 class ManagerHomeScreen extends StatefulWidget {
   @override
   _ManagerHomeScreenState createState() => _ManagerHomeScreenState();
@@ -16,7 +23,6 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
   Map<String, dynamic> _dashboardData = {};
   List<Map<String, dynamic>> _chartData = [];
   List<Map<String, dynamic>> _sidebarItems = [];
-
 
   @override
   void initState() {
@@ -68,42 +74,55 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           ];
         }
 
-        // تحديث sidebar items
+        // تحديث sidebar items حسب التصميم الجديد
         _sidebarItems = [
           {
             'title': 'Children Management',
             'icon': Icons.child_care_rounded,
             'count': data['children']['total'] ?? 0,
+            'route': 'children',
           },
           {
             'title': 'Specialists Management',
             'icon': Icons.medical_services_rounded,
             'count': data['specialists']['total'] ?? 0,
-          },
-          {
-            'title': 'Session Types & Materials',
-            'icon': Icons.category_rounded,
-            'count': sessionDistribution.length,
+            'route': 'specialists',
           },
           {
             'title': 'Financial Reports',
             'icon': Icons.assessment_rounded,
             'count': data['revenue']['currentMonth']?.toInt() ?? 0,
+            'route': 'financial',
           },
           {
-            'title': 'Session Management',
-            'icon': Icons.calendar_today_rounded,
-            'count': data['sessionStats']['monthlySessions'] ?? 0,
+            'title': 'Donor & Donation',
+            'icon': Icons.volunteer_activism,
+            'count': data['donationStats']?['totalDonations'] ?? 0,
+            'route': 'donations',
           },
           {
-            'title': 'Quality Control',
-            'icon': Icons.verified_user_rounded,
-            'count': data['sessionStats']['byStatus']['Completed'] ?? 0,
+            'title': 'Community',
+            'icon': Icons.groups_rounded,
+            'count': data['communityStats']?['members'] ?? 0,
+            'route': 'community',
           },
           {
-            'title': 'Communication',
-            'icon': Icons.chat_rounded,
-            'count': 0,
+            'title': 'Messages',
+            'icon': Icons.message_rounded,
+            'count': data['messageStats']?['unread'] ?? 0,
+            'route': 'messages',
+          },
+          {
+            'title': 'Institution Profile',
+            'icon': Icons.business_rounded,
+            'count': 0, // يمكنك وضع أي قيمة تريدها هنا
+            'route': 'profile',
+          },
+          {
+            'title': 'Institution Rating',
+            'icon': Icons.star,
+            'count': 0, // يمكنك وضع أي قيمة تريدها هنا
+            'route': 'rate',
           },
         ];
 
@@ -132,12 +151,49 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           {'label': 'Educational', 'value': 10, 'color': AppColors.info},
           {'label': 'Other', 'value': 5, 'color': AppColors.accent3},
         ];
+
+        // استخدام قيم افتراضية للسايد بار في حالة الخطأ
+        _sidebarItems = [
+          {
+            'title': 'Children Management',
+            'icon': Icons.child_care_rounded,
+            'count': 0,
+            'route': 'children',
+          },
+          {
+            'title': 'Specialists Management',
+            'icon': Icons.medical_services_rounded,
+            'count': 0,
+            'route': 'specialists',
+          },
+          {
+            'title': 'Financial Reports',
+            'icon': Icons.assessment_rounded,
+            'count': 0,
+            'route': 'financial',
+          },
+          {
+            'title': 'Donor & Donation',
+            'icon': Icons.volunteer_activism,
+            'count': 0,
+            'route': 'donations',
+          },
+          {
+            'title': 'Community',
+            'icon': Icons.groups_rounded,
+            'count': 0,
+            'route': 'community',
+          },
+          {
+            'title': 'Messages',
+            'icon': Icons.message_rounded,
+            'count': 0,
+            'route': 'messages',
+          },
+        ];
       });
     }
   }
-
-
-
 
   Color _getColorForCategory(String category) {
     final String cleanCategory = category.trim().toLowerCase();
@@ -184,32 +240,93 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
     }
   }
 
-  // في _ManagerHomeScreenState
-  void _handleSidebarItemClick(String title) {
+  void _handleSidebarItemClick(Map<String, dynamic> item) {
     setState(() {
       _isSidebarOpen = false;
     });
 
-    print('Navigating to: $title');
+    final title = item['title'];
+    final route = item['route'];
 
-    if (title == 'Children Management') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ChildrenManagementScreen(),
-        ),
-      );
-    }
+    print('Navigating to: $title (route: $route)');
 
-    if (title == 'Specialists Management') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => SpecialistManagementScreen(),
-        ),
-      );
+    switch (route) {
+      case 'children':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ChildrenManagementScreen(),
+          ),
+        );
+        break;
+      case 'specialists':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => SpecialistManagementScreen(),
+          ),
+        );
+        break;
+      case 'financial':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => FinancialReportScreen(),
+          ),
+        );
+        break;
+      case 'donations':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DonationsScreen(),
+          ),
+        );
+        break;
+      case 'community':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CommunityScreen(),
+          ),
+        );
+        break;
+      case 'messages':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ChatListScreen(),
+          ),
+        );
+        break;
+      case 'profile':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => InstitutionProfileScreen(),
+          ),
+        );
+        break;
+      case 'rate':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => InstitutionReviewsDashboard(),
+          ),
+        );
+        break;
+      default:
+        _showComingSoon(title);
     }
-    // يمكنك إضافة باقي الصفحات هنا
+  }
+
+  void _showComingSoon(String title) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$title - Coming Soon!'),
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   void _handleLogout() {
@@ -231,7 +348,6 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             onPressed: () {
               Navigator.pop(context);
               Navigator.push(context, MaterialPageRoute(builder: (context) => LoginScreen()));
-
             },
             child: Text('Logout', style: TextStyle(color: Colors.red)),
           ),
@@ -793,14 +909,19 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
               padding: EdgeInsets.all(16),
               child: Column(
                 children: [
+                  // Sidebar Items
                   ..._sidebarItems.map((item) {
                     return _buildSidebarItem(item);
                   }).toList(),
 
-                  // Logout Button
+                  // Divider
                   SizedBox(height: 20),
+                  Divider(color: AppColors.textLight.withOpacity(0.3)),
+
+                  // Logout Button
+                  SizedBox(height: 10),
                   Container(
-                    margin: EdgeInsets.only(top: 20),
+                    margin: EdgeInsets.only(top: 10),
                     decoration: BoxDecoration(
                       color: Colors.red.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
@@ -835,6 +956,8 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
   }
 
   Widget _buildSidebarItem(Map<String, dynamic> item) {
+    final count = item['count'] as int;
+
     return Container(
       margin: EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
@@ -845,33 +968,47 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () => _handleSidebarItemClick(item['title']),
+          onTap: () => _handleSidebarItemClick(item),
           child: ListTile(
-            leading: Icon(item['icon'], color: AppColors.primary, size: 24),
+            leading: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                item['icon'],
+                color: AppColors.primary,
+                size: 22,
+              ),
+            ),
             title: Text(
               item['title'],
               style: TextStyle(
-                fontSize: 16,
+                fontSize: 15,
                 fontWeight: FontWeight.w600,
                 color: AppColors.textDark,
               ),
             ),
-            trailing: (item['count'] as int) > 0 ? Container(
+            trailing: count > 0
+                ? Container(
               padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: AppColors.primary,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
-                item['count'].toString(),
+                count.toString(),
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-            ) : null,
-            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            )
+                : null,
+            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           ),
         ),
       ),
@@ -879,7 +1016,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
   }
 }
 
-// Custom Pie Chart Painter (نفس الكود السابق)
+// Custom Pie Chart Painter
 class _PieChartPainter extends CustomPainter {
   final List<Map<String, dynamic>> data;
 

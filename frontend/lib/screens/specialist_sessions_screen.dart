@@ -513,26 +513,36 @@
         filteredSessions = List.from(sessions);
       });
     }
-  
-    // ✅ التصحيح: استبدال دالة التحديث القديمة بالجديدة
-    // ✅ التصحيح: استبدال دالة التحديث القديمة بالجديدة مع السبب
+
+
+
+    // ✅ التحديث: دالة التحديث مع التعامل مع الحالات المباشرة
     void _requestSessionUpdate(int id, String status, DateTime date, String time, String mode, {String reason = ''}) async {
       try {
-        await SpecialistSessionService.requestSessionUpdate(
+        final response = await SpecialistSessionService.requestSessionUpdate(
           sessionId: id,
           date: date,
           time: time,
           status: status,
           sessionType: mode,
-          reason: reason.isNotEmpty ? reason : null, // ⭐ إرسال السبب
+          reason: reason.isNotEmpty ? reason : null,
         );
+
         await _fetchSessionsFromApi();
-        _showSuccessSnackBar('Update request sent to parent for approval${reason.isNotEmpty ? ' with reason' : ''}');
+
+        // ✅ التحقق من الاستجابة
+        if (response['updatedImmediately'] == true) {
+          _showSuccessSnackBar('Session marked as $status successfully${reason.isNotEmpty ? ' with reason' : ''}');
+        } else {
+          _showSuccessSnackBar('Update request sent to parent for approval${reason.isNotEmpty ? ' with reason' : ''}');
+        }
       } catch (e) {
         _showErrorSnackBar('Failed to request session update: $e');
       }
     }
-    // ⭐ جديد: طلب حذف الجلسة مع السبب
+
+
+     // ⭐ جديد: طلب حذف الجلسة مع السبب
     void _requestDeleteSession(int id) async {
       String reason = '';
   

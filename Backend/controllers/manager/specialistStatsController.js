@@ -10,7 +10,9 @@ const {
   Institution,
   VacationRequest,
   Manager,
-  SpecialistSchedule
+  SpecialistSchedule,
+  Child,  // ⬅️ تأكد من إضافة هذا
+  SessionRating 
 } = require('../../model/index');
 
 
@@ -2387,7 +2389,7 @@ exports.editSessionType = async (req, res) => {
 };
 
 /**
- * @desc    Delete session type (حذف نوع جلسة)
+ * @desc    Soft delete session type (حذف ناعم لنوع جلسة)
  * @route   DELETE /api/manager/session-types/:sessionTypeId
  * @access  Private/Manager
  */
@@ -2395,6 +2397,8 @@ exports.deleteSessionType = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     const sessionTypeId = req.params.sessionTypeId;
+
+    console.log(`Attempting to delete session type ${sessionTypeId} by manager ${managerId}`);
 
     // الحصول على مؤسسة المدير
     const manager = await Manager.findOne({
@@ -2414,48 +2418,148 @@ exports.deleteSessionType = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
 
-    // التحقق من وجود جلسات تستخدم هذا النوع
-    const sessionsCount = await Session.count({
+    // البحث عن نوع الجلسة للتأكد من وجوده
+    const sessionType = await SessionType.findOne({
       where: {
         session_type_id: sessionTypeId,
         institution_id: institutionId
       }
     });
 
-    if (sessionsCount > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot delete session type. There are sessions using this type.',
-        sessions_count: sessionsCount
-      });
-    }
-
-    // حذف نوع الجلسة
-    const deleted = await SessionType.destroy({
-      where: {
-        session_type_id: sessionTypeId,
-        institution_id: institutionId
-      }
-    });
-
-    if (!deleted) {
+    if (!sessionType) {
       return res.status(404).json({
         success: false,
         message: 'Session type not found or not authorized'
       });
     }
 
+    console.log(`Found session type: ${sessionType.name}, status: ${sessionType.approval_status }`);
+
+    // التحقق مما إذا كان نوع الجلسة محذوفاً بالفعل
+    if (sessionType.approval_status === 'Deleted') {
+      return res.status(400).json({
+        success: false,
+        message: 'Session type is already deleted'
+      });
+    }
+
+    // التحقق من وجود جلسات مستقبلية تستخدم هذا النوع
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const currentTime = now.toTimeString().split(' ')[0];
+    
+    const futureSessions = await Session.findAll({
+      where: {
+        session_type_id: sessionTypeId,
+        institution_id: institutionId,
+        [Op.or]: [
+          // جلسات تاريخها في المستقبل
+          {
+            date: {
+              [Op.gt]: today
+            }
+          },
+          // جلسات تاريخها اليوم ولكن وقتها في المستقبل
+          {
+            date: today,
+            time: {
+              [Op.gt]: currentTime
+            }
+          }
+        ],
+        // الحالات التي تمنع الحذف
+        status: {
+          [Op.in]: ['Scheduled', 'Rescheduled', 'Confirmed', 'Pending Approval']
+        }
+      },
+      attributes: ['session_id', 'date', 'time', 'status']
+    });
+
+    console.log(`Found ${futureSessions.length} future sessions that might block deletion`);
+
+    // التحقق من وجود جلسات مستقبلية تمنع الحذف
+    if (futureSessions.length > 0) {
+      // جمع معلومات الجلسات المستقبلية
+      const sessionInfo = futureSessions.map(session => ({
+        id: session.session_id,
+        date: session.date,
+        time: session.time,
+        status: session.status
+      }));
+
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete session type because there are future sessions with this type.',
+        blocked_by: 'There are future sessions with statuses that prevent deletion (Scheduled, Rescheduled, Confirmed, Pending Approval).',
+        future_sessions_count: futureSessions.length,
+        future_sessions: sessionInfo,
+        allowed_action: 'You can only delete this session type if all future sessions are cancelled, completed, or have passed their scheduled time.'
+      });
+    }
+
+    // تنفيذ Soft Delete - تحديث الحالة إلى Deleted
+    const [updatedCount] = await SessionType.update(
+      {
+        approval_status : 'Deleted',
+        updated_at: new Date()
+      },
+      {
+        where: {
+          session_type_id: sessionTypeId,
+          institution_id: institutionId,
+          approval_status : { [Op.ne]: 'Deleted' } // تحديث فقط إذا لم يكن محذوفاً بالفعل
+        }
+      }
+    );
+
+    console.log(`Updated ${updatedCount} session type(s) to Deleted status`);
+
+    if (updatedCount === 0) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to update session type status'
+      });
+    }
+
+    // جلب عدد الجلسات المرتبطة (لأغراض الإعلام)
+    const allSessionsCount = await Session.count({
+      where: {
+        session_type_id: sessionTypeId,
+        institution_id: institutionId
+      }
+    });
+
     res.json({
       success: true,
-      message: 'Session type deleted successfully'
+      message: 'Session type marked as deleted successfully',
+      data: {
+        session_type_id: sessionTypeId,
+        name: sessionType.name,
+        previous_status: sessionType.status,
+        new_status: 'Deleted',
+        affected_sessions: allSessionsCount,
+        note: allSessionsCount > 0 
+          ? 'Session type was marked as deleted. Existing sessions will still reference this type.' 
+          : 'Session type had no associated sessions.'
+      }
     });
 
   } catch (error) {
-    console.error('Error deleting session type:', error);
+    console.error('Error soft deleting session type:', error);
+    
+    // تفصيل الخطأ بشكل أفضل
+    let errorMessage = 'Server error';
+    if (error.name === 'SequelizeDatabaseError') {
+      errorMessage = 'Database error occurred. Please check if the status field exists.';
+    } else if (error.name === 'SequelizeValidationError') {
+      errorMessage = 'Validation error: ' + error.errors.map(e => e.message).join(', ');
+    }
+    
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: error.message
+      message: errorMessage,
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };
@@ -2470,7 +2574,7 @@ exports.getAllSpecialists = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     
-    // استعلام SQL مباشر
+    // استعلام SQL مباشر - أضف average_rating و total_ratings
     const query = `
       SELECT 
         s.specialist_id,
@@ -2479,6 +2583,9 @@ exports.getAllSpecialists = async (req, res) => {
         s.salary,
         s.approval_status,
         s.institution_id,
+        s.average_rating,          -- ⬅️ أضف هذا
+        s.total_ratings,          -- ⬅️ أضف هذا
+        s.rating_badge,           -- ⬅️ أضف هذا (اختياري)
         u.full_name,
         u.email,
         u.phone,
@@ -2540,7 +2647,10 @@ exports.getAllSpecialists = async (req, res) => {
             specialization: row.specialization,
             years_experience: row.years_experience,
             salary: row.salary,
-            approval_status: row.approval_status
+            approval_status: row.approval_status,
+            average_rating: row.average_rating || 0,     // ⬅️ تأكد من وجوده
+            total_ratings: row.total_ratings || 0,       // ⬅️ تأكد من وجوده
+            rating_badge: row.rating_badge || 'new'      // ⬅️ تأكد من وجوده
           },
           schedules: []
         };
@@ -2562,11 +2672,25 @@ exports.getAllSpecialists = async (req, res) => {
     const approvedCount = specialists.filter(s => s.professional_info.approval_status === 'Approved').length;
     const pendingCount = specialists.filter(s => s.professional_info.approval_status === 'Pending').length;
     const rejectedCount = specialists.filter(s => s.professional_info.approval_status === 'Rejected').length;
+    
+    // ⬅️ إحصائيات التقييمات الجديدة
+    const ratingStats = {
+      total_with_ratings: specialists.filter(s => s.professional_info.average_rating > 0).length,
+      average_overall: specialists.reduce((sum, s) => sum + (s.professional_info.average_rating || 0), 0) / specialists.length,
+      five_star_specialists: specialists.filter(s => s.professional_info.average_rating >= 4.5).length,
+      new_specialists: specialists.filter(s => s.professional_info.rating_badge === 'new' || 
+                                              s.professional_info.total_ratings === 0).length
+    };
 
     // الحصول على آخر 5 أخصائيين
     const recentSpecialists = specialists
       .sort((a, b) => new Date(b.personal_info.created_at) - new Date(a.personal_info.created_at))
       .slice(0, 5);
+
+    // ترتيب الأخصائيين حسب التقييم (الأعلى أولاً) للعرض
+    const sortedByRating = [...specialists].sort((a, b) => 
+      (b.professional_info.average_rating || 0) - (a.professional_info.average_rating || 0)
+    );
 
     res.json({
       success: true,
@@ -2579,9 +2703,14 @@ exports.getAllSpecialists = async (req, res) => {
           total: specialists.length,
           approved: approvedCount,
           pending: pendingCount,
-          rejected: rejectedCount
+          rejected: rejectedCount,
+          rating_stats: ratingStats  // ⬅️ إحصائيات التقييمات الجديدة
         },
         recent_specialists: recentSpecialists.map(spec => ({
+          ...spec,
+          has_schedules: spec.schedules.length > 0
+        })),
+        top_rated_specialists: sortedByRating.slice(0, 5).map(spec => ({  // ⬅️ الأخصائيين الأعلى تقييماً
           ...spec,
           has_schedules: spec.schedules.length > 0
         })),
@@ -2594,6 +2723,717 @@ exports.getAllSpecialists = async (req, res) => {
 
   } catch (error) {
     console.error('Error getting all specialists:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+
+/**
+ * @desc    Get specialist comprehensive report with sessions, ratings, vacations, and schedules
+ * @route   GET /api/manager/specialists/:id/report
+ * @access  Private/Manager
+ */
+exports.getSpecialistComprehensiveReport = async (req, res) => {
+  try {
+    console.log('🎯 === START getSpecialistComprehensiveReport (SQL) ===');
+    
+    const managerId = req.user.user_id;
+    const specialistId = parseInt(req.params.id);
+
+    // التحقق من المدير والمؤسسة
+    const [managerResult] = await sequelize.query(`
+      SELECT m.manager_id, i.institution_id, i.name as institution_name
+      FROM Managers m
+      INNER JOIN Institutions i ON m.institution_id = i.institution_id
+      WHERE m.manager_id = ?
+    `, { replacements: [managerId] });
+
+    if (!managerResult.length) {
+      return res.status(404).json({
+        success: false,
+        message: 'Manager or institution not found'
+      });
+    }
+
+    const institutionId = managerResult[0].institution_id;
+    const institutionName = managerResult[0].institution_name;
+
+    // معلومات الأخصائي
+    const [specialistResult] = await sequelize.query(`
+      SELECT 
+        s.specialist_id,
+        s.specialization,
+        s.years_experience,
+        s.salary,
+        s.approval_status,
+        s.average_rating,
+        s.total_ratings,
+        s.rating_badge,
+        u.full_name,
+        u.email,
+        u.phone,
+        u.profile_picture,
+        u.status as user_status,
+        u.created_at
+      FROM Specialists s
+      INNER JOIN Users u ON s.specialist_id = u.user_id
+      WHERE s.specialist_id = ?
+        AND s.institution_id = ?
+    `, { replacements: [specialistId, institutionId] });
+
+    if (!specialistResult.length) {
+      return res.status(404).json({
+        success: false,
+        message: 'Specialist not found in your institution'
+      });
+    }
+
+    const specialist = specialistResult[0];
+
+    // الجداول
+    const [schedules] = await sequelize.query(`
+      SELECT schedule_id, day_of_week, start_time, end_time
+      FROM SpecialistSchedules
+      WHERE specialist_id = ?
+      ORDER BY FIELD(day_of_week, 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday')
+    `, { replacements: [specialistId] });
+
+    // الجلسات
+    const [sessions] = await sequelize.query(`
+      SELECT 
+        session_id,
+        date,
+        time,
+        status,
+        reason,
+        child_id,
+        (SELECT full_name FROM Children WHERE child_id = s.child_id) as child_name,
+        (SELECT name FROM SessionTypes WHERE session_type_id = s.session_type_id) as session_type
+      FROM Sessions s
+      WHERE specialist_id = ?
+        AND institution_id = ?
+      ORDER BY date DESC
+    `, { replacements: [specialistId, institutionId] });
+
+    // تحليل الجلسات
+    const today = new Date().toISOString().split('T')[0];
+    const sessionsByStatus = {};
+    const upcomingSessions = [];
+    const completedSessions = [];
+    const cancelledSessions = []; // ⬅️ إضافة جلسات ملغاة
+
+    sessions.forEach(session => {
+      sessionsByStatus[session.status] = (sessionsByStatus[session.status] || 0) + 1;
+      
+      // الجلسات القادمة
+      if (session.date >= today && ['Scheduled', 'Confirmed', 'Approved'].includes(session.status)) {
+        upcomingSessions.push({
+          session_id: session.session_id,
+          child_name: session.child_name,
+          date: session.date,
+          time: session.time,
+          session_type: session.session_type,
+          status: session.status
+        });
+      }
+      
+      // الجلسات المكتملة
+      if (session.status === 'Completed') {
+        completedSessions.push({
+          session_id: session.session_id,
+          child_name: session.child_name,
+          date: session.date,
+          time: session.time,
+          session_type: session.session_type
+        });
+      }
+      
+      // الجلسات الملغاة
+      if (session.status === 'Cancelled') {
+        cancelledSessions.push({
+          session_id: session.session_id,
+          child_name: session.child_name,
+          date: session.date,
+          reason: session.reason || 'بدون سبب'
+        });
+      }
+    });
+
+    // التقييمات
+    const [ratings] = await sequelize.query(`
+      SELECT 
+        sr.session_rating_id,
+        sr.rating,
+        sr.rating_tag,
+        sr.comment,
+        sr.rated_at,
+        c.full_name as child_name,
+        s.date as session_date,
+        st.name as session_type
+      FROM SessionRatings sr
+      LEFT JOIN Children c ON sr.child_id = c.child_id
+      LEFT JOIN Sessions s ON sr.session_id = s.session_id
+      LEFT JOIN SessionTypes st ON s.session_type_id = st.session_type_id
+      WHERE sr.specialist_id = ?
+      ORDER BY sr.rated_at DESC
+    `, { replacements: [specialistId] });
+
+    // حساب متوسط التقييم
+    let averageRating = 0;
+    const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    if (ratings.length > 0) {
+      const totalRating = ratings.reduce((sum, r) => sum + r.rating, 0);
+      averageRating = (totalRating / ratings.length).toFixed(1);
+      ratings.forEach(r => ratingDistribution[r.rating]++);
+    }
+
+    // الإجازات - تحليل مفصل
+    const [vacations] = await sequelize.query(`
+      SELECT 
+        request_id,
+        start_date,
+        end_date,
+        reason,
+        status,
+        DATEDIFF(end_date, start_date) + 1 as total_days
+      FROM VacationRequests
+      WHERE specialist_id = ?
+        AND institution_id = ?
+      ORDER BY start_date DESC
+    `, { replacements: [specialistId, institutionId] });
+
+    const vacationStats = { approved: 0, pending: 0, rejected: 0 };
+    let totalApprovedVacationDays = 0; // ⬅️ أيام الإجازة المعتمدة فقط
+    const upcomingVacations = [];
+    const currentVacations = []; // ⬅️ الإجازات الحالية (اليوم ضمنها)
+    const pastVacations = []; // ⬅️ الإجازات الماضية
+
+    if (vacations && vacations.length > 0) {
+      vacations.forEach(vacation => {
+        // إحصائيات الحالة
+        if (vacation && vacation.status) {
+          const statusKey = vacation.status.toLowerCase();
+          vacationStats[statusKey] = (vacationStats[statusKey] || 0) + 1;
+          
+          // حساب أيام الإجازة المعتمدة فقط
+          if (vacation.status === 'Approved' && vacation.total_days) {
+            totalApprovedVacationDays += vacation.total_days;
+          }
+        }
+
+        // تصنيف الإجازات حسب التواريخ
+        if (vacation.end_date >= today) {
+          upcomingVacations.push({
+            request_id: vacation.request_id,
+            start_date: vacation.start_date,
+            end_date: vacation.end_date,
+            reason: vacation.reason || '',
+            status: vacation.status,
+            total_days: vacation.total_days
+          });
+        }
+
+        // الإجازات الحالية (اليوم ضمن فترة الإجازة)
+        if (vacation.start_date <= today && vacation.end_date >= today) {
+          currentVacations.push({
+            request_id: vacation.request_id,
+            start_date: vacation.start_date,
+            end_date: vacation.end_date,
+            reason: vacation.reason || '',
+            status: vacation.status,
+            total_days: vacation.total_days
+          });
+        }
+
+        // الإجازات الماضية
+        if (vacation.end_date < today) {
+          pastVacations.push({
+            request_id: vacation.request_id,
+            start_date: vacation.start_date,
+            end_date: vacation.end_date,
+            reason: vacation.reason || '',
+            status: vacation.status,
+            total_days: vacation.total_days
+          });
+        }
+      });
+    }
+
+    // ⬅️ الإجازات المعتمدة للشهر الحالي
+    const [currentMonthVacations] = await sequelize.query(`
+      SELECT 
+        COUNT(*) as count,
+        SUM(DATEDIFF(end_date, start_date) + 1) as total_days
+      FROM VacationRequests
+      WHERE specialist_id = ?
+        AND institution_id = ?
+        AND status = 'Approved'
+        AND MONTH(start_date) = MONTH(NOW())
+        AND YEAR(start_date) = YEAR(NOW())
+    `, { replacements: [specialistId, institutionId] });
+
+    // ⬅️ إحصائيات شهرية للجلسات
+    const [monthlyStats] = await sequelize.query(`
+      SELECT 
+        DATE_FORMAT(date, '%Y-%m') as month,
+        COUNT(*) as total_sessions,
+        SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) as completed_sessions,
+        SUM(CASE WHEN status = 'Cancelled' THEN 1 ELSE 0 END) as cancelled_sessions
+      FROM Sessions
+      WHERE specialist_id = ?
+        AND institution_id = ?
+        AND date >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+      GROUP BY DATE_FORMAT(date, '%Y-%m')
+      ORDER BY month ASC
+    `, { replacements: [specialistId, institutionId] });
+
+    // ⬅️ معدل الحضور والغياب للأطفال في جلسات الأخصائي
+    const [childAttendanceStats] = await sequelize.query(`
+      SELECT 
+        COUNT(*) as total_sessions,
+        SUM(CASE WHEN status = 'Absent' THEN 1 ELSE 0 END) as child_absent_count,
+        SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) as attended_sessions,
+        ROUND((SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) / COUNT(*)) * 100, 2) as attendance_rate
+      FROM Sessions
+      WHERE specialist_id = ?
+        AND institution_id = ?
+        AND date >= DATE_SUB(NOW(), INTERVAL 3 MONTH)
+    `, { replacements: [specialistId, institutionId] });
+
+    // تجميع التقرير
+    const report = {
+      specialist_info: {
+        specialist_id: specialist.specialist_id,
+        personal_info: {
+          full_name: specialist.full_name,
+          email: specialist.email,
+          phone: specialist.phone,
+          profile_picture: specialist.profile_picture,
+          account_status: specialist.user_status,
+          account_created: specialist.created_at
+        },
+        professional_info: {
+          specialization: specialist.specialization,
+          years_experience: specialist.years_experience,
+          salary: specialist.salary,
+          approval_status: specialist.approval_status,
+          average_rating: specialist.average_rating,
+          total_ratings: specialist.total_ratings,
+          rating_badge: specialist.rating_badge
+        }
+      },
+      institution_info: {
+        institution_id: institutionId,
+        institution_name: institutionName
+      },
+      schedules: schedules || [],
+      statistics: {
+        // إحصائيات الجلسات
+        sessions_summary: {
+          total_sessions: sessions.length || 0,
+          upcoming_sessions: upcomingSessions.length || 0,
+          completed_sessions: completedSessions.length || 0,
+          cancelled_sessions: cancelledSessions.length || 0,
+          sessions_by_status: sessionsByStatus || {}
+        },
+        
+        // إحصائيات التقييمات
+        ratings_summary: {
+          total_ratings: ratings.length || 0,
+          average_rating: averageRating,
+          rating_distribution: ratingDistribution
+        },
+        
+        // إحصائيات الإجازات
+        vacations_summary: {
+          total_requests: vacations ? vacations.length : 0,
+          vacation_stats: vacationStats,
+          approved_vacation_days: totalApprovedVacationDays || 0, // ⬅️ أيام الإجازة المعتمدة
+          current_month_vacations: {
+            count: currentMonthVacations[0]?.count || 0,
+            days: currentMonthVacations[0]?.total_days || 0
+          },
+          current_vacations_count: currentVacations.length, // ⬅️ الإجازات الحالية (متعطل الآن)
+          upcoming_vacations_count: upcomingVacations.length
+        },
+        
+        // إحصائيات حضور الأطفال
+        child_attendance: {
+          total_sessions: childAttendanceStats[0]?.total_sessions || 0,
+          child_absent_count: childAttendanceStats[0]?.child_absent_count || 0,
+          attended_sessions: childAttendanceStats[0]?.attended_sessions || 0,
+          attendance_rate: childAttendanceStats[0]?.attendance_rate || 0
+        }
+      },
+      
+      // تفاصيل
+      upcoming_sessions: upcomingSessions.slice(0, 10) || [],
+      recent_completed_sessions: completedSessions.slice(0, 10) || [],
+      recent_cancelled_sessions: cancelledSessions.slice(0, 10) || [],
+      
+      // معلومات الإجازات
+      current_vacations: currentVacations, // ⬅️ إذا كان متوقف حالياً
+      upcoming_vacations: upcomingVacations.slice(0, 5) || [], // ⬅️ آخر 5 إجازات قادمة
+      recent_vacations: pastVacations.slice(0, 5) || [], // ⬅️ آخر 5 إجازات ماضية
+      
+      recent_ratings: ratings ? ratings.slice(0, 10) : [],
+      monthly_analytics: monthlyStats || [],
+      generated_at: new Date().toISOString()
+    };
+
+    res.json({
+      success: true,
+      message: 'Specialist comprehensive report retrieved successfully',
+      data: report
+    });
+
+    console.log('🎉 === END getSpecialistComprehensiveReport (SQL) === Success!');
+
+  } catch (error) {
+    console.error('❌ ERROR in getSpecialistComprehensiveReport:', error.message);
+    console.error('🔍 Error stack:', error.stack);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while generating specialist report',
+      error: error.message
+    });
+  }
+};
+
+
+/**
+ * @desc    Archive specialist (تحويل أخصائي إلى حالة مؤرشف)
+ * @route   PUT /api/manager/specialists/:id/archive
+ * @access  Private/Manager
+ */
+exports.archiveSpecialist = async (req, res) => {
+  try {
+    console.log('🎯 === START archiveSpecialist ===');
+    
+    const managerId = req.user.user_id;
+    const specialistId = parseInt(req.params.id);
+    const { forceArchive = false } = req.body;
+
+    console.log('🔢 Parameters:');
+    console.log('   Manager ID:', managerId);
+    console.log('   Specialist ID:', specialistId);
+    console.log('   Force Archive:', forceArchive);
+
+    // 1. التحقق من المدير والمؤسسة
+    const [managerResult] = await sequelize.query(`
+      SELECT m.manager_id, i.institution_id, i.name as institution_name
+      FROM Managers m
+      INNER JOIN Institutions i ON m.institution_id = i.institution_id
+      WHERE m.manager_id = ?
+    `, { replacements: [managerId] });
+
+    if (!managerResult.length) {
+      console.log('❌ Manager not found');
+      return res.status(404).json({
+        success: false,
+        message: 'Manager or institution not found'
+      });
+    }
+
+    const institutionId = managerResult[0].institution_id;
+
+    // 2. التحقق من وجود الأخصائي
+    const [specialistResult] = await sequelize.query(`
+      SELECT 
+        s.specialist_id,
+        s.approval_status,
+        u.full_name,
+        u.email
+      FROM Specialists s
+      INNER JOIN Users u ON s.specialist_id = u.user_id
+      WHERE s.specialist_id = ?
+        AND s.institution_id = ?
+        AND s.approval_status != 'archived'
+    `, { replacements: [specialistId, institutionId] });
+
+    if (!specialistResult.length) {
+      console.log('❌ Specialist not found or already archived');
+      return res.status(404).json({
+        success: false,
+        message: 'Specialist not found, not in your institution, or already archived'
+      });
+    }
+
+    const specialistName = specialistResult[0].full_name;
+    console.log('✅ Specialist found:', specialistName);
+
+    // 3. التحقق من الجلسات المستقبلية
+    const today = new Date().toISOString().split('T')[0];
+    
+    const [upcomingSessions] = await sequelize.query(`
+      SELECT 
+        s.session_id,
+        s.date,
+        s.time,
+        s.status,
+        s.child_id,
+        c.full_name as child_name,
+        u.user_id as parent_id,
+        u.full_name as parent_name,
+        u.email as parent_email
+      FROM Sessions s
+      LEFT JOIN Children c ON s.child_id = c.child_id
+      LEFT JOIN Users u ON c.parent_id = u.user_id  -- ⬅️ تصحيح الـ JOIN
+      WHERE s.specialist_id = ?
+        AND s.institution_id = ?
+        AND s.date >= ?
+        AND s.status IN ('Scheduled', 'Pending Approval', 'Delete Requested', 'Rescheduled', 'Pending Manager Approval', 'Confirmed', 'Approved', 'Pending Specialist Approval')
+      ORDER BY s.date ASC
+    `, { replacements: [specialistId, institutionId, today] });
+
+    console.log('📊 Found', upcomingSessions.length, 'upcoming sessions');
+
+    // 4. إذا كان هناك جلسات مستقبلية ولم يتم اختيار forceArchive
+    if (upcomingSessions.length > 0 && !forceArchive) {
+      console.log('⚠️ Specialist has upcoming sessions');
+      
+      // تجميع معلومات الجلسات لعرضها للمدير
+      const sessionsInfo = upcomingSessions.slice(0, 10).map(session => ({
+        session_id: session.session_id,
+        date: session.date,
+        time: session.time,
+        status: session.status,
+        child_name: session.child_name,
+        parent_name: session.parent_name
+      }));
+
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot archive specialist. There are upcoming sessions.',
+        requires_confirmation: true,
+        data: {
+          specialist_id: specialistId,
+          specialist_name: specialistName,
+          upcoming_sessions_count: upcomingSessions.length,
+          upcoming_sessions: sessionsInfo,
+          warning: 'Archiving this specialist will cancel all upcoming sessions. Are you sure?',
+          suggested_action: 'Use forceArchive: true to archive and cancel all sessions automatically'
+        }
+      });
+    }
+
+    // 5. بدء معاملة DB
+    const transaction = await sequelize.transaction();
+    
+    try {
+      // 5.1 إذا كانت هناك جلسات مستقبلية وتم اختيار forceArchive
+      if (upcomingSessions.length > 0) {
+        console.log('🔄 Cancelling upcoming sessions...');
+        
+        // تحويل جميع الجلسات المستقبلية إلى Cancelled
+        await sequelize.query(`
+          UPDATE Sessions 
+          SET 
+            status = 'Cancelled',
+            reason = CONCAT('Session cancelled because specialist was archived. ', COALESCE(reason, ''))
+          WHERE specialist_id = ?
+            AND institution_id = ?
+            AND date >= ?
+            AND status IN ('Scheduled', 'Pending Approval', 'Delete Requested', 'Rescheduled', 'Pending Manager Approval', 'Confirmed', 'Approved', 'Pending Specialist Approval')
+        `, {
+          replacements: [
+            specialistId, 
+            institutionId, 
+            today
+          ],
+          transaction
+        });
+
+        console.log(`✅ Cancelled ${upcomingSessions.length} upcoming sessions`);
+      }
+
+      // 5.2 إلغاء تنشيط الحساب في جدول Users
+      console.log('🔄 Deactivating user account...');
+      await sequelize.query(`
+        UPDATE Users 
+        SET status = 'Canceled'
+        WHERE user_id = ?
+      `, {
+        replacements: [specialistId],
+        transaction
+      });
+
+      // 5.3 تحديث حالة الأخصائي إلى archived
+      console.log('🔄 Archiving specialist...');
+      await sequelize.query(`
+        UPDATE Specialists 
+        SET 
+          approval_status = 'Archived'
+          
+        WHERE specialist_id = ?
+      `, {
+        replacements: [specialistId],
+        transaction
+      });
+
+      // 5.4 (اختياري) إلغاء جدول الأخصائي
+      console.log('🔄 Removing specialist schedule...');
+      await sequelize.query(`
+        DELETE FROM SpecialistSchedules 
+        WHERE specialist_id = ?
+      `, {
+        replacements: [specialistId],
+        transaction
+      });
+
+      // // 5.5 (اختياري) إضافة سجل في جدول المديريات
+      // console.log('📝 Adding archive log...');
+      // await sequelize.query(`
+      //   INSERT INTO SpecialistArchiveLog 
+      //   (specialist_id, archived_by_manager_id, institution_id, 
+      //    archived_at, cancelled_sessions_count, notes)
+      //   VALUES (?, ?, ?, NOW(), ?, ?)
+      // `, {
+      //   replacements: [
+      //     specialistId,
+      //     managerId,
+      //     institutionId,
+      //     upcomingSessions.length,
+      //     `Archived by manager. ${upcomingSessions.length} sessions cancelled.`
+      //   ],
+      //   transaction
+      // });
+
+      // 6. التأكيد والمعاملة
+      await transaction.commit();
+      console.log('✅ Transaction committed successfully');
+
+      // 7. إرجاع النتيجة النهائية
+      const result = {
+        success: true,
+        message: 'Specialist archived successfully',
+        data: {
+          specialist_id: specialistId,
+          specialist_name: specialistName,
+          actions_taken: {
+            account_deactivated: true,
+            status_changed_to: 'Archived',
+            schedule_removed: true,
+            upcoming_sessions_cancelled: upcomingSessions.length,
+            archive_log_created: true
+          },
+          archived_at: new Date().toISOString(),
+          summary: {
+            total_actions: 4,
+            affected_sessions: upcomingSessions.length,
+            notes: upcomingSessions.length > 0 
+              ? `${upcomingSessions.length} upcoming sessions were automatically cancelled.`
+              : 'No upcoming sessions were found.',
+            recommendation: 'Notify specialist about account deactivation.'
+          }
+        }
+      };
+
+      res.json(result);
+      console.log('🎉 === END archiveSpecialist === Success!');
+
+    } catch (transactionError) {
+      await transaction.rollback();
+      console.error('❌ Transaction rolled back:', transactionError.message);
+      throw transactionError;
+    }
+
+  } catch (error) {
+    console.error('❌ ERROR in archiveSpecialist:', error.message);
+    console.error('🔍 Error stack:', error.stack);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while archiving specialist',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Get specialist upcoming sessions (جلب الجلسات المستقبلية لأخصائي)
+ * @route   GET /api/manager/specialists/:id/upcoming-sessions
+ * @access  Private/Manager
+ */
+exports.getSpecialistUpcomingSessions = async (req, res) => {
+  try {
+    const managerId = req.user.user_id;
+    const specialistId = parseInt(req.params.id);
+
+    // التحقق من المدير
+    const [managerResult] = await sequelize.query(`
+      SELECT m.institution_id
+      FROM Managers m
+      WHERE m.manager_id = ?
+    `, { replacements: [managerId] });
+
+    if (!managerResult.length) {
+      return res.status(404).json({
+        success: false,
+        message: 'Manager not found'
+      });
+    }
+
+    const institutionId = managerResult[0].institution_id;
+    const today = new Date().toISOString().split('T')[0];
+
+    // جلب الجلسات المستقبلية - تصحيح الـ JOIN
+    const [sessions] = await sequelize.query(`
+      SELECT 
+        s.session_id,
+        s.date,
+        s.time,
+        s.status,
+        s.reason,
+        c.full_name as child_name,
+        c.child_id,
+        u.full_name as parent_name,
+        u.email as parent_email,
+        u.phone as parent_phone,
+        st.name as session_type,
+        st.duration,
+        st.price
+      FROM Sessions s
+      LEFT JOIN Children c ON s.child_id = c.child_id
+      LEFT JOIN Users u ON c.parent_id = u.user_id  -- ⬅️ تصحيح: JOIN مع Users بدلاً من Parents
+      LEFT JOIN SessionTypes st ON s.session_type_id = st.session_type_id
+      WHERE s.specialist_id = ?
+        AND s.institution_id = ?
+        AND s.date >= ?
+        AND s.status NOT IN ('Cancelled', 'Completed', 'Rejected')
+      ORDER BY s.date ASC, s.time ASC
+    `, { replacements: [specialistId, institutionId, today] });
+
+    // معلومات الأخصائي
+    const [specialistInfo] = await sequelize.query(`
+      SELECT 
+        s.specialist_id,
+        u.full_name,
+        s.approval_status
+      FROM Specialists s
+      INNER JOIN Users u ON s.specialist_id = u.user_id
+      WHERE s.specialist_id = ?
+        AND s.institution_id = ?
+    `, { replacements: [specialistId, institutionId] });
+
+    res.json({
+      success: true,
+      data: {
+        specialist: specialistInfo[0] || null,
+        upcoming_sessions: {
+          total: sessions.length,
+          sessions: sessions
+        },
+        check_date: today,
+        can_archive: sessions.length === 0
+      }
+    });
+
+  } catch (error) {
+    console.error('Error getting specialist upcoming sessions:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -2714,6 +3554,122 @@ exports.getSpecialistDetails = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+
+/**
+ * @desc    Update specialist salary (تعديل راتب الأخصائي)
+ * @route   PUT /api/manager/specialists/:id/salary
+ * @access  Private/Manager
+ */
+exports.updateSpecialistSalary = async (req, res) => {
+  try {
+    console.log("🎯 === START updateSpecialistSalary ===");
+
+    const managerId = req.user.user_id;
+    const specialistId = parseInt(req.params.id);
+    const { salary } = req.body;
+
+    if (!salary || salary <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid salary amount"
+      });
+    }
+
+    // 1. التحقق من المدير ومؤسسته
+    const [managerResult] = await sequelize.query(`
+      SELECT m.manager_id, i.institution_id
+      FROM Managers m
+      INNER JOIN Institutions i 
+        ON m.institution_id = i.institution_id
+      WHERE m.manager_id = ?
+    `, { replacements: [managerId] });
+
+    if (!managerResult.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Manager or institution not found"
+      });
+    }
+
+    const institutionId = managerResult[0].institution_id;
+
+    // 2. التحقق من وجود الأخصائي في نفس المؤسسة
+    const [specialistResult] = await sequelize.query(`
+      SELECT specialist_id, salary, 
+             (SELECT full_name FROM Users WHERE user_id = s.specialist_id) as full_name
+      FROM Specialists s
+      WHERE specialist_id = ?
+        AND institution_id = ?
+    `, { replacements: [specialistId, institutionId] });
+
+    if (!specialistResult.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Specialist not found in your institution"
+      });
+    }
+
+    const oldSalary = specialistResult[0].salary;
+    const specialistName = specialistResult[0].full_name;
+
+    // 3. تنفيذ التحديث في معاملة Transaction
+    const transaction = await sequelize.transaction();
+    try {
+
+      // تحديث الراتب
+      await sequelize.query(`
+        UPDATE Specialists
+        SET salary = ?
+        WHERE specialist_id = ?
+      `, {
+        replacements: [salary, specialistId],
+        transaction
+      });
+
+      // (اختياري) إضافة Log في جدول جديد (لو عندك)
+      // await sequelize.query(`
+      //   INSERT INTO SalaryHistory 
+      //   (specialist_id, old_salary, new_salary, updated_by, updated_at)
+      //   VALUES (?, ?, ?, ?, NOW())
+      // `, {
+      //   replacements: [specialistId, oldSalary, salary, managerId],
+      //   transaction
+      // });
+
+      await transaction.commit();
+      console.log("✅ Salary updated successfully");
+
+      return res.json({
+        success: true,
+        message: "Specialist salary updated successfully",
+        data: {
+          specialist_id: specialistId,
+          specialist_name: specialistName,
+          old_salary: oldSalary,
+          new_salary: salary
+        }
+      });
+
+    } catch (err) {
+      await transaction.rollback();
+      console.error("❌ Transaction rolled back:", err.message);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to update salary",
+        error: err.message
+      });
+    }
+
+  } catch (error) {
+    console.error("❌ ERROR in updateSpecialistSalary:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
       error: error.message
     });
   }

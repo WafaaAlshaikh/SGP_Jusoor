@@ -1,8 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/profile_service.dart';
 import '../services/activity_service.dart';
-import '../theme/app_colors.dart'; // ✅ استيراد الألوان الجديدة
+import '../theme/app_colors.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -15,6 +16,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _userData;
   bool _isLoading = true;
   String _errorMessage = '';
+
+  // Add image variables
+  File? _selectedImage;
+  bool _isUploadingImage = false;
 
   @override
   void initState() {
@@ -42,28 +47,66 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // Updated profile picture function
   Future<void> _updateProfilePicture() async {
     try {
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 500,
-        maxHeight: 500,
-        imageQuality: 70,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
       );
 
       if (image != null) {
-        final response = await ProfileService.updateProfile(
-          profilePicture: 'uploads/${DateTime.now().millisecondsSinceEpoch}.jpg',
-        );
+        setState(() {
+          _selectedImage = File(image.path);
+        });
 
-        if (response['success'] == true) {
-          await _loadProfile();
-          _showSuccessSnackBar('Profile picture updated successfully');
-        }
+        await _uploadProfilePicture();
       }
     } catch (e) {
-      _showErrorSnackBar('Failed to update profile picture: $e');
+      _showErrorSnackBar('Failed to select image: $e');
+    }
+  }
+
+  // Upload profile picture to server
+  Future<void> _uploadProfilePicture() async {
+    if (_selectedImage == null) return;
+
+    setState(() {
+      _isUploadingImage = true;
+    });
+
+    try {
+      // Call the new upload function from ProfileService
+      final result = await ProfileService.uploadProfilePicture(_selectedImage!);
+
+      if (result['success'] == true) {
+        // Update local data with new picture URL
+        setState(() {
+          if (_userData != null) {
+            _userData = {
+              ..._userData!,
+              'profile_picture': result['profile_picture'],
+            };
+          }
+        });
+
+        _showSuccessSnackBar('Profile picture updated successfully');
+
+        // Also log activity
+        await ActivityService.addActivity(
+            'Profile picture updated',
+            'profile'
+        );
+      }
+    } catch (e) {
+      _showErrorSnackBar('Failed to upload image: $e');
+    } finally {
+      setState(() {
+        _isUploadingImage = false;
+      });
     }
   }
 
@@ -300,11 +343,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           if (response['success'] == true) {
             Navigator.pop(context);
+            await _loadProfile();
             await ActivityService.addActivity(
-                'Profile picture updated',
+                'Professional information updated',
                 'profile'
             );
-            await _loadProfile();
             _showSuccessSnackBar('Professional info updated successfully');
           }
         } catch (e) {
@@ -435,7 +478,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // Updated profile header with better image handling
   Widget _buildProfileHeader() {
+    String? profilePictureUrl;
+
+    if (_userData?['profile_picture'] != null && _userData!['profile_picture'].toString().isNotEmpty) {
+      profilePictureUrl = _userData!['profile_picture'];
+      // Check if URL needs base URL
+      if (!profilePictureUrl!.startsWith('http')) {
+        profilePictureUrl = 'http://10.0.2.2:5000/${profilePictureUrl!.replaceAll(RegExp(r'^\/'), '')}';
+      }
+    }
+
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(25),
@@ -475,25 +529,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ],
                 ),
-                child: CircleAvatar(
-                  backgroundColor: AppColors.accent1,
-                  backgroundImage: _userData?['profile_picture'] != null
-                      ? NetworkImage('http://10.0.2.2:5000/${_userData!['profile_picture']}')
-                      : null,
-                  child: _userData?['profile_picture'] == null
-                      ? Icon(
-                    Icons.person,
-                    size: 45,
-                    color: AppColors.primary,
+                child: _isUploadingImage
+                    ? Center(
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                  ),
+                )
+                    : ClipOval(
+                  child: _selectedImage != null
+                      ? Image.file(
+                    _selectedImage!,
+                    fit: BoxFit.cover,
+                    width: 110,
+                    height: 110,
                   )
-                      : null,
+                      : (profilePictureUrl != null
+                      ? Image.network(
+                    profilePictureUrl!,
+                    fit: BoxFit.cover,
+                    width: 110,
+                    height: 110,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Center(
+                        child: CircularProgressIndicator(
+                          value: loadingProgress.expectedTotalBytes != null
+                              ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                              : null,
+                          color: Colors.white,
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return _buildDefaultProfilePicture();
+                    },
+                  )
+                      : _buildDefaultProfilePicture()),
                 ),
               ),
               Positioned(
                 bottom: 5,
                 right: 5,
                 child: GestureDetector(
-                  onTap: _updateProfilePicture,
+                  onTap: _isUploadingImage ? null : _updateProfilePicture,
                   child: Container(
                     width: 35,
                     height: 35,
@@ -508,7 +586,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ],
                     ),
-                    child: Icon(
+                    child: _isUploadingImage
+                        ? Center(
+                      child: SizedBox(
+                        width: 15,
+                        height: 15,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    )
+                        : Icon(
                       Icons.camera_alt,
                       size: 18,
                       color: AppColors.primary,
@@ -556,6 +645,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDefaultProfilePicture() {
+    return Container(
+      color: Colors.white.withOpacity(0.1),
+      child: Center(
+        child: Icon(
+          Icons.person,
+          size: 45,
+          color: Colors.white,
+        ),
       ),
     );
   }

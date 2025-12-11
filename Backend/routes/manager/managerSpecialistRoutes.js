@@ -59,4 +59,6 @@ router.get('/specialists-statistics', managerSpecialistController.getSpecialists
 // 🔹 تقرير أداء مفصل لأخصائي معين
 router.get('/specialists/:specialist_id/performance-report', managerSpecialistController.getSpecialistPerformanceReport);
 
+
+
 module.exports = router;

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -18,7 +19,66 @@ class ProfileService {
     return prefs.getString('token');
   }
 
-  // Get user profile
+  // ========== Upload Profile Picture ==========
+  static Future<Map<String, dynamic>> uploadProfilePicture(File imageFile) async {
+    try {
+      final token = await _getToken();
+      if (token == null) {
+        throw Exception('No authentication token found');
+      }
+
+      // Create multipart request
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/upload-profile-picture'),
+      );
+
+      // Add headers
+      request.headers['Authorization'] = 'Bearer $token';
+      request.headers['Accept'] = 'application/json';
+
+      // Add file
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'profile_picture',
+          imageFile.path,
+          filename: 'profile_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        ),
+      );
+
+      print('📤 Uploading profile picture to: $baseUrl/upload-profile-picture');
+      print('📁 File path: ${imageFile.path}');
+
+      // Send request
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      print('📥 Upload response status: ${response.statusCode}');
+      print('📥 Upload response body: ${response.body}');
+
+      final responseData = json.decode(response.body);
+
+      if (response.statusCode == 200) {
+        if (responseData['success']) {
+          return {
+            'success': true,
+            'profile_picture': responseData['data']['profile_picture'],
+            'user': responseData['data']['user'],
+            'message': responseData['message'],
+          };
+        } else {
+          throw Exception(responseData['message'] ?? 'Failed to upload image');
+        }
+      } else {
+        throw Exception('Upload failed: ${responseData['message']} (Status: ${response.statusCode})');
+      }
+    } catch (e) {
+      print('❌ Error in uploadProfilePicture: $e');
+      rethrow;
+    }
+  }
+
+  // ========== Get user profile ==========
   static Future<Map<String, dynamic>> getProfile() async {
     try {
       final token = await _getToken();
@@ -47,7 +107,7 @@ class ProfileService {
     }
   }
 
-  // Update user profile
+  // ========== Update user profile ==========
   static Future<Map<String, dynamic>> updateProfile({
     String? fullName,
     String? email,
@@ -88,7 +148,7 @@ class ProfileService {
     }
   }
 
-  // Update specialist info (without salary)
+  // ========== Update specialist info ==========
   static Future<Map<String, dynamic>> updateSpecialistInfo({
     String? specialization,
     int? yearsExperience,
@@ -125,7 +185,7 @@ class ProfileService {
     }
   }
 
-  // Change password
+  // ========== Change password ==========
   static Future<Map<String, dynamic>> changePassword({
     required String currentPassword,
     required String newPassword,
@@ -161,7 +221,19 @@ class ProfileService {
     }
   }
 
-  // 🔥 دالة إضافية للتحقق من اتصال السيرفر
+  // ========== Helper: Validate image size ==========
+  static Future<bool> validateImageSize(File imageFile, {int maxSizeMB = 5}) async {
+    try {
+      final sizeInBytes = await imageFile.length();
+      final sizeInMB = sizeInBytes / (1024 * 1024);
+      return sizeInMB <= maxSizeMB;
+    } catch (e) {
+      print('Error checking image size: $e');
+      return false;
+    }
+  }
+
+  // ========== Helper: Test connection ==========
   static Future<bool> testConnection() async {
     try {
       final token = await _getToken();

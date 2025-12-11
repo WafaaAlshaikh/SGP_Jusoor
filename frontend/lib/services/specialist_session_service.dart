@@ -99,14 +99,13 @@ class SpecialistSessionService {
     }
   }
 
-  // ✅ 3. طلب تعديل الجلسة - المحدثة مع السبب
   static Future<Map<String, dynamic>> requestSessionUpdate({
     required int sessionId,
     required DateTime date,
     required String time,
     required String status,
     required String sessionType,
-    String? reason, // ⭐ إضافة السبب (اختياري)
+    String? reason,
   }) async {
     final token = await _getToken();
     if (token == null) throw Exception('Token not found');
@@ -118,11 +117,11 @@ class SpecialistSessionService {
         'Content-Type': 'application/json',
       },
       body: jsonEncode({
-        'date': date.toIso8601String().split('T')[0], // YYYY-MM-DD
+        'date': date.toIso8601String().split('T')[0],
         'time': time,
         'status': status,
         'session_type': sessionType,
-        'reason': reason, // ⭐ إرسال السبب
+        'reason': reason,
       }),
     );
 

@@ -23,7 +23,7 @@ const SessionType = sequelize.define('SessionType', {
     defaultValue: null 
   },
   approval_status: {
-    type: DataTypes.ENUM('Pending', 'Approved', 'Rejected'),
+    type: DataTypes.ENUM('Pending', 'Approved', 'Rejected','Deleted'),
     defaultValue: 'Pending' 
   },
   created_by_specialist_id: {

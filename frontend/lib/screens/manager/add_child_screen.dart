@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/manager_children_service.dart';
 import '../../theme/app_colors.dart';
 import 'package:intl/intl.dart';
+import '../map_screen.dart';
 
 class AddChildScreen extends StatefulWidget {
   @override
@@ -35,6 +36,11 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
   final TextEditingController _childSchoolController = TextEditingController();
   final TextEditingController _childMedicalHistoryController = TextEditingController();
   final TextEditingController _childNotesController = TextEditingController();
+
+  // بيانات الموقع من الخريطة
+  double? _selectedLocationLat;
+  double? _selectedLocationLng;
+  String? _selectedLocationName;
 
   // Session booking
   bool _bookSession = true;
@@ -81,6 +87,170 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
     _childNotesController.dispose();
     _sessionNotesController.dispose();
     super.dispose();
+  }
+
+  // دالة لفتح الخريطة
+  Future<void> _openMapScreen() async {
+    print('🗺️ Opening map for location selection...');
+
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MapScreen(
+          initialLat: _selectedLocationLat,
+          initialLng: _selectedLocationLng,
+          initialAddress: _selectedLocationName,
+          onLocationSelected: (lat, lng, locationName) {
+            // تحديث البيانات عند اختيار موقع من الخريطة
+            _updateLocationFromMap(lat, lng, locationName);
+          },
+        ),
+      ),
+    );
+
+    // الدعم للـ backward compatibility (إذا لم يتم استخدام callback)
+    if (result != null && result is Map) {
+      final lat = result['lat'];
+      final lng = result['lng'];
+      final address = result['address'];
+      final city = result['city'];
+
+      if (lat != null && lng != null) {
+        _updateLocationFromMap(lat, lng, city ?? address);
+      }
+    }
+  }
+
+  // دالة لتحديث بيانات الموقع
+  void _updateLocationFromMap(double lat, double lng, String locationName) {
+    print('📍 Updating location from map: $lat, $lng - $locationName');
+
+    setState(() {
+      _selectedLocationLat = lat;
+      _selectedLocationLng = lng;
+      _selectedLocationName = locationName;
+
+      // تحديث حقلي العنوان والمدينة تلقائياً
+      _childAddressController.text = locationName;
+
+      // إذا كان الموقع في مدينة معروفة، نقوم بتحديث حقل المدينة
+      final city = _extractCityFromLocation(locationName);
+      if (city.isNotEmpty) {
+        _childCityController.text = city;
+      }
+    });
+
+    // إظهار رسالة تأكيد
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Location selected: $locationName'),
+        backgroundColor: AppColors.success,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  // دالة لاستخراج اسم المدينة من العنوان
+  String _extractCityFromLocation(String locationName) {
+    if (locationName.contains('Amman')) return 'Amman';
+    if (locationName.contains('Irbid')) return 'Irbid';
+    if (locationName.contains('Zarqa')) return 'Zarqa';
+    if (locationName.contains('Aqaba')) return 'Aqaba';
+    if (locationName.contains('Jenin')) return 'Jenin';
+    if (locationName.contains('Ramallah')) return 'Ramallah';
+    if (locationName.contains('Gaza')) return 'Gaza';
+    if (locationName.contains('Hebron')) return 'Hebron';
+
+    return '';
+  }
+
+  // دالة لبناء زر اختيار الموقع على الخريطة
+  Widget _buildLocationPickerButton() {
+    return Container(
+      margin: EdgeInsets.only(top: 8),
+      child: ElevatedButton.icon(
+        onPressed: _openMapScreen,
+        icon: Icon(Icons.map, size: 20),
+        label: Text(
+          'Select Location on Map',
+          style: TextStyle(fontSize: 14),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primaryLight,
+          foregroundColor: AppColors.primary,
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: AppColors.primary),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // دالة لعرض معلومات الموقع المختار
+  Widget _buildSelectedLocationInfo() {
+    if (_selectedLocationLat == null || _selectedLocationLng == null) {
+      return SizedBox.shrink();
+    }
+
+    return Container(
+      margin: EdgeInsets.only(top: 8),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.success.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.success.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.location_on, color: AppColors.success, size: 20),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Selected Location:',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.success,
+                    fontSize: 14,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  _selectedLocationName ?? '${_selectedLocationLat!.toStringAsFixed(4)}, ${_selectedLocationLng!.toStringAsFixed(4)}',
+                  style: TextStyle(
+                    color: AppColors.textDark,
+                    fontSize: 12,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Lat: ${_selectedLocationLat!.toStringAsFixed(4)}, Lng: ${_selectedLocationLng!.toStringAsFixed(4)}',
+                  style: TextStyle(
+                    color: AppColors.textGray,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _selectedLocationLat = null;
+                _selectedLocationLng = null;
+                _selectedLocationName = null;
+              });
+            },
+            icon: Icon(Icons.close, size: 18, color: AppColors.error),
+            padding: EdgeInsets.zero,
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadParents() async {
@@ -164,14 +334,12 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
 
   void _autoSelectClosestSlot() {
     if (_closestSlot != null && _availableDays.isNotEmpty) {
-      // البحث عن اليوم المناسب
       for (var day in _availableDays) {
         if (day['date'] == _closestSlot!['date']) {
           setState(() {
             _selectedDay = day;
             _selectedDate = DateTime.parse(day['date']);
 
-            // البحث عن الأخصائي المناسب
             final specialists = List<Map<String, dynamic>>.from(
                 day['specialists'] ?? []
             );
@@ -182,7 +350,6 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
                   specialist['available_slots'] ?? []
               );
 
-              // البحث عن الموعد المناسب
               for (var slot in slots) {
                 if (slot['start_time'] == _closestSlot!['start_time'] &&
                     slot['end_time'] == _closestSlot!['end_time']) {
@@ -197,7 +364,6 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
               if (found) break;
             }
 
-            // إذا لم نجد الموعد الدقيق، نأخذ أول موعد متاح
             if (!found && specialists.isNotEmpty) {
               _selectedSpecialist = specialists.first;
               final slots = List<Map<String, dynamic>>.from(
@@ -213,7 +379,6 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
         }
       }
     } else if (_availableDays.isNotEmpty) {
-      // إذا لم يكن هناك closestSlot، نأخذ أول يوم متاح
       _selectFirstAvailableDay();
     }
   }
@@ -244,7 +409,6 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
   }
 
   bool _validateForms() {
-    // التحقق من معلومات الأب
     if (_parentSelection == 'existing' && _selectedParent == null) {
       _showErrorSnackBar('Please select a parent');
       _tabController.animateTo(0);
@@ -264,7 +428,6 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
       }
     }
 
-    // التحقق من معلومات الطفل الأساسية فقط
     if (_childNameController.text.trim().isEmpty) {
       _showErrorSnackBar('Child name is required');
       _tabController.animateTo(1);
@@ -317,12 +480,14 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
         };
       }
 
-      // بناء بيانات الطفل (الحقول الأساسية فقط مطلوبة)
+      // بناء بيانات الطفل مع إضافة إحداثيات الموقع إذا تم اختيارها
       final childData = {
         'full_name': _childNameController.text.trim(),
         'date_of_birth': _childBirthDateController.text,
         'gender': _selectedGender,
-        // الحقول الاختيارية - فقط إذا كانت تحتوي على بيانات
+        // إضافة إحداثيات الموقع إذا تم اختيارها
+        'latitude': _selectedLocationLat,
+        'longitude': _selectedLocationLng,
         'address': _childAddressController.text.trim().isNotEmpty
             ? _childAddressController.text.trim()
             : null,
@@ -416,6 +581,8 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
             if (_submissionResult != null) ...[
               _buildResultItem('Child Name', _submissionResult!['child']['full_name']),
               _buildResultItem('Child ID', _submissionResult!['child']['child_identifier']),
+              if (_selectedLocationLat != null && _selectedLocationLng != null)
+                _buildResultItem('Location', 'Selected on Map'),
               if (_submissionResult!['parent']['is_new'] == true)
                 _buildResultItem('New Parent', 'Yes - Email sent'),
               if (_submissionResult!['session'] != null)
@@ -501,6 +668,9 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
       _childSchoolController.clear();
       _childMedicalHistoryController.clear();
       _childNotesController.clear();
+      _selectedLocationLat = null;
+      _selectedLocationLng = null;
+      _selectedLocationName = null;
       _bookSession = true;
       _selectedDate = null;
       _selectedTime = null;
@@ -979,21 +1149,66 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
                 ),
                 SizedBox(height: 24),
 
-                // باقي الحقول (اختيارية)
+                // قسم اختيار الموقع على الخريطة
+                Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.card,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.accent2),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.map, color: AppColors.primary, size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            'Location Selection',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textDark,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 12),
+                      Text(
+                        'Select child location on the map or enter manually',
+                        style: TextStyle(
+                          color: AppColors.textGray,
+                          fontSize: 14,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+
+                      // زر فتح الخريطة
+                      _buildLocationPickerButton(),
+
+                      // عرض معلومات الموقع المختار
+                      _buildSelectedLocationInfo(),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 16),
+
+                // العنوان (يمكن إدخاله يدوياً أو يتم ملؤه من الخريطة)
                 _buildFormField(
                   controller: _childAddressController,
                   label: 'Address (Optional)',
                   icon: Icons.home,
                   maxLines: 2,
-                  // بدون validator
                 ),
                 SizedBox(height: 16),
 
+                // المدينة (يمكن إدخالها يدوياً أو يتم ملؤها من الخريطة)
                 _buildFormField(
                   controller: _childCityController,
                   label: 'City (Optional)',
                   icon: Icons.location_city,
-                  // بدون validator
                 ),
                 SizedBox(height: 16),
 
@@ -1002,7 +1217,6 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
                   label: 'School Information (Optional)',
                   icon: Icons.school,
                   maxLines: 2,
-                  // بدون validator
                 ),
                 SizedBox(height: 16),
 
@@ -1011,7 +1225,6 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
                   label: 'Medical History (Optional)',
                   icon: Icons.medical_services,
                   maxLines: 3,
-                  // بدون validator
                 ),
                 SizedBox(height: 16),
 
@@ -1020,7 +1233,6 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
                   label: 'Additional Notes (Optional)',
                   icon: Icons.note,
                   maxLines: 3,
-                  // بدون validator
                 ),
               ],
             ),
@@ -1044,7 +1256,6 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
               ),
               ElevatedButton(
                 onPressed: () {
-                  // التحقق من المعلومات الأساسية فقط
                   if (_childNameController.text.trim().isEmpty) {
                     _showErrorSnackBar('Child name is required');
                     return;
@@ -1781,7 +1992,7 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
     TextInputType? keyboardType,
     String? Function(String?)? validator,
     int maxLines = 1,
-    bool isRequired = false, // إضافة معلمة جديدة
+    bool isRequired = false,
   }) {
     return TextFormField(
       controller: controller,
@@ -1789,7 +2000,7 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
       maxLines: maxLines,
       validator: validator,
       decoration: InputDecoration(
-        labelText: isRequired ? '$label *' : label, // إضافة نجمة للحقول المطلوبة
+        labelText: isRequired ? '$label *' : label,
         labelStyle: TextStyle(color: AppColors.textGray),
         prefixIcon: Icon(icon, color: AppColors.primary),
         border: OutlineInputBorder(

@@ -6,6 +6,7 @@ const dotenv = require('dotenv');
 const sequelize = require('./config/db');
 const path = require('path');
 const fs = require('fs');
+
 const progressAnalysisRoutes = require('./routes/progressAnalysisRoutes');
 dotenv.config();
 
@@ -165,11 +166,47 @@ app.use('/api/manager', require('./routes/manager/childrenManagementRoutes'));
 // Manager specialist statistics routes
 app.use('/api/manager', require('./routes/manager/specialistStatsRoutes'));
 app.use('/api/manager/children', require('./routes/manager/addChildRoutes'));
+// بعد الـ manager routes أضف:
+app.use('/api/manager', require('./routes/manager/institutionProfileRoutes'));
 
 const ratingRoutes = require('./routes/ratingRoutes');
 app.use('/api/ratings', ratingRoutes);
 
 
+
+
+// زيادة حجم الـ payload للصور
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+// إضافة headers للـ CORS
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  
+  next();
+});
+
+// روت الملفات الثابتة
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+  maxAge: '1d', // caching
+  setHeaders: (res, path) => {
+    // تعيين MIME types صحيحة للملفات
+    const ext = path.extname(path);
+    if (ext === '.jpg' || ext === '.jpeg') {
+      res.setHeader('Content-Type', 'image/jpeg');
+    } else if (ext === '.png') {
+      res.setHeader('Content-Type', 'image/png');
+    } else if (ext === '.gif') {
+      res.setHeader('Content-Type', 'image/gif');
+    }
+  }
+}));
 
 // ===========================
 // 📌 GLOBAL ERROR HANDLER

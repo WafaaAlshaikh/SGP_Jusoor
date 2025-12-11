@@ -8,8 +8,119 @@ const Institution = require('../model/Institution');
 const ChildRegistrationRequest = require('../model/ChildRegistrationRequest');  
 const { Op } = require('sequelize'); 
 const sequelize = require('../config/db');
+const fs = require('fs');
+const path = require('path');
 
+// ========== Upload Parent Profile Picture ==========
+const uploadParentProfilePicture = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'No image file uploaded' 
+      });
+    }
 
+    const parentId = req.user.user_id;
+    
+    // التحقق من وجود الأهل
+    const parent = await Parent.findOne({ 
+      where: { parent_id: parentId } 
+    });
+    
+    if (!parent) {
+      // حذف الملف المرفوع إذا لم يتم العثور على الأهل
+      if (req.file && req.file.path) {
+        fs.unlinkSync(req.file.path);
+      }
+      return res.status(404).json({ 
+        success: false,
+        message: 'Parent not found' 
+      });
+    }
+
+    // الحصول على بيانات المستخدم
+    const user = await User.findOne({
+      where: { user_id: parentId }
+    });
+
+    if (!user) {
+      if (req.file && req.file.path) {
+        fs.unlinkSync(req.file.path);
+      }
+      return res.status(404).json({ 
+        success: false,
+        message: 'User not found' 
+      });
+    }
+
+    // حذف الصورة القديمة إذا كانت موجودة
+    if (user.profile_picture) {
+      try {
+        const oldFilename = user.profile_picture.split('/').pop();
+        const oldPath = path.join(__dirname, '../uploads/parents/', oldFilename);
+        if (fs.existsSync(oldPath)) {
+          fs.unlinkSync(oldPath);
+          console.log('✅ Old parent image deleted:', oldFilename);
+        }
+      } catch (deleteError) {
+        console.log('⚠️ Could not delete old parent image:', deleteError.message);
+        // نستمر حتى لو لم نستطع حذف الصورة القديمة
+      }
+    }
+
+    // إنشاء رابط الصورة الجديدة
+    const protocol = req.protocol;
+    const host = req.get('host');
+    const profilePictureUrl = `${protocol}://${host}/uploads/parents/${req.file.filename}`;
+
+    console.log('📸 Parent profile picture URL:', profilePictureUrl);
+
+    // تحديث الصورة في قاعدة البيانات
+    await User.update({
+      profile_picture: profilePictureUrl,
+      updated_at: new Date()
+    }, {
+      where: { user_id: parentId }
+    });
+
+    // جلب البيانات المحدثة
+    const updatedUser = await User.findOne({
+      where: { user_id: parentId },
+      attributes: ['user_id', 'full_name', 'email', 'phone', 'profile_picture', 'created_at', 'updated_at']
+    });
+
+    res.json({
+      success: true,
+      message: 'Parent profile picture uploaded successfully',
+      data: {
+        profile_picture: profilePictureUrl,
+        user: updatedUser
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error uploading parent profile picture:', error);
+    
+    // حذف الملف المرفوع إذا حدث خطأ
+    if (req.file && req.file.path) {
+      try {
+        fs.unlinkSync(req.file.path);
+        console.log('Deleted uploaded file due to error');
+      } catch (deleteError) {
+        console.log('Could not delete file:', deleteError.message);
+      }
+    }
+    
+    res.status(500).json({ 
+      success: false,
+      message: 'Error uploading profile picture',
+      error: error.message 
+    });
+  }
+};
+
+// ========== Get Parent Dashboard ==========
 const getParentDashboard = async (req, res) => {
   try {
     const parentId = req.user.user_id; 
@@ -120,8 +231,7 @@ const getParentDashboard = async (req, res) => {
   }
 };
 
-
-
+// ========== Update Parent Profile ==========
 const updateParentProfile = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -195,7 +305,7 @@ const updateParentProfile = async (req, res) => {
   }
 };
 
-
+// ========== Reschedule Session ==========
 const rescheduleSession = async (req, res) => {
   try {
     const { sessionId } = req.params;
@@ -309,7 +419,7 @@ const rescheduleSession = async (req, res) => {
   }
 };
 
-
+// ========== Get Child Evaluations ==========
 const getChildEvaluations = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -404,9 +514,11 @@ const getChildEvaluations = async (req, res) => {
   }
 };
 
+// ========== Export all functions ==========
 module.exports = { 
   getParentDashboard,
   updateParentProfile,
   rescheduleSession,
   getChildEvaluations,
+  uploadParentProfilePicture // ✅ تصدير الدالة الجديدة
 };

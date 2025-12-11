@@ -12,28 +12,68 @@ const Specialist = sequelize.define('Specialist', {
       key: 'user_id'
     }
   },
+
   specialization: {
-    type: DataTypes.STRING(100)
+    type: DataTypes.STRING(100),
+    allowNull: true
   },
+
   years_experience: {
-    type: DataTypes.INTEGER
+    type: DataTypes.INTEGER,
+    allowNull: true
   },
+
   salary: {
-    type: DataTypes.DOUBLE
+    type: DataTypes.DOUBLE,
+    allowNull: true
   },
+
   institution_id: {
     type: DataTypes.BIGINT.UNSIGNED,
+    allowNull: true,
     references: {
       model: Institution,
       key: 'institution_id'
     }
   },
-  approval_status: {
-    type: DataTypes.ENUM('Pending', 'Approved', 'Rejected'),
-    defaultValue: 'Pending'
-  }
-}, { tableName: 'Specialists', timestamps: false });
 
+  approval_status: {
+    type: DataTypes.ENUM('Pending', 'Approved', 'Rejected','Archived'),
+    defaultValue: 'Pending'
+  },
+
+  // 👉 New fields
+  average_rating: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0
+  },
+
+  total_ratings: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+
+  rating_summary: {
+    type: DataTypes.JSON,
+    defaultValue: {}
+  },
+
+  rating_badge: {
+    type: DataTypes.ENUM('platinum', 'gold', 'silver', 'bronze', 'new'),
+    defaultValue: 'new'
+  },
+
+  rating_updated_at: {
+    type: DataTypes.DATE,
+    allowNull: true
+  }
+
+}, { 
+  tableName: 'Specialists',   
+  timestamps: false 
+});
+
+// Relations
 Specialist.belongsTo(User, { foreignKey: 'specialist_id' });
 Specialist.belongsTo(Institution, { foreignKey: 'institution_id' });
 

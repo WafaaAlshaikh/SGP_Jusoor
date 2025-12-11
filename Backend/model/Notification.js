@@ -9,21 +9,19 @@ const Notification = sequelize.define('Notification', {
     autoIncrement: true
   },
 
-
   user_id: {
-  type: DataTypes.BIGINT.UNSIGNED,
-  allowNull: true,
-  references: {
-    model: User,
-    key: 'user_id'
+    type: DataTypes.BIGINT.UNSIGNED,
+    allowNull: true,
+    references: {
+      model: User,
+      key: 'user_id'
+    },
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE'
   },
-  onDelete: 'CASCADE',
-  onUpdate: 'CASCADE'
-},
-
 
   title: {
-    type: DataTypes.STRING,
+    type: DataTypes.STRING(255),
     allowNull: false
   },
 
@@ -32,17 +30,9 @@ const Notification = sequelize.define('Notification', {
     allowNull: false
   },
 
+  // ⬇⬇⬇ type now VARCHAR(50) instead of ENUM
   type: {
-    type: DataTypes.ENUM(
-      'delete_request',
-      'session_update',
-      'status_update',
-      'session_completed',
-      'session_reminder',
-      'session_cancelled',
-      'vacation_request',
-      'general'
-    ),
+    type: DataTypes.STRING(50),
     allowNull: false,
     defaultValue: 'general'
   },

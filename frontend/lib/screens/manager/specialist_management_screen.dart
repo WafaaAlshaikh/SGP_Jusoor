@@ -57,7 +57,7 @@ class _SpecialistManagementScreenState extends State<SpecialistManagementScreen>
     switch (approvalStatus?.toLowerCase()) {
       case 'approved': return 'Active';
       case 'pending': return 'Pending';
-      case 'rejected': return 'Inactive';
+      case 'archived': return 'Archived';
       default: return 'Unknown';
     }
   }
@@ -162,7 +162,7 @@ class _SpecialistManagementScreenState extends State<SpecialistManagementScreen>
             'status': _mapStatus(spec['professional_info']['approval_status']),
             'sessionsThisMonth': 0, // سيتم تحديثه من sessionTypeStats
             'salary': _parseDouble(spec['professional_info']['salary']) ?? 0.0,
-            'rating': 4.5, // افتراضي
+           // 'rating': 4.5, // افتراضي
             'childrenAssigned': 0, // افتراضي
             'nextVacation': 'N/A', // سيتم تحديثه لاحقاً
             'schedule': spec['has_schedules'] ? 'Has Schedule' : 'No Schedule',
@@ -1024,12 +1024,12 @@ class _SpecialistManagementScreenState extends State<SpecialistManagementScreen>
                 Color(0xFF2196F3),
                     () => _navigateToSchedules(),
               ),
-              _buildActionButton(
-                'Add Session',
-                Icons.add_circle_rounded,
-                Color(0xFF4CAF50),
-                    () => _navigateToAddSession(),
-              ),
+              // _buildActionButton(
+              //   'Add Session',
+              //   Icons.add_circle_rounded,
+              //   Color(0xFF4CAF50),
+              //       () => _navigateToAddSession(),
+              // ),
               _buildActionButton(
                 'All Specialists',
                 Icons.people_rounded,
@@ -1245,8 +1245,8 @@ class _SpecialistManagementScreenState extends State<SpecialistManagementScreen>
                         SizedBox(width: 8),
                         _buildInfoChip('\$${specialist['salary']}', Icons.attach_money_rounded),
                         SizedBox(width: 8),
-                        _buildInfoChip('${specialist['rating']}', Icons.star_rounded),
-                        SizedBox(width: 8),
+                        // _buildInfoChip('${specialist['rating']}', Icons.star_rounded),
+                        // SizedBox(width: 8),
                         if (specialist['childrenAssigned'] > 0) ...[
                           _buildInfoChip('${specialist['childrenAssigned']} children', Icons.child_care_rounded),
                           SizedBox(width: 8),
@@ -1323,7 +1323,7 @@ class _SpecialistManagementScreenState extends State<SpecialistManagementScreen>
                 ),
               ),
               TextButton(
-                onPressed: () => _viewAllVacations(),
+                onPressed: () => _navigateToVacation(),
                 style: TextButton.styleFrom(
                   padding: EdgeInsets.zero,
                   minimumSize: Size(50, 30),
@@ -2753,7 +2753,7 @@ class _SpecialistManagementScreenState extends State<SpecialistManagementScreen>
       case 'active': return AppColors.primary;
       case 'pending': return Colors.orange;
       case 'absent': return AppColors.warning;
-      case 'inactive': return AppColors.textGray;
+      case 'Archived': return AppColors.textGray;
       case 'completed': return AppColors.ment;
       default: return AppColors.textGray;
     }

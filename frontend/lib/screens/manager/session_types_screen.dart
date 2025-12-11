@@ -819,30 +819,408 @@ class _SessionTypesScreenState extends State<SessionTypesScreen> {
     );
   }
 
+
   Future<void> _deleteSessionType(Map<String, dynamic> sessionType) async {
     try {
-      // TODO: يجب إضافة دالة deleteSessionType في ManagerSessionTypeService
-      await ManagerSessionTypeService.deleteSessionType(
+      // عرض مؤشر التحميل
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+      );
+
+      final response = await ManagerSessionTypeService.deleteSessionType(
         sessionTypeId: sessionType['session_type_id'],
       );
 
+      // إغلاق مؤشر التحميل
+      Navigator.pop(context);
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Session type deleted successfully'),
+          content: Text(response['message'] ?? 'Session type deleted successfully'),
           backgroundColor: AppColors.success,
+          duration: Duration(seconds: 3),
         ),
       );
 
       await _loadData();
-    } catch (e) {
+    } on Exception catch (e) {
+      // إغلاق مؤشر التحميل
+      Navigator.pop(context);
+
       print('Error deleting session type: $e');
+
+      // تحقق إذا كان الخطأ بسبب جلسات مستقبلية
+      String errorMessage = e.toString();
+
+      if (errorMessage.contains('future sessions') ||
+          errorMessage.contains('Cannot delete') ||
+          errorMessage.contains('blocking')) {
+
+        // عرض ديالوج توضيحي للجلسات المانعة
+        await _showFutureSessionsBlockingDialog(sessionType, errorMessage);
+
+      } else {
+        // عرض رسالة خطأ عادية
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage.replaceAll('Exception: ', '')),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    } catch (e) {
+      // إغلاق مؤشر التحميل
+      Navigator.pop(context);
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to delete session type: ${e.toString()}'),
+          content: Text('An unexpected error occurred'),
           backgroundColor: Colors.red,
         ),
       );
     }
+  }
+
+  Future<void> _showFutureSessionsBlockingDialog(Map<String, dynamic> sessionType, String errorMessage) async {
+    // استخراج عدد الجلسات من الرسالة (إذا وجد)
+    int futureSessionsCount = 0;
+    final regex = RegExp(r'(\d+)\s*(future|جلسات)');
+    final match = regex.firstMatch(errorMessage);
+    if (match != null) {
+      futureSessionsCount = int.tryParse(match.group(1)!) ?? 0;
+    }
+
+    await showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.event_busy_rounded, color: AppColors.warning, size: 28),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Cannot Delete Session Type',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textDark,
+                  fontSize: 18,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Container(
+          width: MediaQuery.of(context).size.width * 0.8,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // اسم نوع الجلسة
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.category_rounded, color: AppColors.primary, size: 20),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Session Type:',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textLight,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            sessionType['name'],
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primary,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              SizedBox(height: 20),
+
+              // رسالة الخطأ الرئيسية
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.error_outline_rounded, color: AppColors.warning, size: 22),
+                        SizedBox(width: 10),
+                        Text(
+                          'Cannot Delete',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.warning,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 12),
+                    Text(
+                      'There are future sessions scheduled using this session type.',
+                      style: TextStyle(
+                        color: AppColors.textDark,
+                        fontSize: 14,
+                        height: 1.5,
+                      ),
+                    ),
+                    if (futureSessionsCount > 0) ...[
+                      SizedBox(height: 8),
+                      Text(
+                        'Found $futureSessionsCount future session${futureSessionsCount > 1 ? 's' : ''}.',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textDark,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              SizedBox(height: 20),
+
+              // أسباب المنع
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.accent2.withOpacity(0.5)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Why you cannot delete:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textDark,
+                        fontSize: 14,
+                      ),
+                    ),
+                    SizedBox(height: 12),
+                    _buildReasonItem(
+                      icon: Icons.event_available_rounded,
+                      iconColor: AppColors.success,
+                      text: 'Future sessions are scheduled',
+                    ),
+                    SizedBox(height: 8),
+                    _buildReasonItem(
+                      icon: Icons.pending_actions_rounded,
+                      iconColor: AppColors.warning,
+                      text: 'Sessions have active status (Scheduled, Confirmed, etc.)',
+                    ),
+                    SizedBox(height: 8),
+                    _buildReasonItem(
+                      icon: Icons.link_rounded,
+                      iconColor: AppColors.primary,
+                      text: 'Sessions are linked to appointments with children',
+                    ),
+                  ],
+                ),
+              ),
+
+              SizedBox(height: 20),
+
+              // // الحلول الممكنة
+              // Container(
+              //   padding: EdgeInsets.all(16),
+              //   decoration: BoxDecoration(
+              //     color: AppColors.success.withOpacity(0.05),
+              //     borderRadius: BorderRadius.circular(12),
+              //     border: Border.all(color: AppColors.success.withOpacity(0.3)),
+              //   ),
+              //   child: Column(
+              //     crossAxisAlignment: CrossAxisAlignment.start,
+              //     children: [
+              //       Row(
+              //         children: [
+              //           Icon(Icons.lightbulb_rounded, color: AppColors.success, size: 22),
+              //           SizedBox(width: 10),
+              //           Text(
+              //             'What you can do:',
+              //             style: TextStyle(
+              //               fontWeight: FontWeight.w600,
+              //               color: AppColors.success,
+              //               fontSize: 14,
+              //             ),
+              //           ),
+              //         ],
+              //       ),
+              //       SizedBox(height: 12),
+              //       _buildSolutionItem(
+              //         text: 'Cancel all future sessions using this type',
+              //       ),
+              //       SizedBox(height: 8),
+              //       _buildSolutionItem(
+              //         text: 'Reschedule sessions to use a different session type',
+              //       ),
+              //       SizedBox(height: 8),
+              //       _buildSolutionItem(
+              //         text: 'Wait until all sessions are completed or cancelled',
+              //       ),
+              //       SizedBox(height: 8),
+              //       _buildSolutionItem(
+              //         text: 'Mark the session type as "Inactive" instead of deleting',
+              //       ),
+              //     ],
+              //   ),
+              // ),
+
+              SizedBox(height: 16),
+
+              // ملاحظة
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.accent4.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.accent4.withOpacity(0.2)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_rounded, size: 16, color: AppColors.accent4),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'After resolving all future sessions, you can try deleting again.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.accent4,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+
+          SizedBox(width: 8),
+          // زر إغلاق
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReasonItem({required IconData icon, required Color iconColor, required String text}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            color: iconColor.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, size: 14, color: iconColor),
+        ),
+        SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              color: AppColors.textDark,
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSolutionItem({required String text}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 20,
+          height: 20,
+          decoration: BoxDecoration(
+            color: AppColors.success.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(Icons.check_rounded, size: 12, color: AppColors.success),
+        ),
+        SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              color: AppColors.textDark,
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showSessionsPreview(Map<String, dynamic> sessionType) async {
+    // هنا يمكنك إضافة كود لعرض معاينة للجلسات
+    // أو الانتقال إلى شاشة الجلسات
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Navigate to sessions screen for "${sessionType['name']}"'),
+        backgroundColor: AppColors.primary,
+      ),
+    );
   }
 
   Widget _buildPendingSessionTypeCard(Map<String, dynamic> sessionType) {

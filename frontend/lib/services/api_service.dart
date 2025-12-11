@@ -1176,13 +1176,81 @@ static Future<Map<String, dynamic>> login(Map<String, dynamic> data) async {
 
 
 
+  // ========== UPLOAD PARENT PROFILE PICTURE ==========
+  static Future<Map<String, dynamic>> uploadParentProfilePicture(File imageFile) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? '';
+
+      if (token.isEmpty) {
+        throw Exception('No authentication token found');
+      }
+
+      // Create multipart request
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse(_buildUrl('parent/upload-profile-picture')),
+      );
+
+      // Add headers
+      request.headers['Authorization'] = 'Bearer $token';
+      request.headers['Accept'] = 'application/json';
+
+      // Add file
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'profile_picture',
+          imageFile.path,
+          filename: 'parent_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        ),
+      );
+
+      print('📤 Uploading parent profile picture to: ${_buildUrl('parent/upload-profile-picture')}');
+      print('📁 File path: ${imageFile.path}');
+
+      // Send request
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      print('📥 Parent upload response status: ${response.statusCode}');
+      print('📥 Parent upload response body: ${response.body}');
+
+      final responseData = json.decode(response.body);
+
+      if (response.statusCode == 200) {
+        if (responseData['success']) {
+          return {
+            'success': true,
+            'profile_picture': responseData['data']['profile_picture'],
+            'user': responseData['data']['user'],
+            'message': responseData['message'],
+          };
+        } else {
+          throw Exception(responseData['message'] ?? 'Failed to upload image');
+        }
+      } else {
+        throw Exception('Upload failed: ${responseData['message']} (Status: ${response.statusCode})');
+      }
+    } catch (e) {
+      print('❌ Error in uploadParentProfilePicture: $e');
+      rethrow;
+    }
+  }
+
+  // ========== UPDATE PARENT PROFILE (تحسينها) ==========
   static Future<bool> updateParentProfile(Map<String, dynamic> updateData) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token') ?? '';
 
+      if (token.isEmpty) {
+        throw Exception('No authentication token found');
+      }
+
+      print('🔄 Updating parent profile with data: $updateData');
+
       final response = await http.put(
-        Uri.parse('http://10.0.2.2:5000/api/parent/profile'),
+        Uri.parse(_buildUrl('parent/profile')),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -1190,49 +1258,32 @@ static Future<Map<String, dynamic>> login(Map<String, dynamic> data) async {
         body: json.encode(updateData),
       );
 
+      print('📡 Update parent profile response: ${response.statusCode}');
+      print('📦 Response body: ${response.body}');
+
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
         return responseData['success'] == true;
       } else {
-        print('Update profile failed: ${response.statusCode} - ${response.body}');
-        return false;
+        throw Exception('Update profile failed: ${response.statusCode}');
       }
     } catch (e) {
-      print('Error updating profile: $e');
+      print('❌ Error updating parent profile: $e');
       return false;
     }
   }
 
-  static Future<String?> uploadProfileImage(String imagePath) async {
+
+
+  // ========== HELPER: VALIDATE IMAGE SIZE ==========
+  static Future<bool> validateImageSize(File imageFile, {int maxSizeMB = 5}) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token') ?? '';
-
-      var request = http.MultipartRequest(
-        'POST',
-        Uri.parse('http://10.0.2.2:5000/api/upload/profile-image'), // تأكد من هذا الراوت
-      );
-
-      request.headers['Authorization'] = 'Bearer $token';
-
-      request.files.add(await http.MultipartFile.fromPath(
-        'image',
-        imagePath,
-      ));
-
-      final response = await request.send();
-
-      if (response.statusCode == 200) {
-        final responseData = await response.stream.bytesToString();
-        final jsonResponse = json.decode(responseData);
-        return jsonResponse['imageUrl'];
-      } else {
-        print('Image upload failed: ${response.statusCode}');
-        return null;
-      }
+      final sizeInBytes = await imageFile.length();
+      final sizeInMB = sizeInBytes / (1024 * 1024);
+      return sizeInMB <= maxSizeMB;
     } catch (e) {
-      print('Error uploading image: $e');
-      return null;
+      print('Error checking image size: $e');
+      return false;
     }
   }
 
