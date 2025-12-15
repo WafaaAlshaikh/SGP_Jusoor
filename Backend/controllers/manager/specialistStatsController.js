@@ -2,6 +2,7 @@ const { Sequelize, Op } = require('sequelize');
 const sequelize = require('../../config/db');
 const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
+const NotificationService = require('../../services/notificationService');
 const {
   Session,
   SessionType,
@@ -1143,6 +1144,86 @@ exports.getAllSpecialistsSchedules = async (req, res) => {
   }
 };
 
+// 🔧 دالة مساعدة لإرسال إشعارات الجداول
+const sendScheduleNotification = async (specialistToken, action, scheduleData) => {
+  try {
+    if (!specialistToken || specialistToken.trim() === '') {
+      console.log('⚠️ No specialist token provided for schedule notification');
+      return;
+    }
+
+    let title, body, notificationData = {};
+
+    switch (action) {
+      case 'added':
+        title = '📅 New Schedule Added';
+        body = `New schedule added for ${scheduleData.day_of_week}: ${scheduleData.start_time} - ${scheduleData.end_time}`;
+        notificationData = {
+          type: 'schedule_change',
+          action: 'added',
+          day_of_week: scheduleData.day_of_week,
+          start_time: scheduleData.start_time,
+          end_time: scheduleData.end_time,
+          schedule_id: scheduleData.schedule_id?.toString(),
+          timestamp: new Date().toISOString()
+        };
+        break;
+
+      case 'updated':
+        title = '🔄 Schedule Updated';
+        body = `Schedule for ${scheduleData.day_of_week} has been updated`;
+        notificationData = {
+          type: 'schedule_change',
+          action: 'updated',
+          day_of_week: scheduleData.day_of_week,
+          start_time: scheduleData.start_time || '',
+          end_time: scheduleData.end_time || '',
+          schedule_id: scheduleData.schedule_id?.toString(),
+          timestamp: new Date().toISOString()
+        };
+        break;
+
+      case 'deleted':
+        title = '🗑️ Schedule Deleted';
+        body = `Schedule has been deleted`;
+        notificationData = {
+          type: 'schedule_change',
+          action: 'deleted',
+          schedule_id: scheduleData.schedule_id?.toString(),
+          timestamp: new Date().toISOString()
+        };
+        break;
+
+      case 'bulk_added':
+        title = '📋 Multiple Schedules Added';
+        body = `${scheduleData.count} schedules have been added`;
+        notificationData = {
+          type: 'schedule_change',
+          action: 'bulk_added',
+          count: scheduleData.count?.toString(),
+          timestamp: new Date().toISOString()
+        };
+        break;
+
+      default:
+        title = '📅 Schedule Modified';
+        body = 'Your schedule has been modified';
+    }
+
+    await NotificationService.sendToToken(
+      specialistToken.trim(),
+      title,
+      body,
+      notificationData
+    );
+
+    console.log(`✅ Schedule ${action} notification sent`);
+  } catch (error) {
+    console.error(`❌ Error sending schedule ${action} notification:`, error.message);
+  }
+};
+
+
 /**
  * @desc    Get specialist schedule by ID (الحصول على جدول أخصائي محدد)
  * @route   GET /api/manager/specialists/:id/schedule
@@ -1157,7 +1238,7 @@ exports.getSpecialistSchedule = async (req, res) => {
 
     const managerId = req.user.user_id;
     const specialistId = parseInt(req.params.id); // ⬅️ تحويل إلى رقم
-
+    
     console.log('🔢 Step 1: Parsing parameters');
     console.log('   Manager ID:', managerId);
     console.log('   Requested specialist ID:', specialistId, 'Type:', typeof specialistId);
@@ -1272,6 +1353,8 @@ exports.addSpecialistSchedule = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     const specialistId = req.params.id;
+    const { day_of_week, start_time, end_time, specialist_fcm_token } = req.body; // 👈 استقبل التوكن
+
 
     // الحصول على مؤسسة المدير
     const manager = await Manager.findOne({
@@ -1311,12 +1394,7 @@ exports.addSpecialistSchedule = async (req, res) => {
       });
     }
 
-    // بيانات الجدول الجديد
-    const {
-      day_of_week,
-      start_time,
-      end_time
-    } = req.body;
+   
 
     // التحقق من البيانات
     if (!day_of_week || !start_time || !end_time) {
@@ -1358,6 +1436,22 @@ exports.addSpecialistSchedule = async (req, res) => {
       end_time
     });
 
+    // 👇 إرسال الإشعار إذا كان في توكن
+    if (specialist_fcm_token) {
+      await sendScheduleNotification(
+        specialist_fcm_token,
+        'added',
+        {
+          day_of_week,
+          start_time,
+          end_time,
+          schedule_id: newSchedule.schedule_id
+        }
+      ).catch(error => {
+        console.log('⚠️ Schedule notification failed, but schedule was added');
+      });
+    }
+
     res.status(201).json({
       success: true,
       message: 'Schedule added successfully',
@@ -1389,13 +1483,9 @@ exports.updateSpecialistSchedule = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     const scheduleId = req.params.scheduleId;
-
+    const { day_of_week, start_time, end_time, specialist_fcm_token } = req.body;
     // بيانات التعديل
-    const {
-      day_of_week,
-      start_time,
-      end_time
-    } = req.body;
+    
 
     // التحقق من وجود بيانات للتعديل
     if (!day_of_week && !start_time && !end_time) {
@@ -1445,7 +1535,30 @@ exports.updateSpecialistSchedule = async (req, res) => {
     if (end_time) updateData.end_time = end_time;
 
     // تحديث الجدول
+   const oldData = {
+      day_of_week: schedule.day_of_week,
+      start_time: schedule.start_time,
+      end_time: schedule.end_time
+    };
+
+    // تحديث الجدول
     await schedule.update(updateData);
+
+    // 👇 إرسال الإشعار إذا كان في توكن
+    if (specialist_fcm_token) {
+      await sendScheduleNotification(
+        specialist_fcm_token,
+        'updated',
+        {
+          day_of_week: day_of_week || oldData.day_of_week,
+          start_time: start_time || oldData.start_time,
+          end_time: end_time || oldData.end_time,
+          schedule_id: schedule.schedule_id
+        }
+      ).catch(error => {
+        console.log('⚠️ Schedule update notification failed, but schedule was updated');
+      });
+    }
 
     res.json({
       success: true,
@@ -1469,6 +1582,7 @@ exports.updateSpecialistSchedule = async (req, res) => {
   }
 };
 
+
 /**
  * @desc    Delete specialist schedule (حذف جدول دوام أخصائي)
  * @route   DELETE /api/manager/schedules/:scheduleId
@@ -1478,6 +1592,7 @@ exports.deleteSpecialistSchedule = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     const scheduleId = req.params.scheduleId;
+    const { specialist_fcm_token } = req.body; // 👈 استقبل التوكن
 
     // العثور على الجدول والتحقق من الصلاحيات
     const schedule = await SpecialistSchedule.findByPk(scheduleId, {
@@ -1503,8 +1618,25 @@ exports.deleteSpecialistSchedule = async (req, res) => {
       });
     }
 
+    // حفظ بيانات الجدول قبل الحذف للإشعار
+    const scheduleData = {
+      schedule_id: schedule.schedule_id,
+      day_of_week: schedule.day_of_week
+    };
+
     // حذف الجدول
     await schedule.destroy();
+
+    // 👇 إرسال الإشعار إذا كان في توكن
+    if (specialist_fcm_token) {
+      await sendScheduleNotification(
+        specialist_fcm_token,
+        'deleted',
+        scheduleData
+      ).catch(error => {
+        console.log('⚠️ Schedule delete notification failed, but schedule was deleted');
+      });
+    }
 
     res.json({
       success: true,
@@ -1521,6 +1653,7 @@ exports.deleteSpecialistSchedule = async (req, res) => {
   }
 };
 
+
 /**
  * @desc    Add multiple schedules for specialist (إضافة جداول متعددة لأخصائي)
  * @route   POST /api/manager/specialists/:id/schedules/bulk
@@ -1530,7 +1663,7 @@ exports.addMultipleSchedules = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     const specialistId = req.params.id;
-
+    const { schedules, specialist_fcm_token } = req.body;
     // الحصول على مؤسسة المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
@@ -1565,8 +1698,7 @@ exports.addMultipleSchedules = async (req, res) => {
       });
     }
 
-    // بيانات الجداول الجديدة
-    const schedules = req.body.schedules;
+   
 
     if (!schedules || !Array.isArray(schedules) || schedules.length === 0) {
       return res.status(400).json({
@@ -1631,6 +1763,20 @@ exports.addMultipleSchedules = async (req, res) => {
       }
 
       await transaction.commit();
+
+      // 👇 إرسال الإشعار إذا كان في توكن
+      if (specialist_fcm_token && createdSchedules.length > 0) {
+        await sendScheduleNotification(
+          specialist_fcm_token,
+          'bulk_added',
+          {
+            count: createdSchedules.length,
+            first_day: createdSchedules[0].day_of_week
+          }
+        ).catch(error => {
+          console.log('⚠️ Bulk schedule notification failed, but schedules were added');
+        });
+      }
 
       res.status(201).json({
         success: true,

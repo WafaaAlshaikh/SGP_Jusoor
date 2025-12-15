@@ -172,6 +172,7 @@ app.use('/api/manager', require('./routes/manager/institutionProfileRoutes'));
 const ratingRoutes = require('./routes/ratingRoutes');
 app.use('/api/ratings', ratingRoutes);
 
+app.use('/api/notifications', require('./routes/notificationRoutes'));
 
 
 

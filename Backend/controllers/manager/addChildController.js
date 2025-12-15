@@ -15,6 +15,8 @@ const { Op } = require('sequelize');
 const sequelize = require('../../config/db');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const NotificationService = require('../../services/notificationService');
+
 if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
 }
@@ -367,6 +369,41 @@ exports.addNewChild = async (req, res) => {
 
     await transaction.commit();
 
+    try {
+  // فقط إذا أرسل الفرونت التوكنات مع الطلب
+  const { tokens } = req.body; // { parent_token, specialist_token }
+  
+  if (tokens) {
+    // 1. إشعار للأهل (إذا كان أب موجود وليس جديد)
+    if ( tokens.parent_token) {
+      await NotificationService.sendChildAdded(
+        tokens.parent_token,
+        childData.full_name,
+        newChild.child_id
+      ).catch(err => {
+        console.error('⚠️ Failed to send parent notification:', err.message);
+      });
+    }
+    
+    // 2. إشعار للأخصائي (إذا تم حجز جلسة)
+    if (sessionResult && tokens.specialist_token) {
+      await NotificationService.sendSessionBooked(
+        tokens.specialist_token,
+        childData.full_name,
+        sessionData.date,
+        sessionData.start_time,
+        sessionResult.session_id
+      ).catch(err => {
+        console.error('⚠️ Failed to send specialist notification:', err.message);
+      });
+    }
+  }
+  
+} catch (notificationError) {
+  console.error('⚠️ Error in notification logic:', notificationError.message);
+  // لا نوقف العملية إذا فشلت الإشعارات
+}
+
     // تحضير الرد
     const response = {
       success: true,
@@ -403,6 +440,7 @@ exports.addNewChild = async (req, res) => {
       error: error.message
     });
   }
+  
 };
 
 // 3. جلب الأخصائيين المتاحين لجلسة General
@@ -416,11 +454,30 @@ exports.getAvailableSpecialists = async (req, res) => {
     console.log('1. Manager ID:', managerId);
     console.log('2. Requested date:', date);
 
-    // إذا لم يتم تمرير تاريخ، استخدم التاريخ الحالي
-    const requestDate = date ? new Date(date) : new Date();
-    requestDate.setHours(0, 0, 0, 0);
+    // ==== START: الكود المعدل الجديد - إصلاح مشكلة التوقيت ====
+    let requestDate;
+    const now = new Date();
     
-    console.log('3. Using date:', requestDate.toISOString().split('T')[0]);
+    // تحويل الآن إلى تنسيق YYYY-MM-DD بدون توقيت
+    const nowDateStr = now.toISOString().split('T')[0];
+    
+    if (date) {
+      // استخدام التاريخ كما هو مباشرة - لا نعتمد على new Date() للتحقق
+      // التحقق إذا كان التاريخ في الماضي بمقارنة النصوص فقط
+      if (date < nowDateStr) {
+        console.log('⚠️ Requested date is in the past, using current date instead');
+        requestDate = nowDateStr; // استخدام التاريخ الحالي كنص
+      } else {
+        requestDate = date; // استخدام التاريخ المطلوب كما هو
+      }
+    } else {
+      // إذا لم يتم تمرير تاريخ، استخدم التاريخ الحالي
+      requestDate = nowDateStr;
+    }
+    
+    console.log('3. Using date:', requestDate);
+    console.log('3.1 Now date:', nowDateStr);
+    // ==== END: الكود المعدل الجديد ====
 
     // الحصول على مؤسسة المدير
     console.log('4. Fetching manager with institution...');
@@ -496,7 +553,7 @@ exports.getAvailableSpecialists = async (req, res) => {
             name: generalSessionType.name,
             duration: generalSessionType.duration
           },
-          requested_date: requestDate.toISOString().split('T')[0],
+          requested_date: requestDate, // تغيير هنا: requestDate بدلاً من requestDate.toISOString().split('T')[0]
           closest_available_slot: null,
           available_days: [],
           total_available_slots: 0,
@@ -507,7 +564,6 @@ exports.getAvailableSpecialists = async (req, res) => {
     }
 
     const specialistIds = specialists.map(spec => spec.specialist_id);
-    const now = new Date();
     
     // ====== دالة مساعدة: تحويل الوقت إلى تنسيق مناسب ======
     const formatTime = (timeString) => {
@@ -523,8 +579,11 @@ exports.getAvailableSpecialists = async (req, res) => {
       const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       const results = [];
       
+      // تحويل startDate من نص (YYYY-MM-DD) إلى كائن Date
+      const baseDate = new Date(startDate);
+      
       for (let i = 0; i < daysToCheck; i++) {
-        const checkDate = new Date(startDate);
+        const checkDate = new Date(baseDate);
         checkDate.setDate(checkDate.getDate() + i);
         const dateStr = checkDate.toISOString().split('T')[0];
         const dayOfWeek = days[checkDate.getDay()];
@@ -590,17 +649,19 @@ exports.getAvailableSpecialists = async (req, res) => {
                 );
               });
               
-              // التحقق إذا كان الوقت في المستقبل
-              const isSameDay = currentTime.getDate() === now.getDate() && 
-                               currentTime.getMonth() === now.getMonth() && 
-                               currentTime.getFullYear() === now.getFullYear();
+              // التحقق إذا كان الوقت في المستقبل (بما في ذلك اليوم الحالي)
+              const currentDateTime = new Date();
+              const isSameDay = currentTime.getDate() === currentDateTime.getDate() && 
+                               currentTime.getMonth() === currentDateTime.getMonth() && 
+                               currentTime.getFullYear() === currentDateTime.getFullYear();
               
-              let isFuture = true;
+              let isFutureOrCurrent = true;
               if (isSameDay) {
-                isFuture = currentTime > now;
+                // إذا كان نفس اليوم، نتحقق إذا كان الوقت الحالي أقل من وقت الموعد
+                isFutureOrCurrent = currentTime > currentDateTime;
               }
               
-              if (!isOccupied && slotEnd <= scheduleEndTime && isFuture) {
+              if (!isOccupied && slotEnd <= scheduleEndTime && isFutureOrCurrent) {
                 availableSlotsForDate.push({
                   date: dateStr,
                   display_date: checkDate.toLocaleDateString('en-US', { 
@@ -701,8 +762,8 @@ exports.getAvailableSpecialists = async (req, res) => {
       return results;
     };
 
-    // البحث عن جميع المواعيد المتاحة خلال 14 يوم
-    console.log('10. Searching for available slots in next 14 days...');
+    // البحث عن المواعيد المتاحة
+    console.log('10. Searching for available slots starting from:', requestDate);
     const allAvailableDays = await findAllAvailableSlots(specialistIds, requestDate, 14);
     
     console.log('11. Found days with available slots:', allAvailableDays.length);
@@ -739,7 +800,7 @@ exports.getAvailableSpecialists = async (req, res) => {
           name: generalSessionType.name,
           duration: generalSessionType.duration
         },
-        requested_date: requestDate.toISOString().split('T')[0],
+        requested_date: requestDate, // تغيير هنا: requestDate بدلاً من requestDate.toISOString().split('T')[0]
         closest_available_slot: closestSlotInfo,
         available_days: allAvailableDays,
         total_available_days: allAvailableDays.length,

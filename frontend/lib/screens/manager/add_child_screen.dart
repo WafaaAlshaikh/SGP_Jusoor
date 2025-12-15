@@ -3,6 +3,8 @@ import '../../services/manager_children_service.dart';
 import '../../theme/app_colors.dart';
 import 'package:intl/intl.dart';
 import '../map_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
 
 class AddChildScreen extends StatefulWidget {
   @override
@@ -17,6 +19,11 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
   Map<String, dynamic>? _selectedParent;
   List<Map<String, dynamic>> _parentsList = [];
   bool _loadingParents = false;
+
+  // FCM Tokens
+  String? _fcmToken; // التوكن الرئيسي للمستخدم الحالي
+  String? _parentFcmToken; // توكن الأب المختار
+  String? _specialistFcmToken; // توكن الأخصائي المختار
 
   // Parent form
   final GlobalKey<FormState> _parentFormKey = GlobalKey<FormState>();
@@ -63,6 +70,7 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _loadParents();
+    _getFCMToken(); // تحميل التوكن عند بدء الشاشة
 
     // تحميل الأخصائيين المتاحين مع التاريخ الحالي
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -89,6 +97,132 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
     super.dispose();
   }
 
+  // 🔥 دالة تحميل التوكن من SharedPreferences
+  Future<void> _getFCMToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('fcm_token');
+
+      if (token != null) {
+        setState(() {
+          _fcmToken = token;
+        });
+        print('📱 FCM Token loaded: ${token.substring(0, 20)}...');
+      } else {
+        print('⚠️ No FCM token found in SharedPreferences');
+
+      }
+    } catch (e) {
+      print('❌ Error getting FCM token: $e');
+    }
+  }
+
+  // 🔄 دالة تجديد التوكن
+  Future<void> _refreshFCMToken() async {
+    try {
+      print('🔄 Refreshing FCM token...');
+      final prefs = await SharedPreferences.getInstance();
+
+      if (_fcmToken != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ FCM token is ready for testing'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Error refreshing FCM token: $e');
+    }
+  }
+
+  // 👇 عند اختيار أب موجود، حفظ التوكن
+  void _onParentSelected(Map<String, dynamic> parent) {
+    print('👨‍👦 Parent selected: ${parent['user']['full_name']}');
+
+    setState(() {
+      _selectedParent = parent;
+    });
+
+    // استخدام التوكن الأساسي للأب
+    _fetchParentFCMToken(parent['parent_id']);
+  }
+
+  Future<void> _fetchParentFCMToken(int parentId) async {
+    try {
+      // في الحقيقة، يجب جلب التوكن من الباك-إند
+      // لكن للاختبار، نستخدم التوكن الحالي
+      if (_fcmToken != null) {
+        setState(() {
+          _parentFcmToken = _fcmToken;
+        });
+        print('📱 Using current FCM token for parent notification');
+
+      } else {
+        print('⚠️ No FCM token available for parent');
+      }
+    } catch (e) {
+      print('⚠️ Could not fetch parent FCM token: $e');
+    }
+  }
+
+  // 👇 عند اختيار أخصائي، حفظ التوكن
+  void _onSpecialistSelected(Map<String, dynamic> specialist) {
+    print('👨‍⚕️ Specialist selected: ${specialist['name']}');
+
+    setState(() {
+      _selectedSpecialist = specialist;
+    });
+
+    // استخدام التوكن الأساسي للأخصائي
+    _fetchSpecialistFCMToken(specialist['id']);
+  }
+
+  Future<void> _fetchSpecialistFCMToken(int specialistId) async {
+    try {
+      // للاختبار، استخدم التوكن الحالي
+      if (_fcmToken != null) {
+        setState(() {
+          _specialistFcmToken = _fcmToken;
+        });
+        print('📱 Using current FCM token for specialist notification');
+
+
+      }
+    } catch (e) {
+      print('⚠️ Could not fetch specialist FCM token: $e');
+    }
+  }
+
+  // 🧪 دالة اختبار إرسال إشعار مباشر
+  Future<void> _testDirectNotification() async {
+    if (_fcmToken == null) {
+      _showErrorSnackBar('No FCM token available');
+      return;
+    }
+
+    try {
+      print('🧪 Testing direct notification...');
+      print('📱 Token: ${_fcmToken!.substring(0, 20)}...');
+
+      final result = await ManagerChildrenService.sendNotification(
+        token: _fcmToken!,
+        title: 'اختبار مباشر من التطبيق',
+        body: 'إذا شفت هذا الإشعار، فالنظام شغال',
+        data: {
+          'type': 'test',
+          'childName': 'Test Child',
+          'timestamp': DateTime.now().toString(),
+        },
+      );
+
+
+    } catch (e) {
+      print('❌ Error in test notification: $e');
+      _showErrorSnackBar('خطأ: ${e.toString()}');
+    }
+  }
+
   // دالة لفتح الخريطة
   Future<void> _openMapScreen() async {
     print('🗺️ Opening map for location selection...');
@@ -108,7 +242,7 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
       ),
     );
 
-    // الدعم للـ backward compatibility (إذا لم يتم استخدام callback)
+    // الدعم للـ backward compatibility
     if (result != null && result is Map) {
       final lat = result['lat'];
       final lng = result['lng'];
@@ -449,6 +583,7 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
     return true;
   }
 
+  // 🔥 دالة إرسال النموذج المعدلة مع الإشعارات
   Future<void> _submitForm() async {
     if (!_validateForms()) return;
 
@@ -458,10 +593,15 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
 
     try {
       Map<String, dynamic> parentData;
+      String? parentTokenToUse;
+
       if (_parentSelection == 'existing' && _selectedParent != null) {
         parentData = {
           'parent_id': _selectedParent!['parent_id'],
         };
+        // 👇 استخدم التوكن المخزن للأب
+        parentTokenToUse = _parentFcmToken ?? _fcmToken;
+        print('👨‍👦 Using FCM token for parent: ${parentTokenToUse != null}');
       } else {
         if (!_parentFormKey.currentState!.validate()) {
           setState(() {
@@ -478,14 +618,13 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
           'address': _parentAddressController.text.trim(),
           'occupation': _parentOccupationController.text.trim(),
         };
+        // الأب الجديد ما عندنا توكن له
       }
 
-      // بناء بيانات الطفل مع إضافة إحداثيات الموقع إذا تم اختيارها
       final childData = {
         'full_name': _childNameController.text.trim(),
         'date_of_birth': _childBirthDateController.text,
         'gender': _selectedGender,
-        // إضافة إحداثيات الموقع إذا تم اختيارها
         'latitude': _selectedLocationLat,
         'longitude': _selectedLocationLng,
         'address': _childAddressController.text.trim().isNotEmpty
@@ -506,6 +645,8 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
       };
 
       Map<String, dynamic>? sessionData;
+      String? specialistTokenToUse;
+
       if (_bookSession && _selectedDate != null && _selectedSlot != null && _selectedSpecialist != null) {
         sessionData = {
           'book_session': true,
@@ -516,12 +657,25 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
               ? _sessionNotesController.text.trim()
               : null,
         };
+
+        // 👇 استخدم التوكن المخزن للأخصائي
+        specialistTokenToUse = _specialistFcmToken ?? _fcmToken;
+        print('👨‍⚕️ Using FCM token for specialist: ${specialistTokenToUse != null}');
       }
 
+      // 👇 طبع معلومات التوكنات
+      print('📤 FCM Tokens Summary:');
+      print('   - Main Token: ${_fcmToken != null ? "Available" : "Not available"}');
+      print('   - Parent Token to use: ${parentTokenToUse != null ? "Available" : "Not available"}');
+      print('   - Specialist Token to use: ${specialistTokenToUse != null ? "Available" : "Not available"}');
+
+      // 👇 استدعاء الـ API المعدل
       final response = await ManagerChildrenService.addNewChild(
         parentData: parentData,
         childData: childData,
         sessionData: sessionData,
+        parentFcmToken: parentTokenToUse,
+        specialistFcmToken: specialistTokenToUse,
       );
 
       if (response['success'] == true) {
@@ -530,10 +684,13 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
         });
 
         _showSuccessDialog();
+
+
       } else {
         _showErrorSnackBar(response['message'] ?? 'Failed to add child');
       }
     } catch (e) {
+      print('❌ Error in submit form: $e');
       _showErrorSnackBar(e.toString());
     } finally {
       setState(() {
@@ -587,6 +744,8 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
                 _buildResultItem('New Parent', 'Yes - Email sent'),
               if (_submissionResult!['session'] != null)
                 _buildResultItem('Session Booked', 'Yes'),
+              if (_fcmToken != null)
+                _buildResultItem('Notifications', 'Sent to users'),
             ],
           ],
         ),
@@ -680,6 +839,8 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
       _availableDays = [];
       _sessionNotesController.clear();
       _submissionResult = null;
+      _parentFcmToken = null;
+      _specialistFcmToken = null;
       _tabController.animateTo(0);
     });
 
@@ -889,16 +1050,13 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
                       value: parent,
                       groupValue: _selectedParent,
                       onChanged: (value) {
-                        setState(() {
-                          _selectedParent = value;
-                        });
+                        _onParentSelected(value!);
                       },
                       activeColor: AppColors.primary,
                     ),
+                    // 👇 التعديل المهم هنا
                     onTap: () {
-                      setState(() {
-                        _selectedParent = parent;
-                      });
+                      _onParentSelected(parent);
                     },
                     tileColor: _selectedParent?['parent_id'] == parent['parent_id']
                         ? AppColors.accent1
@@ -1580,6 +1738,7 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              /// ===================== HEADER (FIXED) =====================
                               Container(
                                 padding: EdgeInsets.all(12),
                                 decoration: BoxDecoration(
@@ -1590,22 +1749,34 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
                                   children: [
                                     Icon(Icons.calendar_today, size: 16, color: AppColors.primary),
                                     SizedBox(width: 8),
-                                    Text(
-                                      DateFormat('EEEE, MMMM d, yyyy').format(DateTime.parse(day['date'])),
-                                      style: TextStyle(color: AppColors.textDark),
+
+                                    /// ⭐ FIX: Expanded prevents overflow
+                                    Expanded(
+                                      child: Text(
+                                        DateFormat('EEEE, MMMM d, yyyy')
+                                            .format(DateTime.parse(day['date'])),
+                                        style: TextStyle(color: AppColors.textDark),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     ),
-                                    SizedBox(width: 16),
+
+                                    SizedBox(width: 12),
+
                                     Icon(Icons.access_time, size: 16, color: AppColors.primary),
-                                    SizedBox(width: 8),
+                                    SizedBox(width: 6),
+
                                     Text(
-                                      '${day['available_slots_count']} slots available',
+                                      '${day['available_slots_count']} slots',
                                       style: TextStyle(color: AppColors.textDark),
                                     ),
                                   ],
                                 ),
                               ),
+
                               SizedBox(height: 16),
 
+                              /// ===================== TITLE =====================
                               Text(
                                 'Available Specialists:',
                                 style: TextStyle(
@@ -1616,10 +1787,13 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
                               ),
                               SizedBox(height: 12),
 
+                              /// ===================== SPECIALISTS =====================
                               ...specialists.map((specialist) {
-                                final isSpecSelected = _selectedSpecialist?['id'] == specialist['id'];
+                                final isSpecSelected =
+                                    _selectedSpecialist?['id'] == specialist['id'];
+
                                 final slots = List<Map<String, dynamic>>.from(
-                                    specialist['available_slots'] ?? []
+                                  specialist['available_slots'] ?? [],
                                 );
 
                                 return Card(
@@ -1629,7 +1803,8 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(8),
                                     side: BorderSide(
-                                      color: isSpecSelected ? AppColors.primary : Colors.transparent,
+                                      color:
+                                      isSpecSelected ? AppColors.primary : Colors.transparent,
                                       width: 1,
                                     ),
                                   ),
@@ -1668,35 +1843,50 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
                                       ),
                                     ),
                                     trailing: Icon(
-                                      isSpecSelected ? Icons.check_circle : Icons.radio_button_unchecked,
-                                      color: isSpecSelected ? AppColors.primary : AppColors.textLight,
+                                      isSpecSelected
+                                          ? Icons.check_circle
+                                          : Icons.radio_button_unchecked,
+                                      color: isSpecSelected
+                                          ? AppColors.primary
+                                          : AppColors.textLight,
                                     ),
                                     onExpansionChanged: (expanded) {
                                       if (expanded) {
                                         setState(() {
                                           _selectedSpecialist = specialist;
+                                          // 👇 التعديل المهم هنا
+                                          _onSpecialistSelected(specialist);
                                         });
                                       }
                                     },
+
+                                    /// ===================== EXPANDED CONTENT =====================
                                     children: [
                                       Padding(
-                                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                        padding:
+                                        EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
+                                            /// INFO ROW
                                             Row(
                                               children: [
-                                                Icon(Icons.work, size: 14, color: AppColors.primary),
+                                                Icon(Icons.work,
+                                                    size: 14, color: AppColors.primary),
                                                 SizedBox(width: 8),
-                                                Text(
-                                                  specialist['specialization'] ?? 'General',
-                                                  style: TextStyle(
-                                                    color: AppColors.textDark,
-                                                    fontSize: 12,
+                                                Expanded(
+                                                  child: Text(
+                                                    specialist['specialization'] ?? 'General',
+                                                    style: TextStyle(
+                                                      color: AppColors.textDark,
+                                                      fontSize: 12,
+                                                    ),
+                                                    overflow: TextOverflow.ellipsis,
                                                   ),
                                                 ),
                                                 SizedBox(width: 16),
-                                                Icon(Icons.star, size: 14, color: AppColors.primary),
+                                                Icon(Icons.star,
+                                                    size: 14, color: AppColors.primary),
                                                 SizedBox(width: 8),
                                                 Text(
                                                   '${specialist['years_experience'] ?? 0} yrs exp',
@@ -1707,6 +1897,7 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
                                                 ),
                                               ],
                                             ),
+
                                             SizedBox(height: 12),
 
                                             Text(
@@ -1719,30 +1910,37 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
                                             ),
                                             SizedBox(height: 8),
 
+                                            /// ===================== SLOTS =====================
                                             Wrap(
                                               spacing: 8,
                                               runSpacing: 8,
                                               children: slots.map((slot) {
-                                                final isSlotSelected = _selectedSlot?['start_time'] ==
-                                                    slot['start_time'] &&
-                                                    _selectedSpecialist?['id'] == specialist['id'];
+                                                final isSlotSelected =
+                                                    _selectedSlot?['start_time'] ==
+                                                        slot['start_time'] &&
+                                                        _selectedSpecialist?['id'] ==
+                                                            specialist['id'];
 
                                                 return GestureDetector(
                                                   onTap: () {
                                                     setState(() {
                                                       _selectedSlot = slot;
                                                       _selectedSpecialist = specialist;
-                                                      _selectedTime = '${slot['display_start_time']} - ${slot['display_end_time']}';
-                                                      _selectedDate = DateTime.parse(day['date']);
+                                                      _selectedTime =
+                                                      '${slot['display_start_time']} - ${slot['display_end_time']}';
+                                                      _selectedDate =
+                                                          DateTime.parse(day['date']);
                                                     });
                                                   },
                                                   child: Container(
-                                                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                                    padding: EdgeInsets.symmetric(
+                                                        horizontal: 16, vertical: 10),
                                                     decoration: BoxDecoration(
                                                       color: isSlotSelected
                                                           ? AppColors.primary
                                                           : AppColors.card,
-                                                      borderRadius: BorderRadius.circular(8),
+                                                      borderRadius:
+                                                      BorderRadius.circular(8),
                                                       border: Border.all(
                                                         color: isSlotSelected
                                                             ? AppColors.primary
@@ -1758,16 +1956,16 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
                                                                 ? AppColors.textWhite
                                                                 : AppColors.textDark,
                                                             fontWeight: FontWeight.w600,
-                                                            fontSize: 14,
                                                           ),
                                                         ),
                                                         Text(
                                                           'to',
                                                           style: TextStyle(
-                                                            color: isSlotSelected
-                                                                ? AppColors.textWhite.withOpacity(0.8)
-                                                                : AppColors.textGray,
                                                             fontSize: 10,
+                                                            color: isSlotSelected
+                                                                ? AppColors.textWhite
+                                                                .withOpacity(0.8)
+                                                                : AppColors.textGray,
                                                           ),
                                                         ),
                                                         Text(
@@ -1777,7 +1975,6 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
                                                                 ? AppColors.textWhite
                                                                 : AppColors.textDark,
                                                             fontWeight: FontWeight.w600,
-                                                            fontSize: 14,
                                                           ),
                                                         ),
                                                       ],
@@ -1787,47 +1984,49 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
                                               }).toList(),
                                             ),
 
-                                            if (_selectedSpecialist?['id'] == specialist['id'] && _selectedSlot != null)
+                                            /// ===================== SELECTED INFO =====================
+                                            if (_selectedSpecialist?['id'] ==
+                                                specialist['id'] &&
+                                                _selectedSlot != null)
                                               Container(
                                                 margin: EdgeInsets.only(top: 16),
                                                 padding: EdgeInsets.all(12),
                                                 decoration: BoxDecoration(
                                                   color: AppColors.success.withOpacity(0.1),
-                                                  borderRadius: BorderRadius.circular(8),
+                                                  borderRadius:
+                                                  BorderRadius.circular(8),
                                                   border: Border.all(
-                                                    color: AppColors.success.withOpacity(0.3),
+                                                    color:
+                                                    AppColors.success.withOpacity(0.3),
                                                   ),
                                                 ),
                                                 child: Row(
                                                   children: [
-                                                    Icon(Icons.check_circle, color: AppColors.success, size: 20),
+                                                    Icon(Icons.check_circle,
+                                                        color: AppColors.success,
+                                                        size: 20),
                                                     SizedBox(width: 12),
                                                     Expanded(
                                                       child: Column(
-                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                                        crossAxisAlignment:
+                                                        CrossAxisAlignment.start,
                                                         children: [
                                                           Text(
                                                             'Selected Appointment',
                                                             style: TextStyle(
                                                               fontWeight: FontWeight.w600,
                                                               color: AppColors.success,
-                                                              fontSize: 14,
                                                             ),
                                                           ),
-                                                          SizedBox(height: 2),
                                                           Text(
                                                             '${DateFormat('EEEE, MMMM d').format(DateTime.parse(day['date']))} • ${_selectedSlot!['display_start_time']} - ${_selectedSlot!['display_end_time']}',
-                                                            style: TextStyle(
-                                                              color: AppColors.textDark,
-                                                              fontSize: 13,
-                                                            ),
+                                                            style: TextStyle(fontSize: 13),
                                                           ),
-                                                          SizedBox(height: 2),
                                                           Text(
                                                             'With ${specialist['name']}',
                                                             style: TextStyle(
-                                                              color: AppColors.textGray,
                                                               fontSize: 12,
+                                                              color: AppColors.textGray,
                                                             ),
                                                           ),
                                                         ],
@@ -1847,6 +2046,7 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
                           ),
                         ),
                       ],
+
                     ),
                   );
                 }).toList(),
@@ -2052,6 +2252,7 @@ class _AddChildScreenState extends State<AddChildScreen> with SingleTickerProvid
               fontWeight: FontWeight.bold,
             ),
           ),
+
           bottom: TabBar(
             controller: _tabController,
             indicatorColor: AppColors.yal,

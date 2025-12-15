@@ -167,11 +167,11 @@ class CompleteNotificationService {
     print('📱 إشعار في المقدمة: ${message.messageId}');
 
     // إذا التطبيق في المقدمة، ما نعرض إشعار نظام
-    if (_isAppInForeground) {
-      await _showInAppNotification(message);
-    } else {
+    // if (_isAppInForeground) {
+    //   await _showInAppNotification(message);
+    // } else {
       await _showSystemNotification(message);
-    }
+    // }
   }
 
   // 👆 معالجة الإشعارات عند الضغط
