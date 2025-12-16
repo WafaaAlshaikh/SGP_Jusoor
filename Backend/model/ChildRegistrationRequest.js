@@ -11,6 +11,15 @@ const ChildRegistrationRequest = sequelize.define('ChildRegistrationRequest', {
   requested_by_parent_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
   assigned_manager_id: { type: DataTypes.BIGINT.UNSIGNED },
   status: { type: DataTypes.ENUM('Pending', 'Approved', 'Rejected'), defaultValue: 'Pending' },
+  // 🔧 NEW: Campo para asistencia financiera
+  financial_assistance_request_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'FinancialAssistanceRequest',
+      key: 'request_id'
+    }
+  },
   notes: { type: DataTypes.TEXT },
   requested_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
   reviewed_at: { type: DataTypes.DATE }
@@ -21,5 +30,10 @@ ChildRegistrationRequest.belongsTo(Institution, { foreignKey: 'institution_id' }
 ChildRegistrationRequest.belongsTo(User, { foreignKey: 'requested_by_parent_id', as: 'requestedByParent' });
 ChildRegistrationRequest.belongsTo(User, { foreignKey: 'assigned_manager_id', as: 'assignedManager' });
 
-module.exports = ChildRegistrationRequest;
+// 🔧 NEW: Relación con FinancialAssistanceRequest
+ChildRegistrationRequest.belongsTo(require('./FinancialAssistanceRequest'), { 
+  foreignKey: 'financial_assistance_request_id',
+  as: 'FinancialAssistanceRequest'
+});
 
+module.exports = ChildRegistrationRequest;

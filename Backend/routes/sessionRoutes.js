@@ -11,7 +11,9 @@ const {
   cancelSession,
   rateSession,
   getAllSessions,
-  processPayment // ⬅️ تأكد من استيرادها
+  processPayment, // تأكد من استيرادها
+  parentConfirmAutoSession,
+  parentSessionDecision
 } = require('../controllers/sessionController');
 
 // إزالة processPayment من هنا لأنه غير موجود في sessionController
@@ -29,5 +31,7 @@ router.patch('/sessions/:id/confirm', authMiddleware, confirmSession);
 router.patch('/sessions/:id/cancel', authMiddleware, cancelSession);
 router.post('/sessions/:id/rate', authMiddleware, rateSession);
 router.get('/child-sessions/:childId', authMiddleware, getChildSessions);
+router.post('/sessions/:id/confirm-auto', authMiddleware, parentConfirmAutoSession);
+router.post('/sessions/:id/decision', authMiddleware, parentSessionDecision);
 
 module.exports = router;

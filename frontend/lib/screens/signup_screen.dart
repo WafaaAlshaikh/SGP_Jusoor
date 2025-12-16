@@ -82,50 +82,49 @@ class _SignupScreenState extends State<SignupScreen> {
   void _showLocationErrorDialog(Map<String, dynamic> errorResult) {
     showDialog(
       context: context,
-      builder: (context) =>
-          AlertDialog(
-            title: Text('Location Error'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(errorResult['message'] ?? 'An error occurred'),
-                SizedBox(height: 16),
-                if (errorResult['error'] == 'Location permission denied')
-                  Text(
-                    'To fix this:\n1. Go to Settings → Apps → Your App\n2. Tap Permissions\n3. Allow Location access',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                if (errorResult['error'] == 'Location services disabled')
-                  Text(
-                    'To fix this:\n1. Go to Settings → Location\n2. Turn on Location services',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('Cancel'),
+      builder: (context) => AlertDialog(
+        title: Text('Location Error'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(errorResult['message'] ?? 'An error occurred'),
+            SizedBox(height: 16),
+            if (errorResult['error'] == 'Location permission denied')
+              Text(
+                'To fix this:\n1. Go to Settings → Apps → Your App\n2. Tap Permissions\n3. Allow Location access',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
-              if (errorResult['error'] == 'Location permission denied')
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    LocationService.openAppSettings();
-                  },
-                  child: Text('Open Settings'),
-                ),
-              if (errorResult['error'] == 'Location services disabled')
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    LocationService.openLocationSettings();
-                  },
-                  child: Text('Enable Location'),
-                ),
-            ],
+            if (errorResult['error'] == 'Location services disabled')
+              Text(
+                'To fix this:\n1. Go to Settings → Location\n2. Turn on Location services',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel'),
           ),
+          if (errorResult['error'] == 'Location permission denied')
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                LocationService.openAppSettings();
+              },
+              child: Text('Open Settings'),
+            ),
+          if (errorResult['error'] == 'Location services disabled')
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                LocationService.openLocationSettings();
+              },
+              child: Text('Enable Location'),
+            ),
+        ],
+      ),
     );
   }
 
@@ -139,8 +138,8 @@ class _SignupScreenState extends State<SignupScreen> {
               decoration: InputDecoration(
                 labelText: 'Address',
                 prefixIcon: Icon(Icons.home_outlined, color: AppColors.primary),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
               onChanged: (val) => address = val,
             ),
@@ -149,8 +148,8 @@ class _SignupScreenState extends State<SignupScreen> {
               decoration: InputDecoration(
                 labelText: 'Occupation',
                 prefixIcon: Icon(Icons.work_outline, color: AppColors.primary),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
               onChanged: (val) => occupation = val,
             ),
@@ -164,10 +163,10 @@ class _SignupScreenState extends State<SignupScreen> {
             TextFormField(
               decoration: InputDecoration(
                 labelText: 'Specialization',
-                prefixIcon: Icon(
-                    Icons.medical_services_outlined, color: AppColors.primary),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                prefixIcon: Icon(Icons.medical_services_outlined,
+                    color: AppColors.primary),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
               onChanged: (val) => specialization = val,
             ),
@@ -175,10 +174,10 @@ class _SignupScreenState extends State<SignupScreen> {
             TextFormField(
               decoration: InputDecoration(
                 labelText: 'Years of Experience',
-                prefixIcon: Icon(
-                    Icons.timeline_outlined, color: AppColors.primary),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                prefixIcon:
+                    Icon(Icons.timeline_outlined, color: AppColors.primary),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
               keyboardType: TextInputType.number,
               onChanged: (val) => yearsExperience = int.tryParse(val),
@@ -187,10 +186,10 @@ class _SignupScreenState extends State<SignupScreen> {
             TextFormField(
               decoration: InputDecoration(
                 labelText: 'Institution ID (Optional)',
-                prefixIcon: Icon(
-                    Icons.business_outlined, color: AppColors.primary),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                prefixIcon:
+                    Icon(Icons.business_outlined, color: AppColors.primary),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
               keyboardType: TextInputType.number,
               onChanged: (val) => institutionId = val,
@@ -206,8 +205,8 @@ class _SignupScreenState extends State<SignupScreen> {
               decoration: InputDecoration(
                 labelText: 'Institution Name *',
                 prefixIcon: Icon(Icons.business, color: AppColors.primary),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
               onChanged: (val) => institutionName = val,
               validator: (val) => val!.isEmpty ? 'Required for Manager' : null,
@@ -216,10 +215,10 @@ class _SignupScreenState extends State<SignupScreen> {
             TextFormField(
               decoration: InputDecoration(
                 labelText: 'Institution Contact Email *',
-                prefixIcon: Icon(
-                    Icons.email_outlined, color: AppColors.primary),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                prefixIcon:
+                    Icon(Icons.email_outlined, color: AppColors.primary),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
               keyboardType: TextInputType.emailAddress,
               onChanged: (val) => institutionContactEmail = val,
@@ -234,10 +233,10 @@ class _SignupScreenState extends State<SignupScreen> {
             TextFormField(
               decoration: InputDecoration(
                 labelText: 'Institution Contact Phone *',
-                prefixIcon: Icon(
-                    Icons.phone_outlined, color: AppColors.primary),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                prefixIcon:
+                    Icon(Icons.phone_outlined, color: AppColors.primary),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
               keyboardType: TextInputType.phone,
               onChanged: (val) => institutionContactPhone = val,
@@ -247,10 +246,10 @@ class _SignupScreenState extends State<SignupScreen> {
             TextFormField(
               decoration: InputDecoration(
                 labelText: 'License Number (Optional)',
-                prefixIcon: Icon(
-                    Icons.badge_outlined, color: AppColors.primary),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                prefixIcon:
+                    Icon(Icons.badge_outlined, color: AppColors.primary),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
               onChanged: (val) => institutionLicense = val,
             ),
@@ -258,14 +257,14 @@ class _SignupScreenState extends State<SignupScreen> {
             TextFormField(
               decoration: InputDecoration(
                 labelText: 'Established Year (Optional)',
-                prefixIcon: Icon(
-                    Icons.calendar_today_outlined, color: AppColors.primary),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                prefixIcon: Icon(Icons.calendar_today_outlined,
+                    color: AppColors.primary),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
               keyboardType: TextInputType.number,
               onChanged: (val) =>
-              institutionEstablishedYear = int.tryParse(val),
+                  institutionEstablishedYear = int.tryParse(val),
             ),
             SizedBox(height: 16),
             Container(
@@ -383,13 +382,11 @@ class _SignupScreenState extends State<SignupScreen> {
       'role': role,
       'phone': phone,
       'profile_picture': profilePicture,
-
       'location_lat': locationData['lat'],
       'location_lng': locationData['lng'],
       'location_address': locationData['address'],
       'city': locationData['city'],
       'region': locationData['region'],
-
       if (role == 'Parent') ...{
         'address': address ?? locationData['address'],
         'occupation': occupation,
@@ -492,8 +489,8 @@ class _SignupScreenState extends State<SignupScreen> {
           decoration: InputDecoration(
             labelText: 'Location Address',
             hintText: 'Enter your address or select from map',
-            prefixIcon: Icon(
-                Icons.location_on_outlined, color: AppColors.primary),
+            prefixIcon:
+                Icon(Icons.location_on_outlined, color: AppColors.primary),
             suffixIcon: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -505,10 +502,10 @@ class _SignupScreenState extends State<SignupScreen> {
                 IconButton(
                   icon: isGettingLocation
                       ? SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : Icon(Icons.my_location),
                   onPressed: getCurrentLocation,
                   tooltip: 'Use current location',
@@ -567,16 +564,14 @@ class _SignupScreenState extends State<SignupScreen> {
                       SizedBox(height: 4),
                       Text(
                         userLocation!['address'] ?? 'Unknown address',
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.green[700]),
+                        style:
+                            TextStyle(fontSize: 12, color: Colors.green[700]),
                       ),
                       if (userLocation!['lat'] != null)
                         Text(
-                          'Lat: ${userLocation!['lat']!.toStringAsFixed(
-                              4)}, Lng: ${userLocation!['lng']!.toStringAsFixed(
-                              4)}',
-                          style: TextStyle(fontSize: 10, color: Colors
-                              .green[600]),
+                          'Lat: ${userLocation!['lat']!.toStringAsFixed(4)}, Lng: ${userLocation!['lng']!.toStringAsFixed(4)}',
+                          style:
+                              TextStyle(fontSize: 10, color: Colors.green[600]),
                         ),
                     ],
                   ),
@@ -615,12 +610,11 @@ class _SignupScreenState extends State<SignupScreen> {
       final result = await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) =>
-              MapScreen(
-                initialLat: userLocation?['lat'],
-                initialLng: userLocation?['lng'],
-                initialAddress: userLocation?['address'],
-              ),
+          builder: (context) => MapScreen(
+            initialLat: userLocation?['lat'],
+            initialLng: userLocation?['lng'],
+            initialAddress: userLocation?['address'],
+          ),
         ),
       );
 
@@ -630,8 +624,8 @@ class _SignupScreenState extends State<SignupScreen> {
             'lat': result['lat'],
             'lng': result['lng'],
             'address': result['address'],
-            'city': result['city'] ??
-                _extractCityFromAddress(result['address']),
+            'city':
+                result['city'] ?? _extractCityFromAddress(result['address']),
             'region': result['region'] ??
                 _extractRegionFromAddress(result['address']),
           };
@@ -676,10 +670,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isWeb = MediaQuery
-        .of(context)
-        .size
-        .width > 600;
+    final bool isWeb = MediaQuery.of(context).size.width > 600;
 
     return Scaffold(
       backgroundColor: AppColors.backgroundColor,
@@ -701,10 +692,7 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   Widget _buildOTPScreen() {
-    final bool isWeb = MediaQuery
-        .of(context)
-        .size
-        .width > 600;
+    final bool isWeb = MediaQuery.of(context).size.width > 600;
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -769,8 +757,8 @@ class _SignupScreenState extends State<SignupScreen> {
                   decoration: InputDecoration(
                     labelText: 'OTP Code',
                     hintText: 'Enter 6-digit code',
-                    prefixIcon: Icon(
-                        Icons.lock_outline, color: AppColors.primary),
+                    prefixIcon:
+                        Icon(Icons.lock_outline, color: AppColors.primary),
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12)),
                   ),
@@ -778,9 +766,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   maxLength: 6,
                   onChanged: (val) => otp = val,
                   validator: (val) =>
-                  val!.length != 6
-                      ? 'Enter 6-digit code'
-                      : null,
+                      val!.length != 6 ? 'Enter 6-digit code' : null,
                 ),
                 SizedBox(height: 24),
 
@@ -810,18 +796,19 @@ class _SignupScreenState extends State<SignupScreen> {
                     onPressed: isLoading ? null : verifyOTP,
                     child: isLoading
                         ? SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(color: Colors.white),
-                    )
+                            width: 20,
+                            height: 20,
+                            child:
+                                CircularProgressIndicator(color: Colors.white),
+                          )
                         : Text(
-                      'Verify & Complete Signup',
-                      style: TextStyle(
-                        fontSize: isWeb ? 16 : 14,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                            'Verify & Complete Signup',
+                            style: TextStyle(
+                              fontSize: isWeb ? 16 : 14,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                   ),
                 ),
                 SizedBox(height: 16),
@@ -846,10 +833,7 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   Widget _buildSignupScreen() {
-    final bool isWeb = MediaQuery
-        .of(context)
-        .size
-        .width > 600;
+    final bool isWeb = MediaQuery.of(context).size.width > 600;
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -988,19 +972,20 @@ class _SignupScreenState extends State<SignupScreen> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: AppColors.primary,
-                              width: 2),
+                          borderSide:
+                              BorderSide(color: AppColors.primary, width: 2),
                         ),
                         contentPadding: EdgeInsets.symmetric(
                           horizontal: 16,
                           vertical: isWeb ? 16 : 14,
                         ),
-                        prefixIcon: Icon(
-                            Icons.lock_outline, color: AppColors.primary),
+                        prefixIcon:
+                            Icon(Icons.lock_outline, color: AppColors.primary),
                         suffixIcon: IconButton(
                           icon: Icon(
-                            showPassword ? Icons.visibility_off : Icons
-                                .visibility,
+                            showPassword
+                                ? Icons.visibility_off
+                                : Icons.visibility,
                             color: AppColors.primary,
                           ),
                           onPressed: () =>
@@ -1010,9 +995,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       obscureText: !showPassword,
                       onChanged: (val) => password = val,
                       validator: (val) =>
-                      val!.length < 6
-                          ? 'Minimum 6 characters'
-                          : null,
+                          val!.length < 6 ? 'Minimum 6 characters' : null,
                     ),
                   ],
                 ),
@@ -1045,20 +1028,20 @@ class _SignupScreenState extends State<SignupScreen> {
                     'Manager',
                     'Institution'
                   ]
-                      .map((r) =>
-                      DropdownMenuItem(
-                        value: r,
-                        child: Text(
-                          r,
-                          style: TextStyle(color: AppColors.textDark),
-                        ),
-                      )).toList(),
+                      .map((r) => DropdownMenuItem(
+                            value: r,
+                            child: Text(
+                              r,
+                              style: TextStyle(color: AppColors.textDark),
+                            ),
+                          ))
+                      .toList(),
                   onChanged: (val) => setState(() => role = val!),
                   decoration: InputDecoration(
                     labelText: 'Role',
                     labelStyle: TextStyle(color: AppColors.textDark),
-                    prefixIcon: Icon(
-                        Icons.work_outline, color: AppColors.primary),
+                    prefixIcon:
+                        Icon(Icons.work_outline, color: AppColors.primary),
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12)),
                     enabledBorder: OutlineInputBorder(
@@ -1067,7 +1050,8 @@ class _SignupScreenState extends State<SignupScreen> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                      borderSide:
+                          BorderSide(color: AppColors.primary, width: 2),
                     ),
                   ),
                   dropdownColor: Colors.white,
@@ -1105,18 +1089,19 @@ class _SignupScreenState extends State<SignupScreen> {
                     onPressed: isLoading ? null : submitSignup,
                     child: isLoading
                         ? SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(color: Colors.white),
-                    )
+                            width: 20,
+                            height: 20,
+                            child:
+                                CircularProgressIndicator(color: Colors.white),
+                          )
                         : Text(
-                      'Sign Up',
-                      style: TextStyle(
-                        fontSize: isWeb ? 16 : 14,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                            'Sign Up',
+                            style: TextStyle(
+                              fontSize: isWeb ? 16 : 14,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                   ),
                 ),
                 SizedBox(height: isWeb ? 20 : 16),

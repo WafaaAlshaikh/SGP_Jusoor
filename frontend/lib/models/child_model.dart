@@ -1,4 +1,8 @@
 // models/child_model.dart - النسخة المصححة
+import 'dart:ui';
+
+import 'package:flutter/material.dart';
+
 class Child {
   final int id;
   final String fullName;
@@ -40,6 +44,18 @@ class Child {
   final double? locationLat;
   final double? locationLng;
 
+
+  // NEW: Financial Assistance Fields
+  final bool? financialAssistanceApplied;
+  final double? discountPercentage;
+  final double? originalPrice;
+  final double? finalPrice;
+  final String? paymentStatus;
+  final int? financialAssistanceRequestId;
+
+  final Map<String, dynamic>? institutionContact;
+
+
   Child({
     required this.id,
     required this.fullName,
@@ -78,6 +94,15 @@ class Child {
     this.city,
     this.locationLat,
     this.locationLng,
+
+    // NEW: Financial Assistance Fields
+    this.financialAssistanceApplied,
+    this.discountPercentage,
+    this.originalPrice,
+    this.finalPrice,
+    this.paymentStatus,
+    this.financialAssistanceRequestId,
+    this.institutionContact,
   });
 
   factory Child.fromJson(Map<String, dynamic> json) {
@@ -153,6 +178,7 @@ class Child {
       institutionId: json['institution_id'],
       registrationStatus: json['registration_status'] ?? 'Not Registered',
       currentInstitutionId: json['current_institution_id'],
+      institutionContact: json['currentInstitution']?['contact_info'],
       currentInstitutionName: json['current_institution_name'] ??
           json['currentInstitution']?['name'],
       deletedAt: deletedAt,
@@ -177,6 +203,20 @@ class Child {
       city: json['city'],
       locationLat: json['location_lat'] != null ? (json['location_lat'] is double ? json['location_lat'] : double.tryParse(json['location_lat'].toString())) : null,
       locationLng: json['location_lng'] != null ? (json['location_lng'] is double ? json['location_lng'] : double.tryParse(json['location_lng'].toString())) : null,
+
+      // NEW: Financial Assistance Fields
+      financialAssistanceApplied: json['financial_assistance_applied'] ?? false,
+      discountPercentage: json['applied_discount_percentage'] != null
+          ? double.tryParse(json['applied_discount_percentage'].toString())
+          : null,
+      originalPrice: json['original_price'] != null
+          ? double.tryParse(json['original_price'].toString())
+          : null,
+      finalPrice: json['final_price'] != null
+          ? double.tryParse(json['final_price'].toString())
+          : null,
+      paymentStatus: json['payment_status'],
+      financialAssistanceRequestId: json['financial_assistance_request_id'],
     );
   }
 
@@ -197,6 +237,7 @@ class Child {
       return 0;
     }
   }
+  
 
   Map<String, dynamic> toJson() {
     return {
@@ -266,4 +307,99 @@ class Child {
         aiSuggestedDiagnosis is List &&
         (aiSuggestedDiagnosis as List).isNotEmpty;
   }
+
+String get paymentStatusLabel {
+    switch (paymentStatus) {
+      case 'free_session':
+        return 'Free Session';
+      case 'fully_paid':
+        return 'Paid';
+      case 'partially_paid':
+        return 'Partially Paid';
+      case 'pending':
+        return 'Pending Payment';
+      case 'cancelled':
+        return 'Cancelled';
+      case 'refunded':
+        return 'Refunded';
+      default:
+        return paymentStatus ?? 'Unknown';
+    }
+  }
+
+  Color get paymentStatusColor {
+    switch (paymentStatus) {
+      case 'free_session':
+        return Colors.green;
+      case 'fully_paid':
+        return Colors.green;
+      case 'partially_paid':
+        return Colors.orange;
+      case 'pending':
+        return Colors.amber;
+      case 'cancelled':
+        return Colors.red;
+      case 'refunded':
+        return Colors.grey;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  bool get hasFinancialAssistance {
+    return financialAssistanceApplied == true && discountPercentage != null && discountPercentage! > 0;
+  }
+
+  String get discountText {
+    if (discountPercentage == null || discountPercentage == 0) {
+      return 'No discount';
+    }
+    return '${discountPercentage!.toStringAsFixed(0)}% discount';
+  }
+
+
+// في child_model.dart - إضافة دوال مساعدة للتمويل
+
+// داخل class Child
+
+// دالة للتحقق من أهلية التقييم المالي
+bool get isEligibleForFinancialAssessment {
+  // يكون الطفل مؤهلاً إذا كان مسجلاً في مؤسسة
+  return currentInstitutionId != null && currentInstitutionId != 0;
 }
+
+// دالة للحصول على نص حالة التمويل
+String get financialStatusText {
+  if (!hasFinancialAssistance) return 'No assistance';
+  if (financialAssistanceApplied == true && discountPercentage != null) {
+    return '${discountPercentage!.toStringAsFixed(0)}% discount applied';
+  }
+  return 'Assistance available';
+}
+
+// دالة للحصول على لون حالة التمويل
+Color get financialStatusColor {
+  if (!hasFinancialAssistance) return Colors.grey;
+  if (financialAssistanceApplied == true && discountPercentage != null) {
+    if (discountPercentage! >= 50) return Colors.green;
+    if (discountPercentage! >= 30) return Colors.orange;
+    return Colors.blue;
+  }
+  return Colors.grey;
+}
+
+// دالة للحصول على أيقونة التمويل
+IconData get financialStatusIcon {
+  if (!hasFinancialAssistance) return Icons.money_off;
+  if (financialAssistanceApplied == true && discountPercentage != null) {
+    if (discountPercentage! >= 50) return Icons.attach_money;
+    if (discountPercentage! >= 30) return Icons.monetization_on;
+    return Icons.money;
+  }
+  return Icons.money_off;
+}
+
+
+
+}
+

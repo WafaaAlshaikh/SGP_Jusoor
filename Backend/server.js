@@ -123,6 +123,9 @@ app.use('/api/chat', require('./routes/chatRoutes'));
 // Institution
 app.use('/api', require('./routes/institutionRoutes'));
 
+// Donations
+app.use('/api', require('./routes/donationRoutes'));
+
 // Resources
 app.use('/api', require('./routes/resourceRoutes'));
 
@@ -174,6 +177,16 @@ app.use('/api/ratings', ratingRoutes);
 
 app.use('/api/notifications', require('./routes/notificationRoutes'));
 
+// app.js or server.js
+const financialRoutes = require('./routes/financialRoutes');
+const managerFinancialRoutes = require('./routes/managerFinancialRoutes');
+
+// Add these after other route declarations
+app.use('/api/financial', financialRoutes);
+app.use('/api/manager/financial', managerFinancialRoutes);
+
+const financialReportsRoutes = require('./routes/financialReportsRoutes'); 
+app.use('/api/financial-reports', financialReportsRoutes); // جديد
 
 
 // زيادة حجم الـ payload للصور

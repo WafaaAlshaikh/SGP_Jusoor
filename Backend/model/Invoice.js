@@ -43,6 +43,28 @@ const Invoice = sequelize.define('Invoice', {
     type: DataTypes.DECIMAL(10, 2), 
     allowNull: false 
   },
+  // 🔧 NEW: Campos para asistencia financiera
+  original_amount: { 
+    type: DataTypes.DECIMAL(10, 2), 
+    allowNull: true 
+  },
+  discount_amount: { 
+    type: DataTypes.DECIMAL(10, 2), 
+    defaultValue: 0 
+  },
+  discount_percentage: { 
+    type: DataTypes.DECIMAL(5, 2), 
+    defaultValue: 0 
+  },
+  financial_assistance_request_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'FinancialAssistanceRequest',
+      key: 'request_id'
+    }
+  },
+  // Campos existentes
   tax_amount: { 
     type: DataTypes.DECIMAL(10, 2), 
     defaultValue: 0 
@@ -88,5 +110,10 @@ Invoice.belongsTo(Session, { foreignKey: 'session_id' });
 Invoice.belongsTo(User, { foreignKey: 'parent_id', as: 'parent' });
 Invoice.belongsTo(Institution, { foreignKey: 'institution_id', as: 'institution' });
 
+// 🔧 NEW: Relación con FinancialAssistanceRequest
+Invoice.belongsTo(require('./FinancialAssistanceRequest'), { 
+  foreignKey: 'financial_assistance_request_id',
+  as: 'FinancialAssistanceRequest'
+});
 
 module.exports = Invoice;

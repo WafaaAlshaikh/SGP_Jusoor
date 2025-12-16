@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/screens/financial_assistance_dashboard.dart';
+import 'package:frontend/screens/general_assessment_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_colors.dart';
 import '../services/api_service.dart';
@@ -15,8 +17,12 @@ import 'package:frontend/screens/chat_list_screen.dart';
 import 'community_screen.dart';
 import 'parent_child_evaluations_screen.dart';
 import 'browse_centers_screen.dart';
+import 'parent_workshops_screen.dart';
+import 'parent_free_sessions_screen.dart';
 import 'start_screening_screen.dart';
 import 'my_ratings_screen.dart';
+import 'donation_screen.dart';
+import 'parent_donation_history_screen.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
   const ParentDashboardScreen({super.key});
@@ -39,16 +45,56 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   List<dynamic> _communityHighlights = [];
   bool _isLoadingCommunity = true;
 
+  // Donation impact (for parent/donor)
+  Map<String, dynamic>? _donationImpact;
+  bool _isLoadingDonationImpact = false;
+
   @override
   void initState() {
     super.initState();
     _loadInitialData();
   }
 
+  Future<void> _fetchDonationImpact() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoadingDonationImpact = true;
+    });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? '';
+
+      if (token.isEmpty) {
+        setState(() {
+          _donationImpact = null;
+          _isLoadingDonationImpact = false;
+        });
+        return;
+      }
+
+      final impact = await ApiService.getDonationImpact(token);
+
+      if (!mounted) return;
+      setState(() {
+        _donationImpact = impact;
+        _isLoadingDonationImpact = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _donationImpact = null;
+        _isLoadingDonationImpact = false;
+      });
+    }
+  }
+
   Future<void> _loadInitialData() async {
     await _fetchDashboardData();
     _fetchDailyTip();
     _fetchCommunityHighlights();
+    _fetchDonationImpact();
   }
 
   Future<void> _fetchDashboardData() async {
@@ -295,11 +341,15 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             children: [
               _buildWelcomeSection(),
               SizedBox(height: 20),
+              _buildFinancialAssistanceCard(), // 
+              SizedBox(height: 20),
               _buildChildrenSection(),
               SizedBox(height: 20),
               _buildDailyTipCard(),
               SizedBox(height: 20),
               _buildQuickStats(),
+              SizedBox(height: 20),
+              _buildDonationImpactCard(),
               SizedBox(height: 20),
               _buildMainActions(),
               SizedBox(height: 20),
@@ -317,12 +367,169 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     );
   }
 
+  Widget _buildFinancialAssistanceCard() {
+  return GestureDetector(
+    onTap: () {
+      // Navigator.push(
+      //   context,
+      //   MaterialPageRoute(
+      //     builder: (context) => FinancialAssistanceDashboard(),
+      //   ),
+      // );
+       _showFinancialAssistanceOptions();
+    },
+    child: Container(
+      margin: EdgeInsets.symmetric(vertical: 8),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.attach_money, color: Colors.white, size: 24),
+          ),
+          SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Financial Assistance',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Check your eligibility and apply for therapy cost support',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.arrow_forward_ios, color: Colors.white, size: 20),
+        ],
+      ),
+    ),
+  );
+}
+
+void _showFinancialAssistanceOptions() {
+  showModalBottomSheet(
+    context: context,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (context) {
+      return Container(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            SizedBox(height: 20),
+            Text(
+              'Financial Assistance Options',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textDark,
+              ),
+            ),
+            SizedBox(height: 20),
+            
+            // Option 1: General Assessment
+            ListTile(
+              leading: Icon(Icons.assessment, color: AppColors.primary),
+              title: Text('Quick Financial Assessment'),
+              subtitle: Text('Check your eligibility in 3-5 minutes'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => GeneralFinancialAssessmentScreen(),
+                  ),
+                );
+              },
+            ),
+            
+            // Option 2: Dashboard
+            ListTile(
+              leading: Icon(Icons.dashboard, color: AppColors.primary),
+              title: Text('Financial Assistance Dashboard'),
+              subtitle: Text('View all options and manage requests'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => FinancialAssistanceDashboard(),
+                  ),
+                );
+              },
+            ),
+            
+            // Option 3: Existing Requests
+            ListTile(
+              leading: Icon(Icons.request_quote, color: AppColors.primary),
+              title: Text('My Assistance Requests'),
+              subtitle: Text('View and manage your applications'),
+              onTap: () {
+                Navigator.pop(context);
+                // Navigate to requests screen
+              },
+            ),
+            
+            SizedBox(height: 20),
+            OutlinedButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Close'),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+
 
   Widget _buildWelcomeSection() {
     final parent = dashboardData?.parent;
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(24), // زيادة الـ padding
+      padding: EdgeInsets.all(24), // 
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [AppColors.primary.withOpacity(0.08), AppColors.primary.withOpacity(0.03)],
@@ -332,7 +539,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         borderRadius: BorderRadius.circular(16),
       ),
       constraints: BoxConstraints(
-        minHeight: 120, // تحديد ارتفاع أدنى للبطاقة
+        minHeight: 120, // 
       ),
       child: Row(
         children: [
@@ -341,7 +548,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               _buildAvatar(
                 name: parent?.name ?? '',
                 image: parent?.profilePicture ?? '',
-                radius: 36, // زيادة حجم الصورة
+                radius: 36, // 
               ),
               Positioned(
                 bottom: 0,
@@ -376,7 +583,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center, // توسيط المحتوى عمودياً
+              mainAxisAlignment: MainAxisAlignment.center, // 
               children: [
                 Row(
                   children: [
@@ -399,7 +606,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                     ),
                   ],
                 ),
-                SizedBox(height: 8), // زيادة المسافة
+                SizedBox(height: 8), // 
                 Text(
                   'Ready to continue your child\'s journey',
                   style: TextStyle(
@@ -636,6 +843,81 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     );
   }
 
+  // === DONATION IMPACT (PARENT) ===
+  Widget _buildDonationImpactCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12.withOpacity(0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Donation Impact',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              if (_isLoadingDonationImpact)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Builder(
+            builder: (context) {
+              if (_isLoadingDonationImpact) {
+                return const Text(
+                  'Loading your donation impact...',
+                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                );
+              }
+
+              if (_donationImpact == null) {
+                return const Text(
+                  'No donation impact data yet. Start donating to see how you help other families.',
+                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                );
+              }
+
+              final sessions = (_donationImpact!['sessionsSupportedCount'] ?? 0) as int;
+              final children = (_donationImpact!['childrenSupportedCount'] ?? 0) as int;
+
+              if (sessions == 0 || children == 0) {
+                return const Text(
+                  'Your donations are ready to support upcoming sessions.',
+                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                );
+              }
+
+              return Text(
+                'Your donations covered $sessions sessions for $children children.',
+                style: const TextStyle(fontSize: 13, color: Colors.black87),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   // === QUICK STATS ===
   Widget _buildQuickStats() {
     final s = dashboardData?.summaries;
@@ -678,7 +960,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                     MaterialPageRoute(builder: (context) => SessionsScreen()),
                   );
                 } catch (e) {
-                  print('❌ Error fetching sessions: $e');
+                  print(' Error fetching sessions: $e');
                 }
               },
             ),
@@ -871,6 +1153,27 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   ),
                 ],
               ),
+              SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildModernActionCard(
+                      icon: Icons.volunteer_activism,
+                      title: 'Support with Donation',
+                      subtitle: 'Help other families',
+                      color: AppColors.accent3,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const DonationScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -955,7 +1258,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Payments 💳',
+            'Payments ',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -976,7 +1279,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               TextButton(
                 onPressed: () {},
                 child: Text(
-                  'Pay Now ➜',
+                  'Pay Now ',
                   style: TextStyle(
                     color: AppColors.primary,
                     fontSize: 14,
@@ -1380,7 +1683,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     );
   }
 
-  // === DRAWER === (نفس الكود السابق)
+  // === DRAWER === ( 
   Widget _buildDrawer() {
     return Drawer(
       width: MediaQuery.of(context).size.width * 0.75,
@@ -1514,36 +1817,70 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                     },
                   ),
                   _buildDrawerItem(
-  icon: Icons.star,
-  title: 'تقييماتي',
-  onTap: () {
-    Navigator.pop(context);
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const MyRatingsScreen()),
-    );
-  },
-),
-
-_buildDrawerItem(
-  icon: Icons.business,
-  title: 'مراجعات المراكز',
-  onTap: () {
-    Navigator.pop(context);
-    // يمكنك ربطها بشاشة BrowseCentersScreen مع إضافة تبويب للمراجعات
-    // أو إنشاء شاشة جديدة خاصة بمراجعات المراكز
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const BrowseCentersScreen()),
-    );
-  },
-),
+                    icon: Icons.star,
+                    title: 'تقييماتي',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const MyRatingsScreen()),
+                      );
+                    },
+                  ),
+                  _buildDrawerItem(
+                    icon: Icons.business,
+                    title: 'مراجعات المراكز',
+                    onTap: () {
+                      Navigator.pop(context);
+                      // Navigator.push(
+                      //   context,
+                      //   MaterialPageRoute(builder: (context) => const BrowseCentersScreen()),
+                      // );
+                    },
+                  ),
                   _buildDrawerItem(
                     icon: Icons.payment,
                     title: 'Payments',
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.pushNamed(context, '/parent-payment-dashboard');
+                    },
+                  ),
+                  _buildDrawerItem(
+                    icon: Icons.volunteer_activism,
+                    title: 'Donations',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => const DonationScreen()),
+                      );
+                    },
+                  ),
+                  _buildDrawerItem(
+                    icon: Icons.history,
+                    title: 'Donation History',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => const ParentDonationHistoryScreen()),
+                      );
+                    },
+                  ),
+                  _buildDrawerItem(
+                    icon: Icons.volunteer_activism,
+                    title: 'Free Session Offers',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ParentFreeSessionsScreen(),
+                        ),
+                      );
                     },
                   ),
 
@@ -1571,6 +1908,19 @@ _buildDrawerItem(
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => const BrowseCentersScreen()),
+                      );
+                    },
+                  ),
+                  _buildDrawerItem(
+                    icon: Icons.groups,
+                    title: 'Parent Workshops',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ParentWorkshopsScreen(),
+                        ),
                       );
                     },
                   ),

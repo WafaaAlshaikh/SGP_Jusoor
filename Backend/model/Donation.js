@@ -9,5 +9,12 @@ const Donation = sequelize.define('Donation', {
   amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
   date: { type: DataTypes.DATE, defaultValue: DataTypes.NOW }
 });
+Donation.associate = (models) => {
+  Donation.belongsTo(models.DonationCampaign, {
+    foreignKey: 'campaign_id',
+    as: 'campaign'
+  });
+};
+
 
 module.exports = Donation;

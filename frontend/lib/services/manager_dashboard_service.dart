@@ -46,6 +46,151 @@ class ManagerDashboardService {
     }
   }
 
+  // Get detailed impact for a single campaign
+  static Future<Map<String, dynamic>> getDonationCampaignImpact(
+      int campaignId) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$_baseUrl/manager/donations/campaigns/$campaignId/impact'),
+        headers: headers,
+      );
+
+      final Map<String, dynamic> data = json.decode(response.body);
+      if (response.statusCode == 200 && data['success'] == true) {
+        return data['data'] as Map<String, dynamic>;
+      } else {
+        throw Exception(data['message'] ?? 'Failed to load campaign impact');
+      }
+    } catch (e) {
+      print('Error fetching donation campaign impact: $e');
+      rethrow;
+    }
+  }
+
+  // ================= Donation Campaigns (Manager) =================
+
+  // Get all campaigns for the manager's institution
+  static Future<List<dynamic>> getDonationCampaigns() async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$_baseUrl/manager/donations/campaigns'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        if (data['success'] == true) {
+          return data['data'] as List<dynamic>;
+        } else {
+          throw Exception(data['message'] ?? 'Failed to fetch campaigns');
+        }
+      } else {
+        throw Exception('Failed to load campaigns: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error fetching donation campaigns: $e');
+      rethrow;
+    }
+  }
+
+  // Create a new campaign
+  static Future<Map<String, dynamic>> createDonationCampaign(
+      Map<String, dynamic> body) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/manager/donations/campaigns'),
+        headers: headers,
+        body: json.encode(body),
+      );
+
+      final Map<String, dynamic> data = json.decode(response.body);
+      if (response.statusCode == 201 && data['success'] == true) {
+        return data['data'] as Map<String, dynamic>;
+      } else {
+        throw Exception(data['message'] ?? 'Failed to create campaign');
+      }
+    } catch (e) {
+      print('Error creating donation campaign: $e');
+      rethrow;
+    }
+  }
+
+  // Update an existing campaign
+  static Future<Map<String, dynamic>> updateDonationCampaign(
+      int campaignId, Map<String, dynamic> body) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.put(
+        Uri.parse('$_baseUrl/manager/donations/campaigns/$campaignId'),
+        headers: headers,
+        body: json.encode(body),
+      );
+
+      final Map<String, dynamic> data = json.decode(response.body);
+      if (response.statusCode == 200 && data['success'] == true) {
+        return data['data'] as Map<String, dynamic>;
+      } else {
+        throw Exception(data['message'] ?? 'Failed to update campaign');
+      }
+    } catch (e) {
+      print('Error updating donation campaign: $e');
+      rethrow;
+    }
+  }
+
+  // جلب التقرير المالي للمؤسسة
+  static Future<Map<String, dynamic>> getFinancialReport() async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$_baseUrl/DashbordManager/financial/report'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        if (data['success'] == true) {
+          return data['data'] as Map<String, dynamic>;
+        } else {
+          throw Exception(data['message'] ?? 'Failed to fetch financial report');
+        }
+      } else {
+        throw Exception('Failed to load financial report: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error fetching financial report: $e');
+      rethrow;
+    }
+  }
+
+  // جلب تفاصيل التبرعات (قائمة التبرعات + التخصيصات)
+  static Future<Map<String, dynamic>> getDonationDetails() async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$_baseUrl/DashbordManager/dashboard/donations'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        if (data['success'] == true) {
+          return data['data'] as Map<String, dynamic>;
+        } else {
+          throw Exception(data['message'] ?? 'Failed to fetch donation details');
+        }
+      } else {
+        throw Exception('Failed to load donation details: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error fetching donation details: $e');
+      rethrow;
+    }
+  }
+
   // دالة للـ Debugging
   static Future<Map<String, dynamic>> getDebugInfo() async {
     try {
@@ -65,4 +210,88 @@ class ManagerDashboardService {
       rethrow;
     }
   }
+
+
+
+
+
+  static Future<Map<String, dynamic>> getDonationStatistics() async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$_baseUrl/manager/donations/statistics'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        if (data['success'] == true) {
+          return data['data'];
+        } else {
+          throw Exception(data['message'] ?? 'Failed to fetch donation statistics');
+        }
+      } else {
+        throw Exception('Failed to load donation statistics: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error fetching donation statistics: $e');
+      rethrow;
+    }
+  }
+
+  static Future<Map<String, dynamic>> getFilteredDonationStatistics({
+    DateTime? startDate,
+    DateTime? endDate,
+    int? campaignId,
+    double? minAmount,
+    double? maxAmount,
+    String groupBy = 'day',
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      
+      final params = <String, String>{
+        'groupBy': groupBy,
+      };
+      
+      if (startDate != null) {
+        params['startDate'] = startDate.toIso8601String();
+      }
+      if (endDate != null) {
+        params['endDate'] = endDate.toIso8601String();
+      }
+      if (campaignId != null) {
+        params['campaignId'] = campaignId.toString();
+      }
+      if (minAmount != null) {
+        params['minAmount'] = minAmount.toString();
+      }
+      if (maxAmount != null) {
+        params['maxAmount'] = maxAmount.toString();
+      }
+      
+      final uri = Uri.parse('$_baseUrl/manager/donations/statistics/filtered')
+        .replace(queryParameters: params);
+      
+      final response = await http.get(uri, headers: headers);
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        if (data['success'] == true) {
+          return data['data'];
+        } else {
+          throw Exception(data['message'] ?? 'Failed to fetch filtered statistics');
+        }
+      } else {
+        throw Exception('Failed to load filtered statistics: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error fetching filtered donation statistics: $e');
+      rethrow;
+    }
+  }
+
+  
+
+ 
 }

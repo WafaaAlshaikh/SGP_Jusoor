@@ -61,6 +61,93 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
     _loadAllSessions();
   }
 
+  Future<void> _handleParentSessionDecision({
+    required String sessionId,
+    required String decision,
+    double? requestedPercentage,
+    double? requestedAmount,
+    String? notes,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? '';
+      if (token.isEmpty) throw Exception('No token');
+
+      final resp = await ApiService.submitSessionDecision(
+        token,
+        sessionId,
+        decision: decision,
+        requestedPercentage: requestedPercentage,
+        requestedAmount: requestedAmount,
+        notes: notes,
+      );
+
+      if (resp['success'] == true) {
+        final msg = resp['message']?.toString() ?? 'Done';
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), backgroundColor: AppColors.success),
+        );
+        _loadAllSessions();
+      } else {
+        throw Exception(resp['message'] ?? 'Failed');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed: ${e.toString()}'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _showRequestAidDialog(Session session) async {
+    final notesController = TextEditingController();
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Request Financial Aid'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: notesController,
+                decoration: const InputDecoration(
+                  labelText: 'Notes (optional)',
+                ),
+                maxLines: 2,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+              child: const Text('Submit'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result != true) return;
+    final notes = notesController.text.trim();
+
+    await _handleParentSessionDecision(
+      sessionId: session.sessionId,
+      decision: 'request_aid',
+      notes: notes.isEmpty ? null : notes,
+    );
+  }
+
   Future<void> _loadAllSessions() async {
     try {
       setState(() => _isRefreshing = true);
@@ -134,7 +221,7 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
   if (!session.canRate) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('لا يمكن تقييم هذه الجلسة'),
+        content: Text('This session cannot be rated'),
         backgroundColor: Colors.orange,
       ),
     );
@@ -564,13 +651,13 @@ Location: ${session.sessionLocation}
               Expanded(
                 child: DropdownButtonFormField<String>(
                   value: _selectedInstitution,
-                  isExpanded: true, // ⬅️ إضافة هذا السطر
+                  isExpanded: true, // 
                   items: ['All', ...institutions].map((String value) {
                     return DropdownMenuItem<String>(
                       value: value,
                       child: Text(
                         value,
-                        overflow: TextOverflow.ellipsis, // ⬅️ إضافة هذا السطر
+                        overflow: TextOverflow.ellipsis, // 
                       ),
                     );
                   }).toList(),
@@ -588,13 +675,13 @@ Location: ${session.sessionLocation}
               Expanded(
                 child: DropdownButtonFormField<String>(
                   value: _selectedType,
-                  isExpanded: true, // ⬅️ إضافة هذا السطر
+                  isExpanded: true, // 
                   items: ['All', ...sessionTypes].map((String value) {
                     return DropdownMenuItem<String>(
                       value: value,
                       child: Text(
                         value,
-                        overflow: TextOverflow.ellipsis, // ⬅️ إضافة هذا السطر
+                        overflow: TextOverflow.ellipsis, // 
                       ),
                     );
                   }).toList(),
@@ -648,6 +735,59 @@ Location: ${session.sessionLocation}
     );
   }
 
+  Widget _buildEmptyState(String type) {
+    final Map<String, Map<String, dynamic>> emptyStates = {
+      'upcoming': {
+        'icon': Icons.schedule,
+        'title': 'No Upcoming Sessions',
+        'message': 'You don\'t have any scheduled sessions yet.',
+      },
+      'completed': {
+        'icon': Icons.check_circle,
+        'title': 'No Completed Sessions',
+        'message': 'Your completed sessions will appear here.',
+      },
+      'pending': {
+        'icon': Icons.pending,
+        'title': 'No Pending Sessions',
+        'message': 'You don\'t have any pending session requests.',
+      },
+      'cancelled': {
+        'icon': Icons.cancel,
+        'title': 'No Cancelled Sessions',
+        'message': 'No sessions have been cancelled.',
+      },
+    };
+
+    final state = emptyStates[type] ?? emptyStates['upcoming']!;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(state['icon'] as IconData, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            Text(
+              state['title'] as String,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              state['message'] as String,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildErrorState() {
     return Center(
       child: Padding(
@@ -667,7 +807,7 @@ Location: ${session.sessionLocation}
             ),
             const SizedBox(height: 8),
             Text(
-              _errorMessage!,
+              _errorMessage ?? 'Unknown error',
               style: TextStyle(
                 color: AppColors.textGray,
                 fontSize: 14,
@@ -704,524 +844,667 @@ Location: ${session.sessionLocation}
     );
   }
 
-  Widget _buildEmptyState(String type) {
-    final Map<String, dynamic> emptyStates = {
-      'upcoming': {
-        'icon': Icons.schedule,
-        'title': 'No Upcoming Sessions',
-        'message': 'You don\'t have any scheduled sessions yet.',
-      },
-      'completed': {
-        'icon': Icons.check_circle,
-        'title': 'No Completed Sessions',
-        'message': 'Your completed sessions will appear here.',
-      },
-      'pending': {
-        'icon': Icons.pending,
-        'title': 'No Pending Sessions',
-        'message': 'You don\'t have any pending session requests.',
-      },
-      'cancelled': {
-        'icon': Icons.cancel,
-        'title': 'No Cancelled Sessions',
-        'message': 'No sessions have been cancelled.',
-      },
-    };
+  Widget _buildSessionCard(Session session, String type) {
+    final bool showRateButton = type == 'completed' && session.canRate;
+    final bool isPaid = session.isPaid ?? false;
+    final bool canCancel = type == 'upcoming' && session.status == 'Scheduled';
+    final bool showPayButton =
+        type == 'upcoming' && !isPaid && session.status == 'Scheduled';
 
-    final state = emptyStates[type]!;
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(state['icon'] as IconData, size: 64, color: Colors.grey),
-            const SizedBox(height: 16),
-            Text(
-              state['title'] as String,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              state['message'] as String,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.grey),
+    return GestureDetector(
+      onTap: () => _showSessionDetails(session),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: AppColors.surface,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 20,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-
-  // هذا هو _buildSessionCard المحدث كاملاً
-Widget _buildSessionCard(Session session, String type) {
-  final bool showRateButton = type == 'completed' && session.canRate;
-  final bool isPaid = session.isPaid ?? false;
-  final bool canCancel = type == 'upcoming' && session.status == 'Scheduled';
-  final bool showPayButton = type == 'upcoming' && !isPaid && session.status == 'Scheduled';
-  final bool needsParentApproval = type == 'pending' && session.status == 'Pending Approval';
-
-  return GestureDetector(
-    onTap: () => _showSessionDetails(session),
-    child: Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        color: AppColors.surface,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header with status and quick actions
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // Status badge
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: _getStatusGradient(session.displayStatus),
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header with status and quick actions
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Status badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      gradient:
+                          LinearGradient(colors: _getStatusGradient(session.displayStatus)),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    session.displayStatus.toUpperCase(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
+                    child: Text(
+                      session.displayStatus.toUpperCase(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ),
-                ),
 
-                // Quick action buttons
-                Row(
-                  children: [
-                    if (showRateButton)
+                  // Quick action buttons
+                  Row(
+                    children: [
+                      if (showRateButton)
+                        IconButton(
+                          onPressed: () => _rateSession(session),
+                          icon: Icon(Icons.star_outline_rounded,
+                              color: AppColors.primary),
+                          iconSize: 20,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          tooltip: 'Rate Session',
+                        ),
                       IconButton(
-                        onPressed: () => _rateSession(session),
-                        icon: Icon(Icons.star_outline_rounded, color: AppColors.primary),
+                        onPressed: () => _showSessionDetails(session),
+                        icon: Icon(Icons.more_horiz_rounded,
+                            color: AppColors.textLight),
                         iconSize: 20,
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
-                        tooltip: 'تقييم الجلسة',
                       ),
-                    IconButton(
-                      onPressed: () => _showSessionDetails(session),
-                      icon: Icon(Icons.more_horiz_rounded, color: AppColors.textLight),
-                      iconSize: 20,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
+                    ],
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              // Main session info
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Child avatar
+                  Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [AppColors.primary, AppColors.primaryLight],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.child_care_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+
+                  const SizedBox(width: 12),
+
+                  // Session details
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          session.childName,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textDark,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+
+                        const SizedBox(height: 4),
+
+                        Text(
+                          'with ${session.specialistName}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textGray,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+
+                        const SizedBox(height: 6),
+
+                        Text(
+                          session.institutionName,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textLight,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              // Session metadata in a clean grid
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildMetadataItem(
+                      Icons.calendar_today_rounded,
+                      session.date,
+                      'Date',
+                    ),
+                    _buildMetadataItem(
+                      Icons.access_time_rounded,
+                      session.time,
+                      'Time',
+                    ),
+                    _buildMetadataItem(
+                      Icons.timer_rounded,
+                      '${session.duration} min',
+                      'Duration',
+                    ),
+                    _buildMetadataItem(
+                      Icons.category_rounded,
+                      session.sessionType,
+                      'Type',
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
 
-            const SizedBox(height: 16),
-
-            // Main session info
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Child avatar
+              // Rating for completed sessions
+              if (type == 'completed' && session.rating != null) ...[
+                const SizedBox(height: 12),
                 Container(
-                  width: 50,
-                  height: 50,
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [AppColors.primary, AppColors.primaryLight],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    shape: BoxShape.circle,
+                    color: Colors.amber.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.amber.withOpacity(0.3)),
                   ),
-                  child: Icon(
-                    Icons.child_care_rounded,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-
-                const SizedBox(width: 12),
-
-                // Session details
-                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        session.childName,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textDark,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Your session rating',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textDark,
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              ...List.generate(5, (index) {
+                                return Icon(
+                                  Icons.star_rounded,
+                                  size: 16,
+                                  color: index < session.rating!.floor()
+                                      ? Colors.amber
+                                      : Colors.grey[300],
+                                );
+                              }),
+                              const SizedBox(width: 8),
+                              Text(
+                                session.rating!.toStringAsFixed(1),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textDark,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-
-                      const SizedBox(height: 4),
-
-                      Text(
-                        'مع ${session.specialistName}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: AppColors.textGray,
-                          fontWeight: FontWeight.w500,
+                      if (session.ratingComment != null &&
+                          session.ratingComment!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            session.ratingComment!,
+                            style: TextStyle(
+                              color: AppColors.textGray,
+                              fontSize: 13,
+                            ),
+                          ),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-
-                      const SizedBox(height: 6),
-
-                      Text(
-                        session.institutionName,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textLight,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
                     ],
                   ),
                 ),
               ],
-            ),
 
-            const SizedBox(height: 16),
-
-            // Session metadata in a clean grid
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.background,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildMetadataItem(
-                    Icons.calendar_today_rounded,
-                    session.date,
-                    'التاريخ',
-                  ),
-                  _buildMetadataItem(
-                    Icons.access_time_rounded,
-                    session.time,
-                    'الوقت',
-                  ),
-                  _buildMetadataItem(
-                    Icons.timer_rounded,
-                    '${session.duration} دقيقة',
-                    'المدة',
-                  ),
-                  _buildMetadataItem(
-                    Icons.category_rounded,
-                    session.sessionType,
-                    'النوع',
-                  ),
-                ],
-              ),
-            ),
-
-            // Rating for completed sessions
-            if (type == 'completed' && session.rating != null) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.amber.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.amber.withOpacity(0.3)),
+              // Action buttons - only show critical actions
+              if (showPayButton || canCancel ||
+                  session.status == 'Pending Approval' ||
+                  session.status == 'Pending Parent Confirmation') ...[
+                const SizedBox(height: 16),
+                _buildActionButtons(
+                  showPayButton: showPayButton,
+                  canCancel: canCancel,
+                  session: session,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'تقييمك للجلسة',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textDark,
-                          ),
-                        ),
-                        Row(
-                          children: [
-                            ...List.generate(5, (index) {
-                              return Icon(
-                                Icons.star_rounded,
-                                size: 16,
-                                color: index < session.rating!.floor()
-                                    ? Colors.amber
-                                    : Colors.grey[300],
-                              );
-                            }),
-                            const SizedBox(width: 8),
-                            Text(
-                              session.rating!.toStringAsFixed(1),
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textDark,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    if (session.ratingComment != null && session.ratingComment!.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(
-                          session.ratingComment!,
-                          style: TextStyle(
-                            color: AppColors.textGray,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+              ],
             ],
-
-            // Action buttons - only show critical actions
-            if (showPayButton || canCancel || needsParentApproval) ...[
-              const SizedBox(height: 16),
-              _buildActionButtons(
-                showPayButton: showPayButton,
-                canCancel: canCancel,
-                needsParentApproval: needsParentApproval,
-                session: session,
-              ),
-            ],
-          ],
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
-Widget _buildMetadataItem(IconData icon, String value, String label) {
-  return Expanded(
-    child: Column(
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, size: 18, color: AppColors.primary),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textDark,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10,
-            color: AppColors.textLight,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-        ),
-      ],
-    ),
-  );
-}
-
-Widget _buildActionButtons({
-  required bool showPayButton,
-  required bool canCancel,
-  required bool needsParentApproval,
-  required Session session,
-}) {
-  if (needsParentApproval) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.warning.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.warning.withOpacity(0.3)),
-      ),
+  Widget _buildMetadataItem(IconData icon, String value, String label) {
+    return Expanded(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.info_outline_rounded, color: AppColors.warning, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                'إجراء مطلوب',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.warning,
-                ),
-              ),
-            ],
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 18, color: AppColors.primary),
           ),
-          const SizedBox(height: 8),
-          const Text(
-            'بحاجة لموافقتك على هذه الجلسة',
-            style: TextStyle(fontSize: 14),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textDark,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _handleParentApproval(int.parse(session.sessionId), false),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.error,
-                    side: BorderSide(color: AppColors.error),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  child: const Text('رفض'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () => _handleParentApproval(int.parse(session.sessionId), true),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.success,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  child: const Text('موافقة'),
-                ),
-              ),
-            ],
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: AppColors.textLight,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
           ),
         ],
       ),
     );
   }
 
-  return Row(
-    children: [
-      if (showPayButton)
-        Expanded(
-          child: Container(
-            height: 44,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [AppColors.primary, AppColors.primaryLight],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
+  Widget _buildActionButtons({
+    required bool showPayButton,
+    required bool canCancel,
+    required Session session,
+  }) {
+    final bool needsParentApproval =
+        session.status == 'Pending Approval';
+    final bool needsAutoConfirmation =
+        session.status == 'Pending Parent Confirmation';
+
+    if (needsParentApproval) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.warning.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.info_outline_rounded,
+                    color: AppColors.warning, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  'Action required',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.warning,
+                  ),
                 ),
               ],
             ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
+            const SizedBox(height: 8),
+            const Text(
+              'This session needs your approval',
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _handleParentSessionDecision(
+                      sessionId: session.sessionId,
+                      decision: 'reject',
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.error,
+                      side: const BorderSide(color: AppColors.error),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text('Reject'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _showRequestAidDialog(session),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: BorderSide(color: AppColors.primary.withOpacity(0.8)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text('Request aid'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => _handleParentSessionDecision(
+                      sessionId: session.sessionId,
+                      decision: 'pay_full',
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.success,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text('Pay full'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (needsAutoConfirmation) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.warning.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.info_outline_rounded,
+                    color: AppColors.warning, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  'Confirm initial assessment',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.warning,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'This session was scheduled automatically. Please confirm before payment.',
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      try {
+                        final prefs =
+                            await SharedPreferences.getInstance();
+                        final token = prefs.getString('token') ?? '';
+
+                        if (token.isEmpty) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Session error: missing token'),
+                              backgroundColor: AppColors.error,
+                            ),
+                          );
+                          return;
+                        }
+
+                        final response =
+                            await ApiService.confirmAutoSession(
+                          token,
+                          session.sessionId.toString(),
+                        );
+
+                        if (!mounted) return;
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                                response['message'] ?? 'Session confirmed successfully'),
+                            backgroundColor: AppColors.success,
+                          ),
+                        );
+
+                        // إذا كان الدعم المالي قد انتهى، اعرض خيار طلب دعم إضافي
+                        final fa = response['financial_assistance'];
+                        if (fa is Map<String, dynamic> &&
+                            fa['support_exhausted'] == true) {
+                          final bool? shouldRequest = await showDialog<bool>(
+                            context: context,
+                            builder: (context) {
+                              return AlertDialog(
+                                title: const Text('Financial support exhausted'),
+                                content: const Text(
+                                  'You have used all supported sessions for this institution. Would you like to submit a new financial assistance request?'
+                                ), 
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.of(context).pop(false),
+                                    child: const Text('Later'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => Navigator.of(context).pop(true),
+                                    child: const Text('Request additional support'),
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+
+                          if (shouldRequest == true) {
+                            final childId = fa['child_id'];
+                            final institutionId = fa['institution_id'];
+
+                            if (childId is int && institutionId is int) {
+                              try {
+                                final result = await ApiService.requestFinancialAssistance(
+                                  token,
+                                  childId: childId,
+                                  institutionId: institutionId,
+                                );
+
+                                if (!mounted) return;
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      result['message'] ??
+                                          'Financial assistance request submitted successfully',
+                                    ),
+                                    backgroundColor: AppColors.primary,
+                                  ),
+                                );
+                              } catch (e) {
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Failed to submit financial assistance request: ${e.toString()}',
+                                    ),
+                                    backgroundColor: AppColors.error,
+                                  ),
+                                );
+                              }
+                            } else {
+                              // في حال لم تتوفر المعرفات لأي سبب
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                      'Unable to determine child or institution for the financial request'),
+                                  backgroundColor: AppColors.error,
+                                ),
+                              );
+                            }
+                          }
+                        }
+
+                        _loadAllSessions();
+                      } catch (e) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                                'Failed to confirm session: ${e.toString()}'),
+                            backgroundColor: AppColors.error,
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: const Text('Confirm'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding:
+                          const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Default pay / cancel actions
+    return Row(
+      children: [
+        if (showPayButton)
+          Expanded(
+            child: Container(
+              height: 44,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [AppColors.primary, AppColors.primaryLight],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
                 borderRadius: BorderRadius.circular(12),
-                onTap: () => _navigateToPayment(session),
-                child: Center(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.payment_rounded, color: Colors.white, size: 18),
-                      const SizedBox(width: 8),
-                      Text(
-                        'دفع الآن',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => _navigateToPayment(session),
+                  child: Center(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.payment_rounded,
+                            color: Colors.white, size: 18),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Pay now',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
 
-      if (showPayButton && canCancel) const SizedBox(width: 12),
+        if (showPayButton && canCancel) const SizedBox(width: 12),
 
-      if (canCancel)
-        Expanded(
-          child: Container(
-            height: 44,
-            decoration: BoxDecoration(
-              color: AppColors.error.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.error.withOpacity(0.3)),
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
+        if (canCancel)
+          Expanded(
+            child: Container(
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.error.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
-                onTap: () => _cancelSession(session),
-                child: Center(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.cancel_rounded, color: AppColors.error, size: 18),
-                      const SizedBox(width: 8),
-                      Text(
-                        'إلغاء',
-                        style: TextStyle(
-                          color: AppColors.error,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
+                border: Border.all(color: AppColors.error.withOpacity(0.3)),
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => _cancelSession(session),
+                  child: Center(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.cancel_rounded,
+                            color: AppColors.error, size: 18),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Cancel',
+                          style: TextStyle(
+                            color: AppColors.error,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-    ],
-  );
-}
+      ],
+    );
+  }
 
-   List<Color> _getStatusGradient(String status) {
+  List<Color> _getStatusGradient(String status) {
     switch (status.toLowerCase()) {
       case 'upcoming':
       case 'scheduled':
@@ -1452,7 +1735,6 @@ Widget _buildActionButtons({
   Future<void> _handleParentApproval(int sessionId, bool approve) async {
     try {
       final response = await ParentService.approveNewSession(sessionId, approve);
-
       if (response['success'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

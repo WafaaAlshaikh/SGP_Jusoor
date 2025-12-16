@@ -4,6 +4,7 @@ const User = require('./User');
 const Child = require('./Child');
 const Institution = require('./Institution');
 const SessionType = require('./SessionType');
+const FinancialAssistanceRequest = require('./FinancialAssistanceRequest');
 
 const Session = sequelize.define('Session', {
   session_id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
@@ -77,18 +78,74 @@ const Session = sequelize.define('Session', {
   approved_by_manager_id: { type: DataTypes.BIGINT.UNSIGNED, allowNull: true }, 
   manager_approval_date: { type: DataTypes.DATE, allowNull: true }, 
   manager_notes: { type: DataTypes.TEXT, allowNull: true },
-is_paid: {
+  is_paid: {
     type: DataTypes.BOOLEAN,
     defaultValue: false
   },
   payment_status: {
-    type: DataTypes.ENUM('Pending', 'Paid', 'Refunded', 'Failed'),
+    type: DataTypes.STRING(50),
+    allowNull: true,
     defaultValue: 'Pending'
   },
   payment_date: {
     type: DataTypes.DATE,
     allowNull: true
-  },  
+  }, 
+  original_price: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: true,
+    comment: 'Original price before any discount'
+  },
+  applied_discount_percentage: {
+    type: DataTypes.DECIMAL(5, 2),
+    defaultValue: 0,
+    validate: {
+      min: 0,
+      max: 100
+    }
+  },
+  final_price: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+    comment: 'Price after discount'
+  },
+  financial_assistance_applied: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  financial_assistance_request_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: FinancialAssistanceRequest,
+      key: 'request_id'
+    }
+  },
+  payment_plan_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    comment: 'For installment plans'
+  },
+  // TRACKING
+  discount_reason: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'Reason for discount if applied'
+  },
+  subsidy_source: {
+    type: DataTypes.ENUM(
+      'institution_fund',
+      'government_subsidy',
+      'donor_funded',
+      'charity_partner',
+      'internal_discount'
+    ),
+    allowNull: true
+  },
+  subsidy_document_reference: {
+    type: DataTypes.STRING(100),
+    allowNull: true
+  }, 
 }, { 
   tableName: 'Sessions', 
   timestamps: false 

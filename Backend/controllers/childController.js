@@ -4,6 +4,8 @@ const Session = require('../model/Session');
 const Institution = require('../model/Institution');
 const ChildRegistrationRequest = require('../model/ChildRegistrationRequest');
 const SessionType = require('../model/SessionType');
+const Notification = require('../model/Notification');
+
 const AIAnalysisService = require('../services/aiAnalysisService');
 const ExternalAIService = require('../services/externalAIService');
 const GroqAIService = require('../services/groqAIService');
@@ -153,7 +155,9 @@ exports.saveChildBasicInfo = async (req, res) => {
         city: city,
         coordinates: childCoords
       } : null,
-      next_step: 'medical_info'
+      next_step: 'medical_info',
+      // 🔴 NEW: إضافة سؤال بسيط
+      ask_financial_help: 'هل تحتاج مساعدة مالية لعلاج طفلك؟ (اختياري - سؤال واحد فقط)'
     });
 
   } catch (error) {
@@ -177,7 +181,10 @@ exports.analyzeMedicalCondition = async (req, res) => {
       symptoms_description,
       medical_history,
       previous_services,
-      additional_notes
+      additional_notes,
+      // 🎯 NEW: إضافة حقول المساعدة المالية
+      needs_financial_help = false,
+      monthly_income_range = null
     } = req.body;
 
     const child = await Child.findOne({
@@ -261,6 +268,97 @@ exports.analyzeMedicalCondition = async (req, res) => {
       child.address
     );
 
+    // 🎯 NEW: معالجة المساعدة المالية
+    let financialHelp = null;
+    let hasFinancialAssessment = false;
+    
+    if (needs_financial_help === true || needs_financial_help === 'true') {
+      console.log('💰 Processing financial help request...');
+      
+      const Parent = require('../model/Parent');
+      let parent = await Parent.findOne({ where: { parent_id: parentId } });
+      
+      // إذا الأب مش موجود في جدول Parents
+      if (!parent) {
+        console.log('👨 Creating parent record...');
+        const User = require('../model/User');
+        const user = await User.findByPk(parentId);
+        
+        parent = await Parent.create({
+          parent_id: parentId
+        });
+      }
+      
+      // حساب نسبة المساعدة بناءً على نطاق الدخل
+      let financialScore = 50; // قيمة متوسطة افتراضية
+      let suggestedDiscount = 0;
+      let monthlyIncomeNumeric = null; // قيمة رقمية تقريبية لحقل monthly_income (DECIMAL)
+
+      if (monthly_income_range) {
+        console.log(` Monthly income range: ${monthly_income_range}`);
+        
+        if (monthly_income_range === 'under_300') {
+          financialScore = 85;
+          suggestedDiscount = 80;
+          monthlyIncomeNumeric = 250;
+        } else if (monthly_income_range === '300_600') {
+          financialScore = 70;
+          suggestedDiscount = 60;
+          monthlyIncomeNumeric = 450;
+        } else if (monthly_income_range === '600_900') {
+          financialScore = 55;
+          suggestedDiscount = 40;
+          monthlyIncomeNumeric = 750;
+        } else if (monthly_income_range === '900_1200') {
+          financialScore = 40;
+          suggestedDiscount = 25;
+          monthlyIncomeNumeric = 1050;
+        } else if (monthly_income_range === 'over_1200') {
+          financialScore = 30;
+          suggestedDiscount = 15;
+          monthlyIncomeNumeric = 1300;
+        } else {
+          // إذا تم اختيار "أفضل عدم الإجابة"
+          financialScore = 60;
+          suggestedDiscount = 35;
+          monthlyIncomeNumeric = null; // لا نخزن قيمة رقمية محددة
+        }
+      } else {
+        // إذا لم يحدد نطاق الدخل
+        financialScore = 65;
+        suggestedDiscount = 45;
+        monthlyIncomeNumeric = null;
+      }
+
+      // حفظ البيانات المالية
+      await parent.update({
+        financial_score: financialScore,
+        last_financial_assessment: new Date(),
+        monthly_income: monthlyIncomeNumeric,
+        financial_tier: financialScore >= 85 ? 'tier_1_critical' :
+                       financialScore >= 70 ? 'tier_2_high' :
+                       financialScore >= 55 ? 'tier_3_medium' :
+                       financialScore >= 40 ? 'tier_4_low' : 'tier_5_no_assistance'
+      });
+      
+      hasFinancialAssessment = true;
+      
+      financialHelp = {
+        has_assessment: true,
+        financial_score: financialScore,
+        suggested_discount: suggestedDiscount,
+        discount_display: `${suggestedDiscount}%`,
+        tier: financialScore >= 85 ? 'حرج' :
+              financialScore >= 70 ? 'مرتفع' :
+              financialScore >= 55 ? 'متوسط' :
+              financialScore >= 40 ? 'منخفض' : 'لا يحتاج',
+        note: `بإمكانك الحصول على خصم يصل إلى ${suggestedDiscount}% في المؤسسات المشاركة`,
+        can_apply_discount: suggestedDiscount >= 20
+      };
+      
+      console.log(`✅ Financial assessment saved: ${financialScore} score, ${suggestedDiscount}% discount`);
+    }
+
     res.status(200).json({
       success: true,
       message: 'Medical condition analyzed successfully',
@@ -275,6 +373,9 @@ exports.analyzeMedicalCondition = async (req, res) => {
       } : null,
       target_conditions: targetConditions,
       recommended_institutions: recommendedInstitutions,
+      // 🎯 NEW: إضافة معلومات المساعدة المالية
+      financial_help: financialHelp,
+      has_financial_assessment: hasFinancialAssessment,
       next_step: 'select_institution'
     });
 
@@ -376,12 +477,19 @@ exports.requestInstitutionRegistration = async (req, res) => {
   try {
     const parentId = req.user.user_id;
     const child_id = req.params.id;
-    const { institution_id, notes, consent_given } = req.body;
+    const { 
+      institution_id, 
+      notes, 
+      consent_given,
+      // 🎯 NEW: حقل تطبيق الخصم المالي
+      apply_financial_discount = false
+    } = req.body;
 
     console.log('🔍 Request registration data:', {
       parentId,
       child_id, 
-      institution_id
+      institution_id,
+      apply_financial_discount
     });
 
     if (!child_id || !institution_id) {
@@ -420,12 +528,96 @@ exports.requestInstitutionRegistration = async (req, res) => {
       });
     }
 
+    // التحقق من المؤسسة
+    const institution = await Institution.findByPk(institution_id);
+    if (!institution) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Institution not found' 
+      });
+    }
+
+    // 🎯 NEW: التحقق من وجود تقييم مالي إذا طلب تطبيق الخصم
+    let discountInfo = null;
+    let financialRequest = null;
+    
+    if (apply_financial_discount === true || apply_financial_discount === 'true') {
+      console.log('💰 Checking for financial assessment...');
+      
+      const Parent = require('../model/Parent');
+      const parent = await Parent.findOne({ where: { parent_id: parentId } });
+      
+      if (parent && parent.financial_score) {
+        // حساب نسبة الخصم
+        const discountPercentage = Math.min(100, Math.floor(parent.financial_score * 1.2));
+        
+        discountInfo = {
+          applied: true,
+          discount_percentage: discountPercentage,
+          financial_score: parent.financial_score,
+          tier: parent.financial_tier,
+          note: `سيتم تطبيق خصم ${discountPercentage}% على الجلسات إذا تمت الموافقة`
+        };
+        
+        console.log(`✅ Discount calculated: ${discountPercentage}% based on score ${parent.financial_score}`);
+        
+        // إنشاء طلب مساعدة مالية بسيط
+        try {
+          const FinancialAssistanceRequest = require('../model/FinancialAssistanceRequest');
+          
+          // حساب التكلفة التقريبية
+          const SessionType = require('../model/SessionType');
+          const sessionTypes = await SessionType.findAll({
+            where: { institution_id: institution_id },
+            limit: 1
+          });
+          
+          const avgPrice = sessionTypes.length > 0 ? 
+            parseFloat(sessionTypes[0].price) || 50 : 50;
+          const totalMonthlyCost = avgPrice * 8; // 8 جلسات شهرياً
+        
+          financialRequest = await FinancialAssistanceRequest.create({
+            parent_id: parentId,
+            child_id: child_id,
+            institution_id: institution_id,
+            requested_sessions_count: 8,
+            requested_discount_percentage: discountPercentage,
+            requested_total_amount: totalMonthlyCost,
+            parent_financial_score: parent.financial_score,
+            parent_financial_tier: parent.financial_tier,
+            status: 'submitted',
+            auto_generated: false,
+            requires_documents: discountPercentage >= 50,
+            submitted_at: new Date(),
+            estimated_processing_days: discountPercentage >= 70 ? 3 : 7
+          });
+          
+          console.log(`✅ Financial assistance request created: ${financialRequest.request_id}`);
+          
+        } catch (financialError) {
+          console.error('⚠️ Could not create financial request:', financialError.message);
+          // نكمل حتى لو فشل إنشاء طلب المساعدة المالية
+        }
+        
+      } else {
+        discountInfo = {
+          applied: false,
+          note: 'لم تقم بإدخال معلومات مالية. يمكنك إضافتها لاحقاً من صفحة الطفل.'
+        };
+        console.log('⚠️ No financial assessment found for parent');
+      }
+    }
+
+    // إنشاء طلب التسجيل وربطه بطلب المساعدة المالية (إن وُجد)
     const request = await ChildRegistrationRequest.create({
       child_id: child_id,
       institution_id: institution_id,
       requested_by_parent_id: parentId,
       status: 'Pending',
-      notes: notes || null
+      notes: notes || null,
+      financial_assistance_request_id: financialRequest
+        ? financialRequest.request_id
+        : null,
     });
 
     await child.update({ 
@@ -433,21 +625,104 @@ exports.requestInstitutionRegistration = async (req, res) => {
       consent_given: consent_given || false
     });
 
-    const institution = await Institution.findByPk(institution_id);
+    // 🔥 إضافة: تشغيل المعالجة التلقائية (غير متزامن)
+    setTimeout(async () => {
+      try {
+        console.log(`🔄 بدء المعالجة التلقائية للطلب: ${request.request_id}`);
+        
+        // استدعاء خدمة الموافقة التلقائية
+        const AutoApprovalService = require('../services/autoApprovalService');
+        const approvalResult = await AutoApprovalService.processSingleRequest(request.request_id);
+        
+        console.log(`✅ نتيجة المعالجة التلقائية للطلب ${request.request_id}:`, approvalResult.status);
+        
+        // إرسال إشعار للأهل بناءً على النتيجة
+        let notificationMessage = '';
+        let notificationType = '';
+        
+        switch (approvalResult.status) {
+          case 'Approved':
+            // في هذه المرحلة الموافقة تمت، لكن حجز الجلسة يعتمد على توفر أخصائي وموعد
+            // AutoApprovalService سيحاول الحجز، وإن نجح سيرسل إشعاراً منفصلاً بتفاصيل الجلسة
+            notificationMessage = `مبروك! تمت الموافقة تلقائياً على تسجيل ${child.full_name} في ${institution.name}. سيتم إبلاغك بتفاصيل جلسة التقييم الأولي عند حجزها من قبل المؤسسة.`;
+            notificationType = 'registration_auto_approved';
+            break;
+          case 'Rejected':
+            notificationMessage = `عذراً، تم رفض طلب تسجيل ${child.full_name} في ${institution.name} تلقائياً. السبب: ${approvalResult.reason || 'عدم استيفاء الشروط'}.`;
+            notificationType = 'registration_auto_rejected';
+            break;
+          case 'Pending':
+            notificationMessage = `طلب تسجيل ${child.full_name} في ${institution.name} قيد المراجعة من قبل إدارة المؤسسة.`;
+            notificationType = 'registration_under_review';
+            break;
+        }
+        
+        // إنشاء إشعار للأهل
+        await Notification.create({
+          user_id: parentId,
+          title: 'تحديث حالة طلب التسجيل',
+          message: notificationMessage,
+          type: notificationType,
+          related_id: request.request_id,
+          is_read: false
+        });
+        
+        // إذا تمت الموافقة وحجز الجلسة
+        if (approvalResult.status === 'Approved' && approvalResult.session) {
+          // إشعار إضافي بمعلومات الجلسة
+          await Notification.create({
+            user_id: parentId,
+            title: 'تفاصيل الجلسة المجدولة',
+            message: `تم حجز جلسة التقييم الأولي مع ${approvalResult.session.specialist_name} في ${approvalResult.session.date} الساعة ${approvalResult.session.time}.`,
+            type: 'session_scheduled',
+            related_id: approvalResult.session.session_id,
+            is_read: false
+          });
+        }
+        
+      } catch (autoError) {
+        console.error('❌ خطأ في المعالجة التلقائية:', autoError);
+        
+        // إشعار خطأ (للأغراض التسجيلية فقط)
+        await Notification.create({
+          user_id: parentId,
+          title: 'خطأ في المعالجة التلقائية',
+          message: 'حدث خطأ أثناء معالجة طلب التسجيل تلقائياً. سيتصل بك فريق المؤسسة قريباً.',
+          type: 'system_error',
+          related_id: request.request_id,
+          is_read: false
+        });
+      }
+    }, 2000); // تأخير 2 ثانية لضمان حفظ الطلب
 
     res.status(201).json({ 
       success: true,
       message: 'Registration request submitted successfully',
-      request_id: request.request_id,
-      status: 'Pending',
-      institution: {
-        id: institution.institution_id,
-        name: institution.name
+      data: {
+        request_id: request.request_id,
+        status: 'Pending',
+        institution: {
+          id: institution.institution_id,
+          name: institution.name,
+          city: institution.city,
+          address: institution.location_address
+        },
+        child: {
+          id: child.child_id,
+          name: child.full_name
+        },
+        // 🎯 NEW: إضافة معلومات الخصم المالي
+        financial_discount: discountInfo,
+        financial_request_id: financialRequest ? financialRequest.request_id : null,
+        note: 'سيتم مراجعة الطلب تلقائياً في غضون دقائق. ستتلقى إشعاراً عند تغيير الحالة.',
+        estimated_review_time: '2-5 دقائق',
+        auto_approval_enabled: institution.auto_approval_enabled || true
       },
       next_steps: [
-        'The request will be reviewed by the institution administration',
-        'You will receive a notification when the request is approved',
-        'You can track request status from your dashboard'
+        'سيتم مراجعة الطلب تلقائياً بواسطة النظام',
+        'إذا تمت الموافقة تلقائياً، سيتم حجز جلسة التقييم الأولي',
+        'إذا احتاج الطلب لمراجعة يدوية، ستتصل بك المؤسسة',
+        'ستتلقى إشعاراً عند تغيير حالة الطلب'
       ]
     });
 
@@ -852,7 +1127,10 @@ exports.addChild = async (req, res) => {
       additional_notes,
       consent_given,
       location_lat,   
-      location_lng    
+      location_lng,
+      // 🎯 NEW: إضافة حقول المساعدة المالية
+      needs_financial_help = false,
+      monthly_income_range = null
     } = req.body;
 
     if (!full_name || !date_of_birth || !gender) {
@@ -908,6 +1186,63 @@ exports.addChild = async (req, res) => {
           address
         );
       }
+    }
+
+    // 🎯 NEW: معالجة المساعدة المالية
+    let financialHelp = null;
+    if (needs_financial_help === true || needs_financial_help === 'true') {
+      console.log('💰 Processing financial help in addChild...');
+      
+      const Parent = require('../model/Parent');
+      let parent = await Parent.findOne({ where: { parent_id: parentId } });
+      
+      if (!parent) {
+        const User = require('../model/User');
+        const user = await User.findByPk(parentId);
+        
+        parent = await Parent.create({
+          parent_id: parentId
+        });
+      }
+      
+      let financialScore = 50;
+      let suggestedDiscount = 0;
+      
+      if (monthly_income_range) {
+        if (monthly_income_range === 'under_300') {
+          financialScore = 85;
+          suggestedDiscount = 80;
+        } else if (monthly_income_range === '300_600') {
+          financialScore = 70;
+          suggestedDiscount = 60;
+        } else if (monthly_income_range === '600_900') {
+          financialScore = 55;
+          suggestedDiscount = 40;
+        } else if (monthly_income_range === '900_1200') {
+          financialScore = 40;
+          suggestedDiscount = 25;
+        } else if (monthly_income_range === 'over_1200') {
+          financialScore = 30;
+          suggestedDiscount = 15;
+        }
+      }
+      
+      await parent.update({
+        financial_score: financialScore,
+        last_financial_assessment: new Date(),
+        monthly_income: monthly_income_range || null,
+        financial_tier: financialScore >= 85 ? 'tier_1_critical' :
+                       financialScore >= 70 ? 'tier_2_high' :
+                       financialScore >= 55 ? 'tier_3_medium' :
+                       financialScore >= 40 ? 'tier_4_low' : 'tier_5_no_assistance'
+      });
+      
+      financialHelp = {
+        has_assessment: true,
+        financial_score: financialScore,
+        suggested_discount: suggestedDiscount,
+        discount_display: `${suggestedDiscount}%`
+      };
     }
 
     const newChild = await Child.create({
@@ -973,6 +1308,11 @@ exports.addChild = async (req, res) => {
         match_score: inst.match_score,
         specialties: inst.matching_specialties
       }));
+    }
+
+    // 🎯 NEW: إضافة معلومات المساعدة المالية
+    if (financialHelp) {
+      response.financial_help = financialHelp;
     }
 
     response.next_steps = exports.generateNextSteps(aiAnalysis, recommendedInstitutions?.institutions || []);
@@ -1061,6 +1401,29 @@ exports.getChild = async (req, res) => {
       limit: 1
     });
 
+    // 🎯 NEW: جلب معلومات التقييم المالي
+    const Parent = require('../model/Parent');
+    const parent = await Parent.findOne({ where: { parent_id: parentId } });
+    
+    let financialInfo = null;
+    if (parent && parent.financial_score) {
+      const discountPercentage = Math.min(100, Math.floor(parent.financial_score * 1.2));
+      const assessmentAge = parent.last_financial_assessment ? 
+        Math.floor((new Date() - new Date(parent.last_financial_assessment)) / (1000 * 60 * 60 * 24)) : null;
+      
+      financialInfo = {
+        has_assessment: true,
+        financial_score: parent.financial_score,
+        financial_tier: parent.financial_tier,
+        last_assessment: parent.last_financial_assessment,
+        days_since_assessment: assessmentAge,
+        assessment_valid: assessmentAge && assessmentAge <= 30,
+        suggested_discount: discountPercentage,
+        discount_display: `${discountPercentage}%`,
+        can_request_assistance: !child.current_institution_id && discountPercentage >= 20
+      };
+    }
+
     const childData = {
       id: child.child_id,
       full_name: child.full_name,
@@ -1092,7 +1455,10 @@ exports.getChild = async (req, res) => {
       additional_notes: child.additional_notes,
       consent_given: child.consent_given,
       location_lat: child.location_lat,
-      location_lng: child.location_lng
+      location_lng: child.location_lng,
+      
+      // 🎯 NEW: إضافة معلومات التقييم المالي
+      financial_assessment: financialInfo
     };
 
     res.status(200).json({

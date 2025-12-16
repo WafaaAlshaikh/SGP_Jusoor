@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:frontend/screens/financial_assistance_dashboard.dart';
 import 'package:frontend/screens/manager_home_screen.dart';
 
 import 'screens/signup_screen.dart';
@@ -242,6 +243,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         '/managerDashboard': (context) => ManagerHomeScreen(),
         '/chats': (context) => ChatListScreen(),
         '/map': (context) => MapScreen(),
+        '/financial-assistance': (context) => FinancialAssistanceDashboard(),
+    // '/financial-assessment': (context) => FinancialAssessmentScreen(),
+    // '/assistance-request': (context) => AssistanceRequestScreen(),
 
         // Reset Password using arguments
         '/resetPassword': (context) {

@@ -1,4 +1,3 @@
-
 // lib/screens/manage_children/widgets/child_form_dialog.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -9,7 +8,17 @@ import '../../../models/child_model.dart';
 import '../../../services/api_service.dart';
 import '../../../screens/map_screen.dart';
 import '../theme/app_colors.dart';
-enum ChildFormStep { basicInfo, medicalInfo, selectInstitution, confirmation }
+import '../services/financial_service.dart';
+import '../models/ParentFinancialModel.dart';
+import '../screens/financial_assistance_dashboard.dart';
+
+enum ChildFormStep {
+  basicInfo,
+  medicalInfo,
+  financialAssessment,
+  selectInstitution,
+  confirmation
+}
 
 class ChildFormDialog extends StatefulWidget {
   final Child? child;
@@ -82,6 +91,23 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
 
   List<Map<String, dynamic>> _diagnoses = [];
 
+  // NEW: Financial Assessment Variables
+  Map<String, dynamic>? _financialAssessmentResult;
+  bool _showFinancialAssessment = false;
+  bool _skipFinancialAssessment = false;
+  bool _requiresDocuments = false;
+
+  // NEW: Financial Assessment Questions
+  Map<String, dynamic> _assessmentResponses = {};
+  List<Map<String, dynamic>> _assessmentQuestions = [];
+
+  // Simplified financial aid flags for child flow
+  bool _needsFinancialHelp = false;
+  String? _monthlyIncomeRange;
+  bool _applyFinancialDiscount = false;
+  ParentFinancialModel? _parentFinancialProfile;
+  bool _hasValidParentFinancialAssessment = false;
+
   @override
   void initState() {
     super.initState();
@@ -89,13 +115,22 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
     _currentStep = ChildFormStep.basicInfo;
     _loadDiagnoses();
     _processScreeningData();
+    _loadParentFinancialProfile();
   }
+  bool _financialAssessmentRecommended = false;
+
 
   void _processScreeningData() {
     if (widget.screeningData == null) return;
 
     print('🎯 Processing screening data in Child Form');
     final screeningData = widget.screeningData!;
+
+    // Check if financial assessment is recommended
+    if (screeningData['recommend_financial_assessment'] == true) {
+  _financialAssessmentRecommended = true;
+  _showFinancialAssessment = true;
+}
 
     if (screeningData['suspected_condition'] != null) {
       _suspectedCondition = screeningData['suspected_condition'].toString();
@@ -107,7 +142,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
 
     if (screeningData['recommended_institutions'] != null) {
       _recommendedInstitutions = screeningData['recommended_institutions'];
-      print('   - Loaded ${_recommendedInstitutions.length} recommended institutions from screening');
+      print(
+          '   - Loaded ${_recommendedInstitutions.length} recommended institutions from screening');
     }
   }
 
@@ -141,6 +177,19 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
     _dateController.text = _dateOfBirth;
   }
 
+  Future<void> _loadParentFinancialProfile() async {
+    try {
+      final profile = await FinancialService.getFinancialProfile();
+      setState(() {
+        _parentFinancialProfile = profile;
+        _hasValidParentFinancialAssessment =
+            profile.hasValidFinancialAssessment;
+      });
+    } catch (e) {
+      // ignore and keep defaults
+    }
+  }
+
   Future<void> _loadDiagnoses() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -160,7 +209,10 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
       print('Error loading diagnoses: $e');
       final defaultDiagnoses = [
         {'diagnosis_id': 1, 'name': 'Autism Spectrum Disorder'},
-        {'diagnosis_id': 2, 'name': 'Attention Deficit Hyperactivity Disorder (ADHD)'},
+        {
+          'diagnosis_id': 2,
+          'name': 'Attention Deficit Hyperactivity Disorder (ADHD)'
+        },
         {'diagnosis_id': 3, 'name': 'Down Syndrome'},
         {'diagnosis_id': 4, 'name': 'Speech and Language Delay'},
       ];
@@ -190,7 +242,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
 
       if (result['success'] == true) {
         setState(() {
-          _smartSearchResults = result['symptoms_analysis']?['suggested_conditions'] ?? [];
+          _smartSearchResults =
+              result['symptoms_analysis']?['suggested_conditions'] ?? [];
         });
 
         _autoFillFromSearchResults(result);
@@ -202,12 +255,423 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
     }
   }
 
+  Widget _buildFinancialAssessmentStep() {
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          _buildSection(
+            title: 'Financial Assessment',
+            icon: Icons.attach_money,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.info.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.info.withOpacity(0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.info_outline,
+                            size: 20, color: AppColors.info),
+                        SizedBox(width: 8),
+                        Text(
+                          'Why This Matters',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.info,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'This confidential assessment helps us understand your financial situation '
+                      'and determine if you qualify for financial assistance to cover therapy costs.',
+                      style: TextStyle(fontSize: 12, color: AppColors.info),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      '• All information is kept confidential',
+                      style: TextStyle(fontSize: 11, color: AppColors.info),
+                    ),
+                    Text(
+                      '• Used only to determine eligibility for assistance',
+                      style: TextStyle(fontSize: 11, color: AppColors.info),
+                    ),
+                    Text(
+                      '• May qualify for 20-100% discount on sessions',
+                      style: TextStyle(fontSize: 11, color: AppColors.info),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 20),
+
+              // Assessment Questions
+              ..._buildAssessmentQuestions(),
+
+              SizedBox(height: 20),
+
+              // Skip Option
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Theme(
+                      data: Theme.of(context).copyWith(
+                        unselectedWidgetColor: AppColors.warning,
+                      ),
+                      child: Checkbox(
+                        value: _skipFinancialAssessment,
+                        onChanged: (value) {
+                          setState(() {
+                            _skipFinancialAssessment = value ?? false;
+                            if (value == true) {
+                              // Clear responses if skipping
+                              _assessmentResponses.clear();
+                            }
+                          });
+                        },
+                        activeColor: AppColors.warning,
+                        checkColor: Colors.white,
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Skip Financial Assessment',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: AppColors.warning,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'I prefer to pay full price for therapy sessions. I understand this may affect my eligibility for financial assistance.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.warning,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              if (_assessmentResponses.isNotEmpty) ...[
+                SizedBox(height: 20),
+                _buildAssessmentSummary(),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildAssessmentQuestions() {
+    if (_assessmentQuestions.isEmpty) {
+      // Default questions if not loaded from API
+      _assessmentQuestions = [
+        {
+          'id': 'income_range',
+          'question': 'What is your approximate monthly household income?',
+          'type': 'range',
+          'options': [
+            {'value': 'under_500', 'label': 'Under \$500'},
+            {'value': '500_1000', 'label': '\$500 - \$1,000'},
+            {'value': '1000_1500', 'label': '\$1,000 - \$1,500'},
+            {'value': '1500_2000', 'label': '\$1,500 - \$2,000'},
+            {'value': 'over_2000', 'label': 'Over \$2,000'},
+          ],
+          'required': true,
+        },
+        {
+          'id': 'employment_status',
+          'question': 'What is your current employment status?',
+          'type': 'select',
+          'options': [
+            {'value': 'employed_full_time', 'label': 'Employed Full-Time'},
+            {'value': 'employed_part_time', 'label': 'Employed Part-Time'},
+            {'value': 'self_employed', 'label': 'Self-Employed'},
+            {'value': 'unemployed', 'label': 'Currently Unemployed'},
+            {'value': 'student', 'label': 'Student'},
+          ],
+          'required': true,
+        },
+        {
+          'id': 'family_size',
+          'question': 'How many people live in your household?',
+          'type': 'number',
+          'min': 1,
+          'max': 15,
+          'required': true,
+        },
+      ];
+    }
+
+    return _assessmentQuestions.map((question) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(height: 16),
+          Text(
+            question['question'],
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: AppColors.textDark,
+            ),
+          ),
+          SizedBox(height: 8),
+          _buildQuestionInput(question),
+        ],
+      );
+    }).toList();
+  }
+
+  Widget _buildQuestionInput(Map<String, dynamic> question) {
+    final questionId = question['id'];
+    final currentValue = _assessmentResponses[questionId];
+
+    switch (question['type']) {
+      case 'range':
+      case 'select':
+        final options = question['options'] as List<dynamic>;
+        return Column(
+          children: options.map<Widget>((option) {
+            final isSelected = currentValue == option['value'];
+            return Card(
+              margin: EdgeInsets.symmetric(vertical: 4),
+              color: isSelected
+                  ? AppColors.primary.withOpacity(0.1)
+                  : AppColors.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: BorderSide(
+                  color: isSelected ? AppColors.primary : AppColors.accent3,
+                  width: isSelected ? 2 : 1,
+                ),
+              ),
+              child: ListTile(
+                title: Text(option['label']),
+                trailing: isSelected
+                    ? Icon(Icons.check, color: AppColors.primary)
+                    : null,
+                onTap: () {
+                  setState(() {
+                    _assessmentResponses[questionId] = option['value'];
+                  });
+                },
+              ),
+            );
+          }).toList(),
+        );
+
+      case 'number':
+        return TextFormField(
+          initialValue: currentValue?.toString() ?? '',
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            hintText: 'Enter number...',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          onChanged: (value) {
+            setState(() {
+              _assessmentResponses[questionId] = int.tryParse(value);
+            });
+          },
+        );
+
+      default:
+        return Container();
+    }
+  }
+
+  Widget _buildAssessmentSummary() {
+    int answeredCount = _assessmentResponses.length;
+    int totalCount = _assessmentQuestions.length;
+    double completionPercentage = (answeredCount / totalCount) * 100;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.success.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.success.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.assessment, size: 20, color: AppColors.success),
+              SizedBox(width: 8),
+              Text(
+                'Assessment Progress',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.success,
+                ),
+              ),
+              Spacer(),
+              Text(
+                '${completionPercentage.toStringAsFixed(0)}%',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.success,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
+          LinearProgressIndicator(
+            value: completionPercentage / 100,
+            backgroundColor: AppColors.success.withOpacity(0.2),
+            color: AppColors.success,
+          ),
+          SizedBox(height: 8),
+          Text(
+            '$answeredCount out of $totalCount questions answered',
+            style: TextStyle(fontSize: 12, color: AppColors.success),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _performFinancialAssessment() async {
+    if (_skipFinancialAssessment) {
+      // Skip assessment and go directly to institution selection
+      setState(() {
+        _currentStep = ChildFormStep.selectInstitution;
+      });
+      return;
+    }
+
+    // Validate all required questions
+    final requiredQuestions =
+        _assessmentQuestions.where((q) => q['required'] == true).toList();
+    for (var question in requiredQuestions) {
+      final questionId = question['id'];
+      if (_assessmentResponses[questionId] == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Please answer all required questions'),
+            backgroundColor: AppColors.warning,
+          ),
+        );
+        return;
+      }
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? '';
+
+      // Submit assessment
+      final result = await ApiService.submitFinancialAssessment(
+        token,
+        int.parse(_childId!),
+        1, // institution_id - يمكن تعديله
+        _assessmentResponses,
+        false, // skip_documents
+      );
+
+      if (result['success'] == true) {
+        setState(() {
+          _financialAssessmentResult = result;
+          _requiresDocuments = result['documents_required'] ?? false;
+          _currentStep = ChildFormStep.selectInstitution;
+
+          // Apply suggested discount to institutions
+          final suggestedDiscount = result['assessment_results']
+                  ?['suggested_discount_percentage'] ??
+              0;
+          if (suggestedDiscount > 0) {
+            // Apply discount to recommended institutions
+            _applyDiscountToInstitutions(suggestedDiscount);
+          }
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Financial assessment completed!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Assessment failed'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+  void _applyDiscountToInstitutions(double discountPercentage) {
+    if (_recommendedInstitutions.isEmpty) return;
+
+    setState(() {
+      _recommendedInstitutions = _recommendedInstitutions.map((institution) {
+        final avgPrice = institution['avg_price'] != null
+            ? double.tryParse(institution['avg_price'].toString()) ?? 0
+            : 0;
+
+        final discountedPrice = avgPrice * (1 - (discountPercentage / 100));
+
+        return {
+          ...institution,
+          'original_price': avgPrice,
+          'discounted_price': discountedPrice,
+          'discount_percentage': discountPercentage,
+          'has_financial_assistance': true,
+        };
+      }).toList();
+    });
+  }
+
   void _autoFillFromSearchResults(Map<String, dynamic> result) {
-    final conditions = result['symptoms_analysis']?['suggested_conditions'] ?? [];
+    final conditions =
+        result['symptoms_analysis']?['suggested_conditions'] ?? [];
     if (conditions.isNotEmpty) {
       final topCondition = conditions.first;
       setState(() {
-        _suspectedCondition = topCondition['arabic_name'] ?? topCondition['name'] ?? '';
+        _suspectedCondition =
+            topCondition['arabic_name'] ?? topCondition['name'] ?? '';
         _tryMatchDiagnosis(_suspectedCondition);
       });
     }
@@ -215,7 +679,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
 
   void _tryMatchDiagnosis(String condition) {
     final matched = _diagnoses.firstWhere(
-          (d) => d['name'].toString().toLowerCase().contains(condition.toLowerCase()),
+      (d) =>
+          d['name'].toString().toLowerCase().contains(condition.toLowerCase()),
       orElse: () => <String, dynamic>{},
     );
 
@@ -270,20 +735,24 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
           _isLoading = false;
         });
 
-        if (widget.screeningData != null && widget.screeningData!['from_screening'] == true) {
+        if (widget.screeningData != null &&
+            widget.screeningData!['from_screening'] == true) {
           print('🎯 Auto-analyzing from screening data...');
 
           if (widget.screeningData!['suspected_condition'] != null) {
-            _suspectedCondition = widget.screeningData!['suspected_condition'].toString();
+            _suspectedCondition =
+                widget.screeningData!['suspected_condition'].toString();
           }
           if (widget.screeningData!['symptoms_description'] != null) {
-            _symptomsDescription = widget.screeningData!['symptoms_description'].toString();
+            _symptomsDescription =
+                widget.screeningData!['symptoms_description'].toString();
           }
 
           if (widget.screeningData!['recommended_institutions'] != null) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               setState(() {
-                _recommendedInstitutions = widget.screeningData!['recommended_institutions'];
+                _recommendedInstitutions =
+                    widget.screeningData!['recommended_institutions'];
                 _currentStep = ChildFormStep.selectInstitution;
               });
             });
@@ -297,7 +766,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
           ),
         );
       } else {
-        throw Exception(result['message'] ?? 'Failed to save basic information');
+        throw Exception(
+            result['message'] ?? 'Failed to save basic information');
       }
     } catch (e) {
       setState(() {
@@ -359,13 +829,20 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
         medicalData['additional_notes'] = _additionalNotes;
       }
 
+      // Attach simplified financial help flags if enabled
+      if (_needsFinancialHelp) {
+        medicalData['needs_financial_help'] = _needsFinancialHelp;
+        medicalData['monthly_income_range'] = _monthlyIncomeRange;
+      }
+
       print('Final medical data to send: $medicalData');
 
       if (medicalData.isEmpty) {
         throw Exception('No medical data to analyze');
       }
 
-      final result = await ApiService.analyzeMedicalCondition(token, _childId!, medicalData);
+      final result = await ApiService.analyzeMedicalCondition(
+          token, _childId!, medicalData);
 
       print('API Response: ${result['success']}');
 
@@ -380,9 +857,11 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
           if (institutionsData is List) {
             institutionsList = institutionsData;
           } else if (institutionsData is Map) {
-            if (institutionsData['institutions'] != null && institutionsData['institutions'] is List) {
+            if (institutionsData['institutions'] != null &&
+                institutionsData['institutions'] is List) {
               institutionsList = institutionsData['institutions'];
-            } else if (institutionsData['data'] != null && institutionsData['data'] is List) {
+            } else if (institutionsData['data'] != null &&
+                institutionsData['data'] is List) {
               institutionsList = institutionsData['data'];
             }
           }
@@ -398,11 +877,11 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Analysis complete! Found ${institutionsList.length} institutions'),
+            content: Text(
+                'Analysis complete! Found ${institutionsList.length} institutions'),
             backgroundColor: AppColors.success,
           ),
         );
-
       } else {
         print('Analysis failed: ${result['message']}');
         ScaffoldMessenger.of(context).showSnackBar(
@@ -412,7 +891,6 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
           ),
         );
       }
-
     } catch (e) {
       print('ERROR in analysis: $e');
 
@@ -514,6 +992,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
         _selectedInstitutionId!,
         notes: _registrationNotes.isEmpty ? null : _registrationNotes,
         consentGiven: _consentGiven,
+        applyFinancialDiscount: _applyFinancialDiscount,
       );
 
       if (result['success'] == true) {
@@ -584,25 +1063,26 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
             controller: _searchController,
             decoration: InputDecoration(
               labelText: 'Search by symptoms or behaviors',
-              hintText: 'Example: not speaking, repetitive movements, communication difficulty...',
+              hintText:
+                  'Example: not speaking, repetitive movements, communication difficulty...',
               border: InputBorder.none,
               prefixIcon: Icon(Icons.search, color: AppColors.primary),
               suffixIcon: _isSmartSearching
                   ? SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: AppColors.primary,
-                ),
-              )
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.primary,
+                      ),
+                    )
                   : null,
-              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              contentPadding:
+                  EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             ),
             onChanged: _performSmartSearch,
           ),
         ),
-
         if (_smartSearchResults.isNotEmpty) ...[
           const SizedBox(height: 12),
           Container(
@@ -637,8 +1117,10 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                       selectedColor: AppColors.primaryLight,
                       onSelected: (_) {
                         setState(() {
-                          _suspectedCondition = result['arabic_name'] ?? result['name'];
-                          _symptomsController.text = 'Symptoms: ${result['matching_keywords']?.join(', ') ?? ''}';
+                          _suspectedCondition =
+                              result['arabic_name'] ?? result['name'];
+                          _symptomsController.text =
+                              'Symptoms: ${result['matching_keywords']?.join(', ') ?? ''}';
                         });
                         _searchController.clear();
                         _smartSearchResults = [];
@@ -726,12 +1208,15 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                      borderSide:
+                          BorderSide(color: AppColors.primary, width: 2),
                     ),
                     prefixIcon: Icon(Icons.person, color: AppColors.primary),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 16),
                   ),
-                  validator: (v) => v == null || v.isEmpty ? 'Please enter full name' : null,
+                  validator: (v) =>
+                      v == null || v.isEmpty ? 'Please enter full name' : null,
                   onSaved: (v) => _fullName = v ?? '',
                 ),
                 const SizedBox(height: 20),
@@ -747,16 +1232,22 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                      borderSide:
+                          BorderSide(color: AppColors.primary, width: 2),
                     ),
-                    prefixIcon: Icon(Icons.calendar_today, color: AppColors.primary),
+                    prefixIcon:
+                        Icon(Icons.calendar_today, color: AppColors.primary),
                     suffixIcon: IconButton(
-                      icon: Icon(Icons.arrow_drop_down, color: AppColors.primary),
+                      icon:
+                          Icon(Icons.arrow_drop_down, color: AppColors.primary),
                       onPressed: _pickDate,
                     ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 16),
                   ),
-                  validator: (v) => v == null || v.isEmpty ? 'Please select date of birth' : null,
+                  validator: (v) => v == null || v.isEmpty
+                      ? 'Please select date of birth'
+                      : null,
                 ),
                 const SizedBox(height: 20),
                 Row(
@@ -773,13 +1264,16 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: AppColors.primary, width: 2),
+                            borderSide:
+                                BorderSide(color: AppColors.primary, width: 2),
                           ),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 16),
                         ),
                         items: const [
                           DropdownMenuItem(value: 'Male', child: Text('Male')),
-                          DropdownMenuItem(value: 'Female', child: Text('Female')),
+                          DropdownMenuItem(
+                              value: 'Female', child: Text('Female')),
                         ],
                         onChanged: (v) => setState(() => _gender = v ?? 'Male'),
                       ),
@@ -797,10 +1291,12 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: AppColors.primary, width: 2),
+                            borderSide:
+                                BorderSide(color: AppColors.primary, width: 2),
                           ),
                           hintText: 'Optional',
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 16),
                         ),
                         onSaved: (v) => _childIdentifier = v ?? '',
                       ),
@@ -819,10 +1315,12 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                      borderSide:
+                          BorderSide(color: AppColors.primary, width: 2),
                     ),
                     hintText: 'Optional',
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 16),
                   ),
                   maxLines: 2,
                   onSaved: (v) => _schoolInfo = v ?? '',
@@ -866,13 +1364,13 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                       SizedBox(height: 8),
                       Text(
                         '• Symptoms description\n• Suspected condition\n• Diagnosis',
-                        style: TextStyle(fontSize: 12, color: AppColors.textGray),
+                        style:
+                            TextStyle(fontSize: 12, color: AppColors.textGray),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 20),
-
                 TextFormField(
                   initialValue: _symptomsDescription,
                   decoration: InputDecoration(
@@ -884,11 +1382,14 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                      borderSide:
+                          BorderSide(color: AppColors.primary, width: 2),
                     ),
-                    hintText: 'Describe specific behaviors, challenges, or concerns...\nExample: "Difficulty with eye contact, repetitive movements, speech delay"',
+                    hintText:
+                        'Describe specific behaviors, challenges, or concerns...\nExample: "Difficulty with eye contact, repetitive movements, speech delay"',
                     alignLabelWithHint: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 16),
                   ),
                   maxLines: 4,
                   onChanged: (value) {
@@ -899,7 +1400,6 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                   onSaved: (v) => _symptomsDescription = v ?? '',
                 ),
                 const SizedBox(height: 20),
-
                 TextFormField(
                   initialValue: _suspectedCondition,
                   decoration: InputDecoration(
@@ -911,11 +1411,15 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                      borderSide:
+                          BorderSide(color: AppColors.primary, width: 2),
                     ),
-                    hintText: 'Example: Autism Spectrum Disorder, ADHD, Speech Delay...',
-                    prefixIcon: Icon(Icons.psychology, color: AppColors.primary),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    hintText:
+                        'Example: Autism Spectrum Disorder, ADHD, Speech Delay...',
+                    prefixIcon:
+                        Icon(Icons.psychology, color: AppColors.primary),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 16),
                   ),
                   onChanged: (value) {
                     setState(() {
@@ -925,7 +1429,6 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                   onSaved: (v) => _suspectedCondition = v ?? '',
                 ),
                 const SizedBox(height: 20),
-
                 DropdownButtonFormField<int>(
                   value: _selectedDiagnosisId,
                   decoration: InputDecoration(
@@ -937,10 +1440,13 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                      borderSide:
+                          BorderSide(color: AppColors.primary, width: 2),
                     ),
-                    prefixIcon: Icon(Icons.medical_information, color: AppColors.primary),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    prefixIcon: Icon(Icons.medical_information,
+                        color: AppColors.primary),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 16),
                   ),
                   isExpanded: true, // ⭐ هذا يحل مشكلة الoverflow
                   items: [
@@ -991,29 +1497,35 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                   },
                 ),
                 const SizedBox(height: 20),
-
-                if (_symptomsDescription.isNotEmpty || _suspectedCondition.isNotEmpty || _selectedDiagnosisId != null)
+                if (_symptomsDescription.isNotEmpty ||
+                    _suspectedCondition.isNotEmpty ||
+                    _selectedDiagnosisId != null)
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: AppColors.success.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                      border:
+                          Border.all(color: AppColors.success.withOpacity(0.3)),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.check_circle, size: 20, color: AppColors.success),
+                        Icon(Icons.check_circle,
+                            size: 20, color: AppColors.success),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text('Medical data ready for analysis',
-                                  style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.success)),
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.success)),
                               const SizedBox(height: 4),
                               Text(
                                 _getMedicalDataSummary(),
-                                style: TextStyle(fontSize: 12, color: AppColors.success),
+                                style: TextStyle(
+                                    fontSize: 12, color: AppColors.success),
                               ),
                             ],
                           ),
@@ -1021,7 +1533,6 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                       ],
                     ),
                   ),
-
                 const SizedBox(height: 20),
                 TextFormField(
                   initialValue: _medicalHistory,
@@ -1034,10 +1545,13 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                      borderSide:
+                          BorderSide(color: AppColors.primary, width: 2),
                     ),
-                    hintText: 'Previous diagnoses, treatments, hospitalizations...',
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    hintText:
+                        'Previous diagnoses, treatments, hospitalizations...',
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 16),
                   ),
                   maxLines: 3,
                   onSaved: (v) => _medicalHistory = v ?? '',
@@ -1054,10 +1568,13 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                      borderSide:
+                          BorderSide(color: AppColors.primary, width: 2),
                     ),
-                    hintText: 'Speech therapy, occupational therapy, behavioral therapy...',
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    hintText:
+                        'Speech therapy, occupational therapy, behavioral therapy...',
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 16),
                   ),
                   maxLines: 2,
                   onSaved: (v) => _previousServices = v ?? '',
@@ -1074,17 +1591,120 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                      borderSide:
+                          BorderSide(color: AppColors.primary, width: 2),
                     ),
                     hintText: 'Any other relevant information...',
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 16),
                   ),
                   maxLines: 2,
                   onSaved: (v) => _additionalNotes = v ?? '',
                 ),
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.info.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.info.withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.attach_money,
+                              size: 18, color: AppColors.info),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Financial Help (Optional)',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.info,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'If you would like to request financial assistance, we may use your existing financial assessment or ask you to complete it now.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textGray,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SwitchListTile.adaptive(
+                        value: _needsFinancialHelp,
+                        onChanged: (value) async {
+                          if (value) {
+                            await _loadParentFinancialProfile();
+
+                            if (!_hasValidParentFinancialAssessment) {
+                              final proceed = await showDialog<bool>(
+                                context: context,
+                                builder: (context) {
+                                  return AlertDialog(
+                                    title: Text('Financial Assessment Needed'),
+                                    content: Text(
+                                        'To apply official financial assistance, please complete the financial assessment first. You will be redirected to the financial assistance screen.'),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.of(context).pop(false),
+                                        child: Text('Later'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.of(context).pop(true),
+                                        child: Text('Continue'),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              );
+
+                              if (proceed == true) {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const FinancialAssistanceDashboard(),
+                                  ),
+                                );
+
+                                await _loadParentFinancialProfile();
+                              }
+                            }
+                          }
+
+                          setState(() {
+                            _needsFinancialHelp = value;
+                            if (!value) {
+                              _monthlyIncomeRange = null;
+                            }
+                          });
+                        },
+                        activeColor: AppColors.primary,
+                        title: Text(
+                          'I would like to request financial assistance',
+                          style: TextStyle(fontSize: 14),
+                        ),
+                        subtitle: Text(
+                          'This will not affect the quality of services your child receives.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textLight,
+                          ),
+                        ),
+                      ),
+                      // لا نطلب الراتب هنا؛ التقييم التفصيلي يتم في شاشة المساعدة المالية
+                    ],
+                  ),
+                ),
               ],
             ),
-
             if (_isAnalyzing) ...[
               const SizedBox(height: 24),
               Container(
@@ -1106,13 +1726,16 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                     const SizedBox(height: 16),
                     Text(
                       'Analyzing Symptoms...',
-                      style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textDark),
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textDark),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       'Finding the best institutions based on the provided information',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 12, color: AppColors.textLight),
+                      style:
+                          TextStyle(fontSize: 12, color: AppColors.textLight),
                     ),
                   ],
                 ),
@@ -1123,7 +1746,6 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
       ),
     );
   }
-
 
   String _truncateDiagnosisName(String name) {
     if (name.length <= 35) return name;
@@ -1142,16 +1764,32 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
     double _localMaxPrice = _maxPrice;
     bool _localFilterByMatchingServices = _filterByMatchingServices;
 
-    final cities = ['All', ...safeInstitutions.map((inst) => inst['city']?.toString() ?? 'Unknown').where((city) => city != 'Unknown' && city != 'null').toSet().toList()];
-    final specialties = ['All', ...safeInstitutions.expand((inst) => inst['matching_specialties'] ?? []).whereType<String>().toSet().toList()];
+    final cities = [
+      'All',
+      ...safeInstitutions
+          .map((inst) => inst['city']?.toString() ?? 'Unknown')
+          .where((city) => city != 'Unknown' && city != 'null')
+          .toSet()
+          .toList()
+    ];
+    final specialties = [
+      'All',
+      ...safeInstitutions
+          .expand((inst) => inst['matching_specialties'] ?? [])
+          .whereType<String>()
+          .toSet()
+          .toList()
+    ];
 
     List<dynamic> filteredInstitutions = safeInstitutions.where((institution) {
       final name = institution['name']?.toString().toLowerCase() ?? '';
       final city = institution['city']?.toString() ?? '';
       final instSpecialties = institution['matching_specialties'] ?? [];
       final distance = institution['distance']?.toString() ?? '';
-      final rating = double.tryParse(institution['rating']?.toString() ?? '0') ?? 0.0;
-      final avgPrice = double.tryParse(institution['avg_price']?.toString() ?? '0') ?? 0.0;
+      final rating =
+          double.tryParse(institution['rating']?.toString() ?? '0') ?? 0.0;
+      final avgPrice =
+          double.tryParse(institution['avg_price']?.toString() ?? '0') ?? 0.0;
       final matchingServices = institution['available_services'] ?? [];
 
       final matchesSearch = _searchFilter.isEmpty ||
@@ -1160,18 +1798,25 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
 
       final matchesCity = _selectedCity == 'All' || city == _selectedCity;
       final matchesSpecialty = _selectedSpecialty == 'All' ||
-          (instSpecialties is List && instSpecialties.contains(_selectedSpecialty));
+          (instSpecialties is List &&
+              instSpecialties.contains(_selectedSpecialty));
 
       final matchesDistance = _selectedMaxDistance == 'All' ||
           _isWithinDistance(distance, _selectedMaxDistance);
 
       final matchesRating = rating >= _localMinRating;
-      final matchesPrice = _localMaxPrice >= 1000.0 || avgPrice <= _localMaxPrice;
+      final matchesPrice =
+          _localMaxPrice >= 1000.0 || avgPrice <= _localMaxPrice;
       final matchesServices = !_localFilterByMatchingServices ||
           (matchingServices is List && matchingServices.isNotEmpty);
 
-      return matchesSearch && matchesCity && matchesSpecialty &&
-          matchesDistance && matchesRating && matchesPrice && matchesServices;
+      return matchesSearch &&
+          matchesCity &&
+          matchesSpecialty &&
+          matchesDistance &&
+          matchesRating &&
+          matchesPrice &&
+          matchesServices;
     }).toList();
 
     filteredInstitutions.sort((a, b) {
@@ -1182,16 +1827,24 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
           return (a['city'] ?? '').compareTo(b['city'] ?? '');
         case 'distance':
         case 'nearest':
-          final distA = double.tryParse(a['distance']?.toString().replaceAll(' كم', '') ?? '999') ?? 999;
-          final distB = double.tryParse(b['distance']?.toString().replaceAll(' كم', '') ?? '999') ?? 999;
+          final distA = double.tryParse(
+                  a['distance']?.toString().replaceAll(' كم', '') ?? '999') ??
+              999;
+          final distB = double.tryParse(
+                  b['distance']?.toString().replaceAll(' كم', '') ?? '999') ??
+              999;
           return distA.compareTo(distB);
         case 'rating':
-          final ratingA = double.tryParse(a['rating']?.toString() ?? '0') ?? 0.0;
-          final ratingB = double.tryParse(b['rating']?.toString() ?? '0') ?? 0.0;
+          final ratingA =
+              double.tryParse(a['rating']?.toString() ?? '0') ?? 0.0;
+          final ratingB =
+              double.tryParse(b['rating']?.toString() ?? '0') ?? 0.0;
           return ratingB.compareTo(ratingA);
         case 'price':
-          final priceA = double.tryParse(a['avg_price']?.toString() ?? '999') ?? 999;
-          final priceB = double.tryParse(b['avg_price']?.toString() ?? '999') ?? 999;
+          final priceA =
+              double.tryParse(a['avg_price']?.toString() ?? '999') ?? 999;
+          final priceB =
+              double.tryParse(b['avg_price']?.toString() ?? '999') ?? 999;
           return priceA.compareTo(priceB);
         case 'match_score':
         default:
@@ -1219,7 +1872,6 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                 _buildAnalysisResults(),
                 const SizedBox(height: 20),
               ],
-
               _buildSection(
                 title: 'Find the Perfect Institution',
                 icon: Icons.school,
@@ -1236,11 +1888,13 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: AppColors.primary, width: 2),
+                        borderSide:
+                            BorderSide(color: AppColors.primary, width: 2),
                       ),
                       filled: true,
                       fillColor: AppColors.background,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 16),
                     ),
                     onChanged: (value) {
                       setFilterState(() {
@@ -1261,10 +1915,14 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                               value: _selectedCity,
                               decoration: InputDecoration(
                                 labelText: 'City',
-                                labelStyle: TextStyle(color: AppColors.textGray, fontSize: 14),
-                                prefixIcon: Icon(Icons.location_city, size: 18, color: AppColors.primary),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                labelStyle: TextStyle(
+                                    color: AppColors.textGray, fontSize: 14),
+                                prefixIcon: Icon(Icons.location_city,
+                                    size: 18, color: AppColors.primary),
+                                border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8)),
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 12),
                               ),
                               isExpanded: true,
                               items: cities.map((city) {
@@ -1288,10 +1946,14 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                               value: _selectedSpecialty,
                               decoration: InputDecoration(
                                 labelText: 'Specialty',
-                                labelStyle: TextStyle(color: AppColors.textGray, fontSize: 14),
-                                prefixIcon: Icon(Icons.medical_services, size: 18, color: AppColors.primary),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                labelStyle: TextStyle(
+                                    color: AppColors.textGray, fontSize: 14),
+                                prefixIcon: Icon(Icons.medical_services,
+                                    size: 18, color: AppColors.primary),
+                                border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8)),
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 12),
                               ),
                               isExpanded: true,
                               items: specialties.map((specialty) {
@@ -1321,10 +1983,14 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                                 value: _selectedCity,
                                 decoration: InputDecoration(
                                   labelText: 'City',
-                                  labelStyle: TextStyle(color: AppColors.textGray, fontSize: 14),
-                                  prefixIcon: Icon(Icons.location_city, size: 18, color: AppColors.primary),
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                                  labelStyle: TextStyle(
+                                      color: AppColors.textGray, fontSize: 14),
+                                  prefixIcon: Icon(Icons.location_city,
+                                      size: 18, color: AppColors.primary),
+                                  border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8)),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 12),
                                 ),
                                 isExpanded: true,
                                 items: cities.map((city) {
@@ -1350,10 +2016,14 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                                 value: _selectedSpecialty,
                                 decoration: InputDecoration(
                                   labelText: 'Specialty',
-                                  labelStyle: TextStyle(color: AppColors.textGray, fontSize: 14),
-                                  prefixIcon: Icon(Icons.medical_services, size: 18, color: AppColors.primary),
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                                  labelStyle: TextStyle(
+                                      color: AppColors.textGray, fontSize: 14),
+                                  prefixIcon: Icon(Icons.medical_services,
+                                      size: 18, color: AppColors.primary),
+                                  border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8)),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 12),
                                 ),
                                 isExpanded: true,
                                 items: specialties.map((specialty) {
@@ -1384,18 +2054,27 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                     value: _selectedMaxDistance,
                     decoration: InputDecoration(
                       labelText: 'Max Distance',
-                      labelStyle: TextStyle(color: AppColors.textGray, fontSize: 14),
-                      prefixIcon: Icon(Icons.social_distance, size: 18, color: AppColors.primary),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      labelStyle:
+                          TextStyle(color: AppColors.textGray, fontSize: 14),
+                      prefixIcon: Icon(Icons.social_distance,
+                          size: 18, color: AppColors.primary),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 12),
                     ),
                     isExpanded: true,
                     items: const [
-                      DropdownMenuItem(value: 'All', child: Text('Any Distance')),
-                      DropdownMenuItem(value: '10', child: Text('Within 10 km')),
-                      DropdownMenuItem(value: '25', child: Text('Within 25 km')),
-                      DropdownMenuItem(value: '50', child: Text('Within 50 km')),
-                      DropdownMenuItem(value: '100', child: Text('Within 100 km')),
+                      DropdownMenuItem(
+                          value: 'All', child: Text('Any Distance')),
+                      DropdownMenuItem(
+                          value: '10', child: Text('Within 10 km')),
+                      DropdownMenuItem(
+                          value: '25', child: Text('Within 25 km')),
+                      DropdownMenuItem(
+                          value: '50', child: Text('Within 50 km')),
+                      DropdownMenuItem(
+                          value: '100', child: Text('Within 100 km')),
                     ],
                     onChanged: (value) {
                       setFilterState(() {
@@ -1407,7 +2086,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
 
                   // خيارات الترتيب
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
                       color: AppColors.accent1,
                       borderRadius: BorderRadius.circular(8),
@@ -1416,20 +2096,31 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                       children: [
                         Icon(Icons.sort, size: 16, color: AppColors.primary),
                         const SizedBox(width: 8),
-                        Text('Sort by:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                        Text('Sort by:',
+                            style: TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w500)),
                         const SizedBox(width: 8),
                         Expanded(
                           child: DropdownButtonHideUnderline(
                             child: DropdownButton<String>(
                               value: _sortBy,
                               isDense: true,
-                              style: TextStyle(fontSize: 12, color: AppColors.primary),
+                              style: TextStyle(
+                                  fontSize: 12, color: AppColors.primary),
                               items: const [
-                                DropdownMenuItem(value: 'match_score', child: Text('Best Match')),
-                                DropdownMenuItem(value: 'rating', child: Text('Highest Rating')),
-                                DropdownMenuItem(value: 'price', child: Text('Lowest Price')),
-                                DropdownMenuItem(value: 'nearest', child: Text('Nearest')),
-                                DropdownMenuItem(value: 'name', child: Text('Name A-Z')),
+                                DropdownMenuItem(
+                                    value: 'match_score',
+                                    child: Text('Best Match')),
+                                DropdownMenuItem(
+                                    value: 'rating',
+                                    child: Text('Highest Rating')),
+                                DropdownMenuItem(
+                                    value: 'price',
+                                    child: Text('Lowest Price')),
+                                DropdownMenuItem(
+                                    value: 'nearest', child: Text('Nearest')),
+                                DropdownMenuItem(
+                                    value: 'name', child: Text('Name A-Z')),
                               ],
                               onChanged: (value) {
                                 setFilterState(() {
@@ -1466,13 +2157,16 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            _showAdvancedFilters ? 'Hide Advanced Filters' : 'Advanced Filters',
+                            _showAdvancedFilters
+                                ? 'Hide Advanced Filters'
+                                : 'Advanced Filters',
                             style: TextStyle(fontSize: 13),
                           ),
                           if (activeFiltersCount > 0) ...[
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
                                 color: AppColors.primary,
                                 borderRadius: BorderRadius.circular(10),
@@ -1511,7 +2205,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.filter_alt, size: 20, color: AppColors.primary),
+                              Icon(Icons.filter_alt,
+                                  size: 20, color: AppColors.primary),
                               const SizedBox(width: 8),
                               Text(
                                 'Advanced Filters',
@@ -1523,7 +2218,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                               ),
                               const Spacer(),
                               IconButton(
-                                icon: Icon(Icons.refresh, size: 20, color: AppColors.primary),
+                                icon: Icon(Icons.refresh,
+                                    size: 20, color: AppColors.primary),
                                 onPressed: () {
                                   setFilterState(() {
                                     _localMinRating = 0.0;
@@ -1542,7 +2238,6 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                           ),
                           Divider(color: AppColors.accent3),
                           const SizedBox(height: 12),
-
                           Text(
                             'Minimum Rating: ${_localMinRating.toStringAsFixed(1)} ⭐',
                             style: TextStyle(
@@ -1567,9 +2262,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                               });
                             },
                           ),
-
                           const SizedBox(height: 16),
-
                           Text(
                             'Maximum Price: \$${_localMaxPrice.toStringAsFixed(0)}',
                             style: TextStyle(
@@ -1594,9 +2287,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                               });
                             },
                           ),
-
                           const SizedBox(height: 8),
-
                           CheckboxListTile(
                             title: Text(
                               'Show Only Matching Services',
@@ -1607,7 +2298,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                             ),
                             subtitle: Text(
                               'Filter institutions with matching services',
-                              style: TextStyle(fontSize: 11, color: AppColors.textLight),
+                              style: TextStyle(
+                                  fontSize: 11, color: AppColors.textLight),
                             ),
                             value: _localFilterByMatchingServices,
                             activeColor: AppColors.primary,
@@ -1628,9 +2320,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                   ],
                 ],
               ),
-
               const SizedBox(height: 20),
-
               _buildSection(
                 title: 'Recommended for you (${filteredInstitutions.length})',
                 icon: Icons.recommend,
@@ -1640,8 +2330,10 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                   else
                     Column(
                       children: [
-                        if (_sortBy == 'match_score' && filteredInstitutions.isNotEmpty) ...[
-                          _buildTopRecommendationCard(filteredInstitutions.first),
+                        if (_sortBy == 'match_score' &&
+                            filteredInstitutions.isNotEmpty) ...[
+                          _buildTopRecommendationCard(
+                              filteredInstitutions.first),
                           const SizedBox(height: 16),
                         ],
                         ...filteredInstitutions.map((institution) {
@@ -1651,9 +2343,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                     ),
                 ],
               ),
-
               const SizedBox(height: 20),
-
               _buildSection(
                 title: 'Registration Details',
                 icon: Icons.assignment,
@@ -1663,14 +2353,16 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                     decoration: BoxDecoration(
                       color: AppColors.warning.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+                      border:
+                          Border.all(color: AppColors.warning.withOpacity(0.3)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.info, size: 16, color: AppColors.warning),
+                            Icon(Icons.info,
+                                size: 16, color: AppColors.warning),
                             const SizedBox(width: 8),
                             Text(
                               'Registration Process',
@@ -1684,16 +2376,16 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                         const SizedBox(height: 8),
                         Text(
                           '• Request sent to institution\n'
-                              '• Institution reviews and approves\n'
-                              '• You receive notification\n'
-                              '• Sessions booked after approval',
-                          style: TextStyle(fontSize: 12, color: AppColors.warning),
+                          '• Institution reviews and approves\n'
+                          '• You receive notification\n'
+                          '• Sessions booked after approval',
+                          style:
+                              TextStyle(fontSize: 12, color: AppColors.warning),
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 16),
-
                   TextFormField(
                     initialValue: _registrationNotes,
                     decoration: InputDecoration(
@@ -1705,25 +2397,29 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: AppColors.primary, width: 2),
+                        borderSide:
+                            BorderSide(color: AppColors.primary, width: 2),
                       ),
-                      hintText: 'Any additional information or special requirements...',
+                      hintText:
+                          'Any additional information or special requirements...',
                       alignLabelWithHint: true,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 16),
                     ),
                     maxLines: 3,
                     onChanged: (v) => _registrationNotes = v,
                   ),
                   const SizedBox(height: 16),
-
                   Container(
                     decoration: BoxDecoration(
                       color: AppColors.success.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                      border:
+                          Border.all(color: AppColors.success.withOpacity(0.3)),
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -1733,10 +2429,12 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                             ),
                             child: Checkbox(
                               value: _consentGiven,
-                              onChanged: (v) => setState(() => _consentGiven = v ?? false),
+                              onChanged: (v) =>
+                                  setState(() => _consentGiven = v ?? false),
                               activeColor: AppColors.primary,
                               checkColor: Colors.white,
-                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -1767,6 +2465,26 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  // Checkbox to allow parent to apply available financial discount based on assessment
+                  CheckboxListTile(
+                    value: _applyFinancialDiscount,
+                    onChanged: (value) {
+                      setState(() {
+                        _applyFinancialDiscount = value ?? false;
+                      });
+                    },
+                    activeColor: AppColors.primary,
+                    title: const Text(
+                      'Apply available financial discount (if eligible)',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                    subtitle: const Text(
+                      'We will use your financial assessment to auto-create a financial assistance request for this institution.',
+                      style: TextStyle(fontSize: 11),
+                    ),
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
                 ],
               ),
             ],
@@ -1784,7 +2502,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
 
   Widget _buildAnalysisResults() {
     final analysis = _aiAnalysisResult!;
-    final suggestedConditions = analysis['analysis']?['suggested_conditions'] ?? [];
+    final suggestedConditions =
+        analysis['analysis']?['suggested_conditions'] ?? [];
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1802,7 +2521,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
               const SizedBox(width: 8),
               Text(
                 'AI Analysis Results',
-                style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.success),
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: AppColors.success),
               ),
             ],
           ),
@@ -1828,7 +2548,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                 }
 
                 return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: AppColors.success.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(16),
@@ -1892,7 +2613,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
             const Spacer(),
             if (isSelected)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
                   color: AppColors.success.withOpacity(0.0),
                   borderRadius: BorderRadius.circular(8),
@@ -1922,12 +2644,16 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                   ),
                 ],
               ),
-            if (specialties.isNotEmpty && specialties is List && specialties.isNotEmpty)
+            if (specialties.isNotEmpty &&
+                specialties is List &&
+                specialties.isNotEmpty)
               Wrap(
                 spacing: 4,
-                children: (specialties as List).take(3).map<Widget>((specialty) {
+                children:
+                    (specialties as List).take(3).map<Widget>((specialty) {
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
                       color: AppColors.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
@@ -1943,7 +2669,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: AppColors.success.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(8),
@@ -1985,7 +2712,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
-      color: isSelected ? AppColors.primary.withOpacity(0.05) : AppColors.surface,
+      color:
+          isSelected ? AppColors.primary.withOpacity(0.05) : AppColors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
@@ -1995,11 +2723,14 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
       ),
       elevation: 2,
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: isSelected ? AppColors.primary.withOpacity(0.2) : AppColors.accent1,
+            color: isSelected
+                ? AppColors.primary.withOpacity(0.2)
+                : AppColors.accent1,
             shape: BoxShape.circle,
           ),
           child: Icon(
@@ -2029,7 +2760,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                   Expanded(
                     child: Text(
                       city,
-                      style: TextStyle(fontSize: 12, color: AppColors.textLight),
+                      style:
+                          TextStyle(fontSize: 12, color: AppColors.textLight),
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
                     ),
@@ -2046,19 +2778,23 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
               Wrap(
                 spacing: 4,
                 runSpacing: 2,
-                children: (specialties as List).take(2).map<Widget>((specialty) {
+                children:
+                    (specialties as List).take(2).map<Widget>((specialty) {
                   return ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 120),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: AppColors.primary.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                        border: Border.all(
+                            color: AppColors.primary.withOpacity(0.3)),
                       ),
                       child: Text(
                         specialty.toString(),
-                        style: TextStyle(fontSize: 10, color: AppColors.primary),
+                        style:
+                            TextStyle(fontSize: 10, color: AppColors.primary),
                         overflow: TextOverflow.ellipsis,
                         maxLines: 1,
                       ),
@@ -2072,7 +2808,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
               runSpacing: 4,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: _getMatchScoreColor(matchScore),
                     borderRadius: BorderRadius.circular(4),
@@ -2080,7 +2817,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.check_circle_outline, size: 10, color: Colors.white),
+                      Icon(Icons.check_circle_outline,
+                          size: 10, color: Colors.white),
                       SizedBox(width: 2),
                       Text(
                         '$matchScore',
@@ -2093,14 +2831,15 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                     ],
                   ),
                 ),
-
                 if (institution['rating'] != null)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: AppColors.warning.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+                      border:
+                          Border.all(color: AppColors.warning.withOpacity(0.3)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -2118,19 +2857,23 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                       ],
                     ),
                   ),
-
-                if (institution['avg_price'] != null && double.tryParse(institution['avg_price'].toString()) != null)
+                if (institution['avg_price'] != null &&
+                    double.tryParse(institution['avg_price'].toString()) !=
+                        null)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: AppColors.success.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                      border:
+                          Border.all(color: AppColors.success.withOpacity(0.3)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.attach_money, size: 10, color: AppColors.success),
+                        Icon(Icons.attach_money,
+                            size: 10, color: AppColors.success),
                         Text(
                           '${double.parse(institution['avg_price'].toString()).toStringAsFixed(0)}',
                           style: TextStyle(
@@ -2142,14 +2885,15 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                       ],
                     ),
                   ),
-
                 if (distance != null)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: AppColors.info.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: AppColors.info.withOpacity(0.3)),
+                      border:
+                          Border.all(color: AppColors.info.withOpacity(0.3)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -2167,21 +2911,23 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                       ],
                     ),
                   ),
-
                 if (institution['available_services'] != null &&
                     institution['available_services'] is List &&
                     (institution['available_services'] as List).isNotEmpty)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: AppColors.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                      border:
+                          Border.all(color: AppColors.primary.withOpacity(0.3)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.medical_services, size: 10, color: AppColors.primary),
+                        Icon(Icons.medical_services,
+                            size: 10, color: AppColors.primary),
                         SizedBox(width: 2),
                         Text(
                           '${(institution['available_services'] as List).length} services',
@@ -2200,7 +2946,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
         ),
         trailing: isSelected
             ? Icon(Icons.check_circle, color: AppColors.success, size: 24)
-            : Icon(Icons.radio_button_unchecked, color: AppColors.textLight, size: 24),
+            : Icon(Icons.radio_button_unchecked,
+                color: AppColors.textLight, size: 24),
         onTap: () {
           setState(() {
             _selectedInstitutionId = id;
@@ -2233,7 +2980,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
           const SizedBox(height: 8),
           Text(
             'We couldn\'t find institutions matching the current symptoms. '
-                'Try adjusting the symptoms description or suspected condition.',
+            'Try adjusting the symptoms description or suspected condition.',
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.warning),
           ),
@@ -2275,12 +3022,15 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
           const SizedBox(height: 16),
           Text(
             'Registration Request Submitted!',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textDark),
+            style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textDark),
           ),
           const SizedBox(height: 16),
           Text(
             'Your registration request has been sent to the institution. '
-                'You will be notified when it is approved.',
+            'You will be notified when it is approved.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 16, color: AppColors.textGray),
           ),
@@ -2295,7 +3045,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
               ),
               child: ListTile(
                 leading: Icon(Icons.school, color: AppColors.primary),
-                title: Text('Selected Institution', style: TextStyle(fontWeight: FontWeight.w600)),
+                title: Text('Selected Institution',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
                 subtitle: Text(_getInstitutionName(_selectedInstitutionId!)),
               ),
             ),
@@ -2335,7 +3086,6 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
             style: TextStyle(fontSize: 12, color: AppColors.textLight),
           ),
           SizedBox(height: 16),
-
           OutlinedButton.icon(
             onPressed: _openMapScreen,
             icon: Icon(Icons.map, color: AppColors.primary),
@@ -2353,7 +3103,6 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
               padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             ),
           ),
-
           if (_locationLat != null && _locationLng != null) ...[
             SizedBox(height: 12),
             Container(
@@ -2368,7 +3117,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.check_circle, color: AppColors.success, size: 16),
+                      Icon(Icons.check_circle,
+                          color: AppColors.success, size: 16),
                       SizedBox(width: 8),
                       Text(
                         'Location Selected',
@@ -2412,9 +3162,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
             ],
           ),
         ),
-
         const SizedBox(height: 16),
-
         Row(
           children: [
             if (_currentStep != ChildFormStep.basicInfo)
@@ -2434,9 +3182,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                   ),
                 ),
               ),
-
-            if (_currentStep != ChildFormStep.basicInfo) const SizedBox(width: 12),
-
+            if (_currentStep != ChildFormStep.basicInfo)
+              const SizedBox(width: 12),
             Expanded(
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _goToNextStep,
@@ -2451,14 +3198,15 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                 ),
                 child: _isLoading
                     ? SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
                     : Text(
-                  _getActionButtonText(),
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
+                        _getActionButtonText(),
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
               ),
             ),
           ],
@@ -2475,19 +3223,21 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: isActive ? AppColors.primary : AppColors.textLight.withOpacity(0.2),
+              color: isActive
+                  ? AppColors.primary
+                  : AppColors.textLight.withOpacity(0.2),
               shape: BoxShape.circle,
             ),
             child: Center(
               child: isActive
                   ? Icon(Icons.check, size: 16, color: Colors.white)
                   : Text(
-                '${stepIndex + 1}',
-                style: TextStyle(
-                  color: isActive ? Colors.white : AppColors.textLight,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+                      '${stepIndex + 1}',
+                      style: TextStyle(
+                        color: isActive ? Colors.white : AppColors.textLight,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
             ),
           ),
           const SizedBox(height: 8),
@@ -2510,6 +3260,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
         return _buildBasicInfoStep();
       case ChildFormStep.medicalInfo:
         return _buildMedicalInfoStep();
+      case ChildFormStep.financialAssessment:
+        return _buildFinancialAssessmentStep(); // ⬅️ تم التصحيح
       case ChildFormStep.selectInstitution:
         return _buildInstitutionSelectionStep();
       case ChildFormStep.confirmation:
@@ -2527,7 +3279,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
     }
     if (_selectedDiagnosisId != null) {
       final diagnosis = _diagnoses.firstWhere(
-            (d) => d['diagnosis_id'] == _selectedDiagnosisId,
+        (d) => d['diagnosis_id'] == _selectedDiagnosisId,
         orElse: () => {'name': 'Unknown'},
       );
       parts.add('diagnosis: ${diagnosis['name']}');
@@ -2535,87 +3287,92 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
     return parts.join(', ');
   }
 
-  void _goToPreviousStep() {
-    setState(() {
-      switch (_currentStep) {
-        case ChildFormStep.medicalInfo:
-          _currentStep = ChildFormStep.basicInfo;
-          break;
-        case ChildFormStep.selectInstitution:
-          _currentStep = ChildFormStep.medicalInfo;
-          break;
-        case ChildFormStep.confirmation:
-          _currentStep = ChildFormStep.selectInstitution;
-          break;
-        default:
-          break;
-      }
-    });
-  }
-
+ 
   void _goToNextStep() {
-    switch (_currentStep) {
-      case ChildFormStep.basicInfo:
-        _saveBasicInfo();
-        break;
-      case ChildFormStep.medicalInfo:
-        _formKey.currentState?.save();
-        final hasSymptoms = _symptomsDescription.trim().isNotEmpty;
-        final hasSuspectedCondition = _suspectedCondition.trim().isNotEmpty;
-        final hasDiagnosis = _selectedDiagnosisId != null;
+  switch (_currentStep) {
+    case ChildFormStep.basicInfo:
+      _saveBasicInfo();
+      break;
+    case ChildFormStep.medicalInfo:
+      _formKey.currentState?.save();
+      
+      if (_financialAssessmentRecommended && _showFinancialAssessment) {
+    setState(() {
+      _currentStep = ChildFormStep.financialAssessment;
+    });
+  } else {
+    _analyzeMedicalCondition();
+  }
+  break;
+    case ChildFormStep.financialAssessment: // ⬅️ حالة جديدة
+      _performFinancialAssessment();
+      break;
+    case ChildFormStep.selectInstitution:
+      _requestRegistration();
+      break;
+    case ChildFormStep.confirmation:
+      Navigator.pop(context, true);
+      break;
+  }
+}
 
-        if (widget.screeningData != null &&
-            widget.screeningData!['from_screening'] == true &&
-            widget.screeningData!['recommended_institutions'] != null) {
-          setState(() {
-            _recommendedInstitutions = widget.screeningData!['recommended_institutions'];
-            _currentStep = ChildFormStep.selectInstitution;
-          });
-        } else if (!hasSymptoms && !hasSuspectedCondition && !hasDiagnosis) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Please provide at least one of: symptoms description, suspected condition, or diagnosis'),
-              backgroundColor: AppColors.warning,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-          return;
-        } else {
-          _analyzeMedicalCondition();
-        }
+// في _goToPreviousStep():
+void _goToPreviousStep() {
+  setState(() {
+    switch (_currentStep) {
+      case ChildFormStep.medicalInfo:
+        _currentStep = ChildFormStep.basicInfo;
+        break;
+      case ChildFormStep.financialAssessment: // ⬅️ حالة جديدة
+        _currentStep = ChildFormStep.medicalInfo;
         break;
       case ChildFormStep.selectInstitution:
-        _requestRegistration();
+        _currentStep = _showFinancialAssessment 
+            ? ChildFormStep.financialAssessment 
+            : ChildFormStep.medicalInfo;
         break;
       case ChildFormStep.confirmation:
-        Navigator.pop(context, true);
+        _currentStep = ChildFormStep.selectInstitution;
+        break;
+      default:
         break;
     }
-  }
+  });
+}
 
-  String _getActionButtonText() {
-    switch (_currentStep) {
-      case ChildFormStep.basicInfo:
-        return 'Continue to Recommendations';
-      case ChildFormStep.medicalInfo:
-        return widget.screeningData != null ? 'View Recommended Institutions' : 'Analyze & Find Institutions';
-      case ChildFormStep.selectInstitution:
-        return 'Request Registration';
-      case ChildFormStep.confirmation:
-        return 'Finish';
-    }
+// في _getActionButtonText():
+String _getActionButtonText() {
+  switch (_currentStep) {
+    case ChildFormStep.basicInfo:
+      return 'Continue to Medical Info';
+    case ChildFormStep.medicalInfo:
+      return _showFinancialAssessment ? 'Continue to Financial Assessment' : 'Analyze & Find Institutions';
+    case ChildFormStep.financialAssessment: // ⬅️ حالة جديدة
+      return _skipFinancialAssessment ? 'Skip & Continue' : 'Submit Assessment';
+    case ChildFormStep.selectInstitution:
+      return 'Request Registration';
+    case ChildFormStep.confirmation:
+      return 'Finish';
+    default:
+      return 'Continue';
   }
+}
 
   String _getStepTitle() {
     switch (_currentStep) {
       case ChildFormStep.basicInfo:
         return 'Add Child - Basic Information';
       case ChildFormStep.medicalInfo:
-        return widget.screeningData != null ? 'Screening Results Summary' : 'Medical Information';
+        return widget.screeningData != null
+            ? 'Screening Results Summary'
+            : 'Medical Information';
       case ChildFormStep.selectInstitution:
         return 'Recommended Institutions';
       case ChildFormStep.confirmation:
         return 'Confirmation';
+      case ChildFormStep.financialAssessment:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
   }
 
@@ -2629,6 +3386,9 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
         return 0.75;
       case ChildFormStep.confirmation:
         return 1.0;
+      case ChildFormStep.financialAssessment:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
   }
 
@@ -2652,14 +3412,15 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
 
   String _getInstitutionName(int institutionId) {
     final institution = _recommendedInstitutions.firstWhere(
-          (inst) => inst['id'] == institutionId,
+      (inst) => inst['id'] == institutionId,
       orElse: () => {'name': 'Unknown Institution'},
     );
     return institution['name'];
   }
 
   Future<void> _pickDate() async {
-    DateTime initial = DateTime.tryParse(_dateController.text) ?? DateTime.now();
+    DateTime initial =
+        DateTime.tryParse(_dateController.text) ?? DateTime.now();
 
     final picked = await showDatePicker(
       context: context,
@@ -2670,17 +3431,19 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: ColorScheme.light(
-              primary: AppColors.primary,           // اللون الأساسي
-              onPrimary: Colors.white,              // لون النص على اللون الأساسي
-              surface: AppColors.surface,           // لون الخلفية
-              onSurface: AppColors.textDark,        // لون النص على الخلفية
-              background: AppColors.background,     // لون الخلفية العامة
+              primary: AppColors.primary, // اللون الأساسي
+              onPrimary: Colors.white, // لون النص على اللون الأساسي
+              surface: AppColors.surface, // لون الخلفية
+              onSurface: AppColors.textDark, // لون النص على الخلفية
+              background: AppColors.background, // لون الخلفية العامة
             ),
             textTheme: TextTheme(
               bodyLarge: TextStyle(color: AppColors.textDark),
               bodyMedium: TextStyle(color: AppColors.textDark),
-              titleMedium: TextStyle(color: AppColors.textDark, fontWeight: FontWeight.w600),
-              labelLarge: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600),
+              titleMedium: TextStyle(
+                  color: AppColors.textDark, fontWeight: FontWeight.w600),
+              labelLarge: TextStyle(
+                  color: AppColors.primary, fontWeight: FontWeight.w600),
             ),
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(
@@ -2697,12 +3460,14 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
     );
 
     if (picked != null) {
-      _dateController.text = '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+      _dateController.text =
+          '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
     }
   }
 
   Future<void> _pickImage() async {
-    final picked = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    final picked =
+        await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
     if (picked != null) {
       setState(() {
         _pickedImage = File(picked.path);
@@ -2810,9 +3575,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                   ),
                 ],
               ),
-
               const SizedBox(height: 24),
-
               Container(
                 height: 6,
                 decoration: BoxDecoration(
@@ -2826,13 +3589,9 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                   borderRadius: BorderRadius.circular(3),
                 ),
               ),
-
               const SizedBox(height: 32),
-
               _buildStepContent(),
-
               const SizedBox(height: 32),
-
               _buildNavigationButtons(),
             ],
           ),

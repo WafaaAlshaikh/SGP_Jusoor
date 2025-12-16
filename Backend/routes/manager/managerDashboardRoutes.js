@@ -10,5 +10,9 @@ router.use(authMiddleware);
 router.get('/debug', managerDashboardController.getDebugInfo);
 // إحصائيات لوحة تحكم المدير
 router.get('/dashboard/stats', managerDashboardController.getManagerDashboardStats);
+// تفاصيل التبرعات للمؤسسة
+router.get('/dashboard/donations', managerDashboardController.getDonationDetails);
+// تقرير مالي للمؤسسة
+router.get('/financial/report', managerDashboardController.getFinancialReport);
 
 module.exports = router;

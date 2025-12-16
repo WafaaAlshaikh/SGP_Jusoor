@@ -96,7 +96,7 @@ const Institution = sequelize.define('Institution', {
     type: DataTypes.INTEGER,
     allowNull: true
   }
-
+  
 }, {
   tableName: 'Institutions',
   timestamps: false

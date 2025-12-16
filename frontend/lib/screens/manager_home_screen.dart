@@ -1,5 +1,6 @@
 // lib/screens/manager/manager_home_screen.dart
 import 'package:flutter/material.dart';
+import 'package:frontend/screens/manager/manager_free_sessions_screen.dart';
 import '../../theme/app_colors.dart';
 import '../../services/manager_dashboard_service.dart';
 import 'manager/children_management_screen.dart';
@@ -10,6 +11,12 @@ import 'manager/institution_profile_screen.dart';
 import 'manager/institution_reviews_dashboard.dart';
 import 'package:frontend/screens/community_screen.dart';
 import 'package:frontend/screens/chat_list_screen.dart';
+import 'manager/financial_requests_screen.dart';
+import 'manager/manager_workshops_screen.dart';
+import 'manager/manager_donations_screen.dart';
+import 'manager/manager_financial_report_screen.dart';
+import 'manager/manager_donation_campaigns_screen.dart';
+
 import 'package:frontend/screens/login_screen.dart';
 
 class ManagerHomeScreen extends StatefulWidget {
@@ -39,6 +46,8 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
       final data = await ManagerDashboardService.getDashboardStats();
 
       setState(() {
+        final donations = data['donations'] ?? {};
+
         _dashboardData = {
           'centerName': data['institution']['name'],
           'totalRevenue': data['revenue']['currentMonth']?.toInt() ?? 0,
@@ -50,6 +59,9 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           'todaySessions': data['sessionStats']['todaySessions'] ?? 0,
           'monthlySessions': data['sessionStats']['monthlySessions'] ?? 0,
           'sessionGrowth': data['sessionStats']['sessionGrowth']?.toDouble() ?? 0,
+          'totalDonations': donations['totalDonations'] ?? 0,
+          'donationBalance': donations['donationBalance'] ?? 0,
+          'totalAllocated': donations['totalAllocated'] ?? 0,
         };
 
         // تحويل sessionDistribution إلى chartData مع ألوان مختلفة
@@ -89,6 +101,21 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             'route': 'specialists',
           },
           {
+            'title': 'Financial Assistance Requests',
+            'icon': Icons.request_quote_rounded,
+            'count': data['pendingRequests']['financial'] ?? 0,
+          },
+          {
+            'title': 'Free Session Offers',
+            'icon': Icons.volunteer_activism_rounded,
+            'count': 0,
+          },
+          {
+            'title': 'Parent Workshops',
+            'icon': Icons.groups_2_rounded,
+            'count': 0,
+          },
+          {
             'title': 'Financial Reports',
             'icon': Icons.assessment_rounded,
             'count': data['revenue']['currentMonth']?.toInt() ?? 0,
@@ -99,6 +126,21 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             'icon': Icons.volunteer_activism,
             'count': data['donationStats']?['totalDonations'] ?? 0,
             'route': 'donations',
+// =======
+//             'title': 'Donation Campaigns',
+//             'icon': Icons.flag_rounded,
+//             'count': 0,
+//           },
+//           {
+//             'title': 'Donations',
+//             'icon': Icons.volunteer_activism_rounded,
+//             'count': (donations['totalDonations'] ?? 0).toInt(),
+//           },
+//           {
+//             'title': 'Session Management',
+//             'icon': Icons.calendar_today_rounded,
+//             'count': data['sessionStats']['monthlySessions'] ?? 0,
+// >>>>>>> 5a28052 (add donations and financial reports features for manager)
           },
           {
             'title': 'Community',
@@ -241,6 +283,9 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
   }
 
   void _handleSidebarItemClick(Map<String, dynamic> item) {
+  // في _ManagerHomeScreenState
+  // void _handleSidebarItemClick(String title) {
+
     setState(() {
       _isSidebarOpen = false;
     });
@@ -327,6 +372,60 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
         duration: Duration(seconds: 2),
       ),
     );
+// =======
+//     if (title == 'Financial Reports') {
+//       Navigator.push(
+//         context,
+//         MaterialPageRoute(
+//           builder: (context) => const ManagerFinancialReportScreen(),
+//         ),
+//       );
+//     }
+
+//     if (title == 'Donation Campaigns') {
+//       Navigator.push(
+//         context,
+//         MaterialPageRoute(
+//           builder: (context) => const ManagerDonationCampaignsScreen(),
+//         ),
+//       );
+//     }
+
+//     if (title == 'Donations') {
+//       Navigator.push(
+//         context,
+//         MaterialPageRoute(
+//           builder: (context) => const ManagerDonationsScreen(),
+//         ),
+//       );
+//     }
+
+//     if (title == 'Financial Assistance Requests') {
+//       Navigator.push(
+//         context,
+//         MaterialPageRoute(
+//           builder: (context) => const ManagerFinancialRequestsScreen(),
+//         ),
+//       );
+//     }
+//     if (title == 'Free Session Offers') {
+//       Navigator.push(
+//         context,
+//         MaterialPageRoute(
+//           builder: (context) => const ManagerFreeSessionsScreen(),
+//         ),
+//       );
+//     }
+//     if (title == 'Parent Workshops') {
+//       Navigator.push(
+//         context,
+//         MaterialPageRoute(
+//           builder: (context) => const ManagerWorkshopsScreen(),
+//         ),
+//       );
+//     }
+//     // يمكنك إضافة باقي الصفحات هنا
+// >>>>>>> 5a28052 (add donations and financial reports features for manager)
   }
 
   void _handleLogout() {
@@ -419,6 +518,10 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
                 children: [
                   // Overview Cards
                   _buildOverviewCards(),
+                  SizedBox(height: 25),
+
+                  // Donations Overview
+                  _buildDonationsOverview(),
                   SizedBox(height: 25),
 
                   // Chart Section
@@ -592,6 +695,115 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             style: TextStyle(
               fontSize: 12,
               color: subtitle.contains('-') ? Colors.red : AppColors.textLight,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDonationsOverview() {
+    final double totalDonations =
+        (_dashboardData['totalDonations'] ?? 0).toDouble();
+    final double donationBalance =
+        (_dashboardData['donationBalance'] ?? 0).toDouble();
+    final double totalAllocated =
+        (_dashboardData['totalAllocated'] ?? 0).toDouble();
+
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            offset: Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Donations Overview',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textDark,
+                ),
+              ),
+              Icon(
+                Icons.volunteer_activism_rounded,
+                color: AppColors.accent3,
+              ),
+            ],
+          ),
+          SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildDonationStatTile(
+                  title: 'Total Donations',
+                  value: '${totalDonations.toStringAsFixed(0)} JOD',
+                  color: AppColors.accent3,
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: _buildDonationStatTile(
+                  title: 'Available Balance',
+                  value: '${donationBalance.toStringAsFixed(0)} JOD',
+                  color: AppColors.success,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          _buildDonationStatTile(
+            title: 'Used to support families',
+            value: '${totalAllocated.toStringAsFixed(0)} JOD',
+            color: AppColors.primary,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDonationStatTile({
+    required String title,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textGray,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textDark,
             ),
           ),
         ],

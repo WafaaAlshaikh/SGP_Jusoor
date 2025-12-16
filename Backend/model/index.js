@@ -25,6 +25,8 @@ const AISpecialistInsight = require('./AISpecialistInsight');
 const Message = require('./Message');
 const Post = require('./Post');
 const Donation = require('./Donation');
+const DonationAllocation = require('./DonationAllocation');
+const DonationCampaign = require('./DonationCampaign');
 const Resource = require('./Resource');
 const ResourceDiagnosis = require('./ResourceDiagnosis');
 const Comment = require('./Comment');
@@ -39,6 +41,10 @@ const QuestionnaireResponse = require('./QuestionnaireResponse')(sequelize, Data
 const SessionRating = require('./SessionRating');
 const InstitutionReview = require('./InstitutionReview');
 const SpecialistFeedback = require('./SpecialistFeedback');
+
+const FinancialAssistanceRequest = require('./FinancialAssistanceRequest');
+const SessionFinancialAidRequest = require('./SessionFinancialAidRequest');
+const PaymentPlan = require('./PaymentPlan');
 
 // ==================== Main Relations ====================
 
@@ -122,6 +128,9 @@ Like.belongsTo(Comment, { foreignKey: 'comment_id', as: 'LikeComment' });
 Notification.belongsTo(User, { foreignKey: 'user_id', as: 'NotificationUser' });
 User.hasMany(Notification, { foreignKey: 'user_id', as: 'UserNotifications' });
 
+Donation.associate({ DonationCampaign });
+DonationCampaign.associate({ Donation });
+
 
 module.exports = {
   sequelize,
@@ -147,6 +156,8 @@ module.exports = {
   Message,
   Post,
   Donation,
+  DonationAllocation,
+  DonationCampaign,
   Resource,
   ResourceDiagnosis,
   ChildAttachment,
@@ -159,5 +170,9 @@ module.exports = {
   QuestionnaireResponse,
   SessionRating,
   InstitutionReview,
-  SpecialistFeedback
+  SpecialistFeedback,
+  FinancialAssistanceRequest,
+  SessionFinancialAidRequest,
+  PaymentPlan
 };
+

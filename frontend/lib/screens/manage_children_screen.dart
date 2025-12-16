@@ -471,7 +471,7 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
         const SizedBox(height: 12),
         Container(
           constraints: BoxConstraints(
-            maxHeight: 120, // ارتفاع أقصى للتحكم في التمرير
+            maxHeight: 120,
           ),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -481,7 +481,7 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                 return Container(
                   margin: const EdgeInsets.only(right: 8),
                   constraints: BoxConstraints(
-                    maxWidth: 150, // عرض أقصى لكل chip
+                    maxWidth: 150,
                   ),
                   child: FilterChip(
                     label: Text(
@@ -539,7 +539,7 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
             ),
           ],
         ),
-        const SizedBox(height:1),
+        const SizedBox(height: 1),
         Container(
           decoration: BoxDecoration(
             color: AppColors.background,
@@ -677,13 +677,11 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                     onChanged: (value) {
                       tempSearchQuery = value;
 
-                      // إلغاء المؤقت السابق إذا موجود
                       _debounceTimer?.cancel();
 
-                      // إنشاء مؤقت جديد للبحث بعد 500 مللي ثانية
                       _debounceTimer = Timer(const Duration(milliseconds: 500), () {
                         _applySearch(tempSearchQuery);
-                        setModalState(() {}); // تحديث الواجهة
+                        setModalState(() {});
                       });
                     },
                   ),
@@ -758,7 +756,7 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
         );
       },
     ).then((_) {
-      _debounceTimer?.cancel(); // تنظيف المؤقت عند إغلاق الدايلوج
+      _debounceTimer?.cancel();
     });
   }
 
@@ -1138,7 +1136,6 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
           Row(
             children: [
               Icon(Icons.filter_alt_rounded, size: 16, color: AppColors.primary),
@@ -1186,7 +1183,6 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
 
           const SizedBox(height: 8),
 
-          // Filter Chips
           Wrap(
             spacing: 6,
             runSpacing: 6,
@@ -1242,6 +1238,7 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
       ),
     );
   }
+
   Widget _buildLoadingState() {
     return Center(
       child: Column(
@@ -1348,10 +1345,8 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
                 fontSize: 16,
               ),
               onChanged: (value) {
-                // إلغاء المؤقت السابق إذا موجود
                 _debounceTimer?.cancel();
 
-                // إنشاء مؤقت جديد للبحث بعد 300 مللي ثانية
                 _debounceTimer = Timer(const Duration(milliseconds: 300), () {
                   _applySearch(value);
                 });
@@ -1403,16 +1398,22 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildStatItem(_allChildren.length.toString(), 'Total', Icons.people_alt_rounded),
-          _buildStatItem(
-            _allChildren.where((c) => c.registrationStatus == 'Pending').length.toString(),
-            'Pending',
-            Icons.pending_actions_rounded,
+          Expanded(
+            child: _buildStatItem(_allChildren.length.toString(), 'Total', Icons.people_alt_rounded),
           ),
-          _buildStatItem(
-            _allChildren.where((c) => c.registrationStatus == 'Approved').length.toString(),
-            'Approved',
-            Icons.verified_rounded,
+          Expanded(
+            child: _buildStatItem(
+              _allChildren.where((c) => c.registrationStatus == 'Pending').length.toString(),
+              'Pending',
+              Icons.pending_actions_rounded,
+            ),
+          ),
+          Expanded(
+            child: _buildStatItem(
+              _allChildren.where((c) => c.registrationStatus == 'Approved').length.toString(),
+              'Approved',
+              Icons.verified_rounded,
+            ),
           ),
         ],
       ),
@@ -1421,6 +1422,7 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
 
   Widget _buildStatItem(String value, String label, IconData icon) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           padding: const EdgeInsets.all(8),
@@ -1431,19 +1433,26 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
           child: Icon(icon, color: Colors.white, size: 20),
         ),
         const SizedBox(height: 8),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
         ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.white.withOpacity(0.8),
+        const SizedBox(height: 4),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.white.withOpacity(0.8),
+            ),
           ),
         ),
       ],
@@ -1464,11 +1473,8 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20 ,color: Colors.white),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Colors.white),
           onPressed: () => Navigator.maybePop(context),
-          // style: IconButton.styleFrom(
-          //   backgroundColor: Colors.white.withOpacity(0.2),
-          // ),
         ),
         backgroundColor: AppColors.primary,
         elevation: 0,
@@ -1478,16 +1484,9 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
       ),
       body: Column(
         children: [
-          // Search Bar
           _buildSearchBar(),
-
-          // Stats Section
           _buildStatsSection(),
-
-          // Active Filters
           _buildActiveFiltersSection(),
-
-          // Children List
           Expanded(
             child: _isLoading
                 ? _buildLoadingState()
@@ -1500,7 +1499,6 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          // Symptoms Analysis Button
           Container(
             margin: const EdgeInsets.only(bottom: 16),
             child: FloatingActionButton(
@@ -1513,7 +1511,6 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
               child: const Icon(Icons.psychology_outlined, size: 24),
             ),
           ),
-          // Add Child Button
           FloatingActionButton(
             onPressed: () => _openAddEditChild(),
             backgroundColor: AppColors.primary,
