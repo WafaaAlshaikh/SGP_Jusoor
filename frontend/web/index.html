@@ -1,7 +1,23 @@
-org.gradle.jvmargs=-Xmx4G -XX:MaxMetaspaceSize=2G -XX:+HeapDumpOnOutOfMemoryError
-android.useAndroidX=true
-android.enableJetifier=true
-android.javaCompile.suppressSourceTargetDeprecationWarning=true
-org.gradle.parallel=true
-kotlin.code.style=official
-android.enableDexingArtifactTransform.desugaring=true
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta content="IE=Edge" http-equiv="X-UA-Compatible" />
+    <meta name="description" content="SGP Jusoor web app" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>SGP Jusoor</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#000000">
+    <style>
+      html, body { height: 100%; margin: 0; }
+      #flutter_container { height: 100%; }
+      .loading { display:flex; align-items:center; justify-content:center; height:100%; font-family: Roboto, sans-serif; color:#555; }
+    </style>
+  </head>
+  <body>
+    <div id="flutter_container">
+      <div class="loading">Loading…</div>
+    </div>
+    <script src="main.dart.js" type="application/javascript"></script>
+  </body>
+</html>

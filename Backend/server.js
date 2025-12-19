@@ -172,6 +172,9 @@ app.use('/api/manager/children', require('./routes/manager/addChildRoutes'));
 // بعد الـ manager routes أضف:
 app.use('/api/manager', require('./routes/manager/institutionProfileRoutes'));
 
+// Manager Donations (campaigns + statistics)
+app.use('/api/manager/donations', require('./routes/manager/donationCampaignRoutes'));
+
 const ratingRoutes = require('./routes/ratingRoutes');
 app.use('/api/ratings', ratingRoutes);
 

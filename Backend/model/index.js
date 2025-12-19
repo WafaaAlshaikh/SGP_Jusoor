@@ -8,6 +8,7 @@ const Diagnosis = require('./Diagnosis');
 const Specialist = require('./Specialist');
 const Institution = require('./Institution');
 const Session = require('./Session');
+const Invoice = require('./Invoice');
 const Payment = require('./Payment');
 const Evaluation = require('./Evaluation');
 const EvaluationAttachment = require('./EvaluationAttachment');
@@ -45,6 +46,8 @@ const SpecialistFeedback = require('./SpecialistFeedback');
 const FinancialAssistanceRequest = require('./FinancialAssistanceRequest');
 const SessionFinancialAidRequest = require('./SessionFinancialAidRequest');
 const PaymentPlan = require('./PaymentPlan');
+
+const AutoFinancialAidLog = require('./AutoFinancialAidLog');
 
 // ==================== Main Relations ====================
 
@@ -141,6 +144,7 @@ module.exports = {
   Specialist,
   Institution,
   Session,
+  Invoice,
   Payment,
   Evaluation,
   EvaluationAttachment,
@@ -173,6 +177,7 @@ module.exports = {
   SpecialistFeedback,
   FinancialAssistanceRequest,
   SessionFinancialAidRequest,
-  PaymentPlan
+  PaymentPlan,
+  AutoFinancialAidLog
 };
 

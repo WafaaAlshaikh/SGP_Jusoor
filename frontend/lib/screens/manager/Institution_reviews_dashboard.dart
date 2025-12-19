@@ -33,7 +33,7 @@ class _InstitutionReviewsDashboardState extends State<InstitutionReviewsDashboar
 
       final reviewsData = await InstitutionService.getInstitutionReviews();
       setState(() {
-        _reviewsData = reviewsData;
+        _reviewsData = _convertToMap<String, dynamic>(reviewsData);
         _isLoading = false;
       });
     } catch (e) {
@@ -44,6 +44,21 @@ class _InstitutionReviewsDashboardState extends State<InstitutionReviewsDashboar
         _errorMessage = e.toString();
       });
     }
+  }
+
+  // Helper method to convert dynamic maps to typed maps
+  Map<K, V> _convertToMap<K, V>(dynamic data) {
+    if (data is Map) {
+      return Map<K, V>.from(data);
+    }
+    return <K, V>{};
+  }
+
+  List<dynamic> _convertToList(dynamic data) {
+    if (data is List) {
+      return List<dynamic>.from(data);
+    }
+    return [];
   }
 
   @override
@@ -106,9 +121,9 @@ class _InstitutionReviewsDashboardState extends State<InstitutionReviewsDashboar
   }
 
   Widget _buildContent() {
-    final statistics = _reviewsData?['statistics'] ?? {};
-    final performanceSummary = statistics['performance_summary'] ?? {};
-    final aiAnalysis = _reviewsData?['ai_analysis'] ?? {};
+    final statistics = _convertToMap<String, dynamic>(_reviewsData?['statistics']);
+    final performanceSummary = _convertToMap<String, dynamic>(statistics['performance_summary']);
+    final aiAnalysis = _convertToMap<String, dynamic>(_reviewsData?['ai_analysis']);
 
     return CustomScrollView(
       slivers: [
@@ -179,11 +194,11 @@ class _InstitutionReviewsDashboardState extends State<InstitutionReviewsDashboar
   }
 
   Widget _buildOverviewCard(Map<String, dynamic> statistics) {
-    final totalReviews = statistics['total_reviews'] ?? 0;
-    final averageRatings = statistics['average_ratings'] ?? {};
+    final totalReviews = _parseInt(statistics['total_reviews']);
+    final averageRatings = _convertToMap<String, dynamic>(statistics['average_ratings']);
     final overallRating = _parseDouble(averageRatings['overall']);
-    final recommendationRate = statistics['recommendation_rate'] ?? '0%';
-    final starDistribution = statistics['star_distribution'] ?? {};
+    final recommendationRate = statistics['recommendation_rate']?.toString() ?? '0%';
+    final starDistribution = _convertToMap<String, dynamic>(statistics['star_distribution']);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -480,10 +495,10 @@ class _InstitutionReviewsDashboardState extends State<InstitutionReviewsDashboar
   }
 
   Widget _buildPerformanceTab(Map<String, dynamic> statistics, Map<String, dynamic> performanceSummary) {
-    final averageRatings = statistics['average_ratings'] ?? {};
-    final strengths = performanceSummary['strength'] ?? [];
-    final good = performanceSummary['good'] ?? [];
-    final needImprove = performanceSummary['need_improve'] ?? [];
+    final averageRatings = _convertToMap<String, dynamic>(statistics['average_ratings']);
+    final strengths = _convertToList(performanceSummary['strength']);
+    final good = _convertToList(performanceSummary['good']);
+    final needImprove = _convertToList(performanceSummary['need_improve']);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -613,6 +628,7 @@ class _InstitutionReviewsDashboardState extends State<InstitutionReviewsDashboar
         SizedBox(height: 8),
         Column(
           children: items.map<Widget>((item) {
+            final itemMap = _convertToMap<String, dynamic>(item);
             return Padding(
               padding: const EdgeInsets.only(bottom: 8.0),
               child: Row(
@@ -620,7 +636,7 @@ class _InstitutionReviewsDashboardState extends State<InstitutionReviewsDashboar
                   SizedBox(width: 28),
                   Expanded(
                     child: Text(
-                      item['label'] ?? '',
+                      itemMap['label']?.toString() ?? '',
                       style: TextStyle(
                         color: AppColors.textGray,
                         fontSize: 14,
@@ -634,7 +650,7 @@ class _InstitutionReviewsDashboardState extends State<InstitutionReviewsDashboar
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      '${item['score'] ?? "0.0"}/5',
+                      '${itemMap['score']?.toString() ?? "0.0"}/5',
                       style: TextStyle(
                         color: color,
                         fontWeight: FontWeight.w600,
@@ -652,10 +668,10 @@ class _InstitutionReviewsDashboardState extends State<InstitutionReviewsDashboar
   }
 
   Widget _buildAIAnalysisTab(Map<String, dynamic> aiAnalysis) {
-    final summary = aiAnalysis['summary'] ?? '';
-    final whatToMaintain = aiAnalysis['what_to_maintain'] ?? [];
-    final whatToImprove = aiAnalysis['what_to_improve'] ?? [];
-    final urgentActions = aiAnalysis['urgent_actions'] ?? [];
+    final summary = aiAnalysis['summary']?.toString() ?? '';
+    final whatToMaintain = _convertToList(aiAnalysis['what_to_maintain']);
+    final whatToImprove = _convertToList(aiAnalysis['what_to_improve']);
+    final urgentActions = _convertToList(aiAnalysis['urgent_actions']);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -740,9 +756,10 @@ class _InstitutionReviewsDashboardState extends State<InstitutionReviewsDashboar
               Icons.warning,
               Column(
                 children: urgentActions.map<Widget>((action) {
+                  final actionMap = _convertToMap<String, dynamic>(action);
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 16.0),
-                    child: _buildActionItem(action),
+                    child: _buildActionItem(actionMap),
                   );
                 }).toList(),
               ),
@@ -782,9 +799,8 @@ class _InstitutionReviewsDashboardState extends State<InstitutionReviewsDashboar
     );
   }
 
-  Widget _buildActionItem(dynamic action) {
-    final actionMap = Map<String, dynamic>.from(action);
-    final priority = actionMap['priority']?.toString() ?? '';
+  Widget _buildActionItem(Map<String, dynamic> action) {
+    final priority = action['priority']?.toString() ?? '';
     Color getPriorityColor(String priority) {
       switch (priority.toLowerCase()) {
         case 'high':
@@ -828,7 +844,7 @@ class _InstitutionReviewsDashboardState extends State<InstitutionReviewsDashboar
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  actionMap['category']?.toString() ?? '',
+                  action['category']?.toString() ?? '',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     color: AppColors.textDark,
@@ -839,7 +855,7 @@ class _InstitutionReviewsDashboardState extends State<InstitutionReviewsDashboar
           ),
           SizedBox(height: 8),
           Text(
-            'Problem: ${actionMap['problem'] ?? ''}',
+            'Problem: ${action['problem'] ?? ''}',
             style: TextStyle(
               color: AppColors.textGray,
               fontSize: 13,
@@ -847,7 +863,7 @@ class _InstitutionReviewsDashboardState extends State<InstitutionReviewsDashboar
           ),
           SizedBox(height: 4),
           Text(
-            'Action: ${actionMap['action'] ?? ''}',
+            'Action: ${action['action'] ?? ''}',
             style: TextStyle(
               color: AppColors.textDark,
               fontSize: 14,
@@ -860,15 +876,15 @@ class _InstitutionReviewsDashboardState extends State<InstitutionReviewsDashboar
   }
 
   Widget _buildReviewsTab() {
-    final allReviews = _reviewsData?['all_reviews'] ?? [];
+    final allReviews = _convertToList(_reviewsData?['all_reviews']);
 
     // Filter reviews based on search and filter
     List<dynamic> filteredReviews = allReviews.where((review) {
-      final reviewMap = Map<String, dynamic>.from(review);
-      final ratings = reviewMap['ratings'] ?? {};
+      final reviewMap = _convertToMap<String, dynamic>(review);
+      final ratings = _convertToMap<String, dynamic>(reviewMap['ratings']);
       final overallRating = _parseDouble(ratings['overall']);
       final reviewText = reviewMap['review_text']?.toString().toLowerCase() ?? '';
-      final parent = reviewMap['parent'] ?? {};
+      final parent = _convertToMap<String, dynamic>(reviewMap['parent']);
       final parentName = parent['full_name']?.toString().toLowerCase() ?? '';
 
       // Apply search filter
@@ -1007,7 +1023,7 @@ class _InstitutionReviewsDashboardState extends State<InstitutionReviewsDashboar
           else
             Column(
               children: filteredReviews.map<Widget>((review) {
-                final reviewMap = Map<String, dynamic>.from(review);
+                final reviewMap = _convertToMap<String, dynamic>(review);
                 return _buildReviewCard(reviewMap);
               }).toList(),
             ),
@@ -1038,13 +1054,13 @@ class _InstitutionReviewsDashboardState extends State<InstitutionReviewsDashboar
   }
 
   Widget _buildReviewCard(Map<String, dynamic> review) {
-    final parent = review['parent'] ?? {};
-    final ratings = review['ratings'] ?? {};
+    final parent = _convertToMap<String, dynamic>(review['parent']);
+    final ratings = _convertToMap<String, dynamic>(review['ratings']);
     final overallRating = _parseDouble(ratings['overall']);
     final reviewText = review['review_text']?.toString() ?? '';
     final createdAt = review['created_at']?.toString() ?? '';
     //final wouldRecommend = review['would_recommend'] ?? false;
-    final basedOnVisits = review['based_on_visits'] ?? 0;
+    final basedOnVisits = _parseInt(review['based_on_visits']);
 
     String getVisitText(int visits) {
       return '$visits ${visits == 1 ? 'visit' : 'visits'}';

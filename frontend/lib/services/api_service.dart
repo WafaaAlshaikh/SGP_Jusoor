@@ -2030,7 +2030,6 @@ class ApiService {
     int institutionId, {
     String? notes,
     bool consentGiven = false,
-    bool applyFinancialDiscount = false,
   }) async {
     try {
       print(
@@ -2047,7 +2046,6 @@ class ApiService {
           'institution_id': institutionId,
           'notes': notes,
           'consent_given': consentGiven,
-          'apply_financial_discount': applyFinancialDiscount,
         }),
       );
 
@@ -3235,4 +3233,92 @@ static Future<List<Map<String, dynamic>>> getInstitutionCampaignsForDonations(
         'Network error while loading institution campaigns: $e');
   }
 }
+
+
+
+// التحقق التلقائي من المساعدة المالية
+static Future<Map<String, dynamic>> checkAutoFinancialAssistance(
+  String token,
+  String sessionId,
+) async {
+  try {
+    final url = Uri.parse(
+      'http://10.0.2.2:5000/api/parent/$sessionId/check-auto-assistance',
+    );
+
+    print('🌐 Checking auto financial assistance...');
+    print('   Session ID: $sessionId');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    print('📥 Response status: ${response.statusCode}');
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      return {
+        'success': false,
+        'message': 'Failed to check auto financial assistance',
+        'statusCode': response.statusCode,
+      };
+    }
+  } catch (e) {
+    print('❌ Error in checkAutoFinancialAssistance: $e');
+    return {
+      'success': false,
+      'message': 'Error while checking auto financial assistance',
+      'error': e.toString(),
+    };
+  }
+}
+
+// تطبيق الخصم التلقائي
+static Future<Map<String, dynamic>> applyAutoDiscount(
+  String token,
+  String sessionId,
+) async {
+  try {
+    final url = Uri.parse(
+      'http://10.0.2.2:5000/api/parent/$sessionId/apply-auto-discount',
+    );
+
+    print('🌐 Applying auto discount...');
+    print('   Session ID: $sessionId');
+
+    final response = await http.post(
+      url,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({}),
+    );
+
+    print('📥 Response status: ${response.statusCode}');
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      return {
+        'success': false,
+        'message': 'Failed to apply auto discount',
+        'statusCode': response.statusCode,
+      };
+    }
+  } catch (e) {
+    print('❌ Error in applyAutoDiscount: $e');
+    return {
+      'success': false,
+      'message': 'Error while applying auto discount',
+      'error': e.toString(),
+    };
+  }
+}
+
 }

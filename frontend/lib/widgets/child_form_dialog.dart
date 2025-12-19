@@ -992,7 +992,6 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
         _selectedInstitutionId!,
         notes: _registrationNotes.isEmpty ? null : _registrationNotes,
         consentGiven: _consentGiven,
-        applyFinancialDiscount: _applyFinancialDiscount,
       );
 
       if (result['success'] == true) {
@@ -2467,24 +2466,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                   ),
                   const SizedBox(height: 12),
                   // Checkbox to allow parent to apply available financial discount based on assessment
-                  CheckboxListTile(
-                    value: _applyFinancialDiscount,
-                    onChanged: (value) {
-                      setState(() {
-                        _applyFinancialDiscount = value ?? false;
-                      });
-                    },
-                    activeColor: AppColors.primary,
-                    title: const Text(
-                      'Apply available financial discount (if eligible)',
-                      style: TextStyle(fontSize: 14),
-                    ),
-                    subtitle: const Text(
-                      'We will use your financial assessment to auto-create a financial assistance request for this institution.',
-                      style: TextStyle(fontSize: 11),
-                    ),
-                    controlAffinity: ListTileControlAffinity.leading,
-                  ),
+                  const SizedBox.shrink(),
                 ],
               ),
             ],
@@ -3361,18 +3343,17 @@ String _getActionButtonText() {
   String _getStepTitle() {
     switch (_currentStep) {
       case ChildFormStep.basicInfo:
-        return 'Add Child - Basic Information';
+        return 'Basic Information';
       case ChildFormStep.medicalInfo:
         return widget.screeningData != null
             ? 'Screening Results Summary'
             : 'Medical Information';
+      case ChildFormStep.financialAssessment:
+        return 'Financial Assessment';
       case ChildFormStep.selectInstitution:
         return 'Recommended Institutions';
       case ChildFormStep.confirmation:
         return 'Confirmation';
-      case ChildFormStep.financialAssessment:
-        // TODO: Handle this case.
-        throw UnimplementedError();
     }
   }
 
@@ -3382,16 +3363,14 @@ String _getActionButtonText() {
         return 0.25;
       case ChildFormStep.medicalInfo:
         return 0.5;
+      case ChildFormStep.financialAssessment:
+        return 0.6;
       case ChildFormStep.selectInstitution:
         return 0.75;
       case ChildFormStep.confirmation:
         return 1.0;
-      case ChildFormStep.financialAssessment:
-        // TODO: Handle this case.
-        throw UnimplementedError();
     }
   }
-
   double _parseMatchScore(dynamic score) {
     if (score == null) return 0.0;
     if (score is double) return score;

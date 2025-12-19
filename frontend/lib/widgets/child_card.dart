@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:frontend/screens/financial_assistance_request.dart';
 import 'package:intl/intl.dart';
 import '../models/child_model.dart';
 import '../theme/app_colors.dart';
@@ -379,42 +378,6 @@ class ChildCard extends StatelessWidget {
                                                 ),
                                               ),
                                             ),
-                                            // ⭐ NEW: Financial Assistance Indicator
-                                            if (child.hasFinancialAssistance)
-                                              Container(
-                                                padding:
-                                                const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 4),
-                                                decoration: BoxDecoration(
-                                                  color: AppColors.success
-                                                      .withOpacity(0.15),
-                                                  borderRadius:
-                                                  BorderRadius.circular(8),
-                                                  border: Border.all(
-                                                    color: AppColors.success
-                                                        .withOpacity(0.3),
-                                                  ),
-                                                ),
-                                                child: Row(
-                                                  mainAxisSize: MainAxisSize.min,
-                                                  children: [
-                                                    Icon(Icons.attach_money,
-                                                        size: 12,
-                                                        color: AppColors.success),
-                                                    const SizedBox(width: 4),
-                                                    Text(
-                                                      child.discountText,
-                                                      style: TextStyle(
-                                                        fontSize: 11,
-                                                        fontWeight:
-                                                        FontWeight.w600,
-                                                        color: AppColors.success,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
                                           ],
                                         ),
                                       ),
@@ -504,155 +467,7 @@ class ChildCard extends StatelessWidget {
 
                 const SizedBox(height: 16),
 
-                // NEW: Financial Assistance Details (if applicable)
-                if (child.hasFinancialAssistance)
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          AppColors.success.withOpacity(0.1),
-                          AppColors.success.withOpacity(0.05),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: AppColors.success.withOpacity(0.2),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.attach_money_rounded,
-                                size: 16, color: AppColors.success),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Financial Assistance Details',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.success,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            if (child.paymentStatus != null)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: child.paymentStatusColor
-                                      .withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(
-                                    color: child.paymentStatusColor
-                                        .withOpacity(0.3),
-                                  ),
-                                ),
-                                child: Text(
-                                  child.paymentStatusLabel,
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    color: child.paymentStatusColor,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Discount Applied',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: AppColors.textGray,
-                                  ),
-                                ),
-                                Text(
-                                  '${child.discountPercentage?.toStringAsFixed(0) ?? "0"}%',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.success,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            if (child.originalPrice != null &&
-                                child.finalPrice != null)
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Text(
-                                        '\$${child.originalPrice!.toStringAsFixed(0)}',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: AppColors.textLight,
-                                          decoration: TextDecoration.lineThrough,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '\$${child.finalPrice!.toStringAsFixed(0)}',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.success,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  Text(
-                                    'per session',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: AppColors.textLight,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                          ],
-                        ),
-                        if (child.financialAssistanceRequestId != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Row(
-                              children: [
-                                Icon(Icons.receipt_long_rounded,
-                                    size: 12, color: AppColors.info),
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  child: Text(
-                                    'Request #FA-${child.financialAssistanceRequestId!.toString().padLeft(6, '0')}',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: AppColors.info,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-
-                if (child.hasFinancialAssistance) const SizedBox(height: 16),
-
-                // Footer Section - المشكلة كانت هنا
+                // Footer Section
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -713,18 +528,6 @@ class ChildCard extends StatelessWidget {
 
                           const SizedBox(width: 8),
 
-                          // NEW: Financial Assistance Button (if not applied)
-                          if (!child.hasFinancialAssistance)
-                            _buildActionButton(
-                              icon: Icons.attach_money_rounded,
-                              color: AppColors.warning,
-                               onPressed: () => _navigateToFinancialAssistance(context),
-    tooltip: 'Request Financial Assistance',
-                            ),
-
-                          if (!child.hasFinancialAssistance)
-                            const SizedBox(width: 8),
-
                           // Delete Button
                           _buildActionButton(
                             icon: Icons.delete_rounded,
@@ -780,80 +583,6 @@ class ChildCard extends StatelessWidget {
       ),
     );
   }
-
-// أضف هذه الدالة الجديدة في ChildCard class:
-  void _showFinancialAssistanceDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.attach_money, color: AppColors.warning),
-            SizedBox(width: 8),
-            Text('Request Financial Assistance'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Request financial assistance for ${child.fullName}?',
-              style: TextStyle(
-                fontSize: 16,
-                color: AppColors.textDark,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'This will guide you through a financial assessment to determine eligibility for therapy cost discounts.',
-              style: TextStyle(
-                fontSize: 14,
-                color: AppColors.textGray,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // TODO: Navigate to financial assistance request screen
-              // Navigator.push(
-              //   context,
-              //   MaterialPageRoute(
-              //     builder: (context) => FinancialAssistanceRequestScreen(
-              //       childId: child.id,
-              //       childName: child.fullName,
-              //     ),
-              //   ),
-              // );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.warning,
-            ),
-            child: const Text('Start Request'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _navigateToFinancialAssistance(BuildContext context) {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => FinancialAssistanceRequestScreen(
-        childId: child.id,
-        childName: child.fullName,
-      ),
-    ),
-  );
-}
 
   Widget _buildActionButton({
     required IconData icon,

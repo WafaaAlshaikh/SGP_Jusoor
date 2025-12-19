@@ -103,91 +103,70 @@ class _SessionsScreenState extends State<SessionsScreen> with SingleTickerProvid
     }
   }
 
-  Future<void> _showRequestAidDialog(Session session) async {
-    final notesController = TextEditingController();
-
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Request Financial Aid'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: notesController,
-                decoration: const InputDecoration(
-                  labelText: 'Notes (optional)',
-                ),
-                maxLines: 2,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-              child: const Text('Submit'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (result != true) return;
-    final notes = notesController.text.trim();
-
-    await _handleParentSessionDecision(
-      sessionId: session.sessionId,
-      decision: 'request_aid',
-      notes: notes.isEmpty ? null : notes,
-    );
-  }
-
   Future<void> _loadAllSessions() async {
-    try {
-      setState(() => _isRefreshing = true);
+  try {
+    setState(() => _isRefreshing = true);
 
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token') ?? '';
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token') ?? '';
 
-      if (token.isEmpty) {
-        throw Exception('Token not found');
-      }
-
-      final results = await Future.wait([
-        ApiService.getUpcomingSessions(token),
-        ApiService.getCompletedSessions(token),
-        ApiService.getPendingSessions(token),
-        ApiService.getCancelledSessions(token),
-      ]);
-
-      setState(() {
-        _upcomingSessions = results[0];
-        _completedSessions = results[1];
-        _pendingSessions = results[2];
-        _cancelledSessions = results[3];
-      });
-
-      _applyFilters();
-
-      setState(() {
-        _isLoading = false;
-        _isRefreshing = false;
-      });
-
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Failed to load sessions: ${e.toString()}';
-        _isLoading = false;
-        _isRefreshing = false;
-      });
+    if (token.isEmpty) {
+      throw Exception('Token not found');
     }
+
+    // جلب الجلسات
+    final results = await Future.wait([
+      ApiService.getUpcomingSessions(token),
+      ApiService.getCompletedSessions(token),
+      ApiService.getPendingSessions(token),
+      ApiService.getCancelledSessions(token),
+    ]);
+
+    setState(() {
+      _upcomingSessions = results[0];
+      _completedSessions = results[1];
+      _pendingSessions = results[2];
+      _cancelledSessions = results[3];
+    });
+
+    // 🔄 NEW: للجلسات Pending Approval، التحقق من المساعدة المالية
+    for (final session in _pendingSessions) {
+      if (session.status == 'Pending Approval') {
+        try {
+          final financialCheck = await ApiService.checkAutoFinancialAssistance(
+            token, 
+            session.sessionId
+          );
+          
+          if (financialCheck['success'] == true && 
+              financialCheck['discount_analysis'] != null) {
+            final analysis = financialCheck['discount_analysis'];
+            session.isEligibleForAutoDiscount = analysis['eligible_for_auto_discount'] ?? false;
+            session.autoDiscountPercentage = analysis['discount_percentage']?.toDouble() ?? 0;
+            session.autoDiscountAmount = analysis['discount_amount']?.toDouble() ?? 0;
+            session.financialAssessment = financialCheck['financial_assessment'];
+          }
+        } catch (e) {
+          print('Failed to check financial assistance for session ${session.sessionId}: $e');
+        }
+      }
+    }
+
+    _applyFilters();
+
+    setState(() {
+      _isLoading = false;
+      _isRefreshing = false;
+    });
+
+  } catch (e) {
+    setState(() {
+      _errorMessage = 'Failed to load sessions: ${e.toString()}';
+      _isLoading = false;
+      _isRefreshing = false;
+    });
   }
+}
 
   void _applyFilters() {
     setState(() {
@@ -1152,15 +1131,20 @@ Location: ${session.sessionLocation}
   }
 
   Widget _buildActionButtons({
-    required bool showPayButton,
-    required bool canCancel,
-    required Session session,
-  }) {
-    final bool needsParentApproval =
-        session.status == 'Pending Approval';
-    final bool needsAutoConfirmation =
-        session.status == 'Pending Parent Confirmation';
+  required bool showPayButton,
+  required bool canCancel,
+  required Session session,
+}) {
+    final bool needsParentApproval = session.status == 'Pending Approval';
+    final bool needsAutoConfirmation = session.status == 'Pending Parent Confirmation';
+    final bool isAutoDiscountEligible = session.isEligibleForAutoDiscount == true;
 
+    // 🔄 حالة: الجلسة تحتاج موافقة الأهل وعليها خصم تلقائي متاح
+    if (needsParentApproval && isAutoDiscountEligible) {
+      return _buildAutoDiscountActionCard(session);
+    }
+
+    // حالة: الجلسة تحتاج موافقة الأهل (بدون خصم تلقائي)
     if (needsParentApproval) {
       return Container(
         padding: const EdgeInsets.all(16),
@@ -1174,8 +1158,7 @@ Location: ${session.sessionLocation}
           children: [
             Row(
               children: [
-                Icon(Icons.info_outline_rounded,
-                    color: AppColors.warning, size: 18),
+                Icon(Icons.info_outline_rounded, color: AppColors.warning, size: 18),
                 const SizedBox(width: 8),
                 Text(
                   'Action required',
@@ -1210,29 +1193,17 @@ Location: ${session.sessionLocation}
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _showRequestAidDialog(session),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.primary,
-                      side: BorderSide(color: AppColors.primary.withOpacity(0.8)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    child: const Text('Request aid'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
                   child: ElevatedButton(
                     onPressed: () => _handleParentSessionDecision(
                       sessionId: session.sessionId,
-                      decision: 'pay_full',
+                      decision: 'approve',
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.success,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
-                    child: const Text('Pay full'),
+                    child: const Text('Approve'),
                   ),
                 ),
               ],
@@ -1242,6 +1213,7 @@ Location: ${session.sessionLocation}
       );
     }
 
+    // حالة: الجلسة تحتاج تأكيد تلقائي (Initial Assessment)
     if (needsAutoConfirmation) {
       return Container(
         padding: const EdgeInsets.all(16),
@@ -1255,8 +1227,7 @@ Location: ${session.sessionLocation}
           children: [
             Row(
               children: [
-                Icon(Icons.info_outline_rounded,
-                    color: AppColors.warning, size: 18),
+                Icon(Icons.info_outline_rounded, color: AppColors.warning, size: 18),
                 const SizedBox(width: 8),
                 Text(
                   'Confirm initial assessment',
@@ -1279,8 +1250,7 @@ Location: ${session.sessionLocation}
                   child: ElevatedButton.icon(
                     onPressed: () async {
                       try {
-                        final prefs =
-                            await SharedPreferences.getInstance();
+                        final prefs = await SharedPreferences.getInstance();
                         final token = prefs.getString('token') ?? '';
 
                         if (token.isEmpty) {
@@ -1294,8 +1264,7 @@ Location: ${session.sessionLocation}
                           return;
                         }
 
-                        final response =
-                            await ApiService.confirmAutoSession(
+                        final response = await ApiService.confirmAutoSession(
                           token,
                           session.sessionId.toString(),
                         );
@@ -1320,8 +1289,7 @@ Location: ${session.sessionLocation}
                               return AlertDialog(
                                 title: const Text('Financial support exhausted'),
                                 content: const Text(
-                                  'You have used all supported sessions for this institution. Would you like to submit a new financial assistance request?'
-                                ), 
+                                    'You have used all supported sessions for this institution. Would you like to submit a new financial assistance request?'),
                                 actions: [
                                   TextButton(
                                     onPressed: () => Navigator.of(context).pop(false),
@@ -1388,8 +1356,7 @@ Location: ${session.sessionLocation}
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text(
-                                'Failed to confirm session: ${e.toString()}'),
+                            content: Text('Failed to confirm session: ${e.toString()}'),
                             backgroundColor: AppColors.error,
                           ),
                         );
@@ -1400,8 +1367,7 @@ Location: ${session.sessionLocation}
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
-                      padding:
-                          const EdgeInsets.symmetric(vertical: 12),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
                 ),
@@ -1410,41 +1376,42 @@ Location: ${session.sessionLocation}
           ],
         ),
       );
-    }
+  }
 
-    // Default pay / cancel actions
-    return Row(
-      children: [
-        if (showPayButton)
-          Expanded(
-            child: Container(
-              height: 44,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [AppColors.primary, AppColors.primaryLight],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
+  // حالة افتراضية: أزرار الدفع والإلغاء
+  return Row(
+    children: [
+      if (showPayButton)
+        Expanded(
+          child: Container(
+            height: 44,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [AppColors.primary, AppColors.primaryLight],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => _navigateToPayment(session),
-                  child: Center(
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => _navigateToPayment(session),
+                child: Center(
+                  child: FittedBox( // ⬅️ ADDED FittedBox
+                    fit: BoxFit.scaleDown,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.payment_rounded,
-                            color: Colors.white, size: 18),
+                        const Icon(Icons.payment_rounded, color: Colors.white, size: 18),
                         const SizedBox(width: 8),
                         const Text(
                           'Pay now',
@@ -1461,29 +1428,31 @@ Location: ${session.sessionLocation}
               ),
             ),
           ),
+        ),
 
-        if (showPayButton && canCancel) const SizedBox(width: 12),
+      if (showPayButton && canCancel) const SizedBox(width: 12),
 
-        if (canCancel)
-          Expanded(
-            child: Container(
-              height: 44,
-              decoration: BoxDecoration(
-                color: AppColors.error.withOpacity(0.1),
+      if (canCancel)
+        Expanded(
+          child: Container(
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.error.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.error.withOpacity(0.3)),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.error.withOpacity(0.3)),
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => _cancelSession(session),
-                  child: Center(
+                onTap: () => _cancelSession(session),
+                child: Center(
+                  child: FittedBox( // ⬅️ ADDED FittedBox
+                    fit: BoxFit.scaleDown,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.cancel_rounded,
-                            color: AppColors.error, size: 18),
+                        const Icon(Icons.cancel_rounded, color: AppColors.error, size: 18),
                         const SizedBox(width: 8),
                         const Text(
                           'Cancel',
@@ -1500,9 +1469,306 @@ Location: ${session.sessionLocation}
               ),
             ),
           ),
+        ),
+    ],
+  );
+}
+
+// 🔄 الوظيفة الجديدة: بناء بطاقة الخصم التلقائي
+Widget _buildAutoDiscountActionCard(Session session) {
+  final originalPrice = session.price;
+  final discountAmount = session.autoDiscountAmount ?? 0;
+  final finalPrice = originalPrice - discountAmount;
+  
+  return Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        colors: [
+          Colors.green.withOpacity(0.1),
+          Colors.teal.withOpacity(0.1),
+        ],
+      ),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: Colors.green.withOpacity(0.3)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.auto_awesome_rounded, color: Colors.green, size: 18),
+            const SizedBox(width: 8),
+            Expanded( // ⬅️ ADDED Expanded here
+              child: Text(
+                'Automatic Discount Available',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.green,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Based on your financial situation, you qualify for a ${session.autoDiscountPercentage}% discount on this session.',
+          style: const TextStyle(fontSize: 14),
+        ),
+        if (session.autoDiscountReason != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            session.autoDiscountReason!,
+            style: TextStyle(
+              fontSize: 12,
+              fontStyle: FontStyle.italic,
+              color: Colors.grey[600],
+            ),
+          ),
+        ],
+        const SizedBox(height: 12),
+        // 🔄 MODIFIED: استخدم Column بدلاً من Row للأسعار
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Original Price
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Original Price',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      Text(
+                        '${originalPrice.toStringAsFixed(2)} JOD',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          decoration: TextDecoration.lineThrough,
+                          color: Colors.grey[600],
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Final Price
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'After Discount',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.green,
+                        ),
+                      ),
+                      Text(
+                        '${finalPrice.toStringAsFixed(2)} JOD',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.green,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        // 🔄 MODIFIED: أزرار متجاوبة
+        Column(
+          children: [
+            // الصف الأول من الأزرار
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox( // ⬅️ استخدام SizedBox لتحديد حجم ثابت
+                    height: 44,
+                    child: OutlinedButton(
+                      onPressed: () => _handleParentSessionDecision(
+                        sessionId: session.sessionId,
+                        decision: 'reject',
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.error,
+                        side: const BorderSide(color: AppColors.error),
+                      ),
+                      child: const FittedBox( // ⬅️ استخدام FittedBox
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.cancel_outlined, size: 18),
+                            SizedBox(width: 4),
+                            Text('Reject'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SizedBox(
+                    height: 44,
+                    child: ElevatedButton(
+                      onPressed: () => _handleParentSessionDecision(
+                        sessionId: session.sessionId,
+                        decision: 'approve',
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('Approve'),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // الصف الثالث: الروابط
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => _showFinancialAssessmentDetails(session),
+                    child: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'View Financial Assessment',
+                        style: TextStyle(color: AppColors.primary),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ],
-    );
+    ),
+  );
+}
+
+// عرض تفاصيل التقييم المالي
+void _showFinancialAssessmentDetails(Session session) {
+  if (session.financialAssessment == null) return;
+
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Financial Assessment'),
+      content: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (session.financialAssessment!['has_assessment'] == true) ...[
+              _buildAssessmentRow('Financial Score', 
+                  '${session.financialAssessment!['financial_score']}'),
+              _buildAssessmentRow('Financial Tier', 
+                  session.financialAssessment!['tier_label'] ?? ''),
+              _buildAssessmentRow('Suggested Discount', 
+                  '${session.autoDiscountPercentage}%'),
+              const Divider(),
+              _buildAssessmentRow('Last Assessment', 
+                  _formatDate(session.financialAssessment!['last_assessment'])),
+              _buildAssessmentRow('Assessment Valid', 
+                  (session.financialAssessment!['assessment_valid'] == true) 
+                      ? 'Yes' : 'No'),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Your financial situation qualifies you for automatic discount on therapy sessions.',
+                  style: TextStyle(
+                    color: Colors.green[800],
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ] else
+              const Text('No financial assessment available'),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Close'),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context);
+            // يمكن إضافة ربط لصفحة التقييم المالي هنا
+            // Navigator.push(context, MaterialPageRoute(builder: (context) => FinancialAssessmentScreen()));
+          },
+          child: const Text('Update Assessment'),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _buildAssessmentRow(String label, String value) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            '$label:',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+String _formatDate(dynamic date) {
+  if (date == null) return 'N/A';
+  try {
+    return DateTime.parse(date.toString()).toLocal().toString().split(' ')[0];
+  } catch (e) {
+    return date.toString();
   }
+}
 
   List<Color> _getStatusGradient(String status) {
     switch (status.toLowerCase()) {

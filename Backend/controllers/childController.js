@@ -473,6 +473,270 @@ exports.getInstitutionsWithFilters = async (req, res) => {
 };
 
 // ================= STEP 4: Request Institution Registration =================
+// exports.requestInstitutionRegistration = async (req, res) => {
+//   try {
+//     const parentId = req.user.user_id;
+//     const child_id = req.params.id;
+//     const { 
+//       institution_id, 
+//       notes, 
+//       consent_given,
+//       // 🎯 NEW: حقل تطبيق الخصم المالي
+//       apply_financial_discount = false
+//     } = req.body;
+
+//     console.log('🔍 Request registration data:', {
+//       parentId,
+//       child_id, 
+//       institution_id,
+//       apply_financial_discount
+//     });
+
+//     if (!child_id || !institution_id) {
+//       return res.status(400).json({ 
+//         success: false,
+//         message: 'Child ID and Institution ID are required'
+//       });
+//     }
+
+//     const child = await Child.findOne({
+//       where: { 
+//         child_id: child_id,
+//         parent_id: parentId 
+//       }
+//     });
+
+//     if (!child) {
+//       return res.status(404).json({ 
+//         success: false,
+//         message: 'Child not found' 
+//       });
+//     }
+
+//     const existingRequest = await ChildRegistrationRequest.findOne({
+//       where: { 
+//         child_id: child_id, 
+//         institution_id: institution_id,
+//         status: 'Pending' 
+//       }
+//     });
+
+//     if (existingRequest) {
+//       return res.status(400).json({ 
+//         success: false,
+//         message: 'There is already a pending registration request for this institution' 
+//       });
+//     }
+
+//     // التحقق من المؤسسة
+//     const institution = await Institution.findByPk(institution_id);
+//     if (!institution) {
+//       return res.status(404).json({ 
+//         success: false,
+//         message: 'Institution not found' 
+//       });
+//     }
+
+//     // 🎯 NEW: التحقق من وجود تقييم مالي إذا طلب تطبيق الخصم
+//     let discountInfo = null;
+//     let financialRequest = null;
+    
+//     if (apply_financial_discount === true || apply_financial_discount === 'true') {
+//       console.log('💰 Checking for financial assessment...');
+      
+//       const Parent = require('../model/Parent');
+//       const parent = await Parent.findOne({ where: { parent_id: parentId } });
+      
+//       if (parent && parent.financial_score) {
+//         // حساب نسبة الخصم
+//         const discountPercentage = Math.min(100, Math.floor(parent.financial_score * 1.2));
+        
+//         discountInfo = {
+//           applied: true,
+//           discount_percentage: discountPercentage,
+//           financial_score: parent.financial_score,
+//           tier: parent.financial_tier,
+//           note: `سيتم تطبيق خصم ${discountPercentage}% على الجلسات إذا تمت الموافقة`
+//         };
+        
+//         console.log(`✅ Discount calculated: ${discountPercentage}% based on score ${parent.financial_score}`);
+        
+//         // إنشاء طلب مساعدة مالية بسيط
+//         try {
+//           const FinancialAssistanceRequest = require('../model/FinancialAssistanceRequest');
+          
+//           // حساب التكلفة التقريبية
+//           const SessionType = require('../model/SessionType');
+//           const sessionTypes = await SessionType.findAll({
+//             where: { institution_id: institution_id },
+//             limit: 1
+//           });
+          
+//           const avgPrice = sessionTypes.length > 0 ? 
+//             parseFloat(sessionTypes[0].price) || 50 : 50;
+//           const totalMonthlyCost = avgPrice * 8; // 8 جلسات شهرياً
+        
+//           financialRequest = await FinancialAssistanceRequest.create({
+//             parent_id: parentId,
+//             child_id: child_id,
+//             institution_id: institution_id,
+//             requested_sessions_count: 8,
+//             requested_discount_percentage: discountPercentage,
+//             requested_total_amount: totalMonthlyCost,
+//             parent_financial_score: parent.financial_score,
+//             parent_financial_tier: parent.financial_tier,
+//             status: 'submitted',
+//             auto_generated: false,
+//             requires_documents: discountPercentage >= 50,
+//             submitted_at: new Date(),
+//             estimated_processing_days: discountPercentage >= 70 ? 3 : 7
+//           });
+          
+//           console.log(`✅ Financial assistance request created: ${financialRequest.request_id}`);
+          
+//         } catch (financialError) {
+//           console.error('⚠️ Could not create financial request:', financialError.message);
+//           // نكمل حتى لو فشل إنشاء طلب المساعدة المالية
+//         }
+        
+//       } else {
+//         discountInfo = {
+//           applied: false,
+//           note: 'لم تقم بإدخال معلومات مالية. يمكنك إضافتها لاحقاً من صفحة الطفل.'
+//         };
+//         console.log('⚠️ No financial assessment found for parent');
+//       }
+//     }
+
+//     // إنشاء طلب التسجيل وربطه بطلب المساعدة المالية (إن وُجد)
+//     const request = await ChildRegistrationRequest.create({
+//       child_id: child_id,
+//       institution_id: institution_id,
+//       requested_by_parent_id: parentId,
+//       status: 'Pending',
+//       notes: notes || null,
+//       financial_assistance_request_id: financialRequest
+//         ? financialRequest.request_id
+//         : null,
+//     });
+
+//     await child.update({ 
+//       registration_status: 'Pending',
+//       consent_given: consent_given || false
+//     });
+
+//     // 🔥 إضافة: تشغيل المعالجة التلقائية (غير متزامن)
+//     setTimeout(async () => {
+//       try {
+//         console.log(`🔄 بدء المعالجة التلقائية للطلب: ${request.request_id}`);
+        
+//         // استدعاء خدمة الموافقة التلقائية
+//         const AutoApprovalService = require('../services/autoApprovalService');
+//         const approvalResult = await AutoApprovalService.processSingleRequest(request.request_id);
+        
+//         console.log(`✅ نتيجة المعالجة التلقائية للطلب ${request.request_id}:`, approvalResult.status);
+        
+//         // إرسال إشعار للأهل بناءً على النتيجة
+//         let notificationMessage = '';
+//         let notificationType = '';
+        
+//         switch (approvalResult.status) {
+//           case 'Approved':
+//             // في هذه المرحلة الموافقة تمت، لكن حجز الجلسة يعتمد على توفر أخصائي وموعد
+//             // AutoApprovalService سيحاول الحجز، وإن نجح سيرسل إشعاراً منفصلاً بتفاصيل الجلسة
+//             notificationMessage = `مبروك! تمت الموافقة تلقائياً على تسجيل ${child.full_name} في ${institution.name}. سيتم إبلاغك بتفاصيل جلسة التقييم الأولي عند حجزها من قبل المؤسسة.`;
+//             notificationType = 'registration_auto_approved';
+//             break;
+//           case 'Rejected':
+//             notificationMessage = `عذراً، تم رفض طلب تسجيل ${child.full_name} في ${institution.name} تلقائياً. السبب: ${approvalResult.reason || 'عدم استيفاء الشروط'}.`;
+//             notificationType = 'registration_auto_rejected';
+//             break;
+//           case 'Pending':
+//             notificationMessage = `طلب تسجيل ${child.full_name} في ${institution.name} قيد المراجعة من قبل إدارة المؤسسة.`;
+//             notificationType = 'registration_under_review';
+//             break;
+//         }
+        
+//         // إنشاء إشعار للأهل
+//         await Notification.create({
+//           user_id: parentId,
+//           title: 'تحديث حالة طلب التسجيل',
+//           message: notificationMessage,
+//           type: notificationType,
+//           related_id: request.request_id,
+//           is_read: false
+//         });
+        
+//         // إذا تمت الموافقة وحجز الجلسة
+//         if (approvalResult.status === 'Approved' && approvalResult.session) {
+//           // إشعار إضافي بمعلومات الجلسة
+//           await Notification.create({
+//             user_id: parentId,
+//             title: 'تفاصيل الجلسة المجدولة',
+//             message: `تم حجز جلسة التقييم الأولي مع ${approvalResult.session.specialist_name} في ${approvalResult.session.date} الساعة ${approvalResult.session.time}.`,
+//             type: 'session_scheduled',
+//             related_id: approvalResult.session.session_id,
+//             is_read: false
+//           });
+//         }
+        
+//       } catch (autoError) {
+//         console.error('❌ خطأ في المعالجة التلقائية:', autoError);
+        
+//         // إشعار خطأ (للأغراض التسجيلية فقط)
+//         await Notification.create({
+//           user_id: parentId,
+//           title: 'خطأ في المعالجة التلقائية',
+//           message: 'حدث خطأ أثناء معالجة طلب التسجيل تلقائياً. سيتصل بك فريق المؤسسة قريباً.',
+//           type: 'system_error',
+//           related_id: request.request_id,
+//           is_read: false
+//         });
+//       }
+//     }, 2000); // تأخير 2 ثانية لضمان حفظ الطلب
+
+//     res.status(201).json({ 
+//       success: true,
+//       message: 'Registration request submitted successfully',
+//       data: {
+//         request_id: request.request_id,
+//         status: 'Pending',
+//         institution: {
+//           id: institution.institution_id,
+//           name: institution.name,
+//           city: institution.city,
+//           address: institution.location_address
+//         },
+//         child: {
+//           id: child.child_id,
+//           name: child.full_name
+//         },
+//         // 🎯 NEW: إضافة معلومات الخصم المالي
+//         financial_discount: discountInfo,
+//         financial_request_id: financialRequest ? financialRequest.request_id : null,
+//         note: 'سيتم مراجعة الطلب تلقائياً في غضون دقائق. ستتلقى إشعاراً عند تغيير الحالة.',
+//         estimated_review_time: '2-5 دقائق',
+//         auto_approval_enabled: institution.auto_approval_enabled || true
+//       },
+//       next_steps: [
+//         'سيتم مراجعة الطلب تلقائياً بواسطة النظام',
+//         'إذا تمت الموافقة تلقائياً، سيتم حجز جلسة التقييم الأولي',
+//         'إذا احتاج الطلب لمراجعة يدوية، ستتصل بك المؤسسة',
+//         'ستتلقى إشعاراً عند تغيير حالة الطلب'
+//       ]
+//     });
+
+//   } catch (error) {
+//     console.error('❌ Error requesting registration:', error);
+//     res.status(500).json({ 
+//       success: false,
+//       message: 'Failed to submit registration request', 
+//       error: error.message 
+//     });
+//   }
+// };
+
+
 exports.requestInstitutionRegistration = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -480,16 +744,14 @@ exports.requestInstitutionRegistration = async (req, res) => {
     const { 
       institution_id, 
       notes, 
-      consent_given,
-      // 🎯 NEW: حقل تطبيق الخصم المالي
-      apply_financial_discount = false
+      consent_given
+      // ❌ إزالة: apply_financial_discount = false - لأنها أصبحت تلقائية
     } = req.body;
 
     console.log('🔍 Request registration data:', {
       parentId,
       child_id, 
-      institution_id,
-      apply_financial_discount
+      institution_id
     });
 
     if (!child_id || !institution_id) {
@@ -537,87 +799,80 @@ exports.requestInstitutionRegistration = async (req, res) => {
       });
     }
 
-    // 🎯 NEW: التحقق من وجود تقييم مالي إذا طلب تطبيق الخصم
+    // 🔴 NEW: التحقق التلقائي من الحالة المالية
     let discountInfo = null;
-    let financialRequest = null;
+    let financialAssessment = null;
+    let autoFinancialAidStatus = 'checking';
     
-    if (apply_financial_discount === true || apply_financial_discount === 'true') {
-      console.log('💰 Checking for financial assessment...');
+    // دائماً نتحقق من الحالة المالية تلقائياً
+    const Parent = require('../model/Parent');
+    const parent = await Parent.findOne({ where: { parent_id: parentId } });
+    
+    if (parent && parent.financial_score) {
+      // 🔴 استخدام الخدمة الجديدة للتحقق من المساعدة المالية
+      const AutoFinancialAidService = require('../services/autoFinancialAidService');
       
-      const Parent = require('../model/Parent');
-      const parent = await Parent.findOne({ where: { parent_id: parentId } });
-      
-      if (parent && parent.financial_score) {
-        // حساب نسبة الخصم
-        const discountPercentage = Math.min(100, Math.floor(parent.financial_score * 1.2));
-        
-        discountInfo = {
-          applied: true,
-          discount_percentage: discountPercentage,
-          financial_score: parent.financial_score,
-          tier: parent.financial_tier,
-          note: `سيتم تطبيق خصم ${discountPercentage}% على الجلسات إذا تمت الموافقة`
-        };
-        
-        console.log(`✅ Discount calculated: ${discountPercentage}% based on score ${parent.financial_score}`);
-        
-        // إنشاء طلب مساعدة مالية بسيط
-        try {
-          const FinancialAssistanceRequest = require('../model/FinancialAssistanceRequest');
-          
-          // حساب التكلفة التقريبية
-          const SessionType = require('../model/SessionType');
-          const sessionTypes = await SessionType.findAll({
-            where: { institution_id: institution_id },
-            limit: 1
-          });
-          
-          const avgPrice = sessionTypes.length > 0 ? 
-            parseFloat(sessionTypes[0].price) || 50 : 50;
-          const totalMonthlyCost = avgPrice * 8; // 8 جلسات شهرياً
-        
-          financialRequest = await FinancialAssistanceRequest.create({
-            parent_id: parentId,
-            child_id: child_id,
-            institution_id: institution_id,
-            requested_sessions_count: 8,
-            requested_discount_percentage: discountPercentage,
-            requested_total_amount: totalMonthlyCost,
-            parent_financial_score: parent.financial_score,
-            parent_financial_tier: parent.financial_tier,
-            status: 'submitted',
-            auto_generated: false,
-            requires_documents: discountPercentage >= 50,
-            submitted_at: new Date(),
-            estimated_processing_days: discountPercentage >= 70 ? 3 : 7
-          });
-          
-          console.log(`✅ Financial assistance request created: ${financialRequest.request_id}`);
-          
-        } catch (financialError) {
-          console.error('⚠️ Could not create financial request:', financialError.message);
-          // نكمل حتى لو فشل إنشاء طلب المساعدة المالية
+      // جلب أنواع الجلسات للمؤسسة للتحقق السريع
+      const SessionType = require('../model/SessionType');
+      const initialAssessmentType = await SessionType.findOne({
+        where: {
+          institution_id: institution_id,
+          name: { [Op.like]: '%Initial Assessment%' }
         }
+      });
+
+      if (initialAssessmentType) {
+        // التحقق السريع من المساعدة المالية
+        const quickCheck = await AutoFinancialAidService.quickCheckFinancialAid(
+          child_id,
+          institution_id,
+          initialAssessmentType.session_type_id
+        );
         
-      } else {
-        discountInfo = {
-          applied: false,
-          note: 'لم تقم بإدخال معلومات مالية. يمكنك إضافتها لاحقاً من صفحة الطفل.'
+        financialAssessment = {
+          has_assessment: true,
+          financial_score: parent.financial_score,
+          financial_tier: parent.financial_tier,
+          tier_label: getTierLabel(parent.financial_tier),
+          suggested_discount: quickCheck.estimated_discount_percentage,
+          discount_display: `${quickCheck.estimated_discount_percentage.toFixed(1)}%`,
+          financial_status: quickCheck.financial_status,
+          can_be_free: quickCheck.can_be_free
         };
-        console.log('⚠️ No financial assessment found for parent');
+        
+        discountInfo = {
+          auto_applied: true,
+          estimated_discount: quickCheck.estimated_discount_percentage,
+          estimated_amount: quickCheck.estimated_discount_amount,
+          final_price: quickCheck.estimated_final_price,
+          note: quickCheck.can_be_free 
+            ? `قد تكون جلسة التقييم الأولى مجانية!`
+            : `سيتم تطبيق خصم تلقائي بنسبة ${quickCheck.estimated_discount_percentage.toFixed(1)}%`
+        };
+        
+        autoFinancialAidStatus = quickCheck.available ? 'available' : 'not_available';
       }
+    } else {
+      financialAssessment = {
+        has_assessment: false,
+        note: 'لم تقم بإدخال معلومات مالية. يمكنك إضافتها لاحقاً من صفحة الطفل.'
+      };
+      discountInfo = {
+        auto_applied: false,
+        note: 'سيتم استخدام التسعير العادي للمرة الأولى'
+      };
+      autoFinancialAidStatus = 'no_assessment';
     }
 
-    // إنشاء طلب التسجيل وربطه بطلب المساعدة المالية (إن وُجد)
+    // إنشاء طلب التسجيل (بدون ربط بطلب مساعدة مالية يدوي)
     const request = await ChildRegistrationRequest.create({
       child_id: child_id,
       institution_id: institution_id,
       requested_by_parent_id: parentId,
       status: 'Pending',
       notes: notes || null,
-      financial_assistance_request_id: financialRequest
-        ? financialRequest.request_id
-        : null,
+      // ❌ لم نعد نربط بطلب مساعدة مالية يدوي
+      financial_assistance_request_id: null,
     });
 
     await child.update({ 
@@ -625,7 +880,7 @@ exports.requestInstitutionRegistration = async (req, res) => {
       consent_given: consent_given || false
     });
 
-    // 🔥 إضافة: تشغيل المعالجة التلقائية (غير متزامن)
+    // 🔴 NEW: تشغيل المعالجة التلقائية مع المساعدة المالية
     setTimeout(async () => {
       try {
         console.log(`🔄 بدء المعالجة التلقائية للطلب: ${request.request_id}`);
@@ -642,9 +897,17 @@ exports.requestInstitutionRegistration = async (req, res) => {
         
         switch (approvalResult.status) {
           case 'Approved':
-            // في هذه المرحلة الموافقة تمت، لكن حجز الجلسة يعتمد على توفر أخصائي وموعد
-            // AutoApprovalService سيحاول الحجز، وإن نجح سيرسل إشعاراً منفصلاً بتفاصيل الجلسة
-            notificationMessage = `مبروك! تمت الموافقة تلقائياً على تسجيل ${child.full_name} في ${institution.name}. سيتم إبلاغك بتفاصيل جلسة التقييم الأولي عند حجزها من قبل المؤسسة.`;
+            // إضافة معلومات المساعدة المالية التلقائية للإشعار
+            let aidInfo = '';
+            if (discountInfo.auto_applied) {
+              if (discountInfo.final_price === 0) {
+                aidInfo = ' 🎉 المميز: جلسة التقييم ستكون مجانية بالكامل!';
+              } else if (discountInfo.estimated_discount > 0) {
+                aidInfo = ` 💰 المميز: سيتم تطبيق خصم تلقائي بنسبة ${discountInfo.estimated_discount.toFixed(1)}%`;
+              }
+            }
+            
+            notificationMessage = `مبروك! تمت الموافقة تلقائياً على تسجيل ${child.full_name} في ${institution.name}.${aidInfo}`;
             notificationType = 'registration_auto_approved';
             break;
           case 'Rejected':
@@ -664,26 +927,17 @@ exports.requestInstitutionRegistration = async (req, res) => {
           message: notificationMessage,
           type: notificationType,
           related_id: request.request_id,
-          is_read: false
+          is_read: false,
+          metadata: financialAssessment
         });
         
-        // إذا تمت الموافقة وحجز الجلسة
-        if (approvalResult.status === 'Approved' && approvalResult.session) {
-          // إشعار إضافي بمعلومات الجلسة
-          await Notification.create({
-            user_id: parentId,
-            title: 'تفاصيل الجلسة المجدولة',
-            message: `تم حجز جلسة التقييم الأولي مع ${approvalResult.session.specialist_name} في ${approvalResult.session.date} الساعة ${approvalResult.session.time}.`,
-            type: 'session_scheduled',
-            related_id: approvalResult.session.session_id,
-            is_read: false
-          });
-        }
-        
+        // ❌ لم نعد نرسل إشعار منفصل عن الجلسة - لأن خدمة الموافقة التلقائية
+        // ستقوم بإرسال الإشعارات المناسبة
+
       } catch (autoError) {
         console.error('❌ خطأ في المعالجة التلقائية:', autoError);
         
-        // إشعار خطأ (للأغراض التسجيلية فقط)
+        // إشعار خطأ
         await Notification.create({
           user_id: parentId,
           title: 'خطأ في المعالجة التلقائية',
@@ -693,37 +947,68 @@ exports.requestInstitutionRegistration = async (req, res) => {
           is_read: false
         });
       }
-    }, 2000); // تأخير 2 ثانية لضمان حفظ الطلب
+    }, 2000); // تأخير 2 ثانية
+
+    // 🔴 NEW: تحضير معلومات الاستجابة مع المساعدة المالية التلقائية
+    const responseData = {
+      request_id: request.request_id,
+      status: 'Pending',
+      institution: {
+        id: institution.institution_id,
+        name: institution.name,
+        city: institution.city,
+        address: institution.location_address,
+        donation_balance: parseFloat(institution.donation_balance || 0)
+      },
+      child: {
+        id: child.child_id,
+        name: child.full_name,
+        age: calculateAge(child.date_of_birth)
+      },
+      // 🔴 معلومات المساعدة المالية التلقائية
+      auto_financial_aid: {
+        status: autoFinancialAidStatus,
+        assessment: financialAssessment,
+        discount_info: discountInfo,
+        system_note: 'سيتم التحقق التلقائي من المساعدة المالية عند حجز الجلسة',
+        transparency_note: 'يعتمد الخصم على حالتك المالية ورصيد التبرعات المتاح'
+      },
+      note: 'سيتم مراجعة الطلب تلقائياً في غضون دقائق. ستتلقى إشعاراً عند تغيير الحالة.',
+      estimated_review_time: '2-5 دقائق',
+      auto_approval_enabled: institution.auto_approval_enabled || true
+    };
+
+    // 🔴 NEW: إضافة معلومات التبرعات المتاحة
+    if (institution.donation_balance > 0) {
+      responseData.donation_info = {
+        available_balance: parseFloat(institution.donation_balance || 0),
+        note: 'توجد تبرعات متاحة لدعم الجلسات'
+      };
+    }
 
     res.status(201).json({ 
       success: true,
       message: 'Registration request submitted successfully',
-      data: {
-        request_id: request.request_id,
-        status: 'Pending',
-        institution: {
-          id: institution.institution_id,
-          name: institution.name,
-          city: institution.city,
-          address: institution.location_address
-        },
-        child: {
-          id: child.child_id,
-          name: child.full_name
-        },
-        // 🎯 NEW: إضافة معلومات الخصم المالي
-        financial_discount: discountInfo,
-        financial_request_id: financialRequest ? financialRequest.request_id : null,
-        note: 'سيتم مراجعة الطلب تلقائياً في غضون دقائق. ستتلقى إشعاراً عند تغيير الحالة.',
-        estimated_review_time: '2-5 دقائق',
-        auto_approval_enabled: institution.auto_approval_enabled || true
-      },
+      data: responseData,
       next_steps: [
         'سيتم مراجعة الطلب تلقائياً بواسطة النظام',
         'إذا تمت الموافقة تلقائياً، سيتم حجز جلسة التقييم الأولي',
-        'إذا احتاج الطلب لمراجعة يدوية، ستتصل بك المؤسسة',
+        '✅ سيتم التحقق التلقائي من المساعدة المالية بناءً على حالتك المالية',
+        '💡 الخصم التلقائي يعتمد على: 1) حالتك المالية 2) رصيد التبرعات المتاح',
         'ستتلقى إشعاراً عند تغيير حالة الطلب'
-      ]
+      ],
+      // 🔴 NEW: معلومات إضافية
+      financial_transparency: {
+        how_it_works: 'النظام يتحقق تلقائياً من حالتك المالية ويطبق الخصم المناسب',
+        no_action_required: 'لست بحاجة لطلب المساعدة - النظام يقوم بذلك تلقائياً',
+        factors_considered: [
+          'درجة الحالة المالية للأهل',
+          'رصيد التبرعات المتاح في المؤسسة',
+          'سعر الجلسة',
+          'حالة الطفل الصحية'
+        ],
+        privacy_assurance: 'جميع المعلومات المالية محمية ولا تظهر للمؤسسة'
+      }
     });
 
   } catch (error) {
@@ -736,6 +1021,30 @@ exports.requestInstitutionRegistration = async (req, res) => {
   }
 };
 
+// 🔴 NEW: دالة مساعدة لحساب العمر
+function calculateAge(dateOfBirth) {
+  if (!dateOfBirth) return null;
+  const today = new Date();
+  const birthDate = new Date(dateOfBirth);
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age;
+}
+
+// 🔴 NEW: دالة مساعدة للحصول على تسمية الفئة المالية
+function getTierLabel(tier) {
+  const labels = {
+    'tier_1_critical': 'حرج',
+    'tier_2_high': 'مرتفع',
+    'tier_3_medium': 'متوسط',
+    'tier_4_low': 'منخفض',
+    'tier_5_no_assistance': 'لا يحتاج'
+  };
+  return labels[tier] || 'غير محدد';
+}
 // ================= Helper Function: Calculate Recommendations =================
 exports.getRecommendedInstitutions = async (
   childId, 

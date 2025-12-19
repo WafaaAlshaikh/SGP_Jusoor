@@ -122,25 +122,21 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             'route': 'financial',
           },
           {
-            'title': 'Donor & Donation',
-            'icon': Icons.volunteer_activism,
-            'count': data['donationStats']?['totalDonations'] ?? 0,
+            'title': 'Donations',
+            'icon': Icons.volunteer_activism_rounded,
+            'count': (data['donationStats']?['totalDonations'] ?? 0).toInt(),
             'route': 'donations',
-// =======
-//             'title': 'Donation Campaigns',
-//             'icon': Icons.flag_rounded,
-//             'count': 0,
-//           },
-//           {
-//             'title': 'Donations',
-//             'icon': Icons.volunteer_activism_rounded,
-//             'count': (donations['totalDonations'] ?? 0).toInt(),
-//           },
-//           {
-//             'title': 'Session Management',
-//             'icon': Icons.calendar_today_rounded,
-//             'count': data['sessionStats']['monthlySessions'] ?? 0,
-// >>>>>>> 5a28052 (add donations and financial reports features for manager)
+          },
+          // {
+          //   'title': 'Donation Campaigns',
+          //   'icon': Icons.flag_rounded,
+          //   'count': 0,
+          //   'route': 'donation_campaigns',
+          // },
+          {
+            'title': 'Session Management',
+            'icon': Icons.calendar_today_rounded,
+            'count': data['sessionStats']['monthlySessions'] ?? 0,
           },
           {
             'title': 'Community',
@@ -215,11 +211,17 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             'route': 'financial',
           },
           {
-            'title': 'Donor & Donation',
+            'title': 'Donations',
             'icon': Icons.volunteer_activism,
             'count': 0,
             'route': 'donations',
           },
+          // {
+          //   'title': 'Donation Campaigns',
+          //   'icon': Icons.flag_rounded,
+          //   'count': 0,
+          //   'route': 'donation_campaigns',
+          // },
           {
             'title': 'Community',
             'icon': Icons.groups_rounded,
@@ -283,9 +285,6 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
   }
 
   void _handleSidebarItemClick(Map<String, dynamic> item) {
-  // في _ManagerHomeScreenState
-  // void _handleSidebarItemClick(String title) {
-
     setState(() {
       _isSidebarOpen = false;
     });
@@ -316,7 +315,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => FinancialReportScreen(),
+            builder: (context) => ManagerFinancialReportScreen(),
           ),
         );
         break;
@@ -324,10 +323,18 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => DonationsScreen(),
+            builder: (context) => ManagerDonationsScreen(),
           ),
         );
         break;
+      // case 'donation_campaigns':
+      //   Navigator.push(
+      //     context,
+      //     MaterialPageRoute(
+      //       builder: (context) => const ManagerDonationCampaignsScreen(),
+      //     ),
+      //   );
+      //   break;
       case 'community':
         Navigator.push(
           context,
@@ -372,60 +379,58 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
         duration: Duration(seconds: 2),
       ),
     );
-// =======
-//     if (title == 'Financial Reports') {
-//       Navigator.push(
-//         context,
-//         MaterialPageRoute(
-//           builder: (context) => const ManagerFinancialReportScreen(),
-//         ),
-//       );
-//     }
+    if (title == 'Financial Reports') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>  ManagerFinancialReportScreen(),
+        ),
+      );
+    }
 
-//     if (title == 'Donation Campaigns') {
-//       Navigator.push(
-//         context,
-//         MaterialPageRoute(
-//           builder: (context) => const ManagerDonationCampaignsScreen(),
-//         ),
-//       );
-//     }
+    // if (title == 'Donation Campaigns') {
+    //   Navigator.push(
+    //     context,
+    //     MaterialPageRoute(
+    //       builder: (context) => const ManagerDonationCampaignsScreen(),
+    //     ),
+    //   );
+    // }
 
-//     if (title == 'Donations') {
-//       Navigator.push(
-//         context,
-//         MaterialPageRoute(
-//           builder: (context) => const ManagerDonationsScreen(),
-//         ),
-//       );
-//     }
+    if (title == 'Donations') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ManagerDonationsScreen(),
+        ),
+      );
+    }
 
-//     if (title == 'Financial Assistance Requests') {
-//       Navigator.push(
-//         context,
-//         MaterialPageRoute(
-//           builder: (context) => const ManagerFinancialRequestsScreen(),
-//         ),
-//       );
-//     }
-//     if (title == 'Free Session Offers') {
-//       Navigator.push(
-//         context,
-//         MaterialPageRoute(
-//           builder: (context) => const ManagerFreeSessionsScreen(),
-//         ),
-//       );
-//     }
-//     if (title == 'Parent Workshops') {
-//       Navigator.push(
-//         context,
-//         MaterialPageRoute(
-//           builder: (context) => const ManagerWorkshopsScreen(),
-//         ),
-//       );
-//     }
-//     // يمكنك إضافة باقي الصفحات هنا
-// >>>>>>> 5a28052 (add donations and financial reports features for manager)
+    if (title == 'Financial Assistance Requests') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ManagerFinancialRequestsScreen(),
+        ),
+      );
+    }
+    if (title == 'Free Session Offers') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ManagerFreeSessionsScreen(),
+        ),
+      );
+    }
+    if (title == 'Parent Workshops') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ManagerWorkshopsScreen(),
+        ),
+      );
+    }
+    // يمكنك إضافة باقي الصفحات هنا
   }
 
   void _handleLogout() {

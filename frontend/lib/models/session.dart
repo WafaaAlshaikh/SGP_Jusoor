@@ -29,6 +29,11 @@ class Session {
   final int? childAge;
   final String? childCondition;
   final bool canRate; // ← هل يمكن تقييم الجلسة؟
+  bool? isEligibleForAutoDiscount;
+  double? autoDiscountPercentage;
+  double? autoDiscountAmount;
+  String? autoDiscountReason;
+  Map<String, dynamic>? financialAssessment;
 
   Session({
     required this.sessionId,
@@ -58,6 +63,11 @@ class Session {
     this.childAge,
     this.childCondition,
     required this.canRate, // ← تمت الإضافة
+    this.isEligibleForAutoDiscount = false,
+    this.autoDiscountPercentage = 0,
+    this.autoDiscountAmount = 0,
+    this.autoDiscountReason,
+    this.financialAssessment,
   });
 
   factory Session.fromJson(Map<String, dynamic> json) {
@@ -94,6 +104,15 @@ class Session {
       childCondition: json['childCondition'] ?? json['condition'],
       sessionTypePrice: _getPriceFromSessionType(json['sessionType']),
       canRate: canRate, // ← تعيين القيمة
+      isEligibleForAutoDiscount: json['eligible_for_auto_discount'] ?? false,
+      autoDiscountPercentage: json['discount_percentage'] != null 
+          ? double.tryParse(json['discount_percentage'].toString()) ?? 0 
+          : 0,
+      autoDiscountAmount: json['discount_amount'] != null 
+          ? double.tryParse(json['discount_amount'].toString()) ?? 0 
+          : 0,
+      autoDiscountReason: json['discount_reason'],
+      financialAssessment: json['financial_assessment'],
     );
   }
 

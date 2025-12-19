@@ -68,6 +68,11 @@ const Institution = sequelize.define('Institution', {
     type: DataTypes.INTEGER,
     allowNull: true
   },
+  donation_balance: {
+    type: DataTypes.DECIMAL(12, 2),
+    allowNull: false,
+    defaultValue: 0
+  },
   approval_status: {
     type: DataTypes.ENUM('Pending', 'Approved', 'Rejected', 'Suspended'),
     defaultValue: 'Pending'

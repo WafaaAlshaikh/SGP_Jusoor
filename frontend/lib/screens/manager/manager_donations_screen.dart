@@ -25,6 +25,15 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
   List<dynamic> _latestDonations = [];
   List<dynamic> _donationDistribution = [];
 
+  final ScrollController _donationsScrollController = ScrollController();
+  int _donationsViewIndex = 0;
+
+  double _toDouble(dynamic value) {
+    if (value == null) return 0;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString()) ?? 0;
+  }
+
   DateTimeRange? _selectedRange;
   String _quickFilter = 'all';
   String _searchText = '';
@@ -34,10 +43,6 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
   late TabController _tabController;
   int _currentTabIndex = 0;
   List<Map<String, dynamic>> _processedDonors = [];
-
-  // متغيرات لعرض المحتوى داخل تبويب Donations & Analytics
-  int _donationsViewIndex = 0; // 0 للتحليلات، 1 للتبرعات التفصيلية
-  final ScrollController _donationsScrollController = ScrollController();
 
   // ========== متغيرات الفلاتر المتقدمة الجديدة ==========
   Map<String, dynamic> _filterState = {
@@ -99,7 +104,8 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
         _donations = List<dynamic>.from(result['donations'] as List? ?? []);
         _allocations = List<dynamic>.from(result['allocations'] as List? ?? []);
         _campaigns = campaigns;
-        _topDonors = List<dynamic>.from(stats['topDonors'] ?? []);
+        final topDonor = stats['topDonor'];
+        _topDonors = topDonor != null ? [topDonor] : [];
         _latestDonations = List<dynamic>.from(stats['latestDonations'] ?? []);
         _donationDistribution = List<dynamic>.from(stats['distribution'] ?? []);
         _applyFilters();
@@ -1085,7 +1091,7 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
             children: [
               _buildStatCard(
                 title: 'Total Donations',
-                value: '${(summary['totalDonations'] ?? 0).toStringAsFixed(0)} JOD',
+                value: '${_toDouble(summary['totalDonations']).toStringAsFixed(0)} JOD',
                 icon: Icons.attach_money_rounded,
                 color: AppColors.primary,
               ),
@@ -1097,13 +1103,13 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
               ),
               _buildStatCard(
                 title: 'Avg Donation',
-                value: '${(summary['avgDonation'] ?? 0).toStringAsFixed(0)} JOD',
+                value: '${_toDouble(summary['avgDonation']).toStringAsFixed(0)} JOD',
                 icon: Icons.trending_up_rounded,
                 color: Colors.orange,
               ),
               _buildStatCard(
                 title: 'Last 30 Days',
-                value: '${(recent['amount'] ?? 0).toStringAsFixed(0)} JOD',
+                value: '${_toDouble(recent['amount']).toStringAsFixed(0)} JOD',
                 icon: Icons.calendar_month_rounded,
                 color: Colors.purple,
               ),
@@ -1262,7 +1268,7 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
                           _buildDonorStat(
                             icon: Icons.attach_money_rounded,
                             label: 'Total',
-                            value: '${(topDonor['total_amount'] ?? 0).toStringAsFixed(0)} JOD',
+                            value: '${_toDouble(topDonor['total_amount']).toStringAsFixed(0)} JOD',
                           ),
                           const SizedBox(width: 16),
                           _buildDonorStat(
@@ -1363,7 +1369,7 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
               label: item['range'].toString(),
               percentage: percentage,
               count: item['count']?.toString() ?? '0',
-              total: '${(item['total'] ?? 0).toStringAsFixed(0)} JOD',
+              total: '${_toDouble(item['total']).toStringAsFixed(0)} JOD',
             );
           }).toList(),
         ],
@@ -1488,13 +1494,13 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
           const SizedBox(height: 12),
           ..._topDonors.asMap().entries.map((entry) {
             final index = entry.key;
-            final donor = entry.value as Map<String, dynamic>;
+            final donor = entry.value;
             final donorInfo = donor['donor_info'] as Map<String, dynamic>? ?? {};
             
             return _buildTopDonorTile(
               rank: index + 1,
               name: donorInfo['name']?.toString() ?? 'Anonymous',
-              totalAmount: '${(donor['total_amount'] ?? 0).toStringAsFixed(0)} JOD',
+              totalAmount: '${_toDouble(donor['total_amount']).toStringAsFixed(0)} JOD',
               donationCount: (donor['donation_count'] ?? 0).toString(),
             );
           }).toList(),

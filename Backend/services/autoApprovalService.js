@@ -1,4 +1,4 @@
-// services/autoApprovalService.js
+// services/autoApprovalService.js (نسخة كاملة مع إضافة)
 const { 
   Child, 
   ChildRegistrationRequest, 
@@ -11,119 +11,121 @@ const {
   Parent, 
   User,
   Manager,
-  Diagnosis
+  Diagnosis,
+  AutoFinancialAidLog,
+  sequelize 
 } = require('../model');
-const sequelize = require('../config/db');
-const { Op,Sequelize } = require('sequelize');
+const { Op, Sequelize } = require('sequelize');
+
 class AutoApprovalService {
   
   /**
    * التحقق من طلبات التسجيل الجديدة واتخاذ القرار تلقائياً
    */
-static async processPendingRegistrationRequests() {
-  console.log('🔄 بدء معالجة طلبات التسجيل المعلقة تلقائياً...');
-  
-  try {
-    // جلب فقط 3 طلبات في كل مرة لمنع التحميل الزائد
-    const pendingRequests = await ChildRegistrationRequest.findAll({
-      where: { 
-        status: 'Pending',
-        requested_at: {
-          [Op.lt]: new Date(Date.now() - 5 * 60 * 1000) // فقط الطلبات الأقدم من 5 دقائق
-        }
-      },
-      include: [
-        {
-          model: Child,
-          attributes: ['child_id', 'full_name', 'date_of_birth', 'gender', 'city', 'address', 
-                       'diagnosis_id', 'suspected_condition', 'symptoms_description', 'risk_level'],
-          required: true
+  static async processPendingRegistrationRequests() {
+    console.log('🔄 بدء معالجة طلبات التسجيل المعلقة تلقائياً...');
+    
+    try {
+      // جلب فقط 3 طلبات في كل مرة لمنع التحميل الزائد
+      const pendingRequests = await ChildRegistrationRequest.findAll({
+        where: { 
+          status: 'Pending',
+          requested_at: {
+            [Op.lt]: new Date(Date.now() - 5 * 60 * 1000) // فقط الطلبات الأقدم من 5 دقائق
+          }
         },
-        {
-          model: Institution,
-          attributes: ['institution_id', 'name', 'auto_approval_enabled', 'capacity']
-        }
-      ],
-      order: [['requested_at', 'ASC']],
-      limit: 3 // معالجة 3 طلبات فقط في المرة الواحدة
-    });
+        include: [
+          {
+            model: Child,
+            attributes: ['child_id', 'full_name', 'date_of_birth', 'gender', 'city', 'address', 
+                         'diagnosis_id', 'suspected_condition', 'symptoms_description', 'risk_level'],
+            required: true
+          },
+          {
+            model: Institution,
+            attributes: ['institution_id', 'name', 'auto_approval_enabled', 'capacity']
+          }
+        ],
+        order: [['requested_at', 'ASC']],
+        limit: 3 // معالجة 3 طلبات فقط في المرة الواحدة
+      });
 
-    console.log(`📋 عدد الطلبات المعلقة للفحص: ${pendingRequests.length}`);
+      console.log(`📋 عدد الطلبات المعلقة للفحص: ${pendingRequests.length}`);
 
-    const results = {
-      approved: [],
-      rejected: [],
-      pending_manager_review: []
-    };
+      const results = {
+        approved: [],
+        rejected: [],
+        pending_manager_review: []
+      };
 
-    // معالجة كل طلب بشكل منفصل مع معالجة الأخطاء
-    for (const request of pendingRequests) {
-      try {
-        console.log(`⚡ معالجة الطلب ${request.request_id}...`);
+      // معالجة كل طلب بشكل منفصل مع معالجة الأخطاء
+      for (const request of pendingRequests) {
+        try {
+          console.log(`⚡ معالجة الطلب ${request.request_id}...`);
 
-        // 🚫 إذا كان الطلب مرتبطاً بطلب مساعدة مالية، لا نقوم بالموافقة التلقائية
-        // بل نتركه للمراجعة اليدوية من المدير
-        if (request.financial_assistance_request_id) {
-          console.log(`💰 الطلب ${request.request_id} مرتبط بطلب مساعدة مالية (${request.financial_assistance_request_id})، سيتم تحويله لمراجعة المدير فقط.`);
-          results.pending_manager_review.push({
-            request_id: request.request_id,
-            child_name: request.Child.full_name,
-            reason: 'مرتبط بطلب مساعدة مالية - يحتاج مراجعة مدير'
-          });
-          continue;
-        }
-        
-        const decision = await this.evaluateRegistrationRequest(request);
-        
-        switch (decision.status) {
-          case 'Approved':
-            await this.approveAndScheduleAutomatically(request, decision);
-            results.approved.push({
-              request_id: request.request_id,
-              child_name: request.Child.full_name,
-              reason: decision.reason
-            });
-            break;
-            
-          case 'Rejected':
-            await this.rejectAutomatically(request, decision);
-            results.rejected.push({
-              request_id: request.request_id,
-              child_name: request.Child.full_name,
-              reason: decision.reason
-            });
-            break;
-            
-          default:
+          // 🚫 إذا كان الطلب مرتبطاً بطلب مساعدة مالية، لا نقوم بالموافقة التلقائية
+          // بل نتركه للمراجعة اليدوية من المدير
+          if (request.financial_assistance_request_id) {
+            console.log(`💰 الطلب ${request.request_id} مرتبط بطلب مساعدة مالية (${request.financial_assistance_request_id})، سيتم تحويله لمراجعة المدير فقط.`);
             results.pending_manager_review.push({
               request_id: request.request_id,
               child_name: request.Child.full_name,
-              reason: 'بحاجة لمراجعة يدوية من المدير'
+              reason: 'مرتبط بطلب مساعدة مالية - يحتاج مراجعة مدير'
             });
+            continue;
+          }
+          
+          const decision = await this.evaluateRegistrationRequest(request);
+          
+          switch (decision.status) {
+            case 'Approved':
+              await this.approveAndScheduleAutomatically(request, decision);
+              results.approved.push({
+                request_id: request.request_id,
+                child_name: request.Child.full_name,
+                reason: decision.reason
+              });
+              break;
+              
+            case 'Rejected':
+              await this.rejectAutomatically(request, decision);
+              results.rejected.push({
+                request_id: request.request_id,
+                child_name: request.Child.full_name,
+                reason: decision.reason
+              });
+              break;
+              
+            default:
+              results.pending_manager_review.push({
+                request_id: request.request_id,
+                child_name: request.Child.full_name,
+                reason: 'بحاجة لمراجعة يدوية من المدير'
+              });
+          }
+          
+          console.log(`✅ اكتملت معالجة الطلب ${request.request_id}`);
+          
+        } catch (requestError) {
+          console.error(`❌ خطأ في معالجة الطلب ${request.request_id}:`, requestError.message);
+          // تابع مع الطلب التالي
+          continue;
         }
-        
-        console.log(`✅ اكتملت معالجة الطلب ${request.request_id}`);
-        
-      } catch (requestError) {
-        console.error(`❌ خطأ في معالجة الطلب ${request.request_id}:`, requestError.message);
-        // تابع مع الطلب التالي
-        continue;
       }
+
+      console.log('✅ نتائج المعالجة التلقائية:', {
+        approved: results.approved.length,
+        rejected: results.rejected.length,
+        needs_manager: results.pending_manager_review.length
+      });
+
+      return results;
+
+    } catch (error) {
+      console.error('❌ خطأ رئيسي في معالجة الطلبات تلقائياً:', error);
+      throw error;
     }
-
-    console.log('✅ نتائج المعالجة التلقائية:', {
-      approved: results.approved.length,
-      rejected: results.rejected.length,
-      needs_manager: results.pending_manager_review.length
-    });
-
-    return results;
-
-  } catch (error) {
-    console.error('❌ خطأ رئيسي في معالجة الطلبات تلقائياً:', error);
-    throw error;
   }
-}
 
   /**
    * تقييم طلب التسجيل بناءً على قواعد محددة
@@ -187,10 +189,9 @@ static async processPendingRegistrationRequests() {
   }
 
   /**
-   * الموافقة التلقائية والحجز الذكي
+   * الموافقة التلقائية والحجز الذكي مع المساعدة المالية
    */
-// services/autoApprovalService.js - إضافة مهلات و logs
-static async approveAndScheduleAutomatically(request, decision) {
+  static async approveAndScheduleAutomatically(request, decision) {
     console.log(`⏱️ بدء الموافقة التلقائية للطلب ${request.request_id}`);
     
     // 🔥 تصحيح: استخدام Sequelize مباشرة
@@ -243,47 +244,85 @@ static async approveAndScheduleAutomatically(request, decision) {
           related_id: request.request_id,
           is_read: false
         }, { transaction });
-      } else {
-        console.log(`✅ وجد أخصائي: ${generalSpecialist.User.full_name}`);
         
-        // 4️⃣ البحث عن موعد متاح
-        const availableSlot = await this.findNextAvailableSlot(
-          generalSpecialist.specialist_id,
-          60 // مدة الجلسة
-        );
-
-        if (availableSlot) {
-          // 5️⃣ إنشاء جلسة Initial Assessment
-          const initialAssessmentSession = await this.createInitialAssessmentSession(
-            request.child_id,
-            generalSpecialist.specialist_id,
-            request.institution_id,
-            availableSlot,
-            transaction
-          );
-
-          // 6️⃣ إرسال إشعارات
-          await this.sendApprovalNotifications(
-            request,
-            generalSpecialist,
-            initialAssessmentSession,
-            transaction
-          );
-
-          console.log(`✅ تم حجز جلسة التقييم الأولي: ${availableSlot.date} ${availableSlot.startTime}`);
-
-        } else {
-          console.log('⚠️ لا يوجد مواعيد متاحة، سيتم إخطار المدير');
-          await Notification.create({
-            user_id: await this.getInstitutionManagerId(request.institution_id),
-            title: 'تحذير: لا يوجد مواعيد متاحة',
-            message: `تمت الموافقة على طلب ${request.Child.full_name} ولكن لا يوجد مواعيد متاحة للأخصائي. يرجى التدخل يدوياً.`,
-            type: 'scheduling_needed',
-            related_id: request.request_id,
-            is_read: false
-          }, { transaction });
-        }
+        await transaction.commit();
+        return;
       }
+
+      console.log(`✅ وجد أخصائي: ${generalSpecialist.User.full_name}`);
+      
+      // 4️⃣ البحث عن موعد متاح
+      const availableSlot = await this.findNextAvailableSlot(
+        generalSpecialist.specialist_id,
+        60 // مدة الجلسة
+      );
+
+      if (!availableSlot) {
+        console.log('⚠️ لا يوجد مواعيد متاحة، سيتم إخطار المدير');
+        await Notification.create({
+          user_id: await this.getInstitutionManagerId(request.institution_id),
+          title: 'تحذير: لا يوجد مواعيد متاحة',
+          message: `تمت الموافقة على طلب ${request.Child.full_name} ولكن لا يوجد مواعيد متاحة للأخصائي. يرجى التدخل يدوياً.`,
+          type: 'scheduling_needed',
+          related_id: request.request_id,
+          is_read: false
+        }, { transaction });
+        
+        await transaction.commit();
+        return;
+      }
+
+      // 5️⃣ إنشاء جلسة Initial Assessment
+      const initialAssessmentSession = await this.createInitialAssessmentSession(
+        request.child_id,
+        generalSpecialist.specialist_id,
+        request.institution_id,
+        availableSlot,
+        transaction
+      );
+
+      // 6️⃣ إرسال إشعارات الموافقة الأساسية
+      await this.sendApprovalNotifications(
+        request,
+        generalSpecialist,
+        initialAssessmentSession,
+        transaction
+      );
+
+      console.log(`✅ تم حجز جلسة التقييم الأولي: ${availableSlot.date} ${availableSlot.startTime}`);
+
+      // 🔴 جديد: تطبيق المساعدة المالية التلقائية
+      setTimeout(async () => {
+        try {
+          const AutoFinancialAidService = require('./autoFinancialAidService');
+          const aidResult = await AutoFinancialAidService.autoApplyFinancialAid(initialAssessmentSession.session_id);
+          
+          console.log(`💰 نتيجة المساعدة المالية التلقائية:`, aidResult);
+          
+          // تحديث إشعار الأهل بإضافة معلومات المساعدة المالية
+          if (aidResult.auto_applied) {
+            let updatedMessage = `✅ تمت الموافقة على تسجيل ${request.Child.full_name} في ${request.Institution.name}.\n`;
+            
+            if (aidResult.final_price === 0) {
+              updatedMessage += `🎉 تم تمويل جلسة التقييم الأولي بالكامل من خلال المساعدة المالية التلقائية!`;
+            } else if (aidResult.discount_amount > 0) {
+              updatedMessage += `💰 تم تطبيق خصم تلقائي بنسبة ${aidResult.discount_percentage.toFixed(2)}% على الجلسة.`;
+            }
+            
+            await Notification.update({
+              message: updatedMessage
+            }, {
+              where: {
+                user_id: request.requested_by_parent_id,
+                related_id: request.request_id,
+                type: 'registration_approved'
+              }
+            });
+          }
+        } catch (aidError) {
+          console.error('❌ خطأ في تطبيق المساعدة المالية التلقائية:', aidError);
+        }
+      }, 1000); // تأخير ثانية واحدة
 
       await transaction.commit();
       console.log(`✅ اكتملت عملية الموافقة والحجز للطلب ${request.request_id}`);
@@ -303,99 +342,107 @@ static async approveAndScheduleAutomatically(request, decision) {
     }
   }
 
-// تحديث دالة createInitialAssessmentSession
-static async createInitialAssessmentSession(childId, specialistId, institutionId, slot, transaction = null) {
-  console.log(`🔍 البحث عن نوع الجلسة للمؤسسة ${institutionId}`);
-  
-  const options = transaction ? { transaction } : {};
-  
-  const initialAssessmentType = await SessionType.findOne({
-    where: {
+  /**
+   * إنشاء جلسة Initial Assessment
+   */
+  static async createInitialAssessmentSession(childId, specialistId, institutionId, slot, transaction = null) {
+    console.log(`🔍 البحث عن نوع الجلسة للمؤسسة ${institutionId}`);
+    
+    const options = transaction ? { transaction } : {};
+    
+    const initialAssessmentType = await SessionType.findOne({
+      where: {
+        institution_id: institutionId,
+        name: { [Op.like]: '%Initial Assessment%' }
+      },
+      ...options
+    });
+
+    const sessionTypeId = initialAssessmentType ? 
+      initialAssessmentType.session_type_id : 
+      await this.getDefaultSessionTypeId(institutionId);
+
+    const originalPrice = initialAssessmentType ? parseFloat(initialAssessmentType.price) || 0 : 0;
+    const finalPrice = originalPrice;
+
+    console.log(`📝 إنشاء جلسة جديدة: ${slot.date} ${slot.startTime}`);
+    
+    const createOptions = {
+      child_id: childId,
+      specialist_id: specialistId,
       institution_id: institutionId,
-      name: { [Op.like]: '%Initial Assessment%' }
-    },
-    ...options
-  });
+      session_type_id: sessionTypeId,
+      date: slot.date,
+      time: `${slot.startTime}:00`,
+      duration: 60,
+      session_type: 'Onsite',
+      status: 'Pending Approval',
+      is_first_booking: true,
+      is_initial_assessment: true,
+      parent_notes: 'جلسة التقييم الأولي - تم الحجز تلقائياً بعد الموافقة على التسجيل',
+      original_price: originalPrice,
+      final_price: finalPrice,
+      applied_discount_percentage: 0,
+      payment_status: 'Pending',
+      financial_assistance_applied: false,
+      is_paid: false,
+      auto_financial_assistance: false
+    };
 
-  const sessionTypeId = initialAssessmentType ? 
-    initialAssessmentType.session_type_id : 
-    await this.getDefaultSessionTypeId(institutionId);
-
-  const originalPrice = initialAssessmentType ? parseFloat(initialAssessmentType.price) || 0 : 0;
-  const finalPrice = originalPrice;
-
-  console.log(`📝 إنشاء جلسة جديدة: ${slot.date} ${slot.startTime}`);
-  
-  const createOptions = {
-    child_id: childId,
-    specialist_id: specialistId,
-    institution_id: institutionId,
-    session_type_id: sessionTypeId,
-    date: slot.date,
-    time: `${slot.startTime}:00`,
-    duration: 60,
-    session_type: 'Onsite',
-    status: 'Pending Approval',
-    is_first_booking: true,
-    is_initial_assessment: true,
-    parent_notes: 'جلسة التقييم الأولي - تم الحجز تلقائياً بعد الموافقة على التسجيل',
-    original_price: originalPrice,
-    final_price: finalPrice,
-    applied_discount_percentage: 0,
-    payment_status: 'Pending',
-    financial_assistance_applied: false,
-    is_paid: false
-  };
-
-  if (transaction) {
-    return await Session.create(createOptions, { transaction });
-  } else {
-    return await Session.create(createOptions);
+    if (transaction) {
+      return await Session.create(createOptions, { transaction });
+    } else {
+      return await Session.create(createOptions);
+    }
   }
-}
 
-// تحديث دالة sendApprovalNotifications
-static async sendApprovalNotifications(request, specialist, session, transaction = null) {
-  const options = transaction ? { transaction } : {};
-  
-  console.log(`📨 إرسال إشعارات للطلب ${request.request_id}`);
-  
-  // 1. إشعار الأهل
-  await Notification.create({
-    user_id: request.requested_by_parent_id,
-    title: 'تمت الموافقة على التسجيل وحجز الجلسة الأولى',
-    message: `مبروك! تمت الموافقة على تسجيل ${request.Child.full_name} في ${request.Institution.name}. 
-              تم حجز جلسة التقييم الأولي مع ${specialist.User.full_name} في ${session.date} الساعة ${session.time}.`,
-    type: 'registration_approved',
-    related_id: request.request_id,
-    is_read: false
-  }, options);
-
-  // 2. إشعار الأخصائي
-  await Notification.create({
-    user_id: specialist.specialist_id,
-    title: 'جلسة تقييم أولي جديدة',
-    message: `لديك جلسة تقييم أولي مع ${request.Child.full_name} في ${session.date} الساعة ${session.time}. 
-              الطفل: ${request.Child.age} سنوات، ${request.Child.gender}.`,
-    type: 'new_session',
-    related_id: session.session_id,
-    is_read: false
-  }, options);
-
-  // 3. إشعار المدير
-  const managerId = await this.getInstitutionManagerId(request.institution_id);
-  if (managerId) {
+  /**
+   * إرسال إشعارات الموافقة
+   */
+  static async sendApprovalNotifications(request, specialist, session, transaction = null) {
+    const options = transaction ? { transaction } : {};
+    
+    console.log(`📨 إرسال إشعارات للطلب ${request.request_id}`);
+    
+    // 1. إشعار الأهل
     await Notification.create({
-      user_id: managerId,
-      title: 'تمت الموافقة التلقائية على تسجيل جديد',
-      message: `تمت الموافقة تلقائياً على تسجيل ${request.Child.full_name}. 
-                تم حجز جلسة مع ${specialist.User.full_name} في ${session.date}.`,
-      type: 'auto_approval_notification',
+      user_id: request.requested_by_parent_id,
+      title: 'تمت الموافقة على التسجيل وحجز الجلسة الأولى',
+      message: `✅ تمت الموافقة تلقائياً على تسجيل ${request.Child.full_name} في ${request.Institution.name}. 
+                سيتم حجز جلسة التقييم الأولي مع ${specialist.User.full_name} في ${session.date} الساعة ${session.time}. 
+                يتم الآن التحقق من إمكانية المساعدة المالية التلقائية...`,
+      type: 'registration_approved',
       related_id: request.request_id,
       is_read: false
     }, options);
+
+    // 2. إشعار الأخصائي
+    await Notification.create({
+      user_id: specialist.specialist_id,
+      title: 'جلسة تقييم أولي جديدة',
+      message: `👶 لديك جلسة تقييم أولي مع ${request.Child.full_name} في ${session.date} الساعة ${session.time}. 
+                الطفل: ${request.Child.age} سنوات، ${request.Child.gender}. 
+                سيتم التحقق من المساعدة المالية التلقائية للأهل.`,
+      type: 'new_session',
+      related_id: session.session_id,
+      is_read: false
+    }, options);
+
+    // 3. إشعار المدير
+    const managerId = await this.getInstitutionManagerId(request.institution_id);
+    if (managerId) {
+      await Notification.create({
+        user_id: managerId,
+        title: 'تمت الموافقة التلقائية على تسجيل جديد',
+        message: `✅ تمت الموافقة تلقائياً على تسجيل ${request.Child.full_name}. 
+                  تم حجز جلسة مع ${specialist.User.full_name} في ${session.date}. 
+                  سيتم تطبيق المساعدة المالية التلقائية إذا كان الأهل مؤهلين.`,
+        type: 'auto_approval_notification',
+        related_id: request.request_id,
+        is_read: false
+      }, options);
+    }
   }
-}
 
   /**
    * الرفض التلقائي
@@ -422,7 +469,8 @@ static async sendApprovalNotifications(request, specialist, session, transaction
       await Notification.create({
         user_id: request.requested_by_parent_id,
         title: 'تم رفض طلب التسجيل',
-        message: `عذراً، تم رفض طلب تسجيل ${request.Child.full_name} في ${request.Institution.name}. السبب: ${decision.reason}`,
+        message: `عذراً، تم رفض طلب تسجيل ${request.Child.full_name} في ${request.Institution.name}. 
+                  السبب: ${decision.reason}`,
         type: 'registration_rejected',
         related_id: request.request_id,
         is_read: false
@@ -527,8 +575,7 @@ static async sendApprovalNotifications(request, specialist, session, transaction
           }
         ],
         attributes: ['specialist_id', 'specialization', 'years_experience', 'average_rating'],
-        limit: 5,
-        logging: console.log
+        limit: 5
       });
 
       console.log(`📊 وجد ${generalSpecialists.length} أخصائي General`);
@@ -600,7 +647,14 @@ static async sendApprovalNotifications(request, specialist, session, transaction
             [Op.notIn]: ['Cancelled', 'Rejected', 'Completed']
           }
         },
-        attributes: ['time', 'duration'],
+        attributes: ['time', 'session_type_id'],
+        include: [
+          {
+            model: SessionType,
+            attributes: ['duration'],
+            required: false
+          }
+        ],
         limit: 10
       });
 
@@ -650,7 +704,15 @@ static async sendApprovalNotifications(request, specialist, session, transaction
           status: {
             [Op.notIn]: ['Cancelled', 'Rejected', 'Completed']
           }
-        }
+        },
+        attributes: ['time', 'session_type_id'],
+        include: [
+          {
+            model: SessionType,
+            attributes: ['duration'],
+            required: false
+          }
+        ]
       });
 
       // 3. البحث عن وقت متاح
@@ -682,7 +744,7 @@ static async sendApprovalNotifications(request, specialist, session, transaction
     const busySlots = [];
     existingSessions.forEach(session => {
       const sessionStart = this.timeToMinutes(session.time);
-      const sessionDuration = session.duration || 60;
+      const sessionDuration = session.SessionType?.duration || 60;
       const sessionEnd = sessionStart + sessionDuration;
       busySlots.push({ start: sessionStart, end: sessionEnd });
     });
@@ -708,9 +770,6 @@ static async sendApprovalNotifications(request, specialist, session, transaction
     return null;
   }
 
-  /**
-   * وظيفة جديدة: معالجة طلب واحد فقط
-   */
   static async processSingleRequest(requestId) {
     try {
       console.log(`🎯 معالجة طلب واحد: ${requestId}`);
@@ -765,7 +824,8 @@ static async sendApprovalNotifications(request, specialist, session, transaction
             success: true, 
             status: 'Approved',
             request_id: request.request_id,
-            reason: decision.reason
+            reason: decision.reason,
+            note: 'تمت الموافقة وحجز جلسة التقييم الأولي مع تطبيق المساعدة المالية التلقائية'
           };
           break;
           
