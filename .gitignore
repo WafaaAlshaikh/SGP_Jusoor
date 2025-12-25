@@ -6,3 +6,5 @@ node_modules/
 .env/
 /Backend/.env/
 /Backend/node_modules/
+
+/frontend/android/
