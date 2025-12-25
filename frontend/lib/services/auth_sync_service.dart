@@ -40,9 +40,12 @@ class AuthSyncService {
         print('✅ تم تسجيل الدخول إلى Firebase بالمستخدم الحقيقي');
 
       } on FirebaseAuthException catch (e) {
+        print('❌ FirebaseAuthException.code = ${e.code}');
+        print('❌ FirebaseAuthException.message = ${e.message}');
+
         if (e.code == 'user-not-found' || e.code == 'wrong-password') {
           print('🔄 إنشاء حساب Firebase جديد أو تحديث كلمة المرور...');
-          
+
           try {
             // محاولة إنشاء حساب جديد
             final userCredential = await _auth.createUserWithEmailAndPassword(
@@ -60,9 +63,31 @@ class AuthSyncService {
             print('✅ تم إنشاء مستخدم حقيقي في Firebase: $userName');
           } catch (createError) {
             print('❌ خطأ في إنشاء الحساب: $createError');
+            print('🔄 محاولة إنشاء مستخدم احتياطي بدلاً من ذلك...');
+            await _createFallbackUser();
           }
         } else {
-          print('❌ خطأ في المصادقة: ${e.message}');
+          // محاولة استرداد عن طريق إنشاء مستخدم ما لم يكن السبب هو بناءً على قيود صريحة
+          try {
+            print('🔄 Attempting recovery by creating Firebase user...');
+            final userCredential = await _auth.createUserWithEmailAndPassword(
+              email: firebaseEmail,
+              password: firebasePassword,
+            );
+
+            if (userName != null) {
+              await userCredential.user!.updateDisplayName(userName);
+            }
+
+            await prefs.setString('firebase_uid', userCredential.user!.uid);
+            await prefs.setString('firebase_email', firebaseEmail);
+
+            print('✅ Recovery succeeded: Firebase user created: $userName');
+          } catch (createError) {
+            print('❌ Recovery create failed: $createError');
+            print('🔄 Creating fallback Firebase user...');
+            await _createFallbackUser();
+          }
         }
       }
 

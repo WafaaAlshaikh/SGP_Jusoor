@@ -149,12 +149,12 @@ const Session = sequelize.define('Session', {
   auto_financial_assistance: {
   type: DataTypes.BOOLEAN,
   defaultValue: false,
-  comment: 'تم تطبيق المساعدة المالية تلقائياً'
+  comment: 'Automatically applied financial assistance'
 },
 auto_discount_details: {
   type: DataTypes.JSON,
   allowNull: true,
-  comment: 'تفاصيل الخصم التلقائي'
+  comment: 'Auto discount details'
 },
 }, { 
   tableName: 'Sessions', 
