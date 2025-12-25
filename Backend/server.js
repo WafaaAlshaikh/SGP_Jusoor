@@ -6,6 +6,7 @@ const dotenv = require('dotenv');
 const sequelize = require('./config/db');
 const path = require('path');
 const fs = require('fs');
+const webhookController = require('./controllers/webhookController');
 
 const progressAnalysisRoutes = require('./routes/progressAnalysisRoutes');
 dotenv.config();
@@ -22,10 +23,29 @@ const app = express();
 // ===========================
 // 📌 Middlewares
 // ===========================
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// ==================== ⚠️ CRITICAL: Stripe Webhook MUST be BEFORE express.json() ====================
+app.post(
+    '/api/donations/webhook',
+    express.raw({ type: 'application/json' }),
+    webhookController.handleStripeWebhook
+);
 
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+// إضافة headers للـ CORS
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  
+  next();
+});
 
 // ===========================
 // 📌 Create required directories
@@ -81,6 +101,66 @@ app.get('/test', (req, res) => {
     res.send('Server is working!');
 });
 
+app.get('/donations/success', (req, res) => {
+    res.status(200).send(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Payment Completed</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0; padding: 24px; background: #f6f7fb; color: #111827; }
+      .card { max-width: 560px; margin: 40px auto; background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,.08); }
+      h1 { margin: 0 0 12px; font-size: 22px; }
+      p { margin: 0 0 16px; line-height: 1.5; color: #374151; }
+      .hint { font-size: 13px; color: #6b7280; }
+      .btn { display: inline-block; padding: 10px 14px; border-radius: 10px; background: #111827; color: #fff; text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Payment completed</h1>
+      <p>Your payment was processed successfully. You can now return to the app.</p>
+      <p class="hint">If this page doesn't close automatically, tap the button below.</p>
+      <a class="btn" href="#" onclick="window.close(); return false;">Close</a>
+    </div>
+    <script>
+      setTimeout(() => { try { window.close(); } catch (e) {} }, 1200);
+    </script>
+  </body>
+</html>`);
+});
+
+app.get('/donations/cancel', (req, res) => {
+    res.status(200).send(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Payment Cancelled</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 0; padding: 24px; background: #f6f7fb; color: #111827; }
+      .card { max-width: 560px; margin: 40px auto; background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,.08); }
+      h1 { margin: 0 0 12px; font-size: 22px; }
+      p { margin: 0 0 16px; line-height: 1.5; color: #374151; }
+      .hint { font-size: 13px; color: #6b7280; }
+      .btn { display: inline-block; padding: 10px 14px; border-radius: 10px; background: #111827; color: #fff; text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Payment cancelled</h1>
+      <p>No charge was made. You can return to the app and try again.</p>
+      <p class="hint">If this page doesn't close automatically, tap the button below.</p>
+      <a class="btn" href="#" onclick="window.close(); return false;">Close</a>
+    </div>
+    <script>
+      setTimeout(() => { try { window.close(); } catch (e) {} }, 1200);
+    </script>
+  </body>
+</html>`);
+});
+
 // ===========================
 // 📌 ROUTES
 // ===========================
@@ -122,9 +202,10 @@ app.use('/api/chat', require('./routes/chatRoutes'));
 
 // Institution
 app.use('/api', require('./routes/institutionRoutes'));
+app.use('/api/public', require('./routes/publicInstitutionRoutes'));
 
 // Donations
-app.use('/api', require('./routes/donationRoutes'));
+app.use('/api/donations', require('./routes/donationRoutes'));
 
 // Resources
 app.use('/api', require('./routes/resourceRoutes'));
@@ -152,11 +233,12 @@ app.use('/api/password', require('./routes/forgotPasswordRoutes'));
 // Other simple routes
 app.use('/api', require('./routes/testRoutes'));
 
-// Static uploads
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
 //Admin 
 app.use('/api/admin', require('./routes/adminRoutes'));
+// Reports (Tickets)
+app.use('/api/reports', require('./routes/reportsRoutes'));
+app.use('/api/manager/reports', require('./routes/managerReportsRoutes'));
+app.use('/api/admin/reports', require('./routes/adminReportsRoutes'));
 // Questionnaire Routes
 app.use('/api/screening', require('./routes/screeningRoutes'));
 
@@ -172,6 +254,8 @@ app.use('/api/manager/children', require('./routes/manager/addChildRoutes'));
 // بعد الـ manager routes أضف:
 app.use('/api/manager', require('./routes/manager/institutionProfileRoutes'));
 
+app.use('/api/manager/cms', require('./routes/manager/institutionCmsRoutes'));
+
 // Manager Donations (campaigns + statistics)
 app.use('/api/manager/donations', require('./routes/manager/donationCampaignRoutes'));
 
@@ -179,6 +263,8 @@ const ratingRoutes = require('./routes/ratingRoutes');
 app.use('/api/ratings', ratingRoutes);
 
 app.use('/api/notifications', require('./routes/notificationRoutes'));
+
+app.use('/api/device-tokens', require('./routes/deviceTokenRoutes'));
 
 // app.js or server.js
 const financialRoutes = require('./routes/financialRoutes');
@@ -191,30 +277,12 @@ app.use('/api/manager/financial', managerFinancialRoutes);
 const financialReportsRoutes = require('./routes/financialReportsRoutes'); 
 app.use('/api/financial-reports', financialReportsRoutes); // جديد
 
-
-// زيادة حجم الـ payload للصور
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
-
-// إضافة headers للـ CORS
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  
-  next();
-});
-
-// روت الملفات الثابتة
+// Static uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   maxAge: '1d', // caching
-  setHeaders: (res, path) => {
+  setHeaders: (res, p) => {
     // تعيين MIME types صحيحة للملفات
-    const ext = path.extname(path);
+    const ext = path.extname(p);
     if (ext === '.jpg' || ext === '.jpeg') {
       res.setHeader('Content-Type', 'image/jpeg');
     } else if (ext === '.png') {

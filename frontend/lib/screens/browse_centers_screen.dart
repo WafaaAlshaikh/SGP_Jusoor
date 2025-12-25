@@ -6,8 +6,11 @@ import 'dart:async';
 import '../theme/app_colors.dart';
 import '../services/api_service.dart';
 import '../services/rating_service.dart';
+import '../services/public_institution_service.dart';
 import 'map_screen.dart';
 import 'institution_reviews_screen.dart';
+import 'public_institution_profile_screen.dart';
+import 'public_institution_home_screen.dart';
 
 class BrowseCentersScreen extends StatefulWidget {
   const BrowseCentersScreen({Key? key}) : super(key: key);
@@ -79,11 +82,15 @@ class _BrowseCentersScreenState extends State<BrowseCentersScreen> {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token') ?? '';
 
-      if (token.isEmpty) {
-        throw Exception('Please login first to view centers');
+      // Public list first (no auth required)
+      List<dynamic> response;
+      try {
+        response = await PublicInstitutionService.getInstitutions();
+      } catch (_) {
+        // Fallback to old authenticated endpoint if public is not available
+        if (token.isEmpty) rethrow;
+        response = await ApiService.getInstitutions(token);
       }
-
-      final response = await ApiService.getInstitutions(token);
       
       setState(() {
         _allInstitutions = response;
@@ -804,12 +811,11 @@ class _BrowseCentersScreenState extends State<BrowseCentersScreen> {
               ),
               trailing: Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.primary),
               onTap: () {
-                // ✅ تم إصلاح هذا الجزء - إزالة التعليقات
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => InstitutionReviewsScreen(
-                      institutionId: instId?.toString() ?? '0',
+                    builder: (context) => PublicInstitutionHomeScreen(
+                      institutionId: instId ?? 0,
                       institutionName: name,
                     ),
                   ),

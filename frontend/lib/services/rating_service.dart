@@ -191,11 +191,11 @@ class RatingService {
       throw Exception(data['message'] ?? 'Failed to add review');
     }
   } catch (e) {
-    print('❌ Error adding institution review: $e');
+    print(' Error adding institution review: $e');
     rethrow;
   }
 }
-  // في دالة getInstitutionReviews في rating_service.dart
+  // 
   static Future<Map<String, dynamic>> getInstitutionReviews(
       String institutionId, {
         int page = 1,
@@ -213,15 +213,17 @@ class RatingService {
         'sort': sort,
       });
 
-      print('📡 Fetching reviews from: $url');
+      print(' Fetching reviews from: $url');
 
-      final response = await http.get(
-        url,
-        headers: {'Authorization': 'Bearer $token'},
-      );
+      final headers = <String, String>{};
+      if (token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
 
-      print('📥 Reviews response status: ${response.statusCode}');
-      print('📥 Reviews response body: ${response.body}');
+      final response = await http.get(url, headers: headers);
+
+      print(' Reviews response status: ${response.statusCode}');
+      print(' Reviews response body: ${response.body}');
 
       final data = jsonDecode(response.body);
 

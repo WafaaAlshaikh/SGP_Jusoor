@@ -62,139 +62,208 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> signupInitial(
-      Map<String, dynamic> data) async {
-    try {
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      print('🚀 [API SERVICE] PREPARING DATA TO SEND');
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      print('📦 COMPLETE DATA RECEIVED:');
-      data.forEach((key, value) {
-        print('   $key: $value (${value.runtimeType})');
+  // static Future<Map<String, dynamic>> signupInitial(
+  //     Map<String, dynamic> data) async {
+  //   try {
+  //     print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  //     print('🚀 [API SERVICE] PREPARING DATA TO SEND');
+  //     print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  //     print('📦 COMPLETE DATA RECEIVED:');
+  //     data.forEach((key, value) {
+  //       print('   $key: $value (${value.runtimeType})');
+  //     });
+  //     print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+  //     // ✅ بناء البيانات بشكل صريح لكل الدور
+  //     Map<String, dynamic> requestData = {
+  //       'full_name': data['full_name']?.toString() ?? '',
+  //       'email': data['email']?.toString() ?? '',
+  //       'password': data['password']?.toString() ?? '',
+  //       'role': data['role']?.toString() ?? '',
+  //       'phone': data['phone']?.toString(),
+  //       'profile_picture': data['profile_picture']?.toString(),
+
+  //       // البيانات الجغرافية
+  //       'location_lat': data['location_lat'],
+  //       'location_lng': data['location_lng'],
+  //       'location_address': data['location_address']?.toString(),
+  //       'city': data['city']?.toString(),
+  //       'region': data['region']?.toString(),
+  //     };
+
+  //     // ✅ إضافة بيانات Parent
+  //     if (data['role'] == 'Parent') {
+  //       requestData['address'] = data['address']?.toString();
+  //       requestData['occupation'] = data['occupation']?.toString();
+  //     }
+
+  //     // ✅ إضافة بيانات Specialist
+  //     if (data['role'] == 'Specialist') {
+  //       requestData['specialization'] = data['specialization']?.toString();
+  //       requestData['years_experience'] = data['years_experience'];
+  //       requestData['institution_id'] = data['institution_id'] != null
+  //           ? int.tryParse(data['institution_id'].toString())
+  //           : null;
+  //     }
+
+  //     // ✅ إضافة بيانات Manager - تأكد من وجودها
+  //     if (data['role'] == 'Manager') {
+  //       // البيانات الإلزامية
+  //       requestData['institution_name'] = data['institution_name']?.toString();
+  //       requestData['institution_contact_email'] =
+  //           data['institution_contact_email']?.toString();
+  //       requestData['institution_contact_phone'] =
+  //           data['institution_contact_phone']?.toString();
+
+  //       // البيانات الاختيارية
+  //       requestData['institution_license'] =
+  //           data['institution_license']?.toString();
+  //       requestData['institution_established_year'] =
+  //           data['institution_established_year'];
+  //       requestData['institution_city'] = data['institution_city']?.toString();
+  //       requestData['institution_region'] =
+  //           data['institution_region']?.toString();
+
+  //       // ✅ طباعة بيانات المؤسسة للتأكد
+  //       print('🏢 MANAGER INSTITUTION DATA:');
+  //       print('   ├─ institution_name: ${requestData['institution_name']}');
+  //       print(
+  //           '   ├─ institution_contact_email: ${requestData['institution_contact_email']}');
+  //       print(
+  //           '   ├─ institution_contact_phone: ${requestData['institution_contact_phone']}');
+  //       print(
+  //           '   ├─ institution_license: ${requestData['institution_license']}');
+  //       print(
+  //           '   ├─ institution_established_year: ${requestData['institution_established_year']}');
+  //       print('   ├─ institution_city: ${requestData['institution_city']}');
+  //       print('   └─ institution_region: ${requestData['institution_region']}');
+  //     }
+
+  //     print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  //     print('📤 FINAL REQUEST DATA:');
+  //     requestData.forEach((key, value) {
+  //       print('   $key: $value');
+  //     });
+  //     print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+  //     final response = await http
+  //         .post(
+  //           Uri.parse('$baseUrl/signup'),
+  //           headers: {'Content-Type': 'application/json'},
+  //           body: jsonEncode(requestData),
+  //         )
+  //         .timeout(Duration(seconds: 30));
+
+  //     print('📡 Signup response: ${response.statusCode}');
+  //     print('📦 Response body: ${response.body}');
+
+  //     final result = jsonDecode(response.body);
+
+  //     if (response.statusCode == 200) {
+  //       print('✅ [API SERVICE] Signup initial SUCCESS');
+  //       return {
+  //         'success': true,
+  //         'message': result['message'],
+  //         'tempToken': result['tempToken'],
+  //       };
+  //     } else {
+  //       print('❌ [API SERVICE] Signup initial FAILED: ${result['message']}');
+  //       return {
+  //         'success': false,
+  //         'message': result['message'] ?? 'Signup failed',
+  //       };
+  //     }
+  //   } on TimeoutException {
+  //     return {
+  //       'success': false,
+  //       'message': 'Connection timeout. Please try again.',
+  //     };
+  //   } on SocketException {
+  //     return {
+  //       'success': false,
+  //       'message': 'No internet connection.',
+  //     };
+  //   } catch (e) {
+  //     print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  //     print('❌ [API SERVICE] CRITICAL ERROR:');
+  //     print('   Error: $e');
+  //     print('   Type: ${e.runtimeType}');
+  //     print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  //     return {
+  //       'success': false,
+  //       'message': 'An error occurred. Please try again.',
+  //     };
+  //   }
+  // }
+
+  // ... previous code ...
+
+static Future<Map<String, dynamic>> signupInitial(
+    Map<String, dynamic> data) async {
+  try {
+    print('🚀 [API] Sending signup data...');
+    
+    // Prepare basic data
+    Map<String, dynamic> requestData = {
+      'full_name': data['full_name']?.toString() ?? '',
+      'email': data['email']?.toString() ?? '',
+      'password': data['password']?.toString() ?? '',
+      'role': data['role']?.toString() ?? '',
+      'phone': data['phone']?.toString(),
+      
+      // Location data
+      'location_lat': data['location_lat'],
+      'location_lng': data['location_lng'],
+      'location_address': data['location_address']?.toString(),
+      'city': data['city']?.toString(),
+      'region': data['region']?.toString(),
+    };
+
+    // Add institution data if Manager
+    if (data['role'] == 'Manager') {
+      requestData.addAll({
+        'institution_name': data['institution_name']?.toString(),
+        'institution_contact_email': data['institution_contact_email']?.toString(),
+        'institution_contact_phone': data['institution_contact_phone']?.toString(),
+        'institution_license': data['institution_license']?.toString(),
+        'institution_established_year': data['institution_established_year'],
+        'institution_city': data['institution_city']?.toString(),
+        'institution_region': data['institution_region']?.toString(),
       });
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    }
 
-      // ✅ بناء البيانات بشكل صريح لكل الدور
-      Map<String, dynamic> requestData = {
-        'full_name': data['full_name']?.toString() ?? '',
-        'email': data['email']?.toString() ?? '',
-        'password': data['password']?.toString() ?? '',
-        'role': data['role']?.toString() ?? '',
-        'phone': data['phone']?.toString(),
-        'profile_picture': data['profile_picture']?.toString(),
+    print('📤 Final data: $requestData');
 
-        // البيانات الجغرافية
-        'location_lat': data['location_lat'],
-        'location_lng': data['location_lng'],
-        'location_address': data['location_address']?.toString(),
-        'city': data['city']?.toString(),
-        'region': data['region']?.toString(),
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/signup'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(requestData),
+        )
+        .timeout(Duration(seconds: 30));
+
+    final result = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return {
+        'success': true,
+        'message': result['message'],
+        'tempToken': result['tempToken'],
       };
-
-      // ✅ إضافة بيانات Parent
-      if (data['role'] == 'Parent') {
-        requestData['address'] = data['address']?.toString();
-        requestData['occupation'] = data['occupation']?.toString();
-      }
-
-      // ✅ إضافة بيانات Specialist
-      if (data['role'] == 'Specialist') {
-        requestData['specialization'] = data['specialization']?.toString();
-        requestData['years_experience'] = data['years_experience'];
-        requestData['institution_id'] = data['institution_id'] != null
-            ? int.tryParse(data['institution_id'].toString())
-            : null;
-      }
-
-      // ✅ إضافة بيانات Manager - تأكد من وجودها
-      if (data['role'] == 'Manager') {
-        // البيانات الإلزامية
-        requestData['institution_name'] = data['institution_name']?.toString();
-        requestData['institution_contact_email'] =
-            data['institution_contact_email']?.toString();
-        requestData['institution_contact_phone'] =
-            data['institution_contact_phone']?.toString();
-
-        // البيانات الاختيارية
-        requestData['institution_license'] =
-            data['institution_license']?.toString();
-        requestData['institution_established_year'] =
-            data['institution_established_year'];
-        requestData['institution_city'] = data['institution_city']?.toString();
-        requestData['institution_region'] =
-            data['institution_region']?.toString();
-
-        // ✅ طباعة بيانات المؤسسة للتأكد
-        print('🏢 MANAGER INSTITUTION DATA:');
-        print('   ├─ institution_name: ${requestData['institution_name']}');
-        print(
-            '   ├─ institution_contact_email: ${requestData['institution_contact_email']}');
-        print(
-            '   ├─ institution_contact_phone: ${requestData['institution_contact_phone']}');
-        print(
-            '   ├─ institution_license: ${requestData['institution_license']}');
-        print(
-            '   ├─ institution_established_year: ${requestData['institution_established_year']}');
-        print('   ├─ institution_city: ${requestData['institution_city']}');
-        print('   └─ institution_region: ${requestData['institution_region']}');
-      }
-
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      print('📤 FINAL REQUEST DATA:');
-      requestData.forEach((key, value) {
-        print('   $key: $value');
-      });
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl/signup'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(requestData),
-          )
-          .timeout(Duration(seconds: 30));
-
-      print('📡 Signup response: ${response.statusCode}');
-      print('📦 Response body: ${response.body}');
-
-      final result = jsonDecode(response.body);
-
-      if (response.statusCode == 200) {
-        print('✅ [API SERVICE] Signup initial SUCCESS');
-        return {
-          'success': true,
-          'message': result['message'],
-          'tempToken': result['tempToken'],
-        };
-      } else {
-        print('❌ [API SERVICE] Signup initial FAILED: ${result['message']}');
-        return {
-          'success': false,
-          'message': result['message'] ?? 'Signup failed',
-        };
-      }
-    } on TimeoutException {
+    } else {
       return {
         'success': false,
-        'message': 'Connection timeout. Please try again.',
-      };
-    } on SocketException {
-      return {
-        'success': false,
-        'message': 'No internet connection.',
-      };
-    } catch (e) {
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      print('❌ [API SERVICE] CRITICAL ERROR:');
-      print('   Error: $e');
-      print('   Type: ${e.runtimeType}');
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      return {
-        'success': false,
-        'message': 'An error occurred. Please try again.',
+        'message': result['message'] ?? 'Signup failed',
       };
     }
+  } catch (e) {
+    print('❌ Error: $e');
+    return {
+      'success': false,
+      'message': 'An error occurred. Please try again.',
+    };
   }
+}
 
   static Future<Map<String, dynamic>> verifySignup(
       String tempToken, String otp) async {
@@ -221,6 +290,26 @@ class ApiService {
         if (result['token'] != null) {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('token', result['token']);
+
+          try {
+            final fcmToken = (prefs.getString('fcm_token') ?? '').trim();
+            if (fcmToken.isNotEmpty) {
+              final base = kIsWeb
+                  ? 'http://localhost:5000/api'
+                  : 'http://10.0.2.2:5000/api';
+              await http.post(
+                Uri.parse('$base/device-tokens/register'),
+                headers: {
+                  'Authorization': 'Bearer ${result['token']}',
+                  'Content-Type': 'application/json',
+                },
+                body: jsonEncode({
+                  'token': fcmToken,
+                  'platform': kIsWeb ? 'web' : 'mobile',
+                }),
+              );
+            }
+          } catch (_) {}
         }
 
         return {
@@ -870,134 +959,7 @@ class ApiService {
     }
   }
 
-  /// Start Stripe Checkout for a donation (one-time or monthly)
-  static Future<Map<String, dynamic>> createDonationCheckout(
-    String token, {
-    required int institutionId,
-    required double amount,
-    int? campaignId,
-    String mode = 'one_time', // or 'monthly'
-  }) async {
-    try {
-      final url = _buildUrl('donations/checkout');
-      final body = <String, dynamic>{
-        'institution_id': institutionId,
-        'amount': amount,
-        'mode': mode,
-        if (campaignId != null) 'campaign_id': campaignId,
-      };
 
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(body),
-      );
-
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-
-      if (response.statusCode == 200 && data['success'] == true) {
-        return data;
-      } else {
-        throw Exception(data['message'] ?? 'Failed to create donation checkout');
-      }
-    } catch (e) {
-      throw Exception('Network error while creating donation checkout: $e');
-    }
-  }
-
-  /// Confirm donation after returning from Stripe Checkout using session_id
-  static Future<Map<String, dynamic>> confirmDonationFromStripe(
-    String token, {
-    required String sessionId,
-  }) async {
-    try {
-      final url = _buildUrl('donations/confirm');
-      final body = <String, dynamic>{
-        'session_id': sessionId,
-      };
-
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(body),
-      );
-
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-
-      if ((response.statusCode == 200 || response.statusCode == 201) &&
-          data['success'] == true) {
-        return data;
-      } else {
-        throw Exception(data['message'] ?? 'Failed to confirm donation');
-      }
-    } catch (e) {
-      throw Exception('Network error while confirming donation: $e');
-    }
-  }
-
-  /// Get donation history for the current donor
-  static Future<Map<String, dynamic>> getDonationHistory(
-    String token, {
-    int page = 1,
-    int limit = 10,
-  }) async {
-    try {
-      final uri = Uri.parse(_buildUrl('donations/history')).replace(
-        queryParameters: {
-          'page': page.toString(),
-          'limit': limit.toString(),
-        },
-      );
-
-      final response = await http.get(
-        uri,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-
-      if (response.statusCode == 200 && data['success'] == true) {
-        return data;
-      } else {
-        throw Exception(data['message'] ?? 'Failed to load donation history');
-      }
-    } catch (e) {
-      throw Exception('Network error while loading donation history: $e');
-    }
-  }
-
-  /// Get aggregated donation impact for the current donor
-  static Future<Map<String, dynamic>> getDonationImpact(String token) async {
-    try {
-      final url = _buildUrl('donations/impact');
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-
-      if (response.statusCode == 200 && data['success'] == true) {
-        return data['data'] as Map<String, dynamic>;
-      } else {
-        throw Exception(data['message'] ?? 'Failed to load donation impact');
-      }
-    } catch (e) {
-      throw Exception('Network error while loading donation impact: $e');
-    }
-  }
 
   static Future<Map<String, dynamic>> getChildren({
     required String token,
@@ -3207,11 +3169,15 @@ static Future<Map<String, dynamic>> getChildrenByInstitution(
 }
 
 
-/// Get active/upcoming donation campaigns for a specific institution (for donors)
+
+/// Get institution campaigns for donations
 static Future<List<Map<String, dynamic>>> getInstitutionCampaignsForDonations(
-    String token, int institutionId) async {
+  String token,
+  int institutionId,
+) async {
   try {
     final url = _buildUrl('donations/institutions/$institutionId/campaigns');
+    
     final response = await http.get(
       Uri.parse(url),
       headers: {
@@ -3222,20 +3188,19 @@ static Future<List<Map<String, dynamic>>> getInstitutionCampaignsForDonations(
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final List campaigns = data['data'] ?? [];
-      return List<Map<String, dynamic>>.from(campaigns);
+      if (data['success'] == true) {
+        final List campaigns = data['data'] ?? [];
+        return List<Map<String, dynamic>>.from(campaigns);
+      } else {
+        throw Exception(data['message'] ?? 'Failed to fetch campaigns');
+      }
     } else {
-      throw Exception(
-          'Failed to fetch institution campaigns: ${response.statusCode}');
+      throw Exception('Failed to fetch campaigns: ${response.statusCode}');
     }
   } catch (e) {
-    throw Exception(
-        'Network error while loading institution campaigns: $e');
+    throw Exception('Network error while loading campaigns: $e');
   }
 }
-
-
-
 // التحقق التلقائي من المساعدة المالية
 static Future<Map<String, dynamic>> checkAutoFinancialAssistance(
   String token,
@@ -3318,6 +3283,433 @@ static Future<Map<String, dynamic>> applyAutoDiscount(
       'message': 'Error while applying auto discount',
       'error': e.toString(),
     };
+  }
+}
+
+  static String _adminUrl(String path) {
+    final host = kIsWeb ? 'http://localhost:5000' : 'http://10.0.2.2:5000';
+    return '$host$path';
+  }
+  
+  static Future<Map<String, dynamic>> getAdminUsers({
+    required String token,
+    int page = 1,
+    int limit = 10,
+    String? role,
+    String? status,
+    String? search,
+  }) async {
+    try {
+      final Map<String, String> queryParams = {
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+
+      if (role != null && role.isNotEmpty && role != 'all') {
+        queryParams['role'] = role;
+      }
+      if (status != null && status.isNotEmpty && status != 'all') {
+        queryParams['status'] = status;
+      }
+      if (search != null && search.isNotEmpty) {
+        queryParams['search'] = search;
+      }
+
+      final response = await http.get(
+        Uri.parse(_adminUrl('/api/admin/users')).replace(queryParameters: queryParams),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to load users: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error loading admin users: $e');
+      rethrow;
+    }
+  }
+
+  static Future<bool> approveUser(String token, int userId) async {
+    try {
+      final response = await http.post(
+        Uri.parse(_adminUrl('/api/admin/users/$userId/approve')),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['success'] == true;
+      } else {
+        throw Exception('Failed to approve user: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error approving user: $e');
+      rethrow;
+    }
+  }
+
+  static Future<Map<String, dynamic>> getAdminSystemHealth(String token) async {
+    try {
+      final response = await http.get(
+        Uri.parse(_adminUrl('/api/admin/system/health')),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to load system health: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error loading system health: $e');
+      rethrow;
+    }
+  }
+
+  static Future<Map<String, dynamic>> getAdminUserRegistrationsAnalytics({
+    required String token,
+    String role = 'all',
+    int? year,
+    String? city,
+    String groupBy = 'month',
+  }) async {
+    try {
+      final Map<String, String> queryParams = {
+        'role': role,
+        'groupBy': groupBy,
+      };
+      if (year != null) queryParams['year'] = year.toString();
+      if (city != null && city.isNotEmpty && city != 'all') queryParams['city'] = city;
+
+      final response = await http.get(
+        Uri.parse(_adminUrl('/api/admin/analytics/user-registrations'))
+            .replace(queryParameters: queryParams),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to load analytics: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error loading admin user registrations analytics: $e');
+      rethrow;
+    }
+  }
+
+  static Future<Map<String, dynamic>> getAdminInstitutionsByCity({
+    required String token,
+    String status = 'all',
+    int limit = 12,
+  }) async {
+    try {
+      final Map<String, String> queryParams = {
+        'status': status,
+        'limit': limit.toString(),
+      };
+
+      final response = await http.get(
+        Uri.parse(_adminUrl('/api/admin/analytics/institutions-by-city'))
+            .replace(queryParameters: queryParams),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to load institutions distribution: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error loading admin institutions by city: $e');
+      rethrow;
+    }
+  }
+
+  static Future<Map<String, dynamic>> getAdminInstitutionsMapPoints({
+    required String token,
+    String status = 'Approved',
+    String? city,
+  }) async {
+    try {
+      final Map<String, String> queryParams = {
+        'status': status,
+      };
+      if (city != null && city.isNotEmpty && city != 'all') queryParams['city'] = city;
+
+      final response = await http.get(
+        Uri.parse(_adminUrl('/api/admin/map/institutions'))
+            .replace(queryParameters: queryParams),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to load institutions map points: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error loading admin institutions map points: $e');
+      rethrow;
+    }
+  }
+
+/// Create Stripe checkout session for donation
+static Future<Map<String, dynamic>> createDonationCheckout(
+  String token, {
+  required int institutionId,
+  required double amount,
+  String mode = 'one_time',
+  int? campaignId,
+}) async {
+  try {
+    final url = _buildUrl('donations/checkout');
+    
+    final body = <String, dynamic>{
+      'institution_id': institutionId,
+      'amount': amount,
+      'mode': mode,
+      'currency': 'jod', // أو usd حسب تفضيلك
+    };
+    
+    if (campaignId != null) {
+      body['campaign_id'] = campaignId;
+    }
+
+    print('🌐 Creating checkout with body: $body');
+    print('📍 URL: $url');
+
+    final response = await http.post(
+      Uri.parse(url),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(body),
+    ).timeout(Duration(seconds: 30));
+
+    print('📡 Response status: ${response.statusCode}');
+    print('📦 Response body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      
+      if (data['success'] == true) {
+        final checkoutUrl = (data['url'] ?? data['checkout_url'] ?? '').toString();
+        final sessionId = (data['sessionId'] ?? data['session_id'] ?? '').toString();
+        return {
+          'success': true,
+          'url': checkoutUrl,
+          'sessionId': sessionId,
+          // Backward compatible keys
+          'checkout_url': checkoutUrl,
+          'session_id': sessionId,
+          'donation_id': data['donation_id'],
+          'amount': data['amount'],
+          'currency': data['currency'],
+          'mode': data['mode'],
+          'expires_at': data['expires_at'],
+          'message': data['message'],
+        };
+      } else {
+        throw Exception(data['message'] ?? 'Failed to create checkout');
+      }
+    } else {
+      final errorData = jsonDecode(response.body);
+      throw Exception('${errorData['message']} (Status: ${response.statusCode})');
+    }
+  } on TimeoutException {
+    throw Exception('Connection timeout. Please check your internet.');
+  } on SocketException {
+    throw Exception('No internet connection');
+  } catch (e) {
+    print('❌ Error in createDonationCheckout: $e');
+    throw Exception('Failed to create donation checkout: $e');
+  }
+}
+
+/// Check donation status
+static Future<Map<String, dynamic>> checkDonationStatus(
+  String token, {
+  String? sessionId,
+  int? donationId,
+}) async {
+  try {
+    if (sessionId == null && donationId == null) {
+      throw Exception('Either sessionId or donationId is required');
+    }
+
+    final queryParams = <String, String>{};
+    if (sessionId != null) queryParams['session_id'] = sessionId;
+    if (donationId != null) queryParams['donation_id'] = donationId.toString();
+
+    final url = Uri.parse(_buildUrl('donations/status'))
+        .replace(queryParameters: queryParams);
+
+    print('🔍 Checking donation status: $url');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    ).timeout(Duration(seconds: 10));
+
+    print('📡 Status check response: ${response.statusCode}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      
+      if (data['success'] == true) {
+        return data;
+      } else {
+        throw Exception(data['message'] ?? 'Failed to check status');
+      }
+    } else {
+      throw Exception('Failed to check donation status: ${response.statusCode}');
+    }
+  } catch (e) {
+    print('❌ Error checking donation status: $e');
+    rethrow;
+  }
+}
+
+/// Confirm donation after returning from Stripe
+static Future<Map<String, dynamic>> confirmDonationFromStripe(
+  String token, {
+  required String sessionId,
+}) async {
+  try {
+    final url = _buildUrl('donations/confirm');
+    
+    final body = {'session_id': sessionId};
+
+    print('✅ Confirming donation with session: $sessionId');
+
+    final response = await http.post(
+      Uri.parse(url),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(body),
+    ).timeout(Duration(seconds: 15));
+
+    print('📡 Confirm response status: ${response.statusCode}');
+    print('📦 Confirm response body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      
+      if (data['success'] == true) {
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Donation confirmed successfully',
+          'donation': data['donation'],
+        };
+      } else {
+        throw Exception(data['message'] ?? 'Failed to confirm donation');
+      }
+    } else if (response.statusCode == 400) {
+      final errorData = jsonDecode(response.body);
+      throw Exception(errorData['message'] ?? 'Payment not completed');
+    } else {
+      throw Exception('Failed to confirm donation: ${response.statusCode}');
+    }
+  } on TimeoutException {
+    throw Exception('Verification timeout. Please check your donation history.');
+  } on SocketException {
+    throw Exception('No internet connection');
+  } catch (e) {
+    print('❌ Error confirming donation: $e');
+    rethrow;
+  }
+}
+
+/// Get donation history
+static Future<Map<String, dynamic>> getDonationHistory(
+  String token, {
+  int page = 1,
+  int limit = 10,
+  String? status,
+  String? donationType,
+}) async {
+  try {
+    final queryParams = <String, String>{
+      'page': page.toString(),
+      'limit': limit.toString(),
+    };
+    
+    if (status != null) queryParams['status'] = status;
+    if (donationType != null) queryParams['donation_type'] = donationType;
+
+    final url = Uri.parse(_buildUrl('donations/history'))
+        .replace(queryParameters: queryParams);
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to load donation history');
+    }
+  } catch (e) {
+    print('❌ Error loading donation history: $e');
+    rethrow;
+  }
+}
+
+/// Get donation impact/statistics
+static Future<Map<String, dynamic>> getDonationImpact(String token) async {
+  try {
+    final url = _buildUrl('donations/impact');
+    
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['success'] == true) {
+        return data;
+      }
+    }
+    
+    throw Exception('Failed to load donation impact');
+  } catch (e) {
+    print('❌ Error loading donation impact: $e');
+    rethrow;
   }
 }
 

@@ -1,46 +1,36 @@
+// routes/donationRoutes.js
 const express = require('express');
 const router = express.Router();
 const donationController = require('../controllers/donationController');
+const webhookController = require('../controllers/webhookController');
 const authMiddleware = require('../middleware/authMiddleware');
+const managerAuthMiddleware = require('../middleware/managerAuth');
 
-// Public or lightly protected: list institutions available for donation
-router.get('/donations/institutions', donationController.getDonationInstitutions);
-
-// Public: list active/upcoming campaigns for a specific institution (for donors)
-router.get(
-  '/donations/institutions/:institutionId/campaigns',
-  donationController.getInstitutionCampaignsForDonations
+// ==================== ⚠️ CRITICAL: Webhook MUST be BEFORE express.json() ====================
+// ✅ هذا المسار يجب أن يكون قبل أي middleware يعالج JSON
+router.post('/webhook', 
+  express.raw({ type: 'application/json' }), 
+  webhookController.handleStripeWebhook
 );
 
-// Protected: create a new donation (direct DB, without Stripe)
-router.post('/donations', authMiddleware, donationController.createDonation);
+// ==================== Routes العامة (للتبرع) ====================
+router.get('/institutions', donationController.getDonationInstitutions);
+router.get('/institutions/:institutionId/campaigns', donationController.getInstitutionCampaignsForDonations);
 
-// Protected: start Stripe Checkout for a donation (one-time or monthly)
-router.post(
-  '/donations/checkout',
-  authMiddleware,
-  donationController.createDonationCheckout
-);
+// ==================== Routes للمتبرعين (تحتاج مصادقة) ====================
+router.post('/checkout', authMiddleware, donationController.createDonationCheckout);
 
-// Protected: confirm a donation after Stripe Checkout using session_id
-router.post(
-  '/donations/confirm',
-  authMiddleware,
-  donationController.confirmDonationFromStripe
-);
+// ✅ تحديث: دالة التحقق من حالة التبرع
+// router.get('/status', authMiddleware, donationController.checkDonationStatus);
 
-// Protected: get donation history for current donor
-router.get(
-  '/donations/history',
-  authMiddleware,
-  donationController.getDonationHistory
-);
+// ✅ جديد: تأكيد التبرع بعد العودة من Stripe
+router.post('/confirm', authMiddleware, donationController.confirmDonation);
 
-// Protected: get aggregated donation impact for current donor
-router.get(
-  '/donations/impact',
-  authMiddleware,
-  donationController.getDonationImpact
-);
+router.get('/history', authMiddleware, donationController.getDonationHistory);
+router.get('/impact', authMiddleware, donationController.getDonationImpact);
+// router.post('/:donation_id/cancel', authMiddleware, donationController.cancelDonation);
+
+// ==================== Routes للمدراء ====================
+// router.get('/manager/stats', managerAuthMiddleware, donationController.getManagerDonationStats);
 
 module.exports = router;

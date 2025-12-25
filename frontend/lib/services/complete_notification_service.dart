@@ -1,8 +1,10 @@
 // services/complete_notification_service.dart
-import 'package:flutter/material.dart'; // 🆕 ADD THIS
+import 'package:flutter/material.dart'; // 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class CompleteNotificationService {
@@ -13,42 +15,42 @@ class CompleteNotificationService {
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
   final FirebaseMessaging firebaseMessaging = FirebaseMessaging.instance;
 
-  // 🔔 أنواع الإشعارات
+  // 
   static const String CHAT_CHANNEL = 'chat_channel';
   static const String SYSTEM_CHANNEL = 'system_channel';
   static const String ALERT_CHANNEL = 'alert_channel';
 
-  // 📱 حالة التطبيق
+  // 
   bool _isAppInForeground = true;
 
-  // 🎯 تهيئة كاملة للإشعارات
+  // 
   Future<void> initializeCompleteNotifications() async {
     try {
-      print('🚀 بدء تهيئة النظام الكامل للإشعارات...');
+      print('');
 
-      // 1. تهيئة الإشعارات المحلية
+      // 1. 
       await _initializeLocalNotifications();
 
-      // 2. تهيئة FCM
+      // 2. FCM
       await _initializeFCM();
 
-      // 3. طلب الأذونات
+      // 3. 
       await _requestPermissions();
 
-      // 4. الحصول على Token
+      // 4. 
       await _getFCMToken();
 
-      // 5. تنظيف الإشعارات القديمة
+      // 5. 
       await _cleanOldNotifications();
 
-      print('✅ النظام الكامل للإشعارات جاهز!');
+      print('');
 
     } catch (e) {
-      print('❌ خطأ في تهيئة الإشعارات: $e');
+      print(' $e');
     }
   }
 
-  // 🔧 1. تهيئة الإشعارات المحلية
+  //  1. 
   Future<void> _initializeLocalNotifications() async {
     const AndroidInitializationSettings androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
 
@@ -61,24 +63,24 @@ class CompleteNotificationService {
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
 
-    // إنشاء قنوات الإشعارات
+    // 
     await _createNotificationChannels();
 
-    print('✅ الإشعارات المحلية مهيأة');
+    print('');
   }
 
-  // 📡 2. تهيئة FCM
+  //  2. FCM
   Future<void> _initializeFCM() async {
-    // التعامل مع الإشعارات في المقدمة
+    // 
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
 
-    // التعامل مع الإشعارات عند الضغط عليها
+    // 
     FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpenedApp);
 
-    print('✅ FCM مهيأ');
+    print('');
   }
 
-  // 🔐 3. طلب الأذونات
+  //  3. 
   Future<void> _requestPermissions() async {
     try {
       NotificationSettings settings = await firebaseMessaging.requestPermission(
@@ -90,61 +92,61 @@ class CompleteNotificationService {
         provisional: false,
       );
 
-      print('🎫 حالة الأذونات: ${settings.authorizationStatus}');
+      print('');
 
     } catch (e) {
-      print('❌ خطأ في طلب الأذونات: $e');
+      print(' $e');
     }
   }
 
-  // 🎫 4. الحصول على FCM Token
+  //  4. 
   Future<void> _getFCMToken() async {
     try {
       String? token = await firebaseMessaging.getToken();
       if (token != null) {
-        print('📱 FCM Token: $token');
+        print('');
 
-        // حفظ Token في التخزين المحلي
+        // 
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('fcm_token', token);
 
-        // هنا بتكون عملية إرسال الـ Token للـ Backend
+        // 
         await _sendTokenToBackend(token);
       }
     } catch (e) {
-      print('❌ خطأ في الحصول على Token: $e');
+      print(' $e');
     }
   }
 
-  // 🛠️ إنشاء قنوات الإشعارات
+  // 
   Future<void> _createNotificationChannels() async {
-    // قناة المحادثات
+    // 
     final AndroidNotificationDetails chatChannel = AndroidNotificationDetails(
       CHAT_CHANNEL,
-      'المحادثات',
-      channelDescription: 'إشعارات رسائل المحادثات الجديدة',
+      '',
+      channelDescription: '',
       importance: Importance.high,
       priority: Priority.high,
       playSound: true,
       enableVibration: true,
     );
 
-    // قناة النظام
+    // 
     final AndroidNotificationDetails systemChannel = AndroidNotificationDetails(
       SYSTEM_CHANNEL,
-      'إشعارات النظام',
-      channelDescription: 'إشعارات النظام والتحديثات',
+      '',
+      channelDescription: '',
       importance: Importance.defaultImportance,
       priority: Priority.defaultPriority,
       playSound: true,
       enableVibration: false,
     );
 
-    // قناة التنبيهات المهمة
+    // 
     final AndroidNotificationDetails alertChannel = AndroidNotificationDetails(
       ALERT_CHANNEL,
-      'التنبيهات المهمة',
-      channelDescription: 'تنبيهات مهمة وعاجلة',
+      '',
+      channelDescription: '',
       importance: Importance.max,
       priority: Priority.high,
       playSound: true,
@@ -155,18 +157,18 @@ class CompleteNotificationService {
         AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(
         AndroidNotificationChannel(
           CHAT_CHANNEL,
-          'المحادثات',
+          '',
           importance: Importance.high,
         ));
 
-    print('✅ قنوات الإشعارات مبنية');
+    print('');
   }
 
-  // 💬 معالجة الإشعارات في المقدمة
+  // 
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
-    print('📱 إشعار في المقدمة: ${message.messageId}');
+    print('');
 
-    // إذا التطبيق في المقدمة، ما نعرض إشعار نظام
+    // 
     // if (_isAppInForeground) {
     //   await _showInAppNotification(message);
     // } else {
@@ -174,24 +176,24 @@ class CompleteNotificationService {
     // }
   }
 
-  // 👆 معالجة الإشعارات عند الضغط
+  // 
   Future<void> _handleMessageOpenedApp(RemoteMessage message) async {
-    print('👆 تم الضغط على إشعار: ${message.messageId}');
+    print('');
     await _handleNotificationAction(message.data);
   }
 
-  // 📋 معالجة الإشعارات في الخلفية
+  // 
   static Future<void> handleBackgroundMessage(RemoteMessage message) async {
-    print('📋 إشعار في الخلفية: ${message.messageId}');
+    print('');
 
-    // عرض إشعار النظام
+    // 
     await _instance._showSystemNotification(message);
 
-    // تخزين الإشعار محلياً
+    // 
     await _instance._storeNotification(message);
   }
 
-  // 🎯 عرض إشعار في النظام
+  // 
   Future<void> _showSystemNotification(RemoteMessage message) async {
     try {
       final notification = message.notification;
@@ -220,38 +222,38 @@ class CompleteNotificationService {
           payload: json.encode(data),
         );
 
-        print('🔔 إشعار نظام معروض: ${notification.title}');
+        print('');
       }
     } catch (e) {
-      print('❌ خطأ في عرض إشعار النظام: $e');
+      print(' $e');
     }
   }
 
-  // 💫 عرض إشعار داخل التطبيق
+  // 
   Future<void> _showInAppNotification(RemoteMessage message) async {
     try {
       final notification = message.notification;
       final data = message.data;
 
-      // هنا بتكون عملية عرض إشعار داخلي (مثل SnackBar أو Dialog)
-      print('💫 إشعار داخلي: ${notification?.title}');
+      // 
+      print('');
 
-      // تخزين الإشعار للعرض في شاشة الإشعارات
+      // 
       await _storeNotification(message);
 
     } catch (e) {
-      print('❌ خطأ في الإشعار الداخلي: $e');
+      print(' $e');
     }
   }
 
-  // 💾 تخزين الإشعار محلياً
+  // 
   Future<void> _storeNotification(RemoteMessage message) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final notification = message.notification;
       final data = message.data;
 
-      // جلب الإشعارات الحالية
+      // 
       final String? notificationsJson = prefs.getString('stored_notifications');
       List<Map<String, dynamic>> notifications = [];
 
@@ -259,10 +261,10 @@ class CompleteNotificationService {
         notifications = List<Map<String, dynamic>>.from(json.decode(notificationsJson));
       }
 
-      // إضافة الإشعار الجديد
+      // 
       notifications.add({
         'id': message.messageId ?? DateTime.now().millisecondsSinceEpoch.toString(),
-        'title': notification?.title ?? data['title'] ?? 'إشعار جديد',
+        'title': notification?.title ?? data['title'] ?? '',
         'body': notification?.body ?? data['body'] ?? '',
         'type': data['type'] ?? 'general',
         'chatRoomId': data['chatRoomId'],
@@ -272,23 +274,22 @@ class CompleteNotificationService {
         'data': data,
       });
 
-      // حفظ الإشعارات (الحد الأقصى 100 إشعار)
+      // (100 )
       if (notifications.length > 100) {
         notifications = notifications.sublist(notifications.length - 100);
       }
 
       await prefs.setString('stored_notifications', json.encode(notifications));
 
-      print('💾 الإشعار مخزن: ${notification?.title}');
-
+      print('');
     } catch (e) {
-      print('❌ خطأ في تخزين الإشعار: $e');
+      print(' $e');
     }
   }
 
-  // 👆 عند الضغط على الإشعار
+  // 
   void _onNotificationTapped(NotificationResponse response) async {
-    print('👆 تم الضغط على إشعار: ${response.id}');
+    print('');
 
     try {
       if (response.payload != null) {
@@ -296,11 +297,11 @@ class CompleteNotificationService {
         await _handleNotificationAction(data);
       }
     } catch (e) {
-      print('❌ خطأ في معالجة ضغط الإشعار: $e');
+      print(' $e');
     }
   }
 
-  // 🎯 معالجة إجراء الإشعار
+  // 
   Future<void> _handleNotificationAction(Map<String, dynamic> data) async {
     final String type = data['type'] ?? 'general';
 
@@ -316,48 +317,69 @@ class CompleteNotificationService {
     }
   }
 
-  // 💬 معالجة إشعار المحادثة
+  // 
   Future<void> _handleChatNotification(Map<String, dynamic> data) async {
     final String? chatRoomId = data['chatRoomId'];
     final String? notificationId = data['id']?.toString();
 
     if (chatRoomId != null) {
-      print('💬 فتح محادثة: $chatRoomId');
+      print('');
 
-      // هنا بتكون عملية فتح شاشة المحادثة
+      // 
       // Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(chatRoomId: chatRoomId)));
 
-      // وضع علامة مقروء على الإشعار
+      // 
       if (notificationId != null) {
         await _markNotificationAsRead(notificationId);
       }
     }
   }
 
-  // ⚙️ معالجة إشعار النظام
+  // 
   Future<void> _handleSystemNotification(Map<String, dynamic> data) async {
-    print('⚙️ معالجة إشعار النظام');
-    // معالجة إشعارات النظام
+    print('');
+    // 
   }
 
-  // 📱 معالجة الإشعارات العامة
+  // 
   Future<void> _handleGeneralNotification(Map<String, dynamic> data) async {
-    print('📱 معالجة إشعار عام');
-    // معالجة الإشعارات العامة
+    print('');
+    // 
   }
 
-  // 🎫 إرسال الـ Token للـ Backend
+  // 
   Future<void> _sendTokenToBackend(String token) async {
     try {
-      // هنا بتكون عملية إرسال الـ Token لـ Backend
-      print('📤 إرسال Token للـ Backend: $token');
+      final prefs = await SharedPreferences.getInstance();
+      final authToken = prefs.getString('token') ?? '';
+
+      if (authToken.trim().isEmpty) {
+        return;
+      }
+
+      final baseUrl = kIsWeb ? 'http://localhost:5000/api' : 'http://10.0.2.2:5000/api';
+      final response = await http.post(
+        Uri.parse('$baseUrl/device-tokens/register'),
+        headers: {
+          'Authorization': 'Bearer $authToken',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'token': token,
+          'platform': kIsWeb ? 'web' : 'mobile',
+        }),
+      );
+
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        print('');
+      }
 
     } catch (e) {
-      print('❌ خطأ في إرسال Token: $e');
+      print(' $e');
     }
   }
 
-  // 🧹 تنظيف الإشعارات القديمة
+  // 
   Future<void> _cleanOldNotifications() async {
     try {
       final prefs = await SharedPreferences.getInstance();

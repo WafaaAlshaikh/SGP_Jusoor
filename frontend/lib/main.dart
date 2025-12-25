@@ -16,6 +16,8 @@ import 'screens/profile_settings_screen.dart';
 import 'screens/map_screen.dart';
 import 'screens/parent_payment_dashboard.dart';
 import 'screens/admin_dashboard_screen.dart';
+import 'screens/donor_dashboard_screen.dart';
+import 'screens/browse_centers_screen.dart';
 
 
 import 'package:firebase_core/firebase_core.dart';
@@ -241,6 +243,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         '/adminDashboard': (context) => AdminDashboardScreen(),
         '/specialistDashboard': (context) => SpecialistDashboardScreen(),
         '/managerDashboard': (context) => ManagerHomeScreen(),
+        '/donorDashboard': (context) => const DonorDashboardScreen(),
+        '/publicInstitutions': (context) => const BrowseCentersScreen(),
         '/chats': (context) => ChatListScreen(),
         '/map': (context) => MapScreen(),
         '/financial-assistance': (context) => FinancialAssistanceDashboard(),

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../services/api_service.dart';
-import '../../models/admin_model.dart';
+import '../services/api_service.dart';
+import '../models/admin_model.dart';
+import '../theme/app_colors.dart';
 
 class AdminInstitutionsScreen extends StatefulWidget {
   const AdminInstitutionsScreen({super.key});
@@ -36,7 +37,7 @@ class _AdminInstitutionsScreenState extends State<AdminInstitutionsScreen> {
 
       if (token.isEmpty) {
         setState(() {
-          _errorMessage = 'يرجى تسجيل الدخول مرة أخرى';
+          _errorMessage = 'Please login again';
           _isLoading = false;
         });
         return;
@@ -61,7 +62,7 @@ class _AdminInstitutionsScreenState extends State<AdminInstitutionsScreen> {
     } catch (e) {
       print('❌ Error loading institutions: $e');
       setState(() {
-        _errorMessage = 'فشل في تحميل المؤسسات: $e';
+        _errorMessage = 'Failed to load institutions: $e';
         _isLoading = false;
       });
     }
@@ -77,7 +78,7 @@ class _AdminInstitutionsScreenState extends State<AdminInstitutionsScreen> {
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('تم الموافقة على المؤسسة بنجاح'),
+            content: Text('Institution approved successfully'),
             backgroundColor: Colors.green,
           ),
         );
@@ -89,7 +90,7 @@ class _AdminInstitutionsScreenState extends State<AdminInstitutionsScreen> {
       print('❌ Error approving institution: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('فشل في الموافقة على المؤسسة: $e'),
+          content: Text('Failed to approve institution: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -102,16 +103,16 @@ class _AdminInstitutionsScreenState extends State<AdminInstitutionsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('رفض المؤسسة'),
+        title: Text('Reject Institution'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('سبب رفض $institutionName:'),
+            Text('Reason for rejecting $institutionName:'),
             SizedBox(height: 16),
             TextField(
               controller: reasonController,
               decoration: InputDecoration(
-                hintText: 'أدخل سبب الرفض...',
+                hintText: 'Enter rejection reason...',
                 border: OutlineInputBorder(),
               ),
               maxLines: 3,
@@ -121,13 +122,13 @@ class _AdminInstitutionsScreenState extends State<AdminInstitutionsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('إلغاء'),
+            child: Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
               if (reasonController.text.trim().isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('يرجى إدخال سبب الرفض')),
+                  SnackBar(content: Text('Please enter a rejection reason')),
                 );
                 return;
               }
@@ -136,7 +137,7 @@ class _AdminInstitutionsScreenState extends State<AdminInstitutionsScreen> {
               await _rejectInstitution(institutionId, reasonController.text);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: Text('رفض', style: TextStyle(color: Colors.white)),
+            child: Text('Reject', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -153,7 +154,7 @@ class _AdminInstitutionsScreenState extends State<AdminInstitutionsScreen> {
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('تم رفض المؤسسة بنجاح'),
+            content: Text('Institution rejected successfully'),
             backgroundColor: Colors.orange,
           ),
         );
@@ -165,7 +166,7 @@ class _AdminInstitutionsScreenState extends State<AdminInstitutionsScreen> {
       print('❌ Error rejecting institution: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('فشل في رفض المؤسسة: $e'),
+          content: Text('Failed to reject institution: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -175,6 +176,9 @@ class _AdminInstitutionsScreenState extends State<AdminInstitutionsScreen> {
   Widget _buildInstitutionCard(Institution institution) {
     return Card(
       margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      color: AppColors.surface,
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: EdgeInsets.all(16),
         child: Column(
@@ -211,7 +215,7 @@ class _AdminInstitutionsScreenState extends State<AdminInstitutionsScreen> {
               children: [
                 Icon(Icons.star, size: 16, color: Colors.amber),
                 SizedBox(width: 4),
-                Text('التقييم: ${institution.rating ?? "غير متوفر"}'),
+                Text('Rating: ${institution.rating ?? "Not available"}'),
               ],
             ),
             SizedBox(height: 12),
@@ -229,19 +233,19 @@ class _AdminInstitutionsScreenState extends State<AdminInstitutionsScreen> {
     switch (status) {
       case 'Approved':
         color = Colors.green;
-        text = 'مفعلة';
+        text = 'Approved';
         break;
       case 'Pending':
         color = Colors.orange;
-        text = 'بانتظار المراجعة';
+        text = 'Pending';
         break;
       case 'Rejected':
         color = Colors.red;
-        text = 'مرفوضة';
+        text = 'Rejected';
         break;
       case 'Suspended':
         color = Colors.grey;
-        text = 'موقوفة';
+        text = 'Suspended';
         break;
       default:
         color = Colors.grey;
@@ -252,7 +256,7 @@ class _AdminInstitutionsScreenState extends State<AdminInstitutionsScreen> {
       padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(999),
         border: Border.all(color: color),
       ),
       child: Text(
@@ -269,7 +273,7 @@ class _AdminInstitutionsScreenState extends State<AdminInstitutionsScreen> {
           child: ElevatedButton.icon(
             onPressed: () => _approveInstitution(institution.institutionId),
             icon: Icon(Icons.check, size: 18),
-            label: Text('موافقة'),
+            label: Text('Approve'),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
           ),
         ),
@@ -278,7 +282,7 @@ class _AdminInstitutionsScreenState extends State<AdminInstitutionsScreen> {
           child: OutlinedButton.icon(
             onPressed: () => _showRejectDialog(institution.institutionId, institution.name),
             icon: Icon(Icons.close, size: 18),
-            label: Text('رفض'),
+            label: Text('Reject'),
             style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
           ),
         ),
@@ -289,15 +293,16 @@ class _AdminInstitutionsScreenState extends State<AdminInstitutionsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('إدارة المؤسسات'),
-        backgroundColor: Colors.blue[700],
+        title: Text('Institution Management'),
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
             icon: Icon(Icons.refresh),
             onPressed: _loadInstitutions,
-            tooltip: 'تحديث',
+            tooltip: 'Refresh',
           ),
         ],
       ),
@@ -307,9 +312,11 @@ class _AdminInstitutionsScreenState extends State<AdminInstitutionsScreen> {
             padding: EdgeInsets.all(16),
             child: TextField(
               decoration: InputDecoration(
-                hintText: 'ابحث عن مؤسسة...',
+                hintText: 'Search institutions...',
                 prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
+                filled: true,
+                fillColor: AppColors.surface,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 contentPadding: EdgeInsets.symmetric(horizontal: 16),
               ),
               onChanged: (value) {
@@ -332,9 +339,11 @@ class _AdminInstitutionsScreenState extends State<AdminInstitutionsScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    CircularProgressIndicator(),
+                    const CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                    ),
                     SizedBox(height: 16),
-                    Text('جاري تحميل المؤسسات...'),
+                    Text('Loading institutions...'),
                   ],
                 ),
               ),
@@ -351,7 +360,7 @@ class _AdminInstitutionsScreenState extends State<AdminInstitutionsScreen> {
                     SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: _loadInstitutions,
-                      child: Text('إعادة المحاولة'),
+                      child: Text('Retry'),
                     ),
                   ],
                 ),
@@ -365,10 +374,10 @@ class _AdminInstitutionsScreenState extends State<AdminInstitutionsScreen> {
                     children: [
                       Icon(Icons.business, size: 64, color: Colors.grey),
                       SizedBox(height: 16),
-                      Text('لا توجد مؤسسات'),
+                      Text('No institutions found'),
                       SizedBox(height: 8),
                       Text(
-                        'سيظهر هنا المؤسسات المسجلة في النظام',
+                        'Registered institutions will appear here',
                         style: TextStyle(color: Colors.grey),
                       ),
                     ],
@@ -385,11 +394,11 @@ class _AdminInstitutionsScreenState extends State<AdminInstitutionsScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'إجمالي المؤسسات: ${_institutions.length}',
+                            'Total institutions: ${_institutions.length}',
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                           Text(
-                            'الصفحة $_currentPage من $_totalPages',
+                            'Page $_currentPage of $_totalPages',
                             style: TextStyle(color: Colors.grey),
                           ),
                         ],
@@ -430,7 +439,7 @@ class _AdminInstitutionsScreenState extends State<AdminInstitutionsScreen> {
               _loadInstitutions();
             } : null,
           ),
-          Text('الصفحة $_currentPage من $_totalPages'),
+          Text('Page $_currentPage of $_totalPages'),
           IconButton(
             icon: Icon(Icons.arrow_forward_ios),
             onPressed: _currentPage < _totalPages ? () {

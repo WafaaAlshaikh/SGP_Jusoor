@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:http/http.dart' as http;
 import '../services/api_service.dart';
 import '../services/auth_sync_service.dart';
 import 'forgot_password_screen.dart';
@@ -18,6 +20,27 @@ class _LoginScreenState extends State<LoginScreen> {
   String password = '';
   bool isLoading = false;
   bool showPassword = false;
+
+  Future<void> _registerDeviceToken(String authToken) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final fcmToken = (prefs.getString('fcm_token') ?? '').trim();
+      if (fcmToken.isEmpty) return;
+
+      final baseUrl = kIsWeb ? 'http://localhost:5000/api' : 'http://10.0.2.2:5000/api';
+      await http.post(
+        Uri.parse('$baseUrl/device-tokens/register'),
+        headers: {
+          'Authorization': 'Bearer $authToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'token': fcmToken,
+          'platform': kIsWeb ? 'web' : 'mobile',
+        }),
+      );
+    } catch (_) {}
+  }
 
   void submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -44,6 +67,8 @@ class _LoginScreenState extends State<LoginScreen> {
       await prefs.setString('user_name', response['user']['full_name']);
       await prefs.setString('user_role', response['user']['role']);
 
+      await _registerDeviceToken(response['token']);
+
       if (response['user']['role'] == 'Manager' && response['institution'] != null) {
         await prefs.setString('institution_data', jsonEncode(response['institution']));
       }
@@ -58,6 +83,8 @@ class _LoginScreenState extends State<LoginScreen> {
       final role = response['user']['role'];
       if (role == 'Parent') {
         Navigator.pushReplacementNamed(context, '/parentDashboard');
+      } else if (role == 'Donor') {
+        Navigator.pushReplacementNamed(context, '/donorDashboard');
       } else if (role == 'Specialist') {
         Navigator.pushReplacementNamed(context, '/specialistDashboard');
       } else if (role == 'Admin') {
@@ -65,7 +92,7 @@ class _LoginScreenState extends State<LoginScreen> {
       } else if (role == 'Manager') {
         Navigator.pushReplacementNamed(context, '/managerDashboard');
       } else {
-        Navigator.pushReplacementNamed(context, '/home');
+        Navigator.pushReplacementNamed(context, '/login');
       }
     }
   }
@@ -89,139 +116,139 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // Header with Logo and Welcome
-              Container(
-              margin: EdgeInsets.only(bottom: isWeb ? 40 : 30),
-              child: Column(
-                children: [
-                  // Simple elegant logo - Bridge concept
                   Container(
-                    width: isWeb ? 160 : 140,  // تكبير الحجم
-                    height: isWeb ? 160 : 140, // تكبير الحجم
-                    child: Stack(
-                      alignment: Alignment.center,
+                    margin: EdgeInsets.only(bottom: isWeb ? 40 : 30),
+                    child: Column(
                       children: [
-                        // Background glow effect
+                        // Simple elegant logo - Bridge concept
                         Container(
-                          width: isWeb ? 150 : 130,
-                          height: isWeb ? 150 : 130,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: RadialGradient(
-                              colors: [
-                                AppColors.primary.withOpacity(0.1),
-                                Colors.transparent,
-                              ],
-                            ),
-                          ),
-                        ),
+                          width: isWeb ? 160 : 140,  
+                          height: isWeb ? 160 : 140, 
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              // Background glow effect
+                              Container(
+                                width: isWeb ? 150 : 130,
+                                height: isWeb ? 150 : 130,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: RadialGradient(
+                                    colors: [
+                                      AppColors.primary.withOpacity(0.1),
+                                      Colors.transparent,
+                                    ],
+                                  ),
+                                ),
+                              ),
 
-                        // Main logo - Three connected elements
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            // Top - Family icon
-                            Icon(
-                              Icons.groups,
-                              color: AppColors.primary,
-                              size: isWeb ? 45 : 39,  // تكبير الأيقونة
-                            ),
-
-                            SizedBox(height: isWeb ? 12 : 5),
-
-                            // Middle - Connection symbol with full width lines
-                            Container(
-                              width: double.infinity, // يأخذ العرض الكامل
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween, // توزيع الخطوط على الجانبين
+                              // Main logo - Three connected elements
+                              Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  // Left line - extends to edge
-                                  Expanded(
-                                    child: Container(
-                                      height: 3,  // زيادة سمك الخط
-                                      margin: EdgeInsets.only(right: isWeb ? 15 : 10),
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          colors: [
-                                            AppColors.primary.withOpacity(0.3),
-                                            AppColors.primary,
-                                          ],
-                                        ),
-                                        borderRadius: BorderRadius.circular(2),
-                                      ),
-                                    ),
+                                  // Top - Family icon
+                                  Icon(
+                                    Icons.groups,
+                                    color: AppColors.primary,
+                                    size: isWeb ? 45 : 39,  
                                   ),
 
-                                  // Heart in the middle
+                                  SizedBox(height: isWeb ? 12 : 5),
+
+                                  // Middle - Connection symbol with full width lines
                                   Container(
-                                    width: isWeb ? 40 : 35,
-                                    height: isWeb ? 40 : 35,
-                                    decoration: BoxDecoration(
-                                      color: AppColors.primary,
-                                      shape: BoxShape.circle,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: AppColors.primary.withOpacity(0.3),
-                                          blurRadius: 8,
-                                          offset: Offset(0, 3),
+                                    width: double.infinity, 
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween, 
+                                      children: [
+                                        // Left line - extends to edge
+                                        Expanded(
+                                          child: Container(
+                                            height: 3,  
+                                            margin: EdgeInsets.only(right: isWeb ? 15 : 10),
+                                            decoration: BoxDecoration(
+                                              gradient: LinearGradient(
+                                                colors: [
+                                                  AppColors.primary.withOpacity(0.3),
+                                                  AppColors.primary,
+                                                ],
+                                              ),
+                                              borderRadius: BorderRadius.circular(2),
+                                            ),
+                                          ),
+                                        ),
+
+                                        // Heart in the middle
+                                        Container(
+                                          width: isWeb ? 40 : 35,
+                                          height: isWeb ? 40 : 35,
+                                          decoration: BoxDecoration(
+                                            color: AppColors.primary,
+                                            shape: BoxShape.circle,
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: AppColors.primary.withOpacity(0.3),
+                                                blurRadius: 8,
+                                                offset: Offset(0, 3),
+                                              ),
+                                            ],
+                                          ),
+                                          child: Icon(
+                                            Icons.favorite,
+                                            color: Colors.white,
+                                            size: isWeb ? 25 : 22,
+                                          ),
+                                        ),
+
+                                        // Right line - extends to edge
+                                        Expanded(
+                                          child: Container(
+                                            height: 3,  
+                                            margin: EdgeInsets.only(left: isWeb ? 15 : 10),
+                                            decoration: BoxDecoration(
+                                              gradient: LinearGradient(
+                                                colors: [
+                                                  AppColors.primary,
+                                                  AppColors.primary.withOpacity(0.3),
+                                                ],
+                                              ),
+                                              borderRadius: BorderRadius.circular(2),
+                                            ),
+                                          ),
                                         ),
                                       ],
-                                    ),
-                                    child: Icon(
-                                      Icons.favorite,
-                                      color: Colors.white,
-                                      size: isWeb ? 25 : 22,
-                                    ),
-                                  ),
-
-                                  // Right line - extends to edge
-                                  Expanded(
-                                    child: Container(
-                                      height: 3,  // زيادة سمك الخط
-                                      margin: EdgeInsets.only(left: isWeb ? 15 : 10),
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          colors: [
-                                            AppColors.primary,
-                                            AppColors.primary.withOpacity(0.3),
-                                          ],
-                                        ),
-                                        borderRadius: BorderRadius.circular(2),
-                                      ),
                                     ),
                                   ),
                                 ],
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
+                        ),
+
+
+
+
+                        Text(
+                          'Welcome Back',
+                          style: TextStyle(
+                            fontSize: isWeb ? 32 : 28,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textDark,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Sign in to continue your journey',
+                          style: TextStyle(
+                            fontSize: isWeb ? 16 : 14,
+                            color: AppColors.textGray,
+                            fontWeight: FontWeight.w400,
+                          ),
                         ),
                       ],
                     ),
                   ),
-
-
-
-
-                  Text(
-                    'Welcome Back',
-                    style: TextStyle(
-                      fontSize: isWeb ? 32 : 28,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textDark,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Sign in to continue your journey',
-                    style: TextStyle(
-                      fontSize: isWeb ? 16 : 14,
-                      color: AppColors.textGray,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ],
-              ),
-            ),
 
                   // Login Form Card
                   Container(
@@ -390,6 +417,31 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
 
                           SizedBox(height: isWeb ? 30 : 25),
+
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                Navigator.pushReplacementNamed(context, '/publicInstitutions');
+                              },
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(color: AppColors.primary.withOpacity(0.35)),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(15),
+                                ),
+                                padding: EdgeInsets.symmetric(vertical: isWeb ? 18 : 16),
+                              ),
+                              icon: Icon(Icons.explore, color: AppColors.primaryDark),
+                              label: Text(
+                                'Continue as Guest',
+                                style: TextStyle(
+                                  color: AppColors.primaryDark,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: isWeb ? 16 : 14,
+                                ),
+                              ),
+                            ),
+                          ),
 
                           // Sign Up Link
                           Row(

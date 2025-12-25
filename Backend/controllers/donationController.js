@@ -24,6 +24,119 @@ async function getManagerInstitution(managerId) {
   return manager.Institution;
 }
 
+// ✅ أضف هذه الدالة إلى donationController.js
+
+// ==================== NEW: Confirm Donation ====================
+exports.confirmDonation = async (req, res) => {
+  try {
+    const { session_id } = req.body;
+    
+    if (!session_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Session ID is required'
+      });
+    }
+
+    // 1. البحث عن التبرع
+    const donation = await Donation.findOne({
+      where: { stripe_session_id: session_id },
+      include: [
+        {
+          model: Institution,
+          attributes: ['institution_id', 'name', 'city', 'location']
+        },
+        {
+          model: DonationCampaign,
+          attributes: ['campaign_id', 'name'],
+          required: false
+        }
+      ]
+    });
+
+    if (!donation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Donation not found'
+      });
+    }
+
+    // 2. التحقق من Stripe
+    let stripeSession;
+    try {
+      stripeSession = await stripe.checkout.sessions.retrieve(session_id);
+    } catch (stripeError) {
+      console.error('Stripe error:', stripeError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to verify payment with Stripe'
+      });
+    }
+
+    // 3. التحقق من حالة الدفع
+    if (stripeSession.payment_status !== 'paid') {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment not completed',
+        payment_status: stripeSession.payment_status
+      });
+    }
+
+    // 4. تحديث التبرع (إذا لم يتم تحديثه بواسطة webhook)
+    if (donation.status !== 'completed') {
+      await donation.update({
+        status: 'completed',
+        payment_status: 'paid',
+        payment_date: new Date(),
+        stripe_payment_intent_id: stripeSession.payment_intent,
+        stripe_customer_id: stripeSession.customer,
+      });
+
+      // تحديث رصيد المؤسسة
+      const institution = await Institution.findByPk(donation.institution_id);
+      if (institution) {
+        const newBalance = parseFloat(institution.donation_balance || 0) + 
+                         parseFloat(donation.amount);
+        await institution.update({ donation_balance: newBalance });
+      }
+
+      // تحديث رصيد الحملة
+      if (donation.campaign_id) {
+        const campaign = await DonationCampaign.findByPk(donation.campaign_id);
+        if (campaign) {
+          const newRaised = parseFloat(campaign.amount_raised || 0) + 
+                          parseFloat(donation.amount);
+          await campaign.update({ amount_raised: newRaised });
+        }
+      }
+    }
+
+    // 5. إرجاع النتيجة
+    return res.status(200).json({
+      success: true,
+      message: 'Donation confirmed successfully',
+      donation: {
+        donation_id: donation.donation_id,
+        amount: donation.amount,
+        currency: donation.currency,
+        status: donation.status,
+        payment_status: donation.payment_status,
+        payment_date: donation.payment_date,
+        institution: donation.Institution,
+        campaign: donation.DonationCampaign,
+        receipt_url: stripeSession.invoice?.receipt_url || null,
+      }
+    });
+
+  } catch (error) {
+    console.error('Error confirming donation:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to confirm donation',
+      error: error.message
+    });
+  }
+};
 // Get list of institutions available for donation
 exports.getDonationInstitutions = async (req, res) => {
   try {
@@ -45,7 +158,7 @@ exports.getDonationInstitutions = async (req, res) => {
   }
 };
 
-// Get active/upcoming donation campaigns for a specific institution (for donors)
+// في donationController.js
 exports.getInstitutionCampaignsForDonations = async (req, res) => {
   try {
     const institutionId = parseInt(req.params.institutionId, 10);
@@ -68,6 +181,7 @@ exports.getInstitutionCampaignsForDonations = async (req, res) => {
     const campaigns = await DonationCampaign.findAll({
       where: {
         institution_id: institutionId,
+        status: 'active', // إرجاع الحملات النشطة فقط
       },
       order: [['created_at', 'DESC']],
       attributes: [
@@ -78,12 +192,13 @@ exports.getInstitutionCampaignsForDonations = async (req, res) => {
         'start_date',
         'end_date',
         'status',
+        'created_at',
       ],
     });
 
     return res.status(200).json({
       success: true,
-      data: campaigns,
+      data: campaigns, // تأكد أنك تستخدم data وليس campaigns مباشرة
     });
   } catch (error) {
     console.error('Error fetching institution campaigns for donations:', error);
@@ -94,6 +209,363 @@ exports.getInstitutionCampaignsForDonations = async (req, res) => {
     });
   }
 };
+
+exports.createDonationCheckout = async (req, res) => {
+  try {
+    // ==================== 1. التحقق من التوثيق ====================
+    if (!req.user || !req.user.user_id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required. Please login to donate.'
+      });
+    }
+
+    const donorId = req.user.user_id;
+    const { institution_id, amount, campaign_id, mode, currency = 'usd' } = req.body;
+
+    // ==================== 2. التحقق من المدخلات ====================
+    if (!institution_id || !amount) {
+      return res.status(400).json({
+        success: false,
+        message: 'institution_id and amount are required'
+      });
+    }
+
+    // التحقق من نوع institution_id
+    const parsedInstitutionId = parseInt(institution_id, 10);
+    if (!Number.isFinite(parsedInstitutionId) || parsedInstitutionId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid institution id is required'
+      });
+    }
+
+    // التحقق من المبلغ
+    const parsedAmount = parseFloat(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Amount must be a positive number'
+      });
+    }
+
+    // التحقق من الحد الأدنى والأقصى للمبلغ
+    const MIN_DONATION = process.env.MIN_DONATION_AMOUNT || 1;
+    const MAX_DONATION = process.env.MAX_DONATION_AMOUNT || 10000;
+    
+    if (parsedAmount < MIN_DONATION) {
+      return res.status(400).json({
+        success: false,
+        message: `Minimum donation amount is ${MIN_DONATION} JOD`
+      });
+    }
+    
+    if (parsedAmount > MAX_DONATION) {
+      return res.status(400).json({
+        success: false,
+        message: `Maximum donation amount is ${MAX_DONATION} JOD`
+      });
+    }
+
+    // التحقق من العملة
+    const allowedCurrencies = (process.env.ALLOWED_CURRENCIES || 'usd,eur,gbp,jod').split(',');
+    if (!allowedCurrencies.includes(currency.toLowerCase())) {
+      return res.status(400).json({
+        success: false,
+        message: `Currency not supported. Allowed currencies: ${allowedCurrencies.join(', ')}`
+      });
+    }
+
+    // ==================== 3. التحقق من المؤسسة ====================
+    const institution = await Institution.findByPk(parsedInstitutionId, {
+      attributes: ['institution_id', 'name', 'city', 'is_active', 'donation_balance']
+    });
+
+    if (!institution) {
+      return res.status(404).json({
+        success: false,
+        message: 'Institution not found'
+      });
+    }
+
+    if (institution.is_active !== true) {
+      return res.status(400).json({
+        success: false,
+        message: 'This institution is not currently accepting donations'
+      });
+    }
+
+    // ==================== 4. التحقق من الحملة (إذا وجدت) ====================
+    let campaign = null;
+    let parsedCampaignId = null;
+
+    if (campaign_id) {
+      parsedCampaignId = parseInt(campaign_id, 10);
+      if (Number.isFinite(parsedCampaignId) && parsedCampaignId > 0) {
+        campaign = await DonationCampaign.findOne({
+          where: {
+            campaign_id: parsedCampaignId,
+            institution_id: parsedInstitutionId,
+            status: 'active'
+          },
+          attributes: ['campaign_id', 'name', 'description', 'target_amount', 'amount_raised', 'end_date']
+        });
+        
+        if (!campaign) {
+          return res.status(404).json({
+            success: false,
+            message: 'Campaign not found or not active'
+          });
+        }
+
+        // التحقق من تاريخ انتهاء الحملة
+        if (campaign.end_date && new Date(campaign.end_date) < new Date()) {
+          return res.status(400).json({
+            success: false,
+            message: 'This campaign has ended'
+          });
+        }
+      }
+    }
+
+    // ==================== 5. تحديد نوع التبرع ====================
+    const donationMode = (mode === 'monthly' || mode === 'recurring') ? 'monthly' : 'one_time';
+    
+    // التحقق من أن التبرع الشهري لا يزيد عن حد معين
+    if (donationMode === 'monthly' && parsedAmount > 1000) {
+      return res.status(400).json({
+        success: false,
+        message: 'Maximum monthly donation amount is 1000 JOD'
+      });
+    }
+
+    // ==================== 6. إعداد بيانات المنتج في Stripe ====================
+    const lineItemPriceData = {
+      currency: currency.toLowerCase(),
+      product_data: {
+        name: `Donation to ${institution.name}`,
+        description: campaign 
+          ? `Supporting campaign: ${campaign.name}` 
+          : `General donation to ${institution.name}`,
+        metadata: {
+          institution_id: String(parsedInstitutionId),
+          institution_name: institution.name,
+          donation_type: donationMode
+        }
+      },
+      unit_amount: Math.round(parsedAmount * 100), // تحويل إلى سنتات/قروش
+    };
+
+    // إضافة التكرار إذا كان تبرعاً شهرياً
+    if (donationMode === 'monthly') {
+      lineItemPriceData.recurring = { 
+        interval: 'month',
+        interval_count: 1
+      };
+    }
+
+    // ==================== 7. إعداد الميتاداتا ====================
+    const metadata = {
+      donor_id: String(donorId),
+      donor_email: req.user.email || '',
+      donor_name: req.user.full_name || '',
+      institution_id: String(parsedInstitutionId),
+      institution_name: institution.name,
+      campaign_id: parsedCampaignId ? String(parsedCampaignId) : '',
+      campaign_name: campaign ? campaign.name : '',
+      amount: String(parsedAmount),
+      currency: currency.toLowerCase(),
+      mode: donationMode,
+      timestamp: new Date().toISOString(),
+      ip_address: req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress || '',
+      user_agent: req.headers['user-agent'] || ''
+    };
+
+    // ==================== 8. إعداد طرق الدفع - الإصلاح هنا ====================
+    const payment_method_types = ['card']; // فقط card مرة واحدة
+    
+    // إزالة الكود الذي يضيف card مرة ثانية بناءً على المنطقة
+    /*
+    // إضافة طرق دفع إضافية حسب المنطقة
+    const country = req.headers['x-country-code'] || 'JO';
+    if (country === 'JO') {
+      // يمكن إضافة طرق دفع محلية للأردن
+      payment_method_types.push('card'); // ❌ هذا يسبب الخطأ!
+    }
+    */
+
+    // بدلاً من ذلك، يمكنك إضافة طرق دفع مختلفة حسب المنطقة:
+    const country = req.headers['x-country-code'] || 'JO';
+    if (country === 'US') {
+      // أمريكا: نضيف afterpay_clearpay
+      payment_method_types.push('afterpay_clearpay');
+    } else if (country === 'EU') {
+      // أوروبا: نضيف ideal, sofort
+      payment_method_types.push('ideal', 'sofort');
+    }
+    // لاحظ: لا تضيف card مرة أخرى!
+
+    // ==================== 9. إنشاء جلسة الدفع في Stripe ====================
+    const sessionConfig = {
+      payment_method_types: payment_method_types,
+      line_items: [
+        {
+          price_data: lineItemPriceData,
+          quantity: 1,
+        },
+      ],
+      mode: donationMode === 'monthly' ? 'subscription' : 'payment',
+      success_url: `${process.env.FRONTEND_URL}/donations/success?session_id={CHECKOUT_SESSION_ID}&institution_id=${parsedInstitutionId}&amount=${parsedAmount}`,
+      cancel_url: `${process.env.FRONTEND_URL}/donations/cancel?institution_id=${parsedInstitutionId}`,
+      metadata: metadata,
+      customer_email: req.user.email,
+      billing_address_collection: 'auto',
+      allow_promotion_codes: true,
+      expires_at: Math.floor(Date.now() / 1000) + 3600, // تنتهي بعد ساعة
+      submit_type: 'donate',
+      locale: 'auto',
+      payment_intent_data: {
+        description: `Donation to ${institution.name}`,
+        metadata: metadata
+      }
+    };
+
+    // إعدادات إضافية للتبرعات الشهرية
+    if (donationMode === 'monthly') {
+      sessionConfig.subscription_data = {
+        metadata: metadata,
+        description: `Monthly donation to ${institution.name}`
+      };
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionConfig);
+
+    // ==================== 10. حفظ التبرع في قاعدة البيانات ====================
+    const donation = await Donation.create({
+      donor_id: donorId,
+      institution_id: parsedInstitutionId,
+      campaign_id: parsedCampaignId || null,
+      amount: parsedAmount,
+      currency: currency.toLowerCase(),
+      status: 'pending',
+      payment_method: 'stripe',
+      stripe_session_id: session.id,
+      stripe_payment_intent_id: session.payment_intent || null,
+      donation_type: donationMode,
+      ip_address: metadata.ip_address,
+      user_agent: metadata.user_agent,
+      expires_at: new Date(session.expires_at * 1000)
+    });
+
+    // ==================== 11. إرجاع النتيجة ====================
+    return res.status(200).json({
+      success: true,
+      url: session.url,
+      sessionId: session.id,
+      payment_intent_id: session.payment_intent || null,
+      donation_id: donation.donation_id,
+      amount: parsedAmount,
+      currency: currency.toLowerCase(),
+      mode: donationMode,
+      institution_name: institution.name,
+      campaign_name: campaign ? campaign.name : null,
+      expires_at: session.expires_at,
+      message: 'Checkout session created successfully',
+      instructions: {
+        complete_payment: 'You will be redirected to Stripe to complete your payment',
+        timeout: 'This session will expire in 1 hour',
+        receipt: 'You will receive a receipt via email after successful payment',
+        support: 'Contact support if you encounter any issues'
+      }
+    });
+
+  } catch (error) {
+    console.error('Error creating donation checkout session:', error);
+    
+    // ==================== معالجة الأخطاء المحددة ====================
+    let statusCode = 500;
+    let errorMessage = 'Failed to create donation checkout session';
+    let errorDetails = {};
+
+    if (error.type === 'StripeInvalidRequestError') {
+      statusCode = 400;
+      errorMessage = 'Invalid payment request. Please check your information.';
+      errorDetails = {
+        param: error.param,
+        code: error.code,
+        type: error.type
+      };
+    } else if (error.code === 'resource_missing') {
+      statusCode = 400;
+      errorMessage = 'Payment information is incomplete.';
+    } else if (error.code === 'rate_limit') {
+      statusCode = 429;
+      errorMessage = 'Too many requests. Please try again later.';
+    } else if (error.name === 'SequelizeValidationError') {
+      statusCode = 400;
+      errorMessage = 'Validation error in donation data';
+      errorDetails = {
+        errors: error.errors.map(e => ({
+          field: e.path,
+          message: e.message
+        }))
+      };
+    } else if (error.name === 'SequelizeDatabaseError') {
+      statusCode = 500;
+      errorMessage = 'Database error occurred';
+    }
+
+    return res.status(statusCode).json({
+      success: false,
+      message: errorMessage,
+      error: error.message,
+      error_type: error.type || error.name,
+      details: errorDetails,
+      timestamp: new Date().toISOString(),
+      support_contact: 'support@example.com'
+    });
+  }
+};
+
+// ==================== دالة مساعدة لإرسال الإيميل ====================
+async function sendDonationInitiatedEmail(toEmail, data) {
+  // تنفيذ إرسال الإيميل
+  // يمكن استخدام nodemailer أو أي خدمة أخرى
+  console.log('Sending donation initiated email to:', toEmail);
+  console.log('Donation data:', data);
+  
+  // مثال باستخدام nodemailer:
+  /*
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: process.env.SMTP_PORT,
+    secure: false,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS
+    }
+  });
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM,
+    to: toEmail,
+    subject: `Donation Initiated - ${data.institution_name}`,
+    html: `
+      <h2>Thank you for your donation!</h2>
+      <p>Dear ${data.donor_name},</p>
+      <p>You have initiated a donation of ${data.amount} ${data.currency} to ${data.institution_name}.</p>
+      ${data.campaign_name ? `<p>Campaign: ${data.campaign_name}</p>` : ''}
+      <p>Donation Type: ${data.mode === 'monthly' ? 'Monthly Recurring' : 'One-time'}</p>
+      <p>Donation ID: #${data.donation_id}</p>
+      <p><a href="${data.checkout_url}">Click here to complete your payment</a></p>
+      <p>This link will expire in 1 hour.</p>
+      <p>If you didn't initiate this donation, please contact support immediately.</p>
+      <br>
+      <p>Best regards,<br>Jusoor Team</p>
+    `
+  });
+  */
+}
 
 // Create a new donation for an institution
 exports.createDonation = async (req, res) => {
@@ -151,84 +623,7 @@ exports.createDonation = async (req, res) => {
   }
 };
 
-// Create a Stripe Checkout Session for a donation (one-time or monthly)
-exports.createDonationCheckout = async (req, res) => {
-  try {
-    const donorId = req.user.user_id;
-    const { institution_id, amount, campaign_id, mode } = req.body;
 
-    if (!institution_id || !amount) {
-      return res.status(400).json({
-        success: false,
-        message: 'institution_id and amount are required'
-      });
-    }
-
-    const institution = await Institution.findByPk(institution_id);
-    if (!institution) {
-      return res.status(404).json({
-        success: false,
-        message: 'Institution not found'
-      });
-    }
-
-    const parsedAmount = parseFloat(amount);
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Amount must be a positive number'
-      });
-    }
-
-    const donationMode = mode === 'monthly' ? 'monthly' : 'one_time';
-
-    const lineItemPriceData = {
-      currency: 'usd',
-      product_data: {
-        name: `Donation to ${institution.name}`,
-      },
-      unit_amount: Math.round(parsedAmount * 100),
-    };
-
-    if (donationMode === 'monthly') {
-      lineItemPriceData.recurring = { interval: 'month' };
-    }
-
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: lineItemPriceData,
-          quantity: 1,
-        },
-      ],
-      mode: donationMode === 'monthly' ? 'subscription' : 'payment',
-      success_url:
-        'http://localhost:3000/donations/success?session_id={CHECKOUT_SESSION_ID}',
-      cancel_url: 'http://localhost:3000/donations/cancel',
-      metadata: {
-        donor_id: String(donorId),
-        institution_id: String(institution_id),
-        campaign_id: campaign_id ? String(campaign_id) : '',
-        amount: String(parsedAmount),
-        mode: donationMode,
-      },
-    });
-
-    return res.status(200).json({
-      success: true,
-      url: session.url,
-      sessionId: session.id,
-    });
-  } catch (error) {
-    console.error('Error creating donation checkout session:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to create donation checkout session',
-      error: error.message,
-    });
-  }
-};
 
 // Get aggregated donation impact for the current donor: sessions/children supported
 exports.getDonationImpact = async (req, res) => {

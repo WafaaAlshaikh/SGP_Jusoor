@@ -1,7 +1,9 @@
 // lib/screens/manager/manager_home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:frontend/screens/manager/manager_free_sessions_screen.dart';
-import '../../theme/app_colors.dart';
+import 'package:frontend/theme/app_colors.dart';
+import 'package:frontend/screens/reports_list_screen.dart';
+import 'package:frontend/services/reports_service.dart';
 import '../../services/manager_dashboard_service.dart';
 import 'manager/children_management_screen.dart';
 import 'manager/specialist_management_screen.dart';
@@ -16,6 +18,8 @@ import 'manager/manager_workshops_screen.dart';
 import 'manager/manager_donations_screen.dart';
 import 'manager/manager_financial_report_screen.dart';
 import 'manager/manager_donation_campaigns_screen.dart';
+import 'public_institution_home_screen.dart';
+import 'manager/cms/manager_cms_dashboard_screen.dart';
 
 import 'package:frontend/screens/login_screen.dart';
 
@@ -49,6 +53,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
         final donations = data['donations'] ?? {};
 
         _dashboardData = {
+          'institutionId': data['institution']['institution_id'],
           'centerName': data['institution']['name'],
           'totalRevenue': data['revenue']['currentMonth']?.toInt() ?? 0,
           'activeSessions': data['sessionStats']['totalSessions'] ?? 0,
@@ -88,6 +93,18 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
 
         // تحديث sidebar items حسب التصميم الجديد
         _sidebarItems = [
+          {
+            'title': 'Public Institution Preview',
+            'icon': Icons.public_rounded,
+            'count': 0,
+            'route': 'public_preview',
+          },
+          {
+            'title': 'CMS Management',
+            'icon': Icons.dashboard_customize_rounded,
+            'count': 0,
+            'route': 'cms',
+          },
           {
             'title': 'Children Management',
             'icon': Icons.child_care_rounded,
@@ -162,6 +179,12 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             'count': 0, // يمكنك وضع أي قيمة تريدها هنا
             'route': 'rate',
           },
+          {
+            'title': 'Reports',
+            'icon': Icons.report_gmailerrorred_rounded,
+            'count': 0,
+            'route': 'reports',
+          },
         ];
 
         _isLoading = false;
@@ -171,6 +194,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
       setState(() {
         _isLoading = false;
         _dashboardData = {
+          'institutionId': null,
           'centerName': 'Therapy Care Center',
           'totalRevenue': 0,
           'activeSessions': 0,
@@ -192,6 +216,18 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
 
         // استخدام قيم افتراضية للسايد بار في حالة الخطأ
         _sidebarItems = [
+          {
+            'title': 'Public Institution Preview',
+            'icon': Icons.public_rounded,
+            'count': 0,
+            'route': 'public_preview',
+          },
+          {
+            'title': 'CMS Management',
+            'icon': Icons.dashboard_customize_rounded,
+            'count': 0,
+            'route': 'cms',
+          },
           {
             'title': 'Children Management',
             'icon': Icons.child_care_rounded,
@@ -295,6 +331,33 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
     print('Navigating to: $title (route: $route)');
 
     switch (route) {
+      case 'public_preview':
+        final instId = _dashboardData['institutionId'];
+        final instName = _dashboardData['centerName']?.toString();
+
+        if (instId == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Institution id not available yet')),
+          );
+          break;
+        }
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PublicInstitutionHomeScreen(
+              institutionId: (instId as num).toInt(),
+              institutionName: instName,
+            ),
+          ),
+        );
+        break;
+      case 'cms':
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ManagerCmsDashboardScreen()),
+        );
+        break;
       case 'children':
         Navigator.push(
           context,
@@ -364,6 +427,17 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           context,
           MaterialPageRoute(
             builder: (context) => InstitutionReviewsDashboard(),
+          ),
+        );
+        break;
+      case 'reports':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const ReportsListScreen(
+              scope: ReportsScope.manager,
+              title: 'Institution Reports',
+            ),
           ),
         );
         break;

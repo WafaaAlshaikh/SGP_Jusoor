@@ -9,6 +9,10 @@ router.use(adminMiddleware);
 
 router.get('/dashboard', adminController.getDashboardStats);
 
+router.get('/analytics/user-registrations', adminController.getUserRegistrationsAnalytics);
+router.get('/analytics/institutions-by-city', adminController.getInstitutionsDistributionByCity);
+router.get('/map/institutions', adminController.getInstitutionsMapPoints);
+
 router.get('/institutions', adminController.getInstitutions);
 router.get('/institutions/pending', adminController.getPendingInstitutions);
 router.post('/institutions/:id/approve', adminController.approveInstitution);

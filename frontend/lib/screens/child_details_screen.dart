@@ -5,6 +5,7 @@ import '../services/specialist_children_service.dart';
 import '../services/progress_analysis_service.dart';
 import 'comparison_analysis_screen.dart';
 import 'add_session_screen.dart';
+import 'digital_care_passport_screen.dart';
 import '../theme/app_colors.dart';
 
 class ChildDetailsScreen extends StatefulWidget {
@@ -845,8 +846,8 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
                 child: Text(
                   value?.toString() ?? 'N/A',
                   style: TextStyle(
-                    color: AppColors.textGray,
                     fontSize: 14,
+                    color: AppColors.textGray,
                   ),
                 ),
               ),
@@ -1170,7 +1171,6 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
               Text(
                 'Suggested Date: ${nextSession['suggested_date'] ?? 'N/A'}',
                 style: TextStyle(
-                  fontSize: 16,
                   fontWeight: FontWeight.w700,
                   color: AppColors.success,
                 ),
@@ -1762,6 +1762,7 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
           Container(
             width: 6,
             height: 6,
+            margin: EdgeInsets.only(top: 6),
             decoration: BoxDecoration(
               color: AppColors.primary,
               shape: BoxShape.circle,
@@ -1772,8 +1773,8 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
             '$label: ',
             style: TextStyle(
               fontWeight: FontWeight.w600,
-              color: AppColors.textDark,
               fontSize: 14,
+              color: AppColors.textDark,
             ),
           ),
           Expanded(
@@ -2232,14 +2233,12 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
                   SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton.icon(
+                    child: ElevatedButton(
                       onPressed: () => _onBookNowPressed({
                         'suggested_date': _getNextAvailableDate(),
                         'focus_areas': ['Implement action plan recommendations'],
                         'preparation': 'Review the complete action plan before the session'
                       }),
-                      icon: Icon(Icons.event_available, size: 20),
-                      label: Text('Schedule Action Plan Session'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.warning,
                         foregroundColor: Colors.white,
@@ -2248,6 +2247,10 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         elevation: 2,
+                      ),
+                      child: Text(
+                        'Schedule Action Plan Session',
+                        style: TextStyle(fontWeight: FontWeight.w600),
                       ),
                     ),
                   ),
@@ -2324,7 +2327,7 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Session ${eval['session_number']}',
+                'Session ${_safeString(eval['session_number'])}',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -2649,6 +2652,23 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.white),
         centerTitle: true,
+        // actions: [
+        //   IconButton(
+        //     tooltip: 'Care Passport',
+        //     icon: Icon(Icons.badge_outlined, color: Colors.white),
+        //     onPressed: () {
+        //       Navigator.push(
+        //         context,
+        //         MaterialPageRoute(
+        //           builder: (context) => DigitalCarePassportScreen(
+        //             childId: widget.childId,
+        //             childName: widget.childName,
+        //           ),
+        //         ),
+        //       );
+        //     },
+        //   ),
+        // ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {

@@ -1174,6 +1174,25 @@ void _showFinancialAssistanceOptions() {
                   ),
                 ],
               ),
+              SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildModernActionCard(
+                      icon: Icons.apartment,
+                      title: 'Explore Institutions',
+                      subtitle: 'View profiles, media, team and reviews',
+                      color: AppColors.primary,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const BrowseCentersScreen()),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),

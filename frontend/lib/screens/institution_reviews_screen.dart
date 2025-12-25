@@ -4,6 +4,7 @@ import 'package:frontend/services/rating_service.dart';
 import 'package:frontend/models/rating_models.dart';
 import 'package:frontend/theme/app_colors.dart';
 import 'package:frontend/widgets/review_dialog.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class InstitutionReviewsScreen extends StatefulWidget {
   final String institutionId;
@@ -25,6 +26,7 @@ class _InstitutionReviewsScreenState extends State<InstitutionReviewsScreen> {
   bool _isLoading = true;
   bool _hasError = false;
   String _errorMessage = '';
+  bool _canAddReview = false;
   int _currentPage = 1;
   int _totalPages = 1;
   int _totalReviews = 0;
@@ -34,7 +36,17 @@ class _InstitutionReviewsScreenState extends State<InstitutionReviewsScreen> {
   @override
   void initState() {
     super.initState();
+    _loadAuthState();
     _loadReviews();
+  }
+
+  Future<void> _loadAuthState() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token') ?? '';
+    if (!mounted) return;
+    setState(() {
+      _canAddReview = token.isNotEmpty;
+    });
   }
 
   Future<void> _loadReviews({int page = 1}) async {
@@ -472,11 +484,12 @@ class _InstitutionReviewsScreenState extends State<InstitutionReviewsScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add_comment_rounded, color: Colors.white),
-            onPressed: _addReview,
-            tooltip: 'Add review',
-          ),
+          if (_canAddReview)
+            IconButton(
+              icon: const Icon(Icons.add_comment_rounded, color: Colors.white),
+              onPressed: _addReview,
+              tooltip: 'Add review',
+            ),
         ],
       ),
       body: RefreshIndicator(

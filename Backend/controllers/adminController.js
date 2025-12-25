@@ -579,4 +579,150 @@ exports.generateReports = async (req, res) => {
   }
 };
 
+exports.getUserRegistrationsAnalytics = async (req, res) => {
+  try {
+    const { role = 'all', year, city, groupBy = 'month' } = req.query;
+
+    const where = {};
+    if (role && role !== 'all') where.role = role;
+    if (city && city !== 'all') where.city = city;
+    if (year) {
+      where[Op.and] = where[Op.and] || [];
+      where[Op.and].push(
+        Sequelize.where(Sequelize.fn('YEAR', Sequelize.col('created_at')), parseInt(year, 10))
+      );
+    }
+
+    let rows = [];
+
+    if (groupBy === 'city') {
+      rows = await User.findAll({
+        where,
+        attributes: [
+          [Sequelize.fn('COALESCE', Sequelize.col('city'), 'Unknown'), 'city'],
+          [Sequelize.fn('COUNT', Sequelize.col('user_id')), 'count']
+        ],
+        group: ['city'],
+        order: [[Sequelize.literal('count'), 'DESC']],
+        raw: true
+      });
+
+      return res.json({
+        success: true,
+        data: {
+          groupBy: 'city',
+          filters: { role, year: year ? parseInt(year, 10) : null, city },
+          series: rows.map((r) => ({ label: r.city || 'Unknown', value: parseInt(r.count, 10) }))
+        }
+      });
+    }
+
+    // groupBy month (default)
+    rows = await User.findAll({
+      where,
+      attributes: [
+        [Sequelize.fn('MONTH', Sequelize.col('created_at')), 'month'],
+        [Sequelize.fn('COUNT', Sequelize.col('user_id')), 'count']
+      ],
+      group: [Sequelize.fn('MONTH', Sequelize.col('created_at'))],
+      order: [[Sequelize.literal('month'), 'ASC']],
+      raw: true
+    });
+
+    const monthIndexToName = {
+      1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun',
+      7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec'
+    };
+    const byMonth = Array.from({ length: 12 }, (_, i) => ({
+      month: i + 1,
+      label: monthIndexToName[i + 1],
+      value: 0
+    }));
+
+    for (const r of rows) {
+      const m = parseInt(r.month, 10);
+      if (m >= 1 && m <= 12) byMonth[m - 1].value = parseInt(r.count, 10);
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        groupBy: 'month',
+        filters: { role, year: year ? parseInt(year, 10) : null, city },
+        series: byMonth
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error in getUserRegistrationsAnalytics:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch analytics', error: error.message });
+  }
+};
+
+exports.getInstitutionsDistributionByCity = async (req, res) => {
+  try {
+    const { status = 'all', limit = 12 } = req.query;
+
+    const where = {};
+    if (status && status !== 'all') where.approval_status = status;
+
+    const rows = await Institution.findAll({
+      where,
+      attributes: [
+        [Sequelize.fn('COALESCE', Sequelize.col('city'), 'Unknown'), 'city'],
+        [Sequelize.fn('COUNT', Sequelize.col('institution_id')), 'count']
+      ],
+      group: ['city'],
+      order: [[Sequelize.literal('count'), 'DESC']],
+      limit: Math.min(Math.max(parseInt(limit, 10) || 12, 1), 50),
+      raw: true
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        filters: { status },
+        series: rows.map((r) => ({ label: r.city || 'Unknown', value: parseInt(r.count, 10) }))
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error in getInstitutionsDistributionByCity:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch distribution', error: error.message });
+  }
+};
+
+exports.getInstitutionsMapPoints = async (req, res) => {
+  try {
+    const { status = 'Approved', city } = req.query;
+
+    const where = {
+      location_lat: { [Op.ne]: null },
+      location_lng: { [Op.ne]: null }
+    };
+
+    if (status && status !== 'all') where.approval_status = status;
+    if (city && city !== 'all') where.city = city;
+
+    const rows = await Institution.findAll({
+      where,
+      attributes: [
+        'institution_id',
+        'name',
+        'city',
+        'region',
+        'approval_status',
+        'location_lat',
+        'location_lng',
+        'location_address'
+      ],
+      order: [['institution_id', 'DESC']],
+      raw: true
+    });
+
+    return res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('❌ Error in getInstitutionsMapPoints:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch map points', error: error.message });
+  }
+};
+
 module.exports = exports;

@@ -19,6 +19,14 @@ const SpecialistRegistrationRequest = require('./SpecialistRegistrationRequest')
 const VacationRequest = require('./VacationRequest');
 const ChildAttachment = require('./ChildAttachment');
 
+const ChildTeam = require('./ChildTeam');
+const ChildTeamMember = require('./ChildTeamMember');
+const TeamRoom = require('./TeamRoom');
+const TeamActivity = require('./TeamActivity');
+
+const Report = require('./Report');
+const ReportMessage = require('./ReportMessage');
+
 const AIDonorReport = require('./AIDonorReport');
 const AIParentInteraction = require('./AIParentInteraction');
 const AIRecommendation = require('./AIRecommendation');
@@ -34,6 +42,9 @@ const Comment = require('./Comment');
 const Like = require('./Like');
 const Notification = require('./Notification');
 
+const UserDeviceToken = require('./UserDeviceToken');
+const InstitutionFollower = require('./InstitutionFollower');
+
 const Manager = require('./Manager');
 const Questionnaire = require('./Questionnaire')(sequelize, DataTypes);
 const Question = require('./Question')(sequelize, DataTypes);
@@ -48,8 +59,27 @@ const SessionFinancialAidRequest = require('./SessionFinancialAidRequest');
 const PaymentPlan = require('./PaymentPlan');
 
 const AutoFinancialAidLog = require('./AutoFinancialAidLog');
+const InstitutionPageContent = require('./InstitutionPageContent'); 
+const InstitutionNews = require('./InstitutionNews');
+const InstitutionProgram = require('./InstitutionProgram');
+const InstitutionProject = require('./InstitutionProject');
+const InstitutionFAQ = require('./InstitutionFAQ');
+const InstitutionMedia = require('./InstitutionMedia');
 
 // ==================== Main Relations ====================
+
+Institution.hasMany(Donation, {
+  foreignKey: 'institution_id'
+});
+
+Donation.belongsTo(Institution, {
+  foreignKey: 'institution_id'
+});
+
+Donation.belongsTo(DonationCampaign, {
+  foreignKey: 'campaign_id'
+});
+
 
 Questionnaire.hasMany(Question, { 
   foreignKey: 'questionnaire_id',
@@ -131,8 +161,25 @@ Like.belongsTo(Comment, { foreignKey: 'comment_id', as: 'LikeComment' });
 Notification.belongsTo(User, { foreignKey: 'user_id', as: 'NotificationUser' });
 User.hasMany(Notification, { foreignKey: 'user_id', as: 'UserNotifications' });
 
-Donation.associate({ DonationCampaign });
-DonationCampaign.associate({ Donation });
+UserDeviceToken.belongsTo(User, { foreignKey: 'user_id', as: 'DeviceTokenUser' });
+User.hasMany(UserDeviceToken, { foreignKey: 'user_id', as: 'UserDeviceTokens' });
+
+InstitutionFollower.belongsTo(User, { foreignKey: 'user_id', as: 'FollowerUser' });
+User.hasMany(InstitutionFollower, { foreignKey: 'user_id', as: 'UserInstitutionFollows' });
+InstitutionFollower.belongsTo(Institution, { foreignKey: 'institution_id', as: 'FollowedInstitution' });
+Institution.hasMany(InstitutionFollower, { foreignKey: 'institution_id', as: 'InstitutionFollowers' });
+
+// Reports relationships
+Report.belongsTo(User, { foreignKey: 'reporter_user_id', as: 'reporter' });
+User.hasMany(Report, { foreignKey: 'reporter_user_id', as: 'UserReports' });
+Report.belongsTo(Institution, { foreignKey: 'institution_id', as: 'ReportInstitution' });
+Institution.hasMany(Report, { foreignKey: 'institution_id', as: 'InstitutionReports' });
+
+Report.hasMany(ReportMessage, { foreignKey: 'report_id', as: 'messages' });
+ReportMessage.belongsTo(Report, { foreignKey: 'report_id', as: 'report' });
+
+// Donation.associate({ DonationCampaign });
+// DonationCampaign.associate({ Donation });
 
 
 module.exports = {
@@ -165,9 +212,17 @@ module.exports = {
   Resource,
   ResourceDiagnosis,
   ChildAttachment,
+  ChildTeam,
+  ChildTeamMember,
+  TeamRoom,
+  TeamActivity,
+  Report,
+  ReportMessage,
   Comment,
   Like,
   Notification,
+  UserDeviceToken,
+  InstitutionFollower,
   Manager,
   Questionnaire,
   Question,
@@ -178,6 +233,12 @@ module.exports = {
   FinancialAssistanceRequest,
   SessionFinancialAidRequest,
   PaymentPlan,
-  AutoFinancialAidLog
+  AutoFinancialAidLog,
+  InstitutionPageContent,
+  InstitutionNews,
+  InstitutionProgram,
+  InstitutionProject,
+  InstitutionFAQ,
+  InstitutionMedia,
 };
 

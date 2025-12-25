@@ -1,20 +1,19 @@
-const Invoice = require('./Invoice');
-const Payment = require('./Payment');
-const User = require('./User');
-const Child = require('./Child');
-const Parent = require('./Parent');
-const Specialist = require('./Specialist');
-const Questionnaire = require('./Questionnaire');
-const Question = require('./Question');
-const QuestionnaireResponse = require('./QuestionnaireResponse');
-
-
-const ChildTeam = require('./ChildTeam');
-const ChildTeamMember = require('./ChildTeamMember');
-const TeamRoom = require('./TeamRoom');
-const TeamActivity = require('./TeamActivity');
-const Institution = require('./Institution');
-
+const {
+  Invoice,
+  Payment,
+  User,
+  Child,
+  Parent,
+  Specialist,
+  Questionnaire,
+  Question,
+  QuestionnaireResponse,
+  ChildTeam,
+  ChildTeamMember,
+  TeamRoom,
+  TeamActivity,
+  Institution
+} = require('./index');
 
 Invoice.hasMany(Payment, {
   foreignKey: 'invoice_id',
