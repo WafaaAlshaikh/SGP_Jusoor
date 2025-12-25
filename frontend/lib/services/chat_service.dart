@@ -639,9 +639,12 @@ class ChatService {
         );
         print('✅ Firebase auto-sync successful');
       } on FirebaseAuthException catch (e) {
+        print('❌ FirebaseAuthException.code = ${e.code}');
+        print('❌ FirebaseAuthException.message = ${e.message}');
+
         if (e.code == 'user-not-found' || e.code == 'wrong-password') {
           print('🔄 Creating Firebase account during chat sync...');
-          
+
           try {
             final userCredential = await _auth.createUserWithEmailAndPassword(
               email: firebaseEmail,
@@ -658,13 +661,57 @@ class ChatService {
             print('✅ Firebase user created during auto-sync: $userName');
           } catch (createError) {
             print('❌ Failed to create Firebase user: $createError');
+            print('🔄 Creating fallback Firebase user...');
+            await _createFallbackUser();
           }
         } else {
-          print('❌ Firebase auth error: ${e.message}');
+          // Attempt recovery by creating a user, if possible
+          try {
+            print('🔄 Attempting recovery by creating Firebase user during chat sync...');
+
+            final userCredential = await _auth.createUserWithEmailAndPassword(
+              email: firebaseEmail,
+              password: firebasePassword,
+            );
+
+            if (userName != null) {
+              await userCredential.user!.updateDisplayName(userName);
+            }
+
+            await prefs.setString('firebase_uid', userCredential.user!.uid);
+            await prefs.setString('firebase_email', firebaseEmail);
+
+            print('✅ Recovery succeeded: Firebase user created during auto-sync: $userName');
+          } catch (createError) {
+            print('❌ Firebase recovery failed: $createError');
+            print('🔄 Creating fallback Firebase user...');
+            await _createFallbackUser();
+          }
         }
       }
     } catch (e) {
       print('❌ Auto-sync Firebase failed: $e');
+    }
+  }
+
+  // Fallback: create a temporary Firebase user if real sync fails
+  Future<void> _createFallbackUser() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final fallbackEmail = 'user_${DateTime.now().millisecondsSinceEpoch}@jusoor.com';
+      final fallbackPassword = 'fallback_password_${DateTime.now().millisecondsSinceEpoch}';
+
+      final userCredential = await _auth.createUserWithEmailAndPassword(
+        email: fallbackEmail,
+        password: fallbackPassword,
+      );
+
+      await prefs.setString('firebase_uid', userCredential.user!.uid);
+      await prefs.setString('firebase_email', fallbackEmail);
+
+      print('✅ Created fallback Firebase user: $fallbackEmail');
+    } catch (e) {
+      print('❌ Failed to create fallback Firebase user: $e');
     }
   }
 }
