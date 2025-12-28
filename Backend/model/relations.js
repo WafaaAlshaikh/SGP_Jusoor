@@ -12,7 +12,9 @@ const {
   ChildTeamMember,
   TeamRoom,
   TeamActivity,
-  Institution
+  Institution,
+  AdminUser,
+  AuditLog
 } = require('./index');
 
 Invoice.hasMany(Payment, {
@@ -81,6 +83,15 @@ User.hasOne(Specialist, {
   foreignKey: 'specialist_id', 
   sourceKey: 'user_id' 
 });
+
+// في model/relations.js أضف:
+// AdminUser relations
+User.hasOne(AdminUser, { foreignKey: 'admin_id' });
+AdminUser.belongsTo(User, { foreignKey: 'admin_id' });
+
+// AuditLog relations
+AuditLog.belongsTo(User, { foreignKey: 'admin_id', as: 'admin' });
+User.hasMany(AuditLog, { foreignKey: 'admin_id', as: 'adminActions' });
 
 console.log('✅ تم إنشاء علاقات الجداول الجديدة');
 

@@ -24,6 +24,8 @@ import '../services/activity_service.dart';
 import 'add_session_screen.dart';
 import '../widgets/specialist_rating_card.dart';
 import '../screens/specialist_ratings_screen.dart';
+import '../services/reports_service.dart';
+import 'reports_list_screen.dart';
 
 class SpecialistDashboardScreen extends StatefulWidget {
   const SpecialistDashboardScreen({Key? key}) : super(key: key);
@@ -646,6 +648,21 @@ class _SpecialistDashboardScreenState extends State<SpecialistDashboardScreen> {
                     Navigator.push(context, MaterialPageRoute(builder: (context) => CommunityScreen()));
                   },
                 ),
+                _buildWebDrawerItem(
+                  icon: Icons.flag_outlined,
+                  title: 'My Reports',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ReportsListScreen(
+                          scope: ReportsScope.user,
+                          title: 'My Reports',
+                        ),
+                      ),
+                    );
+                  },
+                ),
                 // في _buildWebDrawerItem أضيفي:
 _buildWebDrawerItem(
   icon: Icons.star,
@@ -1008,6 +1025,22 @@ _buildWebDrawerItem(
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(context, MaterialPageRoute(builder: (context) => CommunityScreen()));
+                    },
+                  ),
+                  _buildDrawerItem(
+                    icon: Icons.flag_outlined,
+                    title: 'My Reports',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ReportsListScreen(
+                            scope: ReportsScope.user,
+                            title: 'My Reports',
+                          ),
+                        ),
+                      );
                     },
                   ),
                   _buildDrawerItem(

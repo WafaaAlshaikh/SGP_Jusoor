@@ -17,6 +17,7 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
   Map<String, dynamic> _data = {};
   Map<String, dynamic> _stats = {};
   List<dynamic> _donations = [];
+
   List<dynamic> _allocations = [];
   List<dynamic> _campaigns = [];
   List<dynamic> _filteredDonations = [];
@@ -27,6 +28,13 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
 
   final ScrollController _donationsScrollController = ScrollController();
   int _donationsViewIndex = 0;
+
+  Map<String, dynamic>? _asStringMap(dynamic value) {
+    if (value is Map) {
+      return value.cast<String, dynamic>();
+    }
+    return null;
+  }
 
   double _toDouble(dynamic value) {
     if (value == null) return 0;
@@ -132,7 +140,7 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
     
     // جمع من التبرعات
     for (final donation in _donations) {
-      final donor = donation['donor'] as Map<String, dynamic>?;
+      final donor = _asStringMap(donation['donor']);
       if (donor != null && donor['id'] != null) {
         uniqueDonors.add(donor);
       }
@@ -140,7 +148,7 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
     
     // جمع من أحدث التبرعات
     for (final donation in _latestDonations) {
-      final donor = donation['donor'] as Map<String, dynamic>?;
+      final donor = _asStringMap(donation['donor']);
       if (donor != null && donor['id'] != null) {
         uniqueDonors.add(donor);
       }
@@ -148,7 +156,7 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
     
     // جمع من أفضل المتبرعين
     for (final donorData in _topDonors) {
-      final donorInfo = donorData['donor_info'] as Map<String, dynamic>?;
+      final donorInfo = _asStringMap(donorData['donor_info']);
       if (donorInfo != null && donorInfo['id'] != null) {
         uniqueDonors.add(donorInfo);
       }
@@ -196,7 +204,7 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
     
     if (_filterState['onlyWithContact'] == true) {
       filteredDonations = filteredDonations.where((d) {
-        final donor = d['donor'] as Map<String, dynamic>? ?? {};
+        final donor = _asStringMap(d['donor']) ?? {};
         return (donor['email'] != null || donor['phone'] != null);
       }).toList();
     }
@@ -204,7 +212,8 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
     if (_filterState['onlyRecurring'] == true) {
       final recurringDonors = _identifyRecurringDonors(filteredDonations);
       filteredDonations = filteredDonations.where((d) {
-        final donorId = (d['donor']?['id'] ?? 0) as int;
+        final donorIdRaw = _asStringMap(d['donor'])?['id'] ?? 0;
+        final donorId = donorIdRaw is int ? donorIdRaw : int.tryParse(donorIdRaw.toString()) ?? 0;
         return recurringDonors.contains(donorId);
       }).toList();
     }
@@ -303,8 +312,7 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
     if (minAmount == null && maxAmount == null) return items;
     
     return items.where((item) {
-      final amount = double.tryParse(item['amount']?.toString() ?? 
-                                     item['amount_allocated']?.toString() ?? '0') ?? 0;
+      final amount = double.tryParse(item['amount'].toString()) ?? 0;
       
       bool passesMin = minAmount == null || amount >= minAmount;
       bool passesMax = maxAmount == null || amount <= maxAmount;
@@ -319,7 +327,7 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
     if (donorTypes.isEmpty) return items;
     
     return items.where((item) {
-      final donor = item['donor'] as Map<String, dynamic>? ?? {};
+      final donor = _asStringMap(item['donor']) ?? {};
       final isCorporate = donor['is_corporate'] == true;
       final hasName = donor['name'] != null && donor['name'].toString().isNotEmpty;
       final isAnonymous = !hasName || donor['name'].toString().toLowerCase() == 'anonymous';
@@ -368,7 +376,8 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
     final Map<int, List<dynamic>> donorDonations = {};
     
     for (final donation in items) {
-      final donorId = (donation['donor']?['id'] ?? 0) as int;
+      final donorIdRaw = _asStringMap(donation['donor'])?['id'] ?? 0;
+      final donorId = donorIdRaw is int ? donorIdRaw : int.tryParse(donorIdRaw.toString()) ?? 0;
       donorDonations.putIfAbsent(donorId, () => []).add(donation);
     }
     
@@ -390,7 +399,8 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
     }
     
     return items.where((item) {
-      final donorId = (item['donor']?['id'] ?? 0) as int;
+      final donorIdRaw = _asStringMap(item['donor'])?['id'] ?? 0;
+      final donorId = donorIdRaw is int ? donorIdRaw : int.tryParse(donorIdRaw.toString()) ?? 0;
       return matchingDonorIds.contains(donorId);
     }).toList();
   }
@@ -425,7 +435,8 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
     final Set<int> recurringDonors = {};
     
     for (final donation in donations) {
-      final donorId = (donation['donor']?['id'] ?? 0) as int;
+      final donorIdRaw = _asStringMap(donation['donor'])?['id'] ?? 0;
+      final donorId = donorIdRaw is int ? donorIdRaw : int.tryParse(donorIdRaw.toString()) ?? 0;
       donorDonations.putIfAbsent(donorId, () => []).add(donation);
     }
     
@@ -464,8 +475,8 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
           return amountA.compareTo(amountB);
         
         case 'donor_name':
-          final nameA = (a['donor']?['name'] ?? '').toString().toLowerCase();
-          final nameB = (b['donor']?['name'] ?? '').toString().toLowerCase();
+          final nameA = (_asStringMap(a['donor'])?['name'] ?? '').toString().toLowerCase();
+          final nameB = (_asStringMap(b['donor'])?['name'] ?? '').toString().toLowerCase();
           return nameA.compareTo(nameB);
         
         default:
@@ -531,7 +542,7 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
     final Map<int, Map<String, dynamic>> donorsMap = {};
     
     for (final donation in _latestDonations) {
-      final donor = donation['donor'] as Map<String, dynamic>? ?? {};
+      final donor = _asStringMap(donation['donor']) ?? {};
       final donorId = donor['id'] ?? 0;
       
       if (donorId == 0) continue; // Skip anonymous
@@ -976,7 +987,6 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
                 // Charts Section
                 _buildChartsSection(),
                 const SizedBox(height: 16),
-
                 
                 // Allocations List
                 _buildAllocationsList(),
@@ -1495,7 +1505,7 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
           ..._topDonors.asMap().entries.map((entry) {
             final index = entry.key;
             final donor = entry.value;
-            final donorInfo = donor['donor_info'] as Map<String, dynamic>? ?? {};
+            final donorInfo = _asStringMap(donor['donor_info']) ?? {};
             
             return _buildTopDonorTile(
               rank: index + 1,
@@ -1638,7 +1648,7 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
           ),
           const SizedBox(height: 12),
           ..._processedDonors.map((donorData) {
-            final donor = donorData['donor'] as Map<String, dynamic>;
+            final donor = _asStringMap(donorData['donor']) ?? {};
             final totalAmount = donorData['totalAmount'] as double;
             final donationCount = donorData['donationCount'] as int;
             final firstDate = donorData['firstDonationDate'] as DateTime?;

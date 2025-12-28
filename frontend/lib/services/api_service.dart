@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/child_model.dart';
 import '../models/session.dart';
 import '../models/questionnaire_model.dart';
-import '../models/admin_model.dart';
+import '../models/admin_models.dart';
 
 class ApiService {
   static String get baseUrl {
@@ -3475,36 +3475,59 @@ static Future<Map<String, dynamic>> applyAutoDiscount(
   }
 
 /// Create Stripe checkout session for donation
+/// Create donation checkout with support for anonymous donors
 static Future<Map<String, dynamic>> createDonationCheckout(
-  String token, {
-  required int institutionId,
-  required double amount,
-  String mode = 'one_time',
-  int? campaignId,
-}) async {
+  String? token, // ✅ جعل token اختياري
+  {
+    required int institutionId,
+    required double amount,
+    String mode = 'one_time',
+    int? campaignId,
+    bool anonymous = false,
+    String? donorName,
+    String? donorEmail,
+    String currency = 'jod',
+  }) async {
   try {
-    final url = _buildUrl('donations/checkout');
+    final url = _buildUrl('donations/flexible/checkout');
     
     final body = <String, dynamic>{
       'institution_id': institutionId,
       'amount': amount,
       'mode': mode,
-      'currency': 'jod', // أو usd حسب تفضيلك
+      'currency': currency,
+      'anonymous': anonymous,
     };
     
     if (campaignId != null) {
       body['campaign_id'] = campaignId;
     }
+    
+    // ✅ إضافة بيانات المتبرع المجهول إذا كانت متوفرة
+    if (anonymous) {
+      if (donorName != null && donorName.isNotEmpty) {
+        body['donor_name'] = donorName;
+      }
+      if (donorEmail != null && donorEmail.isNotEmpty) {
+        body['donor_email'] = donorEmail;
+      }
+    }
 
-    print('🌐 Creating checkout with body: $body');
-    print('📍 URL: $url');
+    print('🌐 Creating checkout (anonymous: $anonymous)');
+    print('📦 Request body: $body');
+
+    // ✅ إعداد الهيدرات بناءً على وجود token
+    Map<String, String> headers = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (token != null && token.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
+    }
 
     final response = await http.post(
       Uri.parse(url),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
+      headers: headers,
       body: jsonEncode(body),
     ).timeout(Duration(seconds: 30));
 
@@ -3517,19 +3540,14 @@ static Future<Map<String, dynamic>> createDonationCheckout(
       if (data['success'] == true) {
         final checkoutUrl = (data['url'] ?? data['checkout_url'] ?? '').toString();
         final sessionId = (data['sessionId'] ?? data['session_id'] ?? '').toString();
+        
         return {
           'success': true,
           'url': checkoutUrl,
           'sessionId': sessionId,
-          // Backward compatible keys
-          'checkout_url': checkoutUrl,
-          'session_id': sessionId,
           'donation_id': data['donation_id'],
-          'amount': data['amount'],
-          'currency': data['currency'],
-          'mode': data['mode'],
-          'expires_at': data['expires_at'],
-          'message': data['message'],
+          'anonymous': data['anonymous'] ?? anonymous,
+          'message': data['message'] ?? 'Checkout created successfully',
         };
       } else {
         throw Exception(data['message'] ?? 'Failed to create checkout');
@@ -3544,10 +3562,60 @@ static Future<Map<String, dynamic>> createDonationCheckout(
     throw Exception('No internet connection');
   } catch (e) {
     print('❌ Error in createDonationCheckout: $e');
-    throw Exception('Failed to create donation checkout: $e');
+    rethrow;
   }
 }
 
+/// ✅ دالة جديدة للتبرع المجهول فقط
+static Future<Map<String, dynamic>> createAnonymousDonation({
+  required int institutionId,
+  required double amount,
+  String? donorEmail,
+  String? donorName,
+  int? campaignId,
+  String currency = 'jod',
+}) async {
+  try {
+    final url = _buildUrl('donations/anonymous/checkout');
+    
+    final body = <String, dynamic>{
+      'institution_id': institutionId,
+      'amount': amount,
+      'currency': currency,
+    };
+    
+    if (donorEmail != null && donorEmail.isNotEmpty) {
+      body['donor_email'] = donorEmail;
+    }
+    
+    if (donorName != null && donorName.isNotEmpty) {
+      body['donor_name'] = donorName;
+    }
+    
+    if (campaignId != null) {
+      body['campaign_id'] = campaignId;
+    }
+
+    print('🎭 Creating anonymous donation');
+    print('📦 Request body: $body');
+
+    final response = await http.post(
+      Uri.parse(url),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    ).timeout(Duration(seconds: 30));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return data;
+    } else {
+      throw Exception('Failed to create anonymous donation');
+    }
+  } catch (e) {
+    print('❌ Error in createAnonymousDonation: $e');
+    rethrow;
+  }
+}
 /// Check donation status
 static Future<Map<String, dynamic>> checkDonationStatus(
   String token, {
@@ -3713,4 +3781,36 @@ static Future<Map<String, dynamic>> getDonationImpact(String token) async {
   }
 }
 
+/// Check donation status before confirming
+static Future<Map<String, dynamic>> checkDonationStatusBySession(
+  String token, {
+  required String sessionId,
+}) async {
+  try {
+    final url = Uri.parse(_buildUrl('donations/status'))
+        .replace(queryParameters: {'session_id': sessionId});
+
+    print('🔍 Checking donation status for session: $sessionId');
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    ).timeout(Duration(seconds: 10));
+
+    print('📡 Status check response: ${response.statusCode}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return data;
+    } else {
+      throw Exception('Failed to check donation status: ${response.statusCode}');
+    }
+  } catch (e) {
+    print('❌ Error checking donation status: $e');
+    rethrow;
+  }
+}
 }

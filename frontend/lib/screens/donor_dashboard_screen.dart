@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import 'browse_centers_screen.dart';
 import 'donation_screen.dart';
+import 'reports_list_screen.dart';
+import '../services/reports_service.dart';
 
 class DonorDashboardScreen extends StatelessWidget {
   const DonorDashboardScreen({super.key});
@@ -75,6 +77,24 @@ class DonorDashboardScreen extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const DonationScreen()),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          _ActionCard(
+            icon: Icons.flag_outlined,
+            title: 'My Reports',
+            subtitle: 'Submit a report and track responses',
+            color: AppColors.warning,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ReportsListScreen(
+                    scope: ReportsScope.user,
+                    title: 'My Reports',
+                  ),
+                ),
               );
             },
           ),

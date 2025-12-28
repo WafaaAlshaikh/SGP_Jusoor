@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import '../services/api_service.dart';
+import '../services/admin_api_service.dart';
 import '../theme/app_colors.dart';
 
 class AdminSettingsScreen extends StatefulWidget {
@@ -23,11 +22,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     });
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token') ?? '';
-      if (token.isEmpty) throw Exception('Please login again');
-
-      final data = await ApiService.getAdminSystemHealth(token);
+      final data = await AdminApiService.getSystemHealth();
       setState(() {
         _health = data;
         _loading = false;

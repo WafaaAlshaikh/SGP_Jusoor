@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { Report, ReportMessage, User } = require('../model/index');
+const { Report, ReportMessage, User, Institution } = require('../model/index');
 
 function normalizePagination(req) {
   const page = Math.max(parseInt(req.query.page || '1', 10), 1);
@@ -9,7 +9,20 @@ function normalizePagination(req) {
 }
 
 async function getReportOr404(reportId, res) {
-  const report = await Report.findByPk(reportId);
+  const report = await Report.findByPk(reportId, {
+    include: [
+      {
+        model: User,
+        as: 'reporter',
+        attributes: ['user_id', 'full_name', 'email', 'role']
+      },
+      {
+        model: Institution,
+        as: 'ReportInstitution',
+        attributes: ['institution_id', 'name']
+      }
+    ]
+  });
   if (!report) {
     res.status(404).json({ success: false, message: 'Report not found' });
     return null;
@@ -76,6 +89,18 @@ exports.listMyReports = async (req, res) => {
 
     const { rows, count } = await Report.findAndCountAll({
       where,
+      include: [
+        {
+          model: User,
+          as: 'reporter',
+          attributes: ['user_id', 'full_name', 'email', 'role']
+        },
+        {
+          model: Institution,
+          as: 'ReportInstitution',
+          attributes: ['institution_id', 'name']
+        }
+      ],
       order: [['updated_at', 'DESC']],
       limit,
       offset
@@ -98,6 +123,18 @@ exports.listInstitutionReportsForManager = async (req, res) => {
 
     const { rows, count } = await Report.findAndCountAll({
       where,
+      include: [
+        {
+          model: User,
+          as: 'reporter',
+          attributes: ['user_id', 'full_name', 'email', 'role']
+        },
+        {
+          model: Institution,
+          as: 'ReportInstitution',
+          attributes: ['institution_id', 'name']
+        }
+      ],
       order: [['updated_at', 'DESC']],
       limit,
       offset
@@ -120,6 +157,18 @@ exports.listAllReportsForAdmin = async (req, res) => {
 
     const { rows, count } = await Report.findAndCountAll({
       where,
+      include: [
+        {
+          model: User,
+          as: 'reporter',
+          attributes: ['user_id', 'full_name', 'email', 'role']
+        },
+        {
+          model: Institution,
+          as: 'ReportInstitution',
+          attributes: ['institution_id', 'name']
+        }
+      ],
       order: [['updated_at', 'DESC']],
       limit,
       offset

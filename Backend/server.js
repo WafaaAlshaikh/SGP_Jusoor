@@ -101,6 +101,15 @@ app.get('/test', (req, res) => {
     res.send('Server is working!');
 });
 
+app.get('/api/public/config', (req, res) => {
+    res.json({
+        success: true,
+        data: {
+            google_maps_api_key: process.env.GOOGLE_MAPS_API_KEY || null
+        }
+    });
+});
+
 app.get('/donations/success', (req, res) => {
     res.status(200).send(`<!doctype html>
 <html lang="en">
@@ -337,6 +346,9 @@ const startServer = async () => {
 
         await sequelize.sync();
         console.log('🔄 Models synced');
+
+        const initializeSettings = require('./utils/initSystemSettings');
+await initializeSettings();
 
         const { Question } = require('./model/index');
 const questionCount = await Question.count();

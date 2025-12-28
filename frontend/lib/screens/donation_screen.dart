@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:frontend/screens/donations_success.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
@@ -30,6 +33,9 @@ class _DonationScreenState extends State<DonationScreen> {
   int? _selectedCampaignId;
   bool _didAutoOpenForInstitution = false;
   Map<String, dynamic>? _currentInstitution;
+  bool _isAnonymous = false;
+  final TextEditingController _donorNameController = TextEditingController();
+  final TextEditingController _donorEmailController = TextEditingController();
 
   @override
   void initState() {
@@ -477,6 +483,116 @@ class _DonationScreenState extends State<DonationScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
+                    const SizedBox(height: 20),
+                    // Anonymous Donor Option
+StatefulBuilder(
+  builder: (context, setStateDialog) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Donor Information',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 8),
+        
+        // Anonymous Toggle
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Donate Anonymously'),
+          subtitle: const Text('Your name will not be displayed publicly'),
+          value: _isAnonymous,
+          onChanged: (value) {
+            setStateDialog(() {
+              _isAnonymous = value;
+              if (value) {
+                // إذا اختار التبرع المجهول، نمسح الحقول
+                _donorNameController.clear();
+                _donorEmailController.clear();
+              }
+            });
+          },
+        ),
+        
+        // Donor Information Fields (تظهر فقط إذا لم يكن مجهولاً)
+        if (!_isAnonymous) ...[
+          const SizedBox(height: 16),
+          
+          // Donor Name
+          TextField(
+            controller: _donorNameController,
+            decoration: InputDecoration(
+              labelText: 'Your Name (Optional)',
+              hintText: 'Enter your name',
+              prefixIcon: const Icon(Icons.person),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 12),
+          
+          // Donor Email
+          TextField(
+            controller: _donorEmailController,
+            keyboardType: TextInputType.emailAddress,
+            decoration: InputDecoration(
+              labelText: 'Your Email (Optional)',
+              hintText: 'Enter your email for receipt',
+              prefixIcon: const Icon(Icons.email),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 8),
+          Text(
+            'Your information will be kept private and only used for receipt purposes',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[600],
+            ),
+          ),
+        ],
+        
+        // Note for Anonymous Donors
+        if (_isAnonymous) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info, color: Colors.blue[700]),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Thank you for your anonymous donation! '
+                    'Your contribution will be recorded without personal details.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.blue[700],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  },
+),
+
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
@@ -562,7 +678,9 @@ class _DonationScreenState extends State<DonationScreen> {
   }
 
   Future<void> _startDonationCheckout(
-    Map<String, dynamic> institution, double amount) async {
+  Map<String, dynamic> institution, 
+  double amount
+) async {
   try {
     // Show loading
     showDialog(
@@ -580,27 +698,65 @@ class _DonationScreenState extends State<DonationScreen> {
       ),
     );
 
+    // ✅ التعديل هنا: التحقق من إذا كان المستخدم مسجل دخول أم لا
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token') ?? '';
     
-    if (token.isEmpty) {
-      Navigator.pop(context); // Remove loading
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please login to donate'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
+    // ✅ إعداد البيانات بناءً على حالة المستخدم
+    Map<String, dynamic> requestBody = {
+      'institution_id': institution['institution_id'],
+      'amount': amount,
+      'mode': _donationMode == 'monthly' ? 'monthly' : 'one_time',
+      'campaign_id': _selectedCampaignId,
+      'anonymous': _isAnonymous, // ✅ إضافة هذا الحقل
+    };
+    
+    // ✅ إذا كان متبرع مجهول وأدخل بيانات، نرسلها
+    if (_isAnonymous && (_donorNameController.text.isNotEmpty || _donorEmailController.text.isNotEmpty)) {
+      if (_donorNameController.text.isNotEmpty) {
+        requestBody['donor_name'] = _donorNameController.text;
+      }
+      if (_donorEmailController.text.isNotEmpty) {
+        requestBody['donor_email'] = _donorEmailController.text;
+      }
     }
-
-    final result = await ApiService.createDonationCheckout(
-      token,
-      institutionId: institution['institution_id'] as int,
-      amount: amount,
-      mode: _donationMode == 'monthly' ? 'monthly' : 'one_time',
-      campaignId: _selectedCampaignId,
-    );
+    
+    Map<String, dynamic> result;
+    
+    // ✅ تحديد أي API نستخدم بناءً على حالة المصادقة
+    if (token.isEmpty) {
+      // ⭐ مستخدم غير مسجل - نستخدم مسار التبرع المرن
+      print('🟡 Using flexible checkout (unauthenticated)');
+      
+      // يمكننا استخدام نفس API ولكن بدون token
+      final response = await http.post(
+        Uri.parse('${ApiService.baseUrl}/api/donations/flexible/checkout'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(requestBody),
+      );
+      
+      if (response.statusCode == 200) {
+        result = jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to create checkout');
+      }
+    } else {
+      // ✅ مستخدم مسجل - نستخدم API مع المصادقة
+      result = await ApiService.createDonationCheckout(
+        token,
+        institutionId: institution['institution_id'] as int,
+        amount: amount,
+        mode: _donationMode == 'monthly' ? 'monthly' : 'one_time',
+        campaignId: _selectedCampaignId,
+        anonymous: _isAnonymous, // ✅ إضافة هذه المعلمة
+        donorName: _donorNameController.text.isNotEmpty 
+            ? _donorNameController.text 
+            : null,
+        donorEmail: _donorEmailController.text.isNotEmpty 
+            ? _donorEmailController.text 
+            : null,
+      );
+    }
 
     Navigator.pop(context); // Remove loading
 
@@ -616,7 +772,7 @@ class _DonationScreenState extends State<DonationScreen> {
       return;
     }
 
-    // فتح WebView بدلاً من url_launcher
+    // فتح WebView
     final paymentCompleted = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
@@ -638,8 +794,7 @@ class _DonationScreenState extends State<DonationScreen> {
           builder: (context) => DonationSuccessScreen(
             sessionId: (result['sessionId'] ?? result['session_id'])?.toString(),
             institutionId: institution['institution_id'] as int,
-            // institutionName: institution['name'],
-            // amount: amount,
+            isAnonymous: _isAnonymous, // ✅ تمرير حالة التبرع المجهول
           ),
         ),
       );
@@ -649,15 +804,14 @@ class _DonationScreenState extends State<DonationScreen> {
     print('Payment error: $e');
     
     if (context.mounted) {
-      Navigator.pop(context); // Remove loading if still showing
+      Navigator.pop(context);
       
       String errorMessage = 'Failed to process payment';
       if (e.toString().contains('401') || e.toString().contains('Unauthorized')) {
-        errorMessage = 'Please login to make a donation';
+        // ⭐ تغيير الرسالة للمستخدم غير المسجل
+        errorMessage = 'You can still donate anonymously without login';
       } else if (e.toString().contains('Network')) {
         errorMessage = 'Network error. Please check your connection';
-      } else if (e.toString().contains('Stripe')) {
-        errorMessage = 'Payment service error. Please try again';
       }
 
       showDialog(
@@ -670,6 +824,18 @@ class _DonationScreenState extends State<DonationScreen> {
               onPressed: () => Navigator.pop(context),
               child: const Text('OK'),
             ),
+            // ⭐ إضافة زر للتبرع المجهول إذا فشل بسبب المصادقة
+            if (e.toString().contains('401'))
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  setState(() {
+                    _isAnonymous = true;
+                  });
+                  _startDonationCheckout(institution, amount);
+                },
+                child: const Text('Donate Anonymously'),
+              ),
           ],
         ),
       );

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../theme/app_colors.dart';
+import '../services/location_service.dart';
+
 class MapScreen extends StatefulWidget {
   final double? initialLat;
   final double? initialLng;
@@ -23,6 +25,7 @@ class _MapScreenState extends State<MapScreen> {
   GoogleMapController? _mapController;
   LatLng? _selectedLocation;
   Set<Marker> _markers = {};
+  bool _isResolvingAddress = false;
 
   // Jordanian locations (Main cities for Jusoor project)
   static const LatLng _ammanLocation = LatLng(31.9539, 35.9106);
@@ -41,13 +44,13 @@ class _MapScreenState extends State<MapScreen> {
     super.initState();
     print('🗺️ [MAP] MapScreen initialized');
 
-    // Use initial location or default (Amman)
+    // Use initial location or default (Palestine)
     if (widget.initialLat != null && widget.initialLng != null) {
       _selectedLocation = LatLng(widget.initialLat!, widget.initialLng!);
       print('📍 [MAP] Using initial location: $_selectedLocation');
     } else {
-      _selectedLocation = _ammanLocation;
-      print('📍 [MAP] Using default location: Amman');
+      _selectedLocation = _ramallahLocation;
+      print('📍 [MAP] Using default location: Ramallah');
     }
 
     _updateMarkers();
@@ -103,33 +106,8 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  void _selectAndReturnLocation() {
-    if (_selectedLocation != null) {
-      print('✅ [MAP] Location selected: $_selectedLocation');
-
-      final lat = _selectedLocation!.latitude;
-      final lng = _selectedLocation!.longitude;
-      final locationName = _extractCityFromPosition(_selectedLocation!);
-
-      // If callback provided, use it
-      if (widget.onLocationSelected != null) {
-        widget.onLocationSelected!(lat, lng, locationName);
-        Navigator.pop(context);
-        return;
-      }
-
-      // Otherwise use old method (for backward compatibility)
-      final result = {
-        'lat': lat,
-        'lng': lng,
-        'address': _getAddressFromPosition(_selectedLocation!),
-        'city': locationName,
-        'region': _extractRegionFromPosition(_selectedLocation!),
-      };
-
-      print('✅ [MAP] Returning data: $result');
-      Navigator.pop(context, result);
-    } else {
+  Future<void> _selectAndReturnLocation() async {
+    if (_selectedLocation == null) {
       print('❌ [MAP] No location selected');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -137,7 +115,46 @@ class _MapScreenState extends State<MapScreen> {
           backgroundColor: AppColors.warning,
         ),
       );
+      return;
     }
+
+    print('✅ [MAP] Location selected: $_selectedLocation');
+
+    final lat = _selectedLocation!.latitude;
+    final lng = _selectedLocation!.longitude;
+
+    setState(() {
+      _isResolvingAddress = true;
+    });
+
+    final addressData = await LocationService.getAddressFromCoordinates(lat, lng);
+    final address = addressData['address']?.toString() ?? '${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}';
+    final city = addressData['city']?.toString() ?? '';
+    final region = addressData['region']?.toString() ?? '';
+
+    if (!mounted) return;
+    setState(() {
+      _isResolvingAddress = false;
+    });
+
+    final locationName = city.isNotEmpty ? city : address;
+
+    if (widget.onLocationSelected != null) {
+      widget.onLocationSelected!(lat, lng, locationName);
+      Navigator.pop(context);
+      return;
+    }
+
+    final result = {
+      'lat': lat,
+      'lng': lng,
+      'address': address,
+      'city': city,
+      'region': region,
+    };
+
+    print('✅ [MAP] Returning data: $result');
+    Navigator.pop(context, result);
   }
 
   String _getAddressFromPosition(LatLng position) {
@@ -147,7 +164,7 @@ class _MapScreenState extends State<MapScreen> {
     if (_isNear(position, _zarqaLocation)) return 'Zarqa, Jordan';
     if (_isNear(position, _aqabaLocation)) return 'Aqaba, Jordan';
 
-    // Palestinian cities (for reference)
+    // Palestinian cities
     if (_isNear(position, _jeninLocation)) return 'Jenin, Palestine';
     if (_isNear(position, _ramallahLocation)) return 'Ramallah, Palestine';
     if (_isNear(position, _gazaLocation)) return 'Gaza, Palestine';
@@ -233,7 +250,7 @@ class _MapScreenState extends State<MapScreen> {
                 return GoogleMap(
                   onMapCreated: _onMapCreated,
                   initialCameraPosition: CameraPosition(
-                    target: _selectedLocation ?? _ammanLocation,
+                    target: _selectedLocation ?? _ramallahLocation,
                     zoom: 10,
                   ),
                   markers: _markers,
@@ -287,6 +304,7 @@ class _MapScreenState extends State<MapScreen> {
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
+                            elevation: 0,
                           ),
                           child: Text(
                             'Go Back',
@@ -301,12 +319,43 @@ class _MapScreenState extends State<MapScreen> {
             },
           ),
 
-          // City buttons - Jordanian Cities
+          if (_isResolvingAddress)
+            Positioned(
+              top: 16,
+              left: 16,
+              right: 16,
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.75),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Resolving address...',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // City buttons - Palestine first
           Positioned(
             top: 20,
             left: 16,
             child: Container(
               padding: EdgeInsets.all(12),
+
               decoration: BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(16),
@@ -332,6 +381,16 @@ class _MapScreenState extends State<MapScreen> {
                   SizedBox(height: 12),
                   Column(
                     children: [
+                      _buildCityButton('Ramallah', _ramallahLocation, AppColors.primary),
+                      SizedBox(height: 8),
+                      _buildCityButton('Jenin', _jeninLocation, AppColors.primaryLight),
+                      SizedBox(height: 8),
+                      _buildCityButton('Hebron', _hebronLocation, AppColors.accent4),
+                      SizedBox(height: 8),
+                      _buildCityButton('Gaza', _gazaLocation, AppColors.info),
+                      SizedBox(height: 12),
+                      Divider(height: 1),
+                      SizedBox(height: 12),
                       _buildCityButton('Amman', _ammanLocation, AppColors.primary),
                       SizedBox(height: 8),
                       _buildCityButton('Irbid', _irbidLocation, AppColors.primaryLight),

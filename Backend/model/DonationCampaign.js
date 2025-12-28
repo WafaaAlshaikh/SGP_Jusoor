@@ -45,7 +45,13 @@ const DonationCampaign = sequelize.define('DonationCampaign', {
   updated_at: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW
-  }
+  },
+  amount_raised: {
+  type: DataTypes.DECIMAL(10, 2),
+  allowNull: false,
+  defaultValue: 0
+},
+
 }, {
   tableName: 'DonationCampaigns',
   timestamps: false

@@ -100,6 +100,12 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             'route': 'public_preview',
           },
           {
+            'title': 'Complete Institution Setup',
+            'icon': Icons.verified_outlined,
+            'count': 0,
+            'route': 'onboarding',
+          },
+          {
             'title': 'CMS Management',
             'icon': Icons.dashboard_customize_rounded,
             'count': 0,
@@ -223,6 +229,12 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             'route': 'public_preview',
           },
           {
+            'title': 'Complete Institution Setup',
+            'icon': Icons.verified_outlined,
+            'count': 0,
+            'route': 'onboarding',
+          },
+          {
             'title': 'CMS Management',
             'icon': Icons.dashboard_customize_rounded,
             'count': 0,
@@ -331,6 +343,9 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
     print('Navigating to: $title (route: $route)');
 
     switch (route) {
+      case 'onboarding':
+        Navigator.pushNamed(context, '/managerOnboarding');
+        break;
       case 'public_preview':
         final instId = _dashboardData['institutionId'];
         final instName = _dashboardData['centerName']?.toString();

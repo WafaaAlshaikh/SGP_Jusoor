@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/reports_service.dart';
 import '../theme/app_colors.dart';
+import 'create_report_screen.dart';
 import 'report_details_screen.dart';
 
 class ReportsListScreen extends StatefulWidget {
@@ -79,6 +80,22 @@ class _ReportsListScreenState extends State<ReportsListScreen> {
         foregroundColor: AppColors.textWhite,
         title: Text(widget.title),
         actions: [
+          IconButton(
+            onPressed: () async {
+              final created = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => CreateReportScreen(
+                    scope: widget.scope,
+                  ),
+                ),
+              );
+              if (created == true) {
+                _load();
+              }
+            },
+            icon: const Icon(Icons.add),
+          ),
           IconButton(
             onPressed: _load,
             icon: const Icon(Icons.refresh),

@@ -15,9 +15,20 @@ import 'screens/chat_list_screen.dart';
 import 'screens/profile_settings_screen.dart';
 import 'screens/map_screen.dart';
 import 'screens/parent_payment_dashboard.dart';
-import 'screens/admin_dashboard_screen.dart';
 import 'screens/donor_dashboard_screen.dart';
 import 'screens/browse_centers_screen.dart';
+import 'screens/profile_screen.dart';
+import 'screens/admin/admin_dashboard.dart';
+import 'screens/admin/institution_management.dart';
+import 'screens/admin/admin_dashboard.dart';
+import 'screens/admin/audit_logs.dart';
+import 'screens/admin/content_moderation.dart';
+import 'screens/admin/detailed_statistics.dart';
+import 'screens/admin/user_management.dart';
+import 'screens/admin/donation_management.dart';
+import 'screens/admin/report_management.dart';
+import 'screens/admin/system_settings.dart';
+import 'screens/manager/manager_onboarding_screen.dart';
 
 
 import 'package:firebase_core/firebase_core.dart';
@@ -240,14 +251,24 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         '/profileSettings': (context) => ProfileSettingsScreen(),
         '/vacation': (context) => VacationRequestScreen(),
         '/forgotPassword': (context) => ForgotPasswordScreen(),
-        '/adminDashboard': (context) => AdminDashboardScreen(),
         '/specialistDashboard': (context) => SpecialistDashboardScreen(),
         '/managerDashboard': (context) => ManagerHomeScreen(),
+        '/managerOnboarding': (context) => const ManagerOnboardingScreen(),
         '/donorDashboard': (context) => const DonorDashboardScreen(),
+        '/adminDashboard': (context) => AdminDashboard(),
         '/publicInstitutions': (context) => const BrowseCentersScreen(),
         '/chats': (context) => ChatListScreen(),
         '/map': (context) => MapScreen(),
         '/financial-assistance': (context) => FinancialAssistanceDashboard(),
+        '/institutionManagement': (context) => InstitutionManagement(),
+        '/auditLogs': (context) => AuditLogs(),
+        '/contentModeration': (context) => ContentModeration(),
+        '/detailedStatistics': (context) => DetailedStatistics(),
+        '/userManagement': (context) => UserManagement(),
+        '/donationManagement': (context) => DonationManagement(),
+        '/reportManagement': (context) => ReportManagement(),
+        '/systemSettings': (context) => SystemSettings(),
+        '/adminProfile': (context) => const ProfileScreen(),
     // '/financial-assessment': (context) => FinancialAssessmentScreen(),
     // '/assistance-request': (context) => AssistanceRequestScreen(),
 

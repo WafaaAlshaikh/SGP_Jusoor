@@ -66,6 +66,9 @@ const InstitutionProject = require('./InstitutionProject');
 const InstitutionFAQ = require('./InstitutionFAQ');
 const InstitutionMedia = require('./InstitutionMedia');
 
+const AdminUser = require('./AdminUser');
+const AuditLog = require('./AuditLog');
+const SystemSettings = require('./SystemSettings');
 // ==================== Main Relations ====================
 
 Institution.hasMany(Donation, {
@@ -240,5 +243,8 @@ module.exports = {
   InstitutionProject,
   InstitutionFAQ,
   InstitutionMedia,
+  AdminUser,
+  AuditLog,
+  SystemSettings,
 };
 

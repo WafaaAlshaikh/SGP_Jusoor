@@ -23,6 +23,8 @@ import 'start_screening_screen.dart';
 import 'my_ratings_screen.dart';
 import 'donation_screen.dart';
 import 'parent_donation_history_screen.dart';
+import 'reports_list_screen.dart';
+import '../services/reports_service.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
   const ParentDashboardScreen({super.key});
@@ -1951,6 +1953,22 @@ void _showFinancialAssistanceOptions() {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => CommunityScreen()),
+                      );
+                    },
+                  ),
+                  _buildDrawerItem(
+                    icon: Icons.flag_outlined,
+                    title: 'My Reports',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ReportsListScreen(
+                            scope: ReportsScope.user,
+                            title: 'My Reports',
+                          ),
+                        ),
                       );
                     },
                   ),

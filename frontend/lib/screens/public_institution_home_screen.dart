@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:frontend/screens/quick_donation_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/public_institution_service.dart';
@@ -2508,6 +2509,22 @@ class _PublicInstitutionHomeScreenState
                   )
                 : Icon(_isFollowing ? Icons.star : Icons.star_border),
           ),
+          // في AppBar actions أضف:
+IconButton(
+  icon: const Icon(Icons.volunteer_activism),
+  onPressed: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => QuickDonationScreen(
+          institutionId: widget.institutionId,
+          institutionName: widget.institutionName ?? 'Institution',
+        ),
+      ),
+    );
+  },
+  tooltip: 'Quick Donation',
+),
           IconButton(
             tooltip: 'Refresh',
             onPressed: () {

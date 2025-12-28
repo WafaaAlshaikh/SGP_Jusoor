@@ -159,8 +159,6 @@ class LocationService {
     }
   }
 
-
-
   static Future<Map<String, dynamic>?> getLocationFromAddress(String address) async {
     try {
       if (address.length < 3) return null;
@@ -202,6 +200,51 @@ class LocationService {
     } catch (e) {
       print('❌ Geocoding error: $e');
       return null;
+    }
+  }
+
+  static Future<Map<String, dynamic>> getAddressFromCoordinates(double lat, double lng) async {
+    try {
+      List<geo.Placemark> placemarks = await geo.placemarkFromCoordinates(lat, lng);
+
+      if (placemarks.isEmpty) {
+        return {
+          'address': '${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}',
+          'city': '',
+          'region': ''
+        };
+      }
+
+      geo.Placemark placemark = placemarks.first;
+
+      final address = [
+        if (placemark.street != null && placemark.street!.isNotEmpty) placemark.street,
+        if (placemark.subLocality != null && placemark.subLocality!.isNotEmpty) placemark.subLocality,
+        if (placemark.locality != null && placemark.locality!.isNotEmpty) placemark.locality,
+        if (placemark.administrativeArea != null && placemark.administrativeArea!.isNotEmpty) placemark.administrativeArea,
+        if (placemark.country != null && placemark.country!.isNotEmpty) placemark.country,
+      ].where((part) => part != null && (part as String).trim().isNotEmpty).join(', ');
+
+      final city = (placemark.locality != null && placemark.locality!.isNotEmpty)
+          ? placemark.locality!
+          : (placemark.subAdministrativeArea ?? '');
+
+      final region = (placemark.administrativeArea != null && placemark.administrativeArea!.isNotEmpty)
+          ? placemark.administrativeArea!
+          : (placemark.subAdministrativeArea ?? '');
+
+      return {
+        'address': address,
+        'city': city,
+        'region': region
+      };
+    } catch (e) {
+      print('⚠️ Reverse geocoding failed: $e');
+      return {
+        'address': '${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}',
+        'city': '',
+        'region': ''
+      };
     }
   }
 

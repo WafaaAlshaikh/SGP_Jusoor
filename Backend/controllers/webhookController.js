@@ -86,6 +86,18 @@ async function handleCheckoutSessionCompleted(session) {
       return;
     }
 
+    if (session.metadata && donation.anonymous_donor) {
+      const updateData = {
+        donor_email: session.metadata.donor_email || donation.donor_email,
+        donor_name: session.metadata.donor_name || donation.donor_name,
+      };
+
+      // تحديث إذا كانت البيانات متوفرة
+      if (session.metadata.donor_email || session.metadata.donor_name) {
+        await donation.update(updateData);
+      }
+    }
+
     // تحديث حالة التبرع
     if (session.payment_status === 'paid') {
       await donation.update({

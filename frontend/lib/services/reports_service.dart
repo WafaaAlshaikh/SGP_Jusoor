@@ -67,13 +67,81 @@ class ReportsService {
 
     final body = jsonDecode(response.body);
     if (response.statusCode == 200 && body is Map<String, dynamic>) {
-      if (body['success'] == true && body['data'] is List) {
-        return body['data'] as List;
+      if (body['success'] == true) {
+        final data = body['data'];
+        if (data is List) return data;
+        if (data is Map<String, dynamic> && data['reports'] is List) {
+          return data['reports'] as List;
+        }
       }
       throw Exception(body['message'] ?? 'Failed to load reports');
     }
 
     throw Exception('HTTP ${response.statusCode}: ${response.body}');
+  }
+
+  static Future<Map<String, dynamic>> createReportScoped({
+    required ReportsScope scope,
+    required String title,
+    required String description,
+    int? institutionId,
+    String? category,
+    String? targetType,
+    String? targetId,
+    String priority = 'medium',
+  }) async {
+    switch (scope) {
+      case ReportsScope.user:
+        return createReport(
+          title: title,
+          description: description,
+          institutionId: institutionId,
+          category: category,
+          targetType: targetType,
+          targetId: targetId,
+          priority: priority,
+        );
+      case ReportsScope.manager:
+        // Manager endpoint auto-binds institution_id from token.
+        // We ignore institutionId here.
+        final headers = await _headers();
+        final uri = Uri.parse('$_baseUrl/${_scopePath(scope)}');
+        final payload = <String, dynamic>{
+          'title': title,
+          'description': description,
+          'priority': priority,
+          if (category != null) 'category': category,
+          if (targetType != null) 'target_type': targetType,
+          if (targetId != null) 'target_id': targetId,
+        };
+
+        final response = await http.post(
+          uri,
+          headers: headers,
+          body: jsonEncode(payload),
+        );
+
+        final body = jsonDecode(response.body);
+        if ((response.statusCode == 201 || response.statusCode == 200) && body is Map<String, dynamic>) {
+          if (body['success'] == true && body['data'] is Map<String, dynamic>) {
+            return body['data'] as Map<String, dynamic>;
+          }
+          throw Exception(body['message'] ?? 'Failed to create report');
+        }
+
+        throw Exception('HTTP ${response.statusCode}: ${response.body}');
+      case ReportsScope.admin:
+        // Admin can create a report like a normal user.
+        return createReport(
+          title: title,
+          description: description,
+          institutionId: institutionId,
+          category: category,
+          targetType: targetType,
+          targetId: targetId,
+          priority: priority,
+        );
+    }
   }
 
   static Future<Map<String, dynamic>> getReportDetails({

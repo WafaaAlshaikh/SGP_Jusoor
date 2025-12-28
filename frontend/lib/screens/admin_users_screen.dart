@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import '../models/admin_model.dart' as admin_models;
-import '../services/api_service.dart';
+import '../models/admin_models.dart' as admin_models;
+import '../services/admin_api_service.dart';
 import '../theme/app_colors.dart';
 
 class AdminUsersScreen extends StatefulWidget {
@@ -13,7 +12,7 @@ class AdminUsersScreen extends StatefulWidget {
 }
 
 class _AdminUsersScreenState extends State<AdminUsersScreen> {
-  List<admin_models.User> _users = [];
+  List<admin_models.AdminUser> _users = [];
   bool _isLoading = true;
   String _errorMessage = '';
 
@@ -37,19 +36,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         _errorMessage = '';
       });
 
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token') ?? '';
-
-      if (token.isEmpty) {
-        setState(() {
-          _errorMessage = 'Please login again';
-          _isLoading = false;
-        });
-        return;
-      }
-
-      final response = await ApiService.getAdminUsers(
-        token: token,
+      final response = await AdminApiService.getUsers(
         page: _currentPage,
         limit: 10,
         role: _roleFilter == 'all' ? null : _roleFilter,
@@ -58,12 +45,12 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       );
 
       if (response['success'] == true) {
-        final usersData = (response['data'] as List?) ?? [];
+        final usersData = (response['data']?['users'] as List?) ?? [];
         setState(() {
           _users = usersData
-              .map((u) => admin_models.User.fromJson((u as Map).cast<String, dynamic>()))
+              .map((u) => admin_models.AdminUser.fromJson((u as Map).cast<String, dynamic>()))
               .toList();
-          _totalPages = response['pagination']?['totalPages'] ?? 1;
+          _totalPages = response['data']?['totalPages'] ?? 1;
           _isLoading = false;
         });
       } else {
@@ -79,10 +66,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 
   Future<void> _approveUser(int userId) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token') ?? '';
-
-      final ok = await ApiService.approveUser(token, userId);
+      final ok = await AdminApiService.approveUser(userId);
       if (ok) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(

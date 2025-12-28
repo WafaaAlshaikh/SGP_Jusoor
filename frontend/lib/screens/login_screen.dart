@@ -81,6 +81,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       final role = response['user']['role'];
+
       if (role == 'Parent') {
         Navigator.pushReplacementNamed(context, '/parentDashboard');
       } else if (role == 'Donor') {
@@ -90,7 +91,39 @@ class _LoginScreenState extends State<LoginScreen> {
       } else if (role == 'Admin') {
         Navigator.pushReplacementNamed(context, '/adminDashboard');
       } else if (role == 'Manager') {
-        Navigator.pushReplacementNamed(context, '/managerDashboard');
+        final institution = response['institution'];
+        bool needsOnboarding = true;
+
+        final skipUntil = prefs.getInt('skip_onboarding_until');
+        if (skipUntil != null && skipUntil > DateTime.now().millisecondsSinceEpoch) {
+          needsOnboarding = false;
+        }
+
+        if (institution is Map) {
+          final inst = institution.cast<String, dynamic>();
+          final description = (inst['description'] ?? '').toString().trim();
+          final locationAddress = (inst['location_address'] ?? '').toString().trim();
+          final city = (inst['city'] ?? '').toString().trim();
+          final region = (inst['region'] ?? '').toString().trim();
+          final services = inst['services_offered'];
+
+          final hasBasicInfo = description.isNotEmpty &&
+              (locationAddress.isNotEmpty || (city.isNotEmpty && region.isNotEmpty));
+
+          bool hasServices = false;
+          if (services is List) {
+            hasServices = services.isNotEmpty;
+          } else if (services is String) {
+            hasServices = services.trim().isNotEmpty;
+          }
+
+          needsOnboarding = !(hasBasicInfo && hasServices);
+        }
+
+        Navigator.pushReplacementNamed(
+          context,
+          needsOnboarding ? '/managerOnboarding' : '/managerDashboard',
+        );
       } else {
         Navigator.pushReplacementNamed(context, '/login');
       }
