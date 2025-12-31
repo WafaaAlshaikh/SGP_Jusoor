@@ -15,4 +15,14 @@ router.get('/dashboard/donations', managerDashboardController.getDonationDetails
 // تقرير مالي للمؤسسة
 router.get('/financial/report', managerDashboardController.getFinancialReport);
 
+router.get('/dashboard/equipment-stats', managerDashboardController.getEquipmentDonationStats);
+
+// إحصائيات التبرعات العينية
+router.get('/dashboard/equipment-stats', managerDashboardController.getEquipmentDonationStats);
+
+// قائمة التبرعات العينية مع الفلاتر
+router.get('/dashboard/equipment-donations', managerDashboardController.getEquipmentDonationsList);
+
+// تحديث حالة التبرع العيني
+router.put('/dashboard/equipment-donations/:id/status', managerDashboardController.updateEquipmentDonationStatus);
 module.exports = router;

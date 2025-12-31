@@ -286,6 +286,15 @@ app.use('/api/manager/financial', managerFinancialRoutes);
 const financialReportsRoutes = require('./routes/financialReportsRoutes'); 
 app.use('/api/financial-reports', financialReportsRoutes); // جديد
 
+const equipmentDonationRoutes = require('./routes/equipmentDonationRoutes');
+const equipmentManagementRoutes = require('./routes/equipmentManagementRoutes');
+
+app.use('/api/auth/api/equipment', equipmentDonationRoutes);
+app.use('/api/auth/api/equipment-management', equipmentManagementRoutes);
+
+const publicEquipmentRoutes = require('./routes/publicEquipmentRoutes');
+app.use('/api/auth/api/public/equipment', publicEquipmentRoutes);
+
 // Static uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   maxAge: '1d', // caching

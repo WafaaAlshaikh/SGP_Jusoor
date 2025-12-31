@@ -6,6 +6,7 @@ import '../theme/app_colors.dart';
 import '../services/evaluation_service.dart';
 import 'add_evaluation_screen.dart';
 import 'edit_evaluation_screen.dart';
+import 'specialist_equipment_needs_screen.dart';
 
 class EvaluationsScreen extends StatefulWidget {
   const EvaluationsScreen({super.key});
@@ -328,6 +329,7 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
               onPressed: () => Navigator.pop(context, true),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               child: Text('Export All', style: TextStyle(color: Colors.white)),
@@ -934,6 +936,32 @@ class _EvaluationsScreenState extends State<EvaluationsScreen> {
                   // Action Buttons
                   Row(
                     children: [
+                      IconButton(
+                        icon: Icon(Icons.medical_information, size: 20, color: AppColors.primary),
+                        onPressed: () {
+                          final childId = evaluation['child_id'];
+                          if (childId == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Child ID not available'),
+                                backgroundColor: AppColors.warning,
+                              ),
+                            );
+                            return;
+                          }
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => SpecialistEquipmentNeedsScreen(
+                                childId: childId is int ? childId : int.parse(childId.toString()),
+                                childName: childName.toString(),
+                              ),
+                            ),
+                          );
+                        },
+                        tooltip: 'Equipment Needs',
+                      ),
                       IconButton(
                         icon: Icon(Icons.picture_as_pdf, size: 20, color: AppColors.primary),
                         onPressed: () => _exportToPDF(evaluation['evaluation_id'], childName),

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/screens/equipment_donation_screen.dart';
+import 'package:frontend/screens/equipment_campaigns_screen.dart';
 import '../theme/app_colors.dart';
 import 'browse_centers_screen.dart';
 import 'donation_screen.dart';
@@ -94,6 +96,34 @@ class DonorDashboardScreen extends StatelessWidget {
                     scope: ReportsScope.user,
                     title: 'My Reports',
                   ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          _ActionCard(
+            icon: Icons.campaign,
+            title: 'Equipment Campaigns',
+            subtitle: 'See what equipment is needed and donate directly',
+            color: Colors.indigo,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const EquipmentCampaignsScreen()),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          _ActionCard(
+            icon: Icons.medical_services,
+            title: 'Donate Equipment',
+            subtitle: 'Donate medical equipment or devices',
+            color: Colors.purple,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const EquipmentDonationScreen(),
                 ),
               );
             },

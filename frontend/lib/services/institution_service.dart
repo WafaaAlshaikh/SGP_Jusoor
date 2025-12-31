@@ -1,10 +1,17 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/institution_profile.dart';
 class InstitutionService {
-  static const String _baseUrl = 'http://10.0.2.2:5000/api';
+  static String get baseUrl {
+    if (kIsWeb) {
+      return 'http://localhost:5000/api';
+    } else {
+      return 'http://10.0.2.2:5000/api'; // للموبايل
+    }
+  }
 
   static Future<String?> _getToken() async {
     final prefs = await SharedPreferences.getInstance();
@@ -22,7 +29,7 @@ class InstitutionService {
       // إنشاء طلب متعدد الأجزاء (multipart request)
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse('$_baseUrl/manager/upload_profile_picture'),
+        Uri.parse('$baseUrl/manager/upload_profile_picture'),
       );
 
       // إضافة الهيدر
@@ -37,7 +44,7 @@ class InstitutionService {
         ),
       );
 
-      print('Uploading image to: $_baseUrl/manager/upload_profile_picture');
+      print('Uploading image to: $baseUrl/manager/upload_profile_picture');
       print('Image path: ${imageFile.path}');
 
       // إرسال الطلب
@@ -178,14 +185,14 @@ class InstitutionService {
       }
 
       final response = await http.get(
-        Uri.parse('$_baseUrl/manager/profile'),
+        Uri.parse('$baseUrl/manager/profile'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
       );
 
-      print('Profile URL: $_baseUrl/manager/profile');
+      print('Profile URL: $baseUrl/manager/profile');
       print('Response status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
@@ -220,7 +227,7 @@ class InstitutionService {
       print('Update data to send: $profileData');
 
       final response = await http.put(
-        Uri.parse('$_baseUrl/manager/update_profile'),
+        Uri.parse('$baseUrl/manager/update_profile'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -228,7 +235,7 @@ class InstitutionService {
         body: json.encode(profileData),
       );
 
-      print('Update URL: $_baseUrl/manager/update_profile');
+      print('Update URL: $baseUrl/manager/update_profile');
       print('Response status: ${response.statusCode}');
       print('Response body: ${response.body}');
 
@@ -268,7 +275,7 @@ class InstitutionService {
       }
 
       final response = await http.put(
-        Uri.parse('$_baseUrl/manager/update_manager_picture'),
+        Uri.parse('$baseUrl/manager/update_manager_picture'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -278,7 +285,7 @@ class InstitutionService {
         }),
       );
 
-      print('Update picture URL: $_baseUrl/manager/update_manager_picture');
+      print('Update picture URL: $baseUrl/manager/update_manager_picture');
       print('Response status: ${response.statusCode}');
       print('Response body: ${response.body}');
 
@@ -310,7 +317,7 @@ class InstitutionService {
     if (token == null) throw Exception('No authentication token');
 
     final response = await http.get(
-      Uri.parse('$_baseUrl/manager/reviews'),
+      Uri.parse('$baseUrl/manager/reviews'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',

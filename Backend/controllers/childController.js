@@ -1046,6 +1046,30 @@ function getTierLabel(tier) {
   return labels[tier] || 'غير محدد';
 }
 // ================= Helper Function: Calculate Recommendations =================
+
+const normalizeToArray = (value) => {
+  if (!value) return [];
+
+  if (Array.isArray(value)) return value;
+
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed)
+        ? parsed
+        : value.split(',').map(v => v.trim());
+    } catch {
+      return value.split(',').map(v => v.trim());
+    }
+  }
+
+  if (typeof value === 'object') {
+    return Object.values(value);
+  }
+
+  return [];
+};
+
 exports.getRecommendedInstitutions = async (
   childId, 
   targetConditions, 
@@ -1122,7 +1146,7 @@ exports.getRecommendedInstitutions = async (
         let matchingSessionTypes = [];
 
         instSessionTypes.forEach(st => {
-          const stConditions = st.target_conditions || [];
+          const stConditions = normalizeToArray(st.target_conditions);
           const stSpecialization = st.specialist_specialization || '';
 
           let conditionMatch = false;

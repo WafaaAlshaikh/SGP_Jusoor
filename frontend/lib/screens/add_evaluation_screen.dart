@@ -5,6 +5,7 @@ import 'dart:io';
 import '../theme/app_colors.dart';
 import '../services/evaluation_service.dart';
 import '../services/activity_service.dart';
+import '../services/equipment_management_service.dart';
 
 class AddEvaluationScreen extends StatefulWidget {
   const AddEvaluationScreen({super.key});
@@ -14,6 +15,7 @@ class AddEvaluationScreen extends StatefulWidget {
 }
 
 class _AddEvaluationScreenState extends State<AddEvaluationScreen> {
+
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _notesController = TextEditingController();
 
@@ -29,10 +31,13 @@ class _AddEvaluationScreenState extends State<AddEvaluationScreen> {
   bool isLoading = false;
   bool isInitialLoading = true;
 
-  // 🔥 متغيرات جديدة للـ AI Analysis
+  // متغيرات جديدة للـ AI Analysis
   List<String> analyzedSessions = [];
   String? aiAnalysisMessage;
   bool showAIResults = false;
+
+  // AI Equipment Needs suggestions (review/confirm)
+  bool _isLoadingEquipmentAI = false;
 
   final List<String> quickNotes = [
     'Good progress in communication',
@@ -144,9 +149,10 @@ class _AddEvaluationScreenState extends State<AddEvaluationScreen> {
     );
   }
 
-  // 🔥 دالة جديدة لحفظ التقييم مع معالجة AI Analysis
+  // دالة جديدة لحفظ التقييم مع معالجة AI Analysis
   void saveEvaluation() async {
     if (_formKey.currentState!.validate() && selectedChildId != null) {
+
       setState(() {
         isLoading = true;
         showAIResults = false;
@@ -171,7 +177,7 @@ class _AddEvaluationScreenState extends State<AddEvaluationScreen> {
 
         final result = await EvaluationService.addEvaluation(evaluationData);
 
-        // 🔥 معالجة نتائج AI Analysis
+        // معالجة نتائج AI Analysis
         if (result['data'] != null) {
           final data = result['data'];
 
@@ -184,27 +190,18 @@ class _AddEvaluationScreenState extends State<AddEvaluationScreen> {
           });
         }
 
-        // 🔥 عرض رسالة نجاح مع معلومات AI
-        String successMessage = '✅ ${result['message']}';
-
-        if (result['auto_scheduling'] != null) {
-          final autoScheduling = result['auto_scheduling'];
-          final scheduledCount = autoScheduling['scheduled_sessions'] ?? 0;
-          final failedCount = autoScheduling['failed_sessions'] ?? 0;
-
-          successMessage += '\n📅 $scheduledCount session(s) scheduled, $failedCount session(s) failed';
-        }
-
-        _showSuccessSnackBar(successMessage);
-
-        await ActivityService.addActivity(
-            'Evaluation added for $selectedChild',
-            'evaluation'
-        );
-
-        // 🔥 عرض dialog مع نتائج AI إذا كانت موجودة
+        // عرض dialog مع نتائج AI إذا كانت موجودة
         if (showAIResults && result['auto_scheduling'] != null) {
           _showAIResultsDialog(result['auto_scheduling']);
+        }
+
+        // AI Equipment Needs suggestions: show review dialog (optional)
+        if (notes.trim().isNotEmpty && selectedChildId != null) {
+          await _showAIEquipmentNeedsReviewDialog(
+            notes: notes,
+            childId: selectedChildId!,
+            evaluationId: result['data'] != null ? result['data']['evaluation_id'] : null,
+          );
         }
 
         // تنظيف الحقول بعد 2 ثانية لإعطاء وقت لقراءة النتائج
@@ -226,7 +223,167 @@ class _AddEvaluationScreenState extends State<AddEvaluationScreen> {
     }
   }
 
-  // 🔥 Dialog جديد لعرض نتائج AI Analysis
+  Future<void> _showAIEquipmentNeedsReviewDialog({
+    required String notes,
+    required int childId,
+    int? evaluationId,
+  }) async {
+    try {
+      setState(() => _isLoadingEquipmentAI = true);
+      final suggestions = await EquipmentManagementService.suggestNeeds(notes: notes);
+      setState(() => _isLoadingEquipmentAI = false);
+
+      if (!mounted) return;
+
+      if (suggestions.isEmpty) {
+        return;
+      }
+
+      final List<Map<String, dynamic>> selectedItems = [];
+      final Map<int, bool> selectedMap = {};
+
+      for (int i = 0; i < suggestions.length; i++) {
+        selectedMap[i] = true;
+      }
+
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) {
+          return StatefulBuilder(
+            builder: (context, setLocal) {
+              return AlertDialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                title: Row(
+                  children: [
+                    Icon(Icons.medical_information, color: Colors.blue[700]),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text('AI Equipment Needs Suggestions'),
+                    ),
+                  ],
+                ),
+                content: SizedBox(
+                  width: 520,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Review and confirm what is relevant. Only confirmed items will be saved as needs.',
+                          style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                        ),
+                        const SizedBox(height: 12),
+                        ...List.generate(suggestions.length, (index) {
+                          final s = suggestions[index] as Map<String, dynamic>;
+                          final title = (s['equipment_name'] ?? '').toString();
+                          final type = (s['equipment_type'] ?? '').toString();
+                          final reason = (s['reason'] ?? '').toString();
+                          final severity = (s['severity'] ?? 'medium').toString();
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[50],
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey[200]!),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Checkbox(
+                                  value: selectedMap[index] ?? false,
+                                  onChanged: (val) {
+                                    setLocal(() => selectedMap[index] = val ?? false);
+                                  },
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                      if (type.isNotEmpty)
+                                        Text('Type: $type', style: TextStyle(color: Colors.grey[700], fontSize: 12)),
+                                      Text('Severity: $severity', style: TextStyle(color: Colors.grey[700], fontSize: 12)),
+                                      if (reason.isNotEmpty)
+                                        Padding(
+                                          padding: const EdgeInsets.only(top: 6),
+                                          child: Text(reason, style: TextStyle(color: Colors.grey[800], fontSize: 12)),
+                                        )
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Skip'),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                    onPressed: () async {
+                      selectedItems.clear();
+                      for (int i = 0; i < suggestions.length; i++) {
+                        if (selectedMap[i] == true) {
+                          final s = suggestions[i] as Map<String, dynamic>;
+                          selectedItems.add({
+                            'equipment_name': s['equipment_name'],
+                            'equipment_type': s['equipment_type'],
+                            'severity': s['severity'],
+                            'reason': s['reason'],
+                            'quantity_needed': 1,
+                          });
+                        }
+                      }
+
+                      if (selectedItems.isEmpty) {
+                        Navigator.pop(context);
+                        return;
+                      }
+
+                      try {
+                        await EquipmentManagementService.confirmNeeds(
+                          childId: childId,
+                          evaluationId: evaluationId,
+                          items: selectedItems,
+                        );
+                        if (mounted) {
+                          _showSuccessSnackBar('✅ Equipment needs saved successfully');
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          _showErrorSnackBar('❌ Failed to save equipment needs: $e');
+                        }
+                      }
+
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                      }
+                    },
+                    child: const Text('Confirm & Save', style: TextStyle(color: Colors.white)),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    } catch (e) {
+      setState(() => _isLoadingEquipmentAI = false);
+      return;
+    }
+  }
+
+  // Dialog جديد لعرض نتائج AI Analysis
   void _showAIResultsDialog(Map<String, dynamic> autoScheduling) {
     final scheduledSessions = autoScheduling['details']['scheduled'] ?? [];
     final failedSessions = autoScheduling['details']['failed'] ?? [];

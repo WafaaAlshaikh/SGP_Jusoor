@@ -1,5 +1,5 @@
 // controllers/managerDashboardController.js
-const { Session, SessionType, Child, Specialist, ChildRegistrationRequest, Institution, Manager, Donation, DonationAllocation } = require('../../model/index');
+const { Session, SessionType, Child, Specialist, ChildRegistrationRequest, Institution, Manager, Donation, DonationAllocation,EquipmentDonation,EquipmentCategory,User } = require('../../model/index');
 const { Op, Sequelize } = require('sequelize');
 const Invoice = require('../../model/Invoice')
 
@@ -990,5 +990,461 @@ exports.getDebugInfo = async (req, res) => {
   } catch (error) {
     console.error('Debug error:', error);
     res.status(500).json({ error: error.message });
+  }
+};
+
+// في managerDashboardController.js أضف:
+exports.getEquipmentDonationStats = async (req, res) => {
+  try {
+    const managerId = req.user.user_id;
+
+    const manager = await Manager.findOne({
+      where: { 
+        manager_id: managerId,
+        is_active: true 
+      },
+      include: [{
+        model: Institution,
+        attributes: ['institution_id']
+      }]
+    });
+
+    if (!manager || !manager.Institution) {
+      return res.status(404).json({
+        success: false,
+        message: 'المدير أو المؤسسة غير موجودة'
+      });
+    }
+
+    const institutionId = manager.Institution.institution_id;
+
+    // إحصائيات التبرعات العينية
+    const equipmentStats = await EquipmentDonation.findAll({
+      where: { institution_id: institutionId },
+      attributes: [
+        'status',
+        [sequelize.fn('COUNT', sequelize.col('equipment_donation_id')), 'count']
+      ],
+      group: ['status'],
+      raw: true
+    });
+
+    // التبرعات العينية الأخيرة (آخر 5)
+    const recentEquipmentDonations = await EquipmentDonation.findAll({
+      where: { institution_id: institutionId },
+      include: [
+        {
+          model: EquipmentCategory,
+          attributes: ['name_ar'],
+          required: false
+        }
+      ],
+      order: [['created_at', 'DESC']],
+      limit: 5
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        summary: equipmentStats.reduce((acc, stat) => {
+          acc[stat.status] = parseInt(stat.count);
+          return acc;
+        }, {}),
+        recentDonations: recentEquipmentDonations
+      }
+    });
+
+  } catch (error) {
+    console.error('Error in getEquipmentDonationStats:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'خطأ في جلب إحصائيات التبرعات العينية',
+      error: error.message
+    });
+  }
+};
+
+// الحصول على إحصائيات التبرعات العينية
+exports.getEquipmentDonationStats = async (req, res) => {
+  try {
+    const managerId = req.user.user_id;
+
+    const manager = await Manager.findOne({
+      where: { 
+        manager_id: managerId,
+        is_active: true 
+      },
+      include: [{
+        model: Institution,
+        attributes: ['institution_id', 'name', 'donation_balance']
+      }]
+    });
+
+    if (!manager || !manager.Institution) {
+      return res.status(404).json({
+        success: false,
+        message: 'المدير أو المؤسسة غير موجودة'
+      });
+    }
+
+    const institutionId = manager.Institution.institution_id;
+
+    // إحصائيات حسب الحالة
+    const statusStats = await EquipmentDonation.findAll({
+      where: { institution_id: institutionId },
+      attributes: [
+        'status',
+        [Sequelize.fn('COUNT', Sequelize.col('equipment_donation_id')), 'count']
+      ],
+      group: ['status'],
+      raw: true
+    });
+
+    // إحصائيات حسب حالة الجهاز
+    const conditionStats = await EquipmentDonation.findAll({
+      where: { institution_id: institutionId },
+      attributes: [
+        'condition',
+        [Sequelize.fn('COUNT', Sequelize.col('equipment_donation_id')), 'count']
+      ],
+      group: ['condition'],
+      raw: true
+    });
+
+    // إحصائيات زمنية (آخر 30 يوم)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const recentDonations = await EquipmentDonation.count({
+      where: {
+        institution_id: institutionId,
+        created_at: { [Op.gte]: thirtyDaysAgo }
+      }
+    });
+
+    // إجمالي التبرعات المقدمة
+    const totalDonations = await EquipmentDonation.count({
+      where: { institution_id: institutionId }
+    });
+
+    // التبرعات المسلمة
+    const deliveredDonations = await EquipmentDonation.count({
+      where: {
+        institution_id: institutionId,
+        status: 'delivered'
+      }
+    });
+
+    // التبرعات الأخيرة (آخر 5)
+    const recentEquipmentDonations = await EquipmentDonation.findAll({
+      where: { institution_id: institutionId },
+      include: [
+        {
+          model: EquipmentCategory,
+          as: 'category',
+          attributes: ['name_ar', 'name_en'],
+          required: false
+        },
+        {
+          model: User,
+          as: 'donor',
+          attributes: ['full_name', 'profile_picture'],
+          required: false
+        }
+      ],
+      order: [['created_at', 'DESC']],
+      limit: 5
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        summary: {
+          totalDonations,
+          deliveredDonations,
+          recentDonations30Days: recentDonations
+        },
+        byStatus: statusStats.reduce((acc, stat) => {
+          acc[stat.status] = parseInt(stat.count);
+          return acc;
+        }, {}),
+        byCondition: conditionStats.reduce((acc, stat) => {
+          acc[stat.condition] = parseInt(stat.count);
+          return acc;
+        }, {}),
+        recentDonations: recentEquipmentDonations.map(donation => ({
+          id: donation.equipment_donation_id,
+          equipment_name: donation.equipment_name,
+          condition: donation.condition,
+          status: donation.status,
+          donor_name: donation.contact_person || (donation.donor?.full_name || 'Anonymous'),
+          category: donation.category?.name_ar || donation.category?.name_en,
+          created_at: donation.created_at,
+          tracking_code: `EQ${donation.equipment_donation_id.toString().padStart(6, '0')}`
+        }))
+      }
+    });
+
+  } catch (error) {
+    console.error('Error in getEquipmentDonationStats:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'خطأ في جلب إحصائيات التبرعات العينية',
+      error: error.message
+    });
+  }
+};
+
+// الحصول على قائمة التبرعات العينية مع الفلاتر
+exports.getEquipmentDonationsList = async (req, res) => {
+  try {
+    const managerId = req.user.user_id;
+
+    const manager = await Manager.findOne({
+      where: { 
+        manager_id: managerId,
+        is_active: true 
+      },
+      include: [{
+        model: Institution,
+        attributes: ['institution_id']
+      }]
+    });
+
+    if (!manager || !manager.Institution) {
+      return res.status(403).json({
+        success: false,
+        message: 'ليس لديك صلاحية الوصول'
+      });
+    }
+
+    const institutionId = manager.Institution.institution_id;
+    const { 
+      status, 
+      condition, 
+      category_id, 
+      search,
+      startDate,
+      endDate,
+      page = 1, 
+      limit = 10 
+    } = req.query;
+    
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 10;
+    const offset = (pageNum - 1) * limitNum;
+
+    // بناء where clause مع الفلاتر
+    const whereClause = { institution_id: institutionId };
+    
+    if (status && status !== 'all') {
+      whereClause.status = status;
+    }
+    
+    if (condition && condition !== 'all') {
+      whereClause.condition = condition;
+    }
+    
+    if (category_id && category_id !== 'all') {
+      whereClause.category_id = parseInt(category_id);
+    }
+    
+    if (search) {
+      whereClause[Op.or] = [
+        { equipment_name: { [Op.like]: `%${search}%` } },
+        { contact_person: { [Op.like]: `%${search}%` } },
+        { contact_phone: { [Op.like]: `%${search}%` } }
+      ];
+    }
+    
+    if (startDate || endDate) {
+      whereClause.created_at = {};
+      if (startDate) {
+        whereClause.created_at[Op.gte] = new Date(startDate);
+      }
+      if (endDate) {
+        whereClause.created_at[Op.lte] = new Date(endDate);
+      }
+    }
+
+    const { count, rows } = await EquipmentDonation.findAndCountAll({
+      where: whereClause,
+      include: [
+        {
+          model: EquipmentCategory,
+          attributes: ['category_id', 'name_ar', 'name_en'],
+          as: 'category',
+          required: false
+        },
+        {
+          model: User,
+          as: 'donor',
+          attributes: ['user_id', 'full_name', 'profile_picture', 'email'],
+          required: false
+        }
+      ],
+      order: [['created_at', 'DESC']],
+      offset,
+      limit: limitNum
+    });
+
+    // جلب الفئات المتاحة للفلترة
+    const categories = await EquipmentCategory.findAll({
+      where: { is_active: true },
+      attributes: ['category_id', 'name_ar', 'name_en'],
+      order: [['name_ar', 'ASC']]
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        donations: rows.map(donation => ({
+          id: donation.equipment_donation_id,
+          equipment_name: donation.equipment_name,
+          description: donation.description,
+          condition: donation.condition,
+          estimated_value: donation.estimated_value,
+          delivery_type: donation.delivery_type,
+          status: donation.status,
+          admin_notes: donation.admin_notes,
+          rejection_reason: donation.rejection_reason,
+          contact_person: donation.contact_person,
+          contact_phone: donation.contact_phone,
+          contact_email: donation.contact_email,
+          preferred_date: donation.preferred_date,
+          actual_delivery_date: donation.actual_delivery_date,
+          images: donation.images,
+          created_at: donation.created_at,
+          updated_at: donation.updated_at,
+          category: donation.category,
+          donor: donation.donor,
+          tracking_code: `EQ${donation.equipment_donation_id.toString().padStart(6, '0')}`,
+          institution_id: donation.institution_id
+        })),
+        filters: {
+          categories,
+          statuses: [
+            { value: 'pending', label: 'قيد المراجعة' },
+            { value: 'approved', label: 'مقبول' },
+            { value: 'rejected', label: 'مرفوض' },
+            { value: 'scheduled', label: 'مجدول للاستلام' },
+            { value: 'delivered', label: 'تم التسليم' },
+            { value: 'cancelled', label: 'ملغي' }
+          ],
+          conditions: [
+            { value: 'new', label: 'جديد' },
+            { value: 'used_good', label: 'مستعمل - حالة جيدة' },
+            { value: 'used_fair', label: 'مستعمل - حالة متوسطة' },
+            { value: 'needs_repair', label: 'يحتاج صيانة' }
+          ]
+        },
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total: count,
+          pages: Math.ceil(count / limitNum)
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching equipment donations list:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'خطأ في جلب قائمة التبرعات العينية',
+      error: error.message
+    });
+  }
+};
+
+// تحديث حالة التبرع العيني
+exports.updateEquipmentDonationStatus = async (req, res) => {
+  try {
+    const managerId = req.user.user_id;
+    const { id } = req.params;
+    const { status, admin_notes, rejection_reason, actual_delivery_date } = req.body;
+
+    const manager = await Manager.findOne({
+      where: { 
+        manager_id: managerId,
+        is_active: true 
+      },
+      include: [{
+        model: Institution,
+        attributes: ['institution_id']
+      }]
+    });
+
+    if (!manager || !manager.Institution) {
+      return res.status(403).json({
+        success: false,
+        message: 'ليس لديك صلاحية الوصول'
+      });
+    }
+
+    const institutionId = manager.Institution.institution_id;
+
+    const donation = await EquipmentDonation.findOne({
+      where: {
+        equipment_donation_id: id,
+        institution_id: institutionId
+      },
+      include: [
+        {
+          model: User,
+          as: 'donor',
+          attributes: ['user_id', 'full_name', 'email']
+        }
+      ]
+    });
+
+    if (!donation) {
+      return res.status(404).json({
+        success: false,
+        message: 'طلب التبرع غير موجود'
+      });
+    }
+
+    const validStatuses = ['pending', 'approved', 'rejected', 'scheduled', 'delivered', 'cancelled'];
+    if (status && !validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'حالة غير صالحة'
+      });
+    }
+
+    const updateData = {
+      status: status || donation.status,
+      admin_notes: admin_notes || donation.admin_notes,
+      updated_at: new Date()
+    };
+
+    if (status === 'rejected' && rejection_reason) {
+      updateData.rejection_reason = rejection_reason;
+    }
+
+    if (actual_delivery_date) {
+      updateData.actual_delivery_date = new Date(actual_delivery_date);
+    }
+
+    await donation.update(updateData);
+
+    return res.status(200).json({
+      success: true,
+      message: 'تم تحديث حالة الطلب بنجاح',
+      data: {
+        id: donation.equipment_donation_id,
+        status: donation.status,
+        tracking_code: `EQ${donation.equipment_donation_id.toString().padStart(6, '0')}`
+      }
+    });
+
+  } catch (error) {
+    console.error('Error updating equipment donation:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'خطأ في تحديث حالة الطلب',
+      error: error.message
+    });
   }
 };

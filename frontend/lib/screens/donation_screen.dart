@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:frontend/screens/donations_success.dart';
+import 'package:frontend/screens/equipment_donation_screen.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -652,6 +653,28 @@ StatefulBuilder(
                   ),
                   child: const Text('Continue to Payment'),
                 ),
+                // في الـ showDonateDialog أضف:
+ElevatedButton.icon(
+  onPressed: () {
+    Navigator.pop(context); // Close current dialog
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EquipmentDonationScreen(
+          institutionId: institution['institution_id'] as int,
+          institutionName: institution['name'],
+        ),
+      ),
+    );
+  },
+  icon: const Icon(Icons.medical_services),
+  label: const Text('Donate Medical Equipment'),
+  style: ElevatedButton.styleFrom(
+    backgroundColor: Colors.purple,
+    foregroundColor: Colors.white,
+    padding: const EdgeInsets.symmetric(vertical: 12),
+  ),
+),
               ],
             );
           },

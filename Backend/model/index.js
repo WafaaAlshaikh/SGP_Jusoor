@@ -69,6 +69,15 @@ const InstitutionMedia = require('./InstitutionMedia');
 const AdminUser = require('./AdminUser');
 const AuditLog = require('./AuditLog');
 const SystemSettings = require('./SystemSettings');
+
+const EquipmentCategory = require('./EquipmentCategory');
+const EquipmentDonation = require('./EquipmentDonation');
+const InstitutionEquipmentInventory = require('./InstitutionEquipmentInventory');
+const ChildEquipmentNeed = require('./ChildEquipmentNeed');
+const EquipmentAllocation = require('./EquipmentAllocation');
+const EquipmentItemHistory = require('./EquipmentItemHistory');
+const EquipmentDonationCampaign = require('./EquipmentDonationCampaign');
+
 // ==================== Main Relations ====================
 
 Institution.hasMany(Donation, {
@@ -246,5 +255,12 @@ module.exports = {
   AdminUser,
   AuditLog,
   SystemSettings,
+  EquipmentCategory,
+  EquipmentDonation,
+  InstitutionEquipmentInventory,
+  ChildEquipmentNeed,
+  EquipmentAllocation,
+  EquipmentItemHistory,
+  EquipmentDonationCampaign
 };
 

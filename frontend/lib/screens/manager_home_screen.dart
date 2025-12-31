@@ -1,6 +1,8 @@
 // lib/screens/manager/manager_home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:frontend/screens/manager/manager_free_sessions_screen.dart';
+import 'package:frontend/screens/manager_equipment_donations_screen.dart';
+import 'package:frontend/screens/manager/manager_equipment_campaigns_screen.dart';
 import 'package:frontend/theme/app_colors.dart';
 import 'package:frontend/screens/reports_list_screen.dart';
 import 'package:frontend/services/reports_service.dart';
@@ -34,6 +36,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
   Map<String, dynamic> _dashboardData = {};
   List<Map<String, dynamic>> _chartData = [];
   List<Map<String, dynamic>> _sidebarItems = [];
+  Map<String, dynamic> _stats = {};
 
   @override
   void initState() {
@@ -63,11 +66,15 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           'pendingRequests': data['pendingRequests']['registrations'] ?? 0,
           'todaySessions': data['sessionStats']['todaySessions'] ?? 0,
           'monthlySessions': data['sessionStats']['monthlySessions'] ?? 0,
-          'sessionGrowth': data['sessionStats']['sessionGrowth']?.toDouble() ?? 0,
+          'sessionGrowth':
+              data['sessionStats']['sessionGrowth']?.toDouble() ?? 0,
           'totalDonations': donations['totalDonations'] ?? 0,
           'donationBalance': donations['donationBalance'] ?? 0,
           'totalAllocated': donations['totalAllocated'] ?? 0,
         };
+
+        // أضف هذا: تحميل إحصائيات التبرعات العينية
+        _stats = data; // أو بيانات محددة تحتاجها
 
         // تحويل sessionDistribution إلى chartData مع ألوان مختلفة
         final sessionDistribution = data['sessionDistribution'] as List? ?? [];
@@ -80,18 +87,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           };
         }).toList();
 
-        // إذا ما في بيانات للتوزيع أو كلها صفر، استخدم قيم افتراضية
-        if (_chartData.isEmpty || _chartData.every((item) => item['value'] == 0)) {
-          _chartData = [
-            {'label': 'Speech Therapy', 'value': 40, 'color': AppColors.primary},
-            {'label': 'Behavioral', 'value': 25, 'color': AppColors.success},
-            {'label': 'Occupational', 'value': 20, 'color': AppColors.warning},
-            {'label': 'Educational', 'value': 10, 'color': AppColors.info},
-            {'label': 'Other', 'value': 5, 'color': AppColors.accent3},
-          ];
-        }
-
-        // تحديث sidebar items حسب التصميم الجديد
+        // تحديث sidebar items مع إضافة التبرعات العينية
         _sidebarItems = [
           {
             'title': 'Public Institution Preview',
@@ -150,12 +146,19 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             'count': (data['donationStats']?['totalDonations'] ?? 0).toInt(),
             'route': 'donations',
           },
-          // {
-          //   'title': 'Donation Campaigns',
-          //   'icon': Icons.flag_rounded,
-          //   'count': 0,
-          //   'route': 'donation_campaigns',
-          // },
+          // أضف هذا العنصر الجديد
+          {
+            'title': 'Equipment Donations',
+            'icon': Icons.medical_services_rounded,
+            'count': 0, // يمكنك جلب العدد من API
+            'route': 'equipment_donations',
+          },
+          {
+            'title': 'Equipment Campaigns',
+            'icon': Icons.campaign_rounded,
+            'count': 0,
+            'route': 'equipment_campaigns',
+          },
           {
             'title': 'Session Management',
             'icon': Icons.calendar_today_rounded,
@@ -176,13 +179,13 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           {
             'title': 'Institution Profile',
             'icon': Icons.business_rounded,
-            'count': 0, // يمكنك وضع أي قيمة تريدها هنا
+            'count': 0,
             'route': 'profile',
           },
           {
             'title': 'Institution Rating',
             'icon': Icons.star,
-            'count': 0, // يمكنك وضع أي قيمة تريدها هنا
+            'count': 0,
             'route': 'rate',
           },
           {
@@ -212,6 +215,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           'monthlySessions': 0,
           'sessionGrowth': 0,
         };
+        _stats = {}; // تهيئة فارغة
         _chartData = [
           {'label': 'Speech Therapy', 'value': 40, 'color': AppColors.primary},
           {'label': 'Behavioral', 'value': 25, 'color': AppColors.success},
@@ -219,8 +223,6 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           {'label': 'Educational', 'value': 10, 'color': AppColors.info},
           {'label': 'Other', 'value': 5, 'color': AppColors.accent3},
         ];
-
-        // استخدام قيم افتراضية للسايد بار في حالة الخطأ
         _sidebarItems = [
           {
             'title': 'Public Institution Preview',
@@ -253,6 +255,21 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             'route': 'specialists',
           },
           {
+            'title': 'Financial Assistance Requests',
+            'icon': Icons.request_quote_rounded,
+            'count': 0,
+          },
+          {
+            'title': 'Free Session Offers',
+            'icon': Icons.volunteer_activism_rounded,
+            'count': 0,
+          },
+          {
+            'title': 'Parent Workshops',
+            'icon': Icons.groups_2_rounded,
+            'count': 0,
+          },
+          {
             'title': 'Financial Reports',
             'icon': Icons.assessment_rounded,
             'count': 0,
@@ -260,16 +277,27 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           },
           {
             'title': 'Donations',
-            'icon': Icons.volunteer_activism,
+            'icon': Icons.volunteer_activism_rounded,
             'count': 0,
             'route': 'donations',
           },
-          // {
-          //   'title': 'Donation Campaigns',
-          //   'icon': Icons.flag_rounded,
-          //   'count': 0,
-          //   'route': 'donation_campaigns',
-          // },
+          {
+            'title': 'Equipment Donations',
+            'icon': Icons.medical_services_rounded,
+            'count': 0,
+            'route': 'equipment_donations',
+          },
+          {
+            'title': 'Equipment Campaigns',
+            'icon': Icons.campaign_rounded,
+            'count': 0,
+            'route': 'equipment_campaigns',
+          },
+          {
+            'title': 'Session Management',
+            'icon': Icons.calendar_today_rounded,
+            'count': 0,
+          },
           {
             'title': 'Community',
             'icon': Icons.groups_rounded,
@@ -281,6 +309,24 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             'icon': Icons.message_rounded,
             'count': 0,
             'route': 'messages',
+          },
+          {
+            'title': 'Institution Profile',
+            'icon': Icons.business_rounded,
+            'count': 0,
+            'route': 'profile',
+          },
+          {
+            'title': 'Institution Rating',
+            'icon': Icons.star,
+            'count': 0,
+            'route': 'rate',
+          },
+          {
+            'title': 'Reports',
+            'icon': Icons.report_gmailerrorred_rounded,
+            'count': 0,
+            'route': 'reports',
           },
         ];
       });
@@ -295,24 +341,20 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
     final behaviorPattern = RegExp(r'(behavior|behaviour|aba)');
     final occupationalPattern = RegExp(r'(occupational|ot\b)');
     final psychologicalPattern = RegExp(r'(psychological|support|ps\b)');
-    final assessmentPattern = RegExp(r'(initial.*assessment|assessment.*initial|ia\s*therapy)');
+    final assessmentPattern =
+        RegExp(r'(initial.*assessment|assessment.*initial|ia\s*therapy)');
 
     if (speechPattern.hasMatch(cleanCategory)) {
       return Color(0xFF8CB6D1);
-    }
-    else if (behaviorPattern.hasMatch(cleanCategory)) {
+    } else if (behaviorPattern.hasMatch(cleanCategory)) {
       return Color(0xFF396A4E);
-    }
-    else if (occupationalPattern.hasMatch(cleanCategory)) {
+    } else if (occupationalPattern.hasMatch(cleanCategory)) {
       return Color(0xFFFAFDC2);
-    }
-    else if (psychologicalPattern.hasMatch(cleanCategory)) {
+    } else if (psychologicalPattern.hasMatch(cleanCategory)) {
       return Color(0xFF68170E);
-    }
-    else if (assessmentPattern.hasMatch(cleanCategory)) {
+    } else if (assessmentPattern.hasMatch(cleanCategory)) {
       return Color(0xFF95DFD8);
-    }
-    else {
+    } else {
       // توليد لون فريد للأنواع الأخرى
       final colors = [
         AppColors.primary,
@@ -333,134 +375,141 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
   }
 
   void _handleSidebarItemClick(Map<String, dynamic> item) {
-    setState(() {
-      _isSidebarOpen = false;
-    });
+  setState(() {
+    _isSidebarOpen = false;
+  });
 
-    final title = item['title'];
-    final route = item['route'];
+  final title = item['title'];
+  final route = item['route'];
 
-    print('Navigating to: $title (route: $route)');
+  print('Navigating to: $title (route: $route)');
 
-    switch (route) {
-      case 'onboarding':
-        Navigator.pushNamed(context, '/managerOnboarding');
-        break;
-      case 'public_preview':
-        final instId = _dashboardData['institutionId'];
-        final instName = _dashboardData['centerName']?.toString();
+  switch (route) {
+    case 'onboarding':
+      Navigator.pushNamed(context, '/managerOnboarding');
+      break;
+    case 'public_preview':
+      final instId = _dashboardData['institutionId'];
+      final instName = _dashboardData['centerName']?.toString();
 
-        if (instId == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Institution id not available yet')),
-          );
-          break;
-        }
+      if (instId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Institution id not available yet')),
+        );
+        break;
+      }
 
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => PublicInstitutionHomeScreen(
-              institutionId: (instId as num).toInt(),
-              institutionName: instName,
-            ),
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PublicInstitutionHomeScreen(
+            institutionId: (instId as num).toInt(),
+            institutionName: instName,
           ),
-        );
-        break;
-      case 'cms':
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const ManagerCmsDashboardScreen()),
-        );
-        break;
-      case 'children':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ChildrenManagementScreen(),
+        ),
+      );
+      break;
+    case 'cms':
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ManagerCmsDashboardScreen()),
+      );
+      break;
+    case 'children':
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChildrenManagementScreen(),
+        ),
+      );
+      break;
+    case 'specialists':
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => SpecialistManagementScreen(),
+        ),
+      );
+      break;
+    case 'financial':
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ManagerFinancialReportScreen(),
+        ),
+      );
+      break;
+    case 'donations':
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ManagerDonationsScreen(),
+        ),
+      );
+      break;
+    case 'equipment_donations': // أضف هذا الحالة
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ManagerEquipmentDonationsScreen(),
+        ),
+      );
+      break;
+    case 'equipment_campaigns':
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ManagerEquipmentCampaignsScreen(),
+        ),
+      );
+      break;
+    case 'community':
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CommunityScreen(),
+        ),
+      );
+      break;
+    case 'messages':
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChatListScreen(),
+        ),
+      );
+      break;
+    case 'profile':
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => InstitutionProfileScreen(),
+        ),
+      );
+      break;
+    case 'rate':
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => InstitutionReviewsDashboard(),
+        ),
+      );
+      break;
+    case 'reports':
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const ReportsListScreen(
+            scope: ReportsScope.manager,
+            title: 'Institution Reports',
           ),
-        );
-        break;
-      case 'specialists':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => SpecialistManagementScreen(),
-          ),
-        );
-        break;
-      case 'financial':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ManagerFinancialReportScreen(),
-          ),
-        );
-        break;
-      case 'donations':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ManagerDonationsScreen(),
-          ),
-        );
-        break;
-      // case 'donation_campaigns':
-      //   Navigator.push(
-      //     context,
-      //     MaterialPageRoute(
-      //       builder: (context) => const ManagerDonationCampaignsScreen(),
-      //     ),
-      //   );
-      //   break;
-      case 'community':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => CommunityScreen(),
-          ),
-        );
-        break;
-      case 'messages':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ChatListScreen(),
-          ),
-        );
-        break;
-      case 'profile':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => InstitutionProfileScreen(),
-          ),
-        );
-        break;
-      case 'rate':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => InstitutionReviewsDashboard(),
-          ),
-        );
-        break;
-      case 'reports':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const ReportsListScreen(
-              scope: ReportsScope.manager,
-              title: 'Institution Reports',
-            ),
-          ),
-        );
-        break;
-      default:
-        _showComingSoon(title);
-    }
+        ),
+      );
+      break;
+    default:
+      _showComingSoon(title);
   }
-
+}
   void _showComingSoon(String title) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -472,7 +521,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) =>  ManagerFinancialReportScreen(),
+          builder: (context) => ManagerFinancialReportScreen(),
         ),
       );
     }
@@ -540,7 +589,8 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (context) => LoginScreen()));
+              Navigator.push(context,
+                  MaterialPageRoute(builder: (context) => LoginScreen()));
             },
             child: Text('Logout', style: TextStyle(color: Colors.red)),
           ),
@@ -564,7 +614,8 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           // Sidebar
           AnimatedPositioned(
             duration: Duration(milliseconds: 300),
-            left: _isSidebarOpen ? 0 : -MediaQuery.of(context).size.width * 0.85,
+            left:
+                _isSidebarOpen ? 0 : -MediaQuery.of(context).size.width * 0.85,
             top: 0,
             bottom: 0,
             width: MediaQuery.of(context).size.width * 0.85,
@@ -705,7 +756,8 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
                   shape: BoxShape.circle,
                   color: Colors.white.withOpacity(0.2),
                 ),
-                child: Icon(Icons.refresh_rounded, color: Colors.white, size: 22),
+                child:
+                    Icon(Icons.refresh_rounded, color: Colors.white, size: 22),
               ),
             ),
           ],
@@ -740,7 +792,8 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
     );
   }
 
-  Widget _buildOverviewCard(String title, String value, IconData icon, Color color, String subtitle) {
+  Widget _buildOverviewCard(
+      String title, String value, IconData icon, Color color, String subtitle) {
     return Container(
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -948,40 +1001,40 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             height: 200,
             child: _chartData.isNotEmpty
                 ? Row(
-              children: [
-                // Pie Chart
-                Expanded(
-                  flex: 2,
-                  child: CustomPaint(
-                    painter: _PieChartPainter(_chartData),
-                  ),
-                ),
-                SizedBox(width: 20),
-                // Legend
-                Expanded(
-                  flex: 3,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: _chartData.map((data) {
-                      return _buildChartLegendItem(
-                        data['label'],
-                        '${data['value']?.toStringAsFixed(0) ?? '0'}%',
-                        data['color'],
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
-            )
+                    children: [
+                      // Pie Chart
+                      Expanded(
+                        flex: 2,
+                        child: CustomPaint(
+                          painter: _PieChartPainter(_chartData),
+                        ),
+                      ),
+                      SizedBox(width: 20),
+                      // Legend
+                      Expanded(
+                        flex: 3,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: _chartData.map((data) {
+                            return _buildChartLegendItem(
+                              data['label'],
+                              '${data['value']?.toStringAsFixed(0) ?? '0'}%',
+                              data['color'],
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ],
+                  )
                 : Center(
-              child: Text(
-                'No session data available',
-                style: TextStyle(
-                  color: AppColors.textLight,
-                  fontSize: 16,
-                ),
-              ),
-            ),
+                    child: Text(
+                      'No session data available',
+                      style: TextStyle(
+                        color: AppColors.textLight,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
           ),
         ],
       ),
@@ -1103,7 +1156,8 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.info_outline_rounded, size: 16, color: AppColors.textLight),
+          Icon(Icons.info_outline_rounded,
+              size: 16, color: AppColors.textLight),
           SizedBox(width: 8),
           Text(
             'Last updated: ${DateTime.now().toString().substring(0, 16)}',
@@ -1176,7 +1230,8 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
                         shape: BoxShape.circle,
                         color: Colors.white.withOpacity(0.2),
                       ),
-                      child: Icon(Icons.close_rounded, color: Colors.white, size: 22),
+                      child: Icon(Icons.close_rounded,
+                          color: Colors.white, size: 22),
                     ),
                   ),
 
@@ -1194,6 +1249,15 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
                       SizedBox(height: 4),
                       Text(
                         'Management Center',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white.withOpacity(0.8),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'equipment_donations',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.white.withOpacity(0.8),
@@ -1238,7 +1302,8 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
                         borderRadius: BorderRadius.circular(12),
                         onTap: _handleLogout,
                         child: ListTile(
-                          leading: Icon(Icons.logout_rounded, color: Colors.red),
+                          leading:
+                              Icon(Icons.logout_rounded, color: Colors.red),
                           title: Text(
                             'Logout',
                             style: TextStyle(
@@ -1247,7 +1312,8 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
                               color: Colors.red,
                             ),
                           ),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 12),
                         ),
                       ),
                     ),
@@ -1299,20 +1365,20 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             ),
             trailing: count > 0
                 ? Container(
-              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                count.toString(),
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            )
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      count.toString(),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  )
                 : null,
             contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           ),
@@ -1336,7 +1402,8 @@ class _PieChartPainter extends CustomPainter {
     double startAngle = -90 * (3.141592653589793 / 180);
 
     for (var item in data) {
-      final sweepAngle = (item['value'] / 100) * 360 * (3.141592653589793 / 180);
+      final sweepAngle =
+          (item['value'] / 100) * 360 * (3.141592653589793 / 180);
 
       final paint = Paint()
         ..color = item['color']

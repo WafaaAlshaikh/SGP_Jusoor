@@ -291,6 +291,119 @@ class ManagerDashboardService {
     }
   }
 
+// جلب إحصائيات التبرعات العينية
+static Future<Map<String, dynamic>> getEquipmentDonationStats() async {
+  try {
+    final headers = await _getHeaders();
+    final response = await http.get(
+      Uri.parse('$_baseUrl/DashbordManager/dashboard/equipment-stats'),
+      headers: headers,
+    );
+
+    if (response.statusCode == 200) {
+      final Map<String, dynamic> data = json.decode(response.body);
+      if (data['success'] == true) {
+        return data['data'];
+      } else {
+        throw Exception(data['message'] ?? 'Failed to fetch equipment donation stats');
+      }
+    } else {
+      throw Exception('Failed to load equipment donation stats: ${response.statusCode}');
+    }
+  } catch (e) {
+    print('Error fetching equipment donation stats: $e');
+    rethrow;
+  }
+}
+
+// جلب قائمة التبرعات العينية مع الفلاتر
+static Future<Map<String, dynamic>> getEquipmentDonationsList({
+  int page = 1,
+  int limit = 10,
+  String? status,
+  String? condition,
+  int? categoryId,
+  String? search,
+  String? startDate,
+  String? endDate,
+}) async {
+  try {
+    final headers = await _getHeaders();
+    
+    final params = <String, String>{
+      'page': page.toString(),
+      'limit': limit.toString(),
+    };
+    
+    if (status != null && status != 'all') {
+      params['status'] = status;
+    }
+    
+    if (condition != null && condition != 'all') {
+      params['condition'] = condition;
+    }
+    
+    if (categoryId != null && categoryId != -1) {
+      params['category_id'] = categoryId.toString();
+    }
+    
+    if (search != null && search.isNotEmpty) {
+      params['search'] = search;
+    }
+    
+    if (startDate != null) {
+      params['startDate'] = startDate;
+    }
+    
+    if (endDate != null) {
+      params['endDate'] = endDate;
+    }
+    
+    final uri = Uri.parse('$_baseUrl/DashbordManager/dashboard/equipment-donations')
+      .replace(queryParameters: params);
+    
+    final response = await http.get(uri, headers: headers);
+
+    if (response.statusCode == 200) {
+      final Map<String, dynamic> data = json.decode(response.body);
+      if (data['success'] == true) {
+        return data['data'];
+      } else {
+        throw Exception(data['message'] ?? 'Failed to fetch equipment donations list');
+      }
+    } else {
+      throw Exception('Failed to load equipment donations list: ${response.statusCode}');
+    }
+  } catch (e) {
+    print('Error fetching equipment donations list: $e');
+    rethrow;
+  }
+}
+
+// تحديث حالة التبرع العيني
+static Future<void> updateEquipmentDonationStatus(
+  int donationId,
+  Map<String, dynamic> data,
+) async {
+  try {
+    final headers = await _getHeaders();
+    final response = await http.put(
+      Uri.parse('$_baseUrl/DashbordManager/dashboard/equipment-donations/$donationId/status'),
+      headers: headers,
+      body: json.encode(data),
+    );
+
+    final Map<String, dynamic> responseData = json.decode(response.body);
+    if (response.statusCode == 200 && responseData['success'] == true) {
+      return;
+    } else {
+      throw Exception(responseData['message'] ?? 'Failed to update donation status');
+    }
+  } catch (e) {
+    print('Error updating equipment donation status: $e');
+    rethrow;
+  }
+}
   
 
 

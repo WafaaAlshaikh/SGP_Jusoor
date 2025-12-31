@@ -18,6 +18,14 @@ class ApiService {
     }
   }
 
+  static String _publicEquipmentBaseUrl() {
+    return '${ApiService.baseUrl}/api/public/equipment';
+  }
+
+  static String _authEquipmentBaseUrl() {
+    return '${ApiService.baseUrl}/api/equipment';
+  }
+
   static Future<Map<String, dynamic>> submitSessionDecision(
     String token,
     String sessionId, {
@@ -264,6 +272,78 @@ static Future<Map<String, dynamic>> signupInitial(
     };
   }
 }
+
+/// Get equipment donation campaigns for institution (public)
+/// Get institutions for equipment donation (PUBLIC API - No auth required)
+static Future<List<Map<String, dynamic>>> getEquipmentDonationInstitutions() async {
+  return getEquipmentInstitutions();
+}
+
+/// Get institution equipment campaigns (PUBLIC API)
+static Future<List<Map<String, dynamic>>> getInstitutionEquipmentCampaigns(
+  int institutionId,
+) async {
+  try {
+    final url = Uri.parse('${_publicEquipmentBaseUrl()}/institutions/$institutionId/campaigns');
+    
+    print('🌐 Fetching campaigns for institution: $institutionId');
+    
+    final response = await http.get(
+      url,
+      headers: {'Content-Type': 'application/json'},
+    ).timeout(const Duration(seconds: 30));
+    
+    if (response.statusCode == 200) {
+      final Map<String, dynamic> data = jsonDecode(response.body);
+      
+      if (data['success'] == true) {
+        final List<dynamic> campaigns = data['data'] ?? [];
+        print('✅ Successfully loaded ${campaigns.length} campaigns');
+        return List<Map<String, dynamic>>.from(campaigns);
+      } else {
+        throw Exception('API Error: ${data['message']}');
+      }
+    } else {
+      throw Exception('Failed to load campaigns. Status: ${response.statusCode}');
+    }
+  } catch (e) {
+    print('❌ Error in getInstitutionEquipmentCampaigns: $e');
+    rethrow;
+  }
+}
+
+/// Get equipment campaign details (PUBLIC API)
+static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
+  int campaignId,
+) async {
+  try {
+    final url = Uri.parse('${_publicEquipmentBaseUrl()}/campaigns/$campaignId');
+    
+    print('🌐 Fetching campaign details: $campaignId');
+    
+    final response = await http.get(
+      url,
+      headers: {'Content-Type': 'application/json'},
+    ).timeout(const Duration(seconds: 30));
+    
+    if (response.statusCode == 200) {
+      final Map<String, dynamic> data = jsonDecode(response.body);
+      
+      if (data['success'] == true) {
+        print('✅ Successfully loaded campaign details');
+        return Map<String, dynamic>.from(data['data'] ?? {});
+      } else {
+        throw Exception('API Error: ${data['message']}');
+      }
+    } else {
+      throw Exception('Failed to load campaign details. Status: ${response.statusCode}');
+    }
+  } catch (e) {
+    print('❌ Error in getEquipmentCampaignDetails: $e');
+    rethrow;
+  }
+}
+
 
   static Future<Map<String, dynamic>> verifySignup(
       String tempToken, String otp) async {
@@ -3474,7 +3554,6 @@ static Future<Map<String, dynamic>> applyAutoDiscount(
     }
   }
 
-/// Create Stripe checkout session for donation
 /// Create donation checkout with support for anonymous donors
 static Future<Map<String, dynamic>> createDonationCheckout(
   String? token, // ✅ جعل token اختياري
@@ -3810,6 +3889,199 @@ static Future<Map<String, dynamic>> checkDonationStatusBySession(
     }
   } catch (e) {
     print('❌ Error checking donation status: $e');
+    rethrow;
+  }
+}
+
+// ==================== Equipment Donation APIs ====================
+
+/// Get equipment categories
+static Future<List<Map<String, dynamic>>> getEquipmentCategories() async {
+  try {
+    final url = Uri.parse('${_authEquipmentBaseUrl()}/categories');
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (data['success'] == true) {
+        return List<Map<String, dynamic>>.from(data['data'] ?? []);
+      }
+    }
+    throw Exception('Failed to load equipment categories');
+  } catch (e) {
+    print('Error getting equipment categories: $e');
+    rethrow;
+  }
+}
+
+/// Get institutions for equipment donation
+static Future<List<Map<String, dynamic>>> getEquipmentInstitutions() async {
+  try {
+    final url = Uri.parse('${_publicEquipmentBaseUrl()}/institutions');
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['success'] == true) {
+        return List<Map<String, dynamic>>.from(data['data'] ?? []);
+      }
+    }
+
+    throw Exception('Failed to load equipment institutions');
+  } catch (e) {
+    print('Error getting equipment institutions: $e');
+    rethrow;
+  }
+}
+
+/// Create anonymous equipment donation
+static Future<Map<String, dynamic>> createAnonymousEquipmentDonation({
+  required int institutionId,
+  required String equipmentName,
+  required String contactPerson,
+  required String contactPhone,
+  String? contactEmail,
+  int? categoryId,
+  String? description,
+  String? condition,
+  String? deliveryType,
+  double? estimatedValue,
+  DateTime? preferredDate,
+}) async {
+  try {
+    final url = Uri.parse('${_publicEquipmentBaseUrl()}/donate/anonymous');
+    
+    final body = <String, dynamic>{
+      'institution_id': institutionId,
+      'equipment_name': equipmentName,
+      'contact_person': contactPerson,
+      'contact_phone': contactPhone,
+    };
+    
+    if (contactEmail != null && contactEmail.isNotEmpty) {
+      body['contact_email'] = contactEmail;
+    }
+    
+    if (categoryId != null) {
+      body['category_id'] = categoryId;
+    }
+    
+    if (description != null && description.isNotEmpty) {
+      body['description'] = description;
+    }
+    
+    if (condition != null && condition.isNotEmpty) {
+      body['condition'] = condition;
+    }
+    
+    if (deliveryType != null && deliveryType.isNotEmpty) {
+      body['delivery_type'] = deliveryType;
+    }
+    
+    if (estimatedValue != null) {
+      body['estimated_value'] = estimatedValue;
+    }
+    
+    if (preferredDate != null) {
+      body['preferred_date'] = preferredDate.toIso8601String();
+    }
+    
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 30));
+    
+    if (response.statusCode == 201 || response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return data;
+    } else {
+      throw Exception('Failed to submit equipment donation');
+    }
+  } catch (e) {
+    print('Error creating anonymous equipment donation: $e');
+    rethrow;
+  }
+}
+
+/// Check equipment donation status
+static Future<Map<String, dynamic>> checkEquipmentDonationStatus({
+  required int donationId,
+  required String contactPhone,
+}) async {
+  try {
+    final url = Uri.parse('${_publicEquipmentBaseUrl()}/status')
+        .replace(queryParameters: {
+      'donation_id': donationId.toString(),
+      'contact_phone': contactPhone,
+    });
+    
+    final response = await http.get(url).timeout(const Duration(seconds: 15));
+    
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return data;
+    } else {
+      throw Exception('Failed to check donation status');
+    }
+  } catch (e) {
+    print('Error checking equipment donation status: $e');
+    rethrow;
+  }
+}
+
+/// Get user's equipment donations (authenticated)
+static Future<List<Map<String, dynamic>>> getUserEquipmentDonations(String token) async {
+  try {
+    final url = Uri.parse('${_authEquipmentBaseUrl()}/my-donations');
+    
+    final response = await http.get(
+      url,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+    
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (data['success'] == true) {
+        return List<Map<String, dynamic>>.from(data['data']['donations'] ?? []);
+      }
+    }
+    throw Exception('Failed to load your equipment donations');
+  } catch (e) {
+    print('Error getting user equipment donations: $e');
+    rethrow;
+  }
+}
+
+/// Get equipment donation details
+static Future<Map<String, dynamic>> getEquipmentDonationDetails({
+  required int donationId,
+  String? token,
+}) async {
+  try {
+    final url = Uri.parse('${_authEquipmentBaseUrl()}/$donationId');
+    
+    final headers = {'Content-Type': 'application/json'};
+    if (token != null && token.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+    
+    final response = await http.get(
+      url,
+      headers: headers,
+    );
+    
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return data;
+    } else {
+      throw Exception('Failed to load donation details');
+    }
+  } catch (e) {
+    print('Error getting equipment donation details: $e');
     rethrow;
   }
 }
