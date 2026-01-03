@@ -8,7 +8,11 @@ node_modules/
 /Backend/node_modules/
 /Backend/firebase/
 /Backend/uploads/
+/.idea/
 
 
 
 /frontend/android/
+/frontend/macos/
+/frontend/web/
+
