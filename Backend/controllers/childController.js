@@ -5,6 +5,8 @@ const Institution = require('../model/Institution');
 const ChildRegistrationRequest = require('../model/ChildRegistrationRequest');
 const SessionType = require('../model/SessionType');
 const Notification = require('../model/Notification');
+const crypto = require('crypto');
+const path = require('path');
 
 const AIAnalysisService = require('../services/aiAnalysisService');
 const ExternalAIService = require('../services/externalAIService');
@@ -12,6 +14,8 @@ const GroqAIService = require('../services/groqAIService');
 const { Op } = require('sequelize');
 const sequelize = require('../config/db');
 const GeocodingService = require('../services/geocodingService');
+const FileUploadService = require('../services/fileUploadService');
+const DocumentAnalysisService = require('../services/documentAnalysisService');
 
 exports.calculateDistance = (lat1, lon1, lat2, lon2) => {
   if (!lat1 || !lon1 || !lat2 || !lon2) return null;
@@ -2113,6 +2117,208 @@ exports.getChildStatistics = async (req, res) => {
     res.status(500).json({ 
       message: 'Failed to fetch statistics', 
       error: error.message 
+    });
+  }
+};
+
+
+
+// controllers/childController.js - إضافة دالة جديدة
+
+
+/**
+ * رفع وتحليل مستند طبي
+ */
+// controllers/childController.js
+
+/**
+ * رفع وتحليل مستند طبي - النسخة المحسنة
+ */
+exports.uploadMedicalDocument = async (req, res) => {
+  try {
+    const parentId = req.user.user_id;
+    const childId = req.params.id;
+
+    console.log('📤 Upload request received:');
+    console.log('   - Parent ID:', parentId);
+    console.log('   - Child ID:', childId);
+
+    // التحقق من وجود الطفل
+    const child = await Child.findOne({
+      where: {
+        child_id: childId,
+        parent_id: parentId
+      }
+    });
+
+    if (!child) {
+      return res.status(404).json({
+        success: false,
+        message: 'Child not found'
+      });
+    }
+
+    // التحقق من وجود ملف مرفوع
+    if (!req.file) {
+      console.log('❌ No file in request');
+      console.log('Request body:', req.body);
+      console.log('Request files:', req.files);
+      
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded. Please select a file.'
+      });
+    }
+
+    const uploadedFile = req.file;
+    console.log('✅ File received:');
+    console.log('   - Original name:', uploadedFile.originalname);
+    console.log('   - Saved as:', uploadedFile.filename);
+    console.log('   - Path:', uploadedFile.path);
+    console.log('   - Size:', uploadedFile.size, 'bytes');
+    console.log('   - MIME type:', uploadedFile.mimetype);
+ const fileExt = path.extname(uploadedFile.originalname).toLowerCase();
+
+    // التحقق الإضافي من نوع الملف
+    if (!FileUploadService.isValidFileType(uploadedFile.path)) {
+      // حذف الملف المرفوع
+      await FileUploadService.deleteFile(uploadedFile.path);
+      
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid file type detected after upload'
+      });
+    }
+
+    // تحليل المستند بالـ AI
+    console.log('🤖 Starting AI document analysis...');
+    
+    let analysisResult;
+    try {
+      analysisResult = await DocumentAnalysisService.analyzeDocument(
+  uploadedFile.path,
+  uploadedFile.mimetype,
+  fileExt
+);
+      console.log('✅ AI analysis completed');
+    } catch (analysisError) {
+      console.error('❌ AI analysis failed:', analysisError);
+      // نكمل حتى لو فشل التحليل
+      analysisResult = {
+        success: false,
+        error: analysisError.message,
+        ai_analysis: null
+      };
+    }
+
+    // إنشاء كائن بيانات الملف
+    const documentData = {
+      file_id: `doc_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+      file_name: uploadedFile.originalname,
+      file_path: uploadedFile.path,
+      file_type: uploadedFile.mimetype,
+      file_size: uploadedFile.size,
+      uploaded_at: new Date(),
+      ai_analysis_status: analysisResult.success ? 'completed' : 'failed',
+      ai_extracted_data: analysisResult.ai_analysis || null,
+      extracted_text_preview: analysisResult.extracted_text ? 
+        analysisResult.extracted_text.substring(0, 500) : null
+    };
+
+    // تحديث قائمة المستندات في قاعدة البيانات
+    const currentDocuments = child.medical_documents || [];
+    currentDocuments.push(documentData);
+
+    await child.update({
+      medical_documents: currentDocuments
+    });
+
+    console.log('✅ Document saved to database');
+
+    res.status(200).json({
+      success: true,
+      message: 'Document uploaded and analyzed successfully',
+      document: {
+        file_id: documentData.file_id,
+        file_name: documentData.file_name,
+        file_size: documentData.file_size,
+        uploaded_at: documentData.uploaded_at,
+        ai_analysis_status: documentData.ai_analysis_status
+      },
+      ai_analysis: analysisResult.ai_analysis,
+      suggestions: {
+        auto_fill_available: analysisResult.success && analysisResult.ai_analysis !== null,
+        detected_conditions: analysisResult.ai_analysis?.conditions || [],
+        detected_symptoms: analysisResult.ai_analysis?.symptoms || [],
+        detected_medications: analysisResult.ai_analysis?.medications || []
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Upload error:', error);
+    
+    // حذف الملف إذا تم رفعه
+    if (req.file && req.file.path) {
+      await FileUploadService.deleteFile(req.file.path);
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to upload document',
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+};
+
+/**
+ * حذف مستند طبي
+ */
+exports.deleteMedicalDocument = async (req, res) => {
+  try {
+    const parentId = req.user.user_id;
+    const { id: childId, file_id } = req.params;
+
+    const child = await Child.findOne({
+      where: { child_id: childId, parent_id: parentId }
+    });
+
+    if (!child) {
+      return res.status(404).json({
+        success: false,
+        message: 'Child not found'
+      });
+    }
+
+    const documents = child.medical_documents || [];
+    const documentIndex = documents.findIndex(doc => doc.file_id === file_id);
+
+    if (documentIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: 'Document not found'
+      });
+    }
+
+    // حذف الملف من النظام
+    const document = documents[documentIndex];
+    await FileUploadService.deleteFile(document.file_path);
+
+    // إزالة من قاعدة البيانات
+    documents.splice(documentIndex, 1);
+    await child.update({ medical_documents: documents });
+
+    res.status(200).json({
+      success: true,
+      message: 'Document deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error deleting document:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete document',
+      error: error.message
     });
   }
 };

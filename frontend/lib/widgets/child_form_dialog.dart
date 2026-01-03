@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../../models/child_model.dart';
 import '../../../services/api_service.dart';
 import '../../../screens/map_screen.dart';
@@ -43,6 +44,9 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
   bool _isSmartSearching = false;
   List<dynamic> _smartSearchResults = [];
 
+  bool _documentAnalyzed = false;
+  Map<String, dynamic>? _documentAnalysisData;
+
   // Child basic data
   late String _fullName;
   late String _dateOfBirth;
@@ -67,6 +71,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
   String _medicalHistory = '';
   String _previousServices = '';
   String _additionalNotes = '';
+  List<Map<String, dynamic>> _uploadedDocuments = [];
+  bool _isUploadingDocument = false;
 
   // AI analysis
   Map<String, dynamic>? _aiAnalysisResult;
@@ -117,8 +123,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
     _processScreeningData();
     _loadParentFinancialProfile();
   }
-  bool _financialAssessmentRecommended = false;
 
+  bool _financialAssessmentRecommended = false;
 
   void _processScreeningData() {
     if (widget.screeningData == null) return;
@@ -128,9 +134,9 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
 
     // Check if financial assessment is recommended
     if (screeningData['recommend_financial_assessment'] == true) {
-  _financialAssessmentRecommended = true;
-  _showFinancialAssessment = true;
-}
+      _financialAssessmentRecommended = true;
+      _showFinancialAssessment = true;
+    }
 
     if (screeningData['suspected_condition'] != null) {
       _suspectedCondition = screeningData['suspected_condition'].toString();
@@ -383,6 +389,489 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
         ],
       ),
     );
+  }
+
+  // في _buildMedicalInfoStep() - إضافة قسم رفع الملفات
+
+  Widget _buildMedicalDocumentUpload() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.info.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.info.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.upload_file, size: 20, color: AppColors.info),
+              const SizedBox(width: 8),
+              Text(
+                'Upload Medical Documents',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.info,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Upload medical reports, assessments, or doctor notes. Our AI will analyze them to help fill in details.',
+            style: TextStyle(fontSize: 12, color: AppColors.textGray),
+          ),
+          const SizedBox(height: 12),
+
+          // عرض المستندات المرفوعة
+          if (_uploadedDocuments.isNotEmpty) ...[
+            ..._uploadedDocuments.map((doc) => _buildDocumentCard(doc)),
+            const SizedBox(height: 12),
+          ],
+
+          // زر رفع ملف جديد
+          OutlinedButton.icon(
+            onPressed: _isUploadingDocument ? null : _pickAndUploadDocument,
+            icon: _isUploadingDocument
+                ? SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(Icons.add, size: 18),
+            label:
+                Text(_isUploadingDocument ? 'Uploading...' : 'Upload Document'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.info,
+              side: BorderSide(color: AppColors.info),
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDocumentCard(Map<String, dynamic> doc) {
+  return Container(
+    margin: const EdgeInsets.only(bottom: 8),
+    padding: const EdgeInsets.all(8), // ⬅️ تقليل padding من 12 إلى 8
+    decoration: BoxDecoration(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: AppColors.accent3),
+    ),
+    child: Row(
+      children: [
+        Icon(
+          _getFileIcon(doc['file_type'] ?? ''),
+          color: AppColors.primary,
+          size: 20, // ⬅️ تقليل حجم الأيقونة
+        ),
+        const SizedBox(width: 8), // ⬅️ تقليل المسافة
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                doc['file_name'] ?? 'Unknown File',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13, // ⬅️ تقليل حجم الخط
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${((doc['file_size'] ?? 0) / 1024).toStringAsFixed(1)} KB',
+                style: TextStyle(
+                  fontSize: 11, // ⬅️ تقليل حجم الخط
+                  color: AppColors.textLight,
+                ),
+              ),
+              if ((doc['ai_analysis_status'] ?? '') == 'completed') ...[
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Icon(Icons.check_circle,
+                        size: 10, color: AppColors.success), // ⬅️ تقليل الحجم
+                    const SizedBox(width: 2),
+                    Text(
+                      'AI Analysis Complete',
+                      style: TextStyle(
+                        fontSize: 9, // ⬅️ تقليل حجم الخط
+                        color: AppColors.success,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+        IconButton(
+          icon: Icon(Icons.delete_outline, 
+                     color: AppColors.error, 
+                     size: 18), // ⬅️ تقليل حجم الأيقونة
+          onPressed: () => _deleteDocument(doc['file_id'] ?? ''),
+          tooltip: 'Delete',
+          padding: EdgeInsets.zero, // ⬅️ إزالة padding الافتراضي
+          constraints: BoxConstraints(
+            minWidth: 36, // ⬅️ تحديد حجم الحد الأدنى للزر
+            minHeight: 36,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+  IconData _getFileIcon(String fileType) {
+  if (fileType.isEmpty) return Icons.insert_drive_file; // ⬅️ إضافة حالة فارغة
+  if (fileType.contains('pdf')) return Icons.picture_as_pdf;
+  if (fileType.contains('image')) return Icons.image;
+  if (fileType.contains('word')) return Icons.description;
+  return Icons.insert_drive_file;
+}
+
+  Future<void> _pickAndUploadDocument() async {
+    try {
+      // فتح نافذة اختيار الملف
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'],
+        allowMultiple: false,
+      );
+
+      if (result == null || result.files.isEmpty) {
+        return; // المستخدم ألغى العملية
+      }
+
+      final file = result.files.first;
+
+      // التحقق من حجم الملف (10MB كحد أقصى)
+      if (file.size > 10 * 1024 * 1024) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('File size must be less than 10MB'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+
+      setState(() {
+        _isUploadingDocument = true;
+      });
+
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? '';
+
+      // رفع الملف
+      final uploadResult = await ApiService.uploadMedicalDocument(
+        token,
+        _childId!,
+        file,
+      );
+
+      if (uploadResult['success'] == true) {
+      setState(() {
+        _uploadedDocuments.add(uploadResult['document']);
+        _documentAnalyzed = true;
+        _documentAnalysisData = uploadResult['ai_analysis'];
+      });
+      
+      // AUTO-FILL: تلقائياً ملء البيانات من التحليل
+      _autoFillFromDocumentAnalysis(uploadResult['ai_analysis']);
+      
+      // عرض نتائج التحليل
+      _showAIAnalysisResults(uploadResult['ai_analysis']);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ Document uploaded and analyzed successfully'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(uploadResult['message'] ?? 'Upload failed'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isUploadingDocument = false;
+      });
+    }
+  }
+
+  void _autoFillFromDocumentAnalysis(Map<String, dynamic>? analysis) {
+  if (analysis == null) return;
+  
+  setState(() {
+    // 1. ملء الحالة المشتبه بها
+    if (analysis['conditions']?.isNotEmpty ?? false) {
+      final conditions = List<String>.from(analysis['conditions']);
+      _suspectedCondition = conditions.first;
+      
+      // محاولة مطابقة مع التشخيصات المتاحة
+      _tryMatchDiagnosisFromList(conditions);
+    }
+    
+    // 2. ملء الأعراض
+    if (analysis['symptoms']?.isNotEmpty ?? false) {
+      final symptoms = List<String>.from(analysis['symptoms']);
+      if (_symptomsDescription.isEmpty) {
+        _symptomsDescription = symptoms.join(', ');
+      } else {
+        // دمج الأعراض الجديدة مع القديمة
+        _symptomsDescription += '\n\nFrom document analysis: ${symptoms.join(', ')}';
+      }
+    }
+    
+    // 3. ملء التاريخ الطبي
+    if (analysis['additional_notes'] != null && analysis['additional_notes'].toString().isNotEmpty) {
+      if (_medicalHistory.isEmpty) {
+        _medicalHistory = analysis['additional_notes'].toString();
+      } else {
+        _medicalHistory += '\n\nFrom document: ${analysis['additional_notes']}';
+      }
+    }
+    
+    // 4. ملء الأدوية
+    if (analysis['medications']?.isNotEmpty ?? false) {
+      final medications = List<String>.from(analysis['medications']);
+      if (_additionalNotes.isEmpty) {
+        _additionalNotes = 'Current medications: ${medications.join(', ')}';
+      } else {
+        _additionalNotes += '\nMedications: ${medications.join(', ')}';
+      }
+    }
+    
+    // 5. ملء العلاجات السابقة
+    if (analysis['treatments']?.isNotEmpty ?? false) {
+      final treatments = List<String>.from(analysis['treatments']);
+      if (_previousServices.isEmpty) {
+        _previousServices = 'Previous treatments: ${treatments.join(', ')}';
+      } else {
+        _previousServices += '\n${treatments.join(', ')}';
+      }
+    }
+  });
+  
+  // إشعار للمستخدم
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text('✅ Medical information auto-filled from document analysis'),
+      backgroundColor: AppColors.success,
+    ),
+  );
+}
+
+// دالة مساعدة لمطابقة التشخيصات
+void _tryMatchDiagnosisFromList(List<String> conditions) {
+  for (var condition in conditions) {
+    final matched = _diagnoses.firstWhere(
+      (d) => d['name'].toString().toLowerCase().contains(condition.toLowerCase()),
+      orElse: () => <String, dynamic>{},
+    );
+    
+    if (matched.isNotEmpty) {
+      setState(() {
+        _selectedDiagnosisId = matched['diagnosis_id'];
+      });
+      print('✅ Matched diagnosis: ${matched['name']}');
+      break; // نوقف عند أول تطابق
+    }
+  }
+}
+
+  void _showAIAnalysisResults(Map<String, dynamic> analysis, {bool isDocument = true}) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Row(
+        children: [
+          Icon(isDocument ? Icons.description : Icons.psychology, 
+               color: AppColors.primary),
+          const SizedBox(width: 8),
+          Text(isDocument ? 'Document Analysis Results' : 'AI Analysis Results'),
+        ],
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (analysis['conditions']?.isNotEmpty ?? false) ...[
+              Text('Detected Conditions:',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              ...List<String>.from(analysis['conditions'])
+                  .map((c) => Text('• $c')),
+              const SizedBox(height: 12),
+            ],
+            if (analysis['symptoms']?.isNotEmpty ?? false) ...[
+              Text('Detected Symptoms:',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              ...List<String>.from(analysis['symptoms'])
+                  .map((s) => Text('• $s')),
+              const SizedBox(height: 12),
+            ],
+            if (analysis['medications']?.isNotEmpty ?? false) ...[
+              Text('Medications:',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              ...List<String>.from(analysis['medications'])
+                  .map((m) => Text('• $m')),
+              const SizedBox(height: 12),
+            ],
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.info.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isDocument 
+                      ? 'Information has been auto-filled from document.'
+                      : 'Would you like to auto-fill this information?',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    isDocument
+                      ? 'You can modify the auto-filled information below.'
+                      : 'We can automatically fill in the medical information based on this analysis.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('Close'),
+        ),
+        if (!isDocument) // زر Auto-Fill فقط لتحليل AI وليس المستند
+          ElevatedButton(
+            onPressed: () {
+              _autoFillFromAnalysis(analysis);
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+            ),
+            child: Text('Auto-Fill'),
+          ),
+      ],
+    ),
+  );
+}
+  void _autoFillFromAnalysis(Map<String, dynamic> analysis) {
+    setState(() {
+      // ملء الحالة المشتبه بها
+      if (analysis['conditions']?.isNotEmpty ?? false) {
+        _suspectedCondition = analysis['conditions'].first;
+      }
+
+      // ملء الأعراض
+      if (analysis['symptoms']?.isNotEmpty ?? false) {
+        final symptoms = List<String>.from(analysis['symptoms']).join(', ');
+        if (_symptomsDescription.isEmpty) {
+          _symptomsDescription = symptoms;
+        } else {
+          _symptomsDescription += '\n\nFrom document: $symptoms';
+        }
+      }
+
+      // ملء التاريخ الطبي
+      if (analysis['additional_notes'] != null) {
+        if (_medicalHistory.isEmpty) {
+          _medicalHistory = analysis['additional_notes'];
+        } else {
+          _medicalHistory += '\n\n${analysis['additional_notes']}';
+        }
+      }
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('✅ Medical information auto-filled from document'),
+        backgroundColor: AppColors.success,
+      ),
+    );
+  }
+
+  Future<void> _deleteDocument(String fileId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete Document?'),
+        content: Text('Are you sure you want to delete this document?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? '';
+      final result = await ApiService.deleteMedicalDocument(
+        token,
+        _childId!,
+        fileId,
+      );
+
+      if (result['success'] == true) {
+        setState(() {
+          _uploadedDocuments.removeWhere((doc) => doc['file_id'] == fileId);
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Document deleted'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error deleting document: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   List<Widget> _buildAssessmentQuestions() {
@@ -642,6 +1131,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
       });
     }
   }
+
   void _applyDiscountToInstitutions(double discountPercentage) {
     if (_recommendedInstitutions.isEmpty) return;
 
@@ -783,131 +1273,169 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
   }
 
   Future<void> _analyzeMedicalCondition() async {
-    print('Starting medical analysis');
-
-    final hasSymptoms = _symptomsDescription.trim().isNotEmpty;
-    final hasSuspectedCondition = _suspectedCondition.trim().isNotEmpty;
-    final hasDiagnosis = _selectedDiagnosisId != null;
-
-    print('Current Medical Data:');
-    print('   - Symptoms: $hasSymptoms');
-    print('   - Suspected Condition: $hasSuspectedCondition');
-    print('   - Diagnosis: $hasDiagnosis');
-    print('   - Child ID: $_childId');
-
-    setState(() {
-      _isAnalyzing = true;
-    });
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token') ?? '';
-
-      final medicalData = <String, dynamic>{};
-
-      if (hasDiagnosis) {
-        medicalData['diagnosis_id'] = _selectedDiagnosisId;
-      }
-
-      if (hasSuspectedCondition) {
-        medicalData['suspected_condition'] = _suspectedCondition;
-      }
-
-      if (hasSymptoms) {
-        medicalData['symptoms_description'] = _symptomsDescription;
-      }
-
-      if (_medicalHistory.isNotEmpty) {
-        medicalData['medical_history'] = _medicalHistory;
-      }
-
-      if (_previousServices.isNotEmpty) {
-        medicalData['previous_services'] = _previousServices;
-      }
-
-      if (_additionalNotes.isNotEmpty) {
-        medicalData['additional_notes'] = _additionalNotes;
-      }
-
-      // Attach simplified financial help flags if enabled
-      if (_needsFinancialHelp) {
-        medicalData['needs_financial_help'] = _needsFinancialHelp;
-        medicalData['monthly_income_range'] = _monthlyIncomeRange;
-      }
-
-      print('Final medical data to send: $medicalData');
-
-      if (medicalData.isEmpty) {
-        throw Exception('No medical data to analyze');
-      }
-
-      final result = await ApiService.analyzeMedicalCondition(
-          token, _childId!, medicalData);
-
-      print('API Response: ${result['success']}');
-
-      if (result['success'] == true) {
-        print('Analysis successful!');
-        print('Target conditions: ${result['target_conditions']}');
-
-        final dynamic institutionsData = result['recommended_institutions'];
-        List<dynamic> institutionsList = [];
-
-        if (institutionsData != null) {
-          if (institutionsData is List) {
-            institutionsList = institutionsData;
-          } else if (institutionsData is Map) {
-            if (institutionsData['institutions'] != null &&
-                institutionsData['institutions'] is List) {
-              institutionsList = institutionsData['institutions'];
-            } else if (institutionsData['data'] != null &&
-                institutionsData['data'] is List) {
-              institutionsList = institutionsData['data'];
-            }
+  print('Starting medical analysis');
+  
+  // NEW: أولوية استخدام بيانات المستند المحللة
+  bool useDocumentData = _documentAnalyzed && 
+                        (_symptomsDescription.isEmpty && 
+                         _suspectedCondition.isEmpty);
+  
+  final hasSymptoms = _symptomsDescription.trim().isNotEmpty || 
+                     (_documentAnalysisData?['symptoms']?.isNotEmpty ?? false);
+  final hasSuspectedCondition = _suspectedCondition.trim().isNotEmpty || 
+                               (_documentAnalysisData?['conditions']?.isNotEmpty ?? false);
+  final hasDiagnosis = _selectedDiagnosisId != null;
+  
+  print('Current Medical Data:');
+  print('   - Document Analyzed: $_documentAnalyzed');
+  print('   - Use Document Data: $useDocumentData');
+  print('   - Symptoms: $hasSymptoms');
+  print('   - Suspected Condition: $hasSuspectedCondition');
+  print('   - Diagnosis: $hasDiagnosis');
+  print('   - Child ID: $_childId');
+  
+  // NEW: إذا لم تكن هناك بيانات يدوية ولكن هناك تحليل مستند
+  if (useDocumentData) {
+    print('🔍 Using data from document analysis for AI analysis');
+    
+    // إنشاء وصف للأعراض من بيانات المستند
+    final docSymptoms = _documentAnalysisData?['symptoms'] as List<String>? ?? [];
+    final docConditions = _documentAnalysisData?['conditions'] as List<String>? ?? [];
+    
+    String combinedDescription = 'Based on medical document analysis:\n';
+    
+    if (docConditions.isNotEmpty) {
+      combinedDescription += 'Conditions: ${docConditions.join(', ')}\n';
+    }
+    
+    if (docSymptoms.isNotEmpty) {
+      combinedDescription += 'Symptoms: ${docSymptoms.join(', ')}';
+    }
+    
+    // استخدام البيانات في التحليل
+    _symptomsDescription = combinedDescription;
+    if (docConditions.isNotEmpty && _suspectedCondition.isEmpty) {
+      _suspectedCondition = docConditions.first;
+    }
+  }
+  
+  setState(() {
+    _isAnalyzing = true;
+  });
+  
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token') ?? '';
+    
+    final medicalData = <String, dynamic>{};
+    
+    if (hasDiagnosis) {
+      medicalData['diagnosis_id'] = _selectedDiagnosisId;
+    }
+    
+    if (hasSuspectedCondition) {
+      medicalData['suspected_condition'] = _suspectedCondition;
+    }
+    
+    // NEW: تضمين flag إذا كانت البيانات من مستند
+    if (useDocumentData) {
+      medicalData['source'] = 'document_analysis';
+    }
+    
+    if (hasSymptoms) {
+      medicalData['symptoms_description'] = _symptomsDescription;
+    }
+    
+    if (_medicalHistory.isNotEmpty) {
+      medicalData['medical_history'] = _medicalHistory;
+    }
+    
+    if (_previousServices.isNotEmpty) {
+      medicalData['previous_services'] = _previousServices;
+    }
+    
+    if (_additionalNotes.isNotEmpty) {
+      medicalData['additional_notes'] = _additionalNotes;
+    }
+    
+    // Attach simplified financial help flags if enabled
+    if (_needsFinancialHelp) {
+      medicalData['needs_financial_help'] = _needsFinancialHelp;
+      medicalData['monthly_income_range'] = _monthlyIncomeRange;
+    }
+    
+    print('Final medical data to send: $medicalData');
+    
+    if (medicalData.isEmpty) {
+      throw Exception('No medical data to analyze');
+    }
+    
+    final result = await ApiService.analyzeMedicalCondition(
+        token, _childId!, medicalData);
+    
+    print('API Response: ${result['success']}');
+    
+    if (result['success'] == true) {
+      print('Analysis successful!');
+      print('Target conditions: ${result['target_conditions']}');
+      
+      final dynamic institutionsData = result['recommended_institutions'];
+      List<dynamic> institutionsList = [];
+      
+      if (institutionsData != null) {
+        if (institutionsData is List) {
+          institutionsList = institutionsData;
+        } else if (institutionsData is Map) {
+          if (institutionsData['institutions'] != null &&
+              institutionsData['institutions'] is List) {
+            institutionsList = institutionsData['institutions'];
+          } else if (institutionsData['data'] != null &&
+              institutionsData['data'] is List) {
+            institutionsList = institutionsData['data'];
           }
         }
-
-        print('Institutions found: ${institutionsList.length}');
-
-        setState(() {
-          _aiAnalysisResult = result;
-          _recommendedInstitutions = institutionsList;
-          _currentStep = ChildFormStep.selectInstitution;
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Analysis complete! Found ${institutionsList.length} institutions'),
-            backgroundColor: AppColors.success,
-          ),
-        );
-      } else {
-        print('Analysis failed: ${result['message']}');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message'] ?? 'Analysis failed'),
-            backgroundColor: AppColors.error,
-          ),
-        );
       }
-    } catch (e) {
-      print('ERROR in analysis: $e');
-
+      
+      print('Institutions found: ${institutionsList.length}');
+      
+      setState(() {
+        _aiAnalysisResult = result;
+        _recommendedInstitutions = institutionsList;
+        _currentStep = ChildFormStep.selectInstitution;
+      });
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Analysis error: ${e.toString()}'),
+          content: Text(
+              'Analysis complete! Found ${institutionsList.length} institutions'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } else {
+      print('Analysis failed: ${result['message']}');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message'] ?? 'Analysis failed'),
           backgroundColor: AppColors.error,
         ),
       );
-    } finally {
-      setState(() {
-        _isAnalyzing = false;
-      });
-      print('Analysis completed');
     }
+  } catch (e) {
+    print('ERROR in analysis: $e');
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Analysis error: ${e.toString()}'),
+        backgroundColor: AppColors.error,
+      ),
+    );
+  } finally {
+    setState(() {
+      _isAnalyzing = false;
+    });
+    print('Analysis completed');
   }
-
+}
   List<dynamic> _safeConvertInstitutions(dynamic data) {
     try {
       print('Converting institutions data, type: ${data.runtimeType}');
@@ -1249,59 +1777,58 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                       : null,
                 ),
                 const SizedBox(height: 20),
-                Row(
+                
+                // ⭐ تم التصحيح: استخدام Column بدلاً من Row مع Expanded
+                Column(
                   children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: _gender,
-                        decoration: InputDecoration(
-                          labelText: 'Gender *',
-                          labelStyle: TextStyle(color: AppColors.textGray),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: AppColors.accent3),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide:
-                                BorderSide(color: AppColors.primary, width: 2),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 16),
+                    DropdownButtonFormField<String>(
+                      value: _gender,
+                      decoration: InputDecoration(
+                        labelText: 'Gender *',
+                        labelStyle: TextStyle(color: AppColors.textGray),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: AppColors.accent3),
                         ),
-                        items: const [
-                          DropdownMenuItem(value: 'Male', child: Text('Male')),
-                          DropdownMenuItem(
-                              value: 'Female', child: Text('Female')),
-                        ],
-                        onChanged: (v) => setState(() => _gender = v ?? 'Male'),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              BorderSide(color: AppColors.primary, width: 2),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 16),
                       ),
+                      items: const [
+                        DropdownMenuItem(value: 'Male', child: Text('Male')),
+                        DropdownMenuItem(value: 'Female', child: Text('Female')),
+                      ],
+                      onChanged: (v) => setState(() => _gender = v ?? 'Male'),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: TextFormField(
-                        initialValue: _childIdentifier,
-                        decoration: InputDecoration(
-                          labelText: 'Child Identifier',
-                          labelStyle: TextStyle(color: AppColors.textGray),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: AppColors.accent3),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide:
-                                BorderSide(color: AppColors.primary, width: 2),
-                          ),
-                          hintText: 'Optional',
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 16),
+                    const SizedBox(height: 20),
+                    
+                    TextFormField(
+                      initialValue: _childIdentifier,
+                      decoration: InputDecoration(
+                        labelText: 'Child Identifier',
+                        labelStyle: TextStyle(color: AppColors.textGray),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: AppColors.accent3),
                         ),
-                        onSaved: (v) => _childIdentifier = v ?? '',
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              BorderSide(color: AppColors.primary, width: 2),
+                        ),
+                        hintText: 'Optional',
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 16),
                       ),
+                      onSaved: (v) => _childIdentifier = v ?? '',
                     ),
                   ],
                 ),
+                
                 const SizedBox(height: 20),
                 TextFormField(
                   initialValue: _schoolInfo,
@@ -1336,14 +1863,49 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
 
   Widget _buildMedicalInfoStep() {
     return SingleChildScrollView(
-      child: Form(
-        key: _formKey,
-        child: Column(
-          children: [
-            _buildSection(
-              title: 'Medical Information',
-              icon: Icons.medical_services_outlined,
-              children: [
+    child: Form(
+      key: _formKey,
+      child: Column(
+        children: [
+          _buildSection(
+            title: 'Medical Information',
+            icon: Icons.medical_services_outlined,
+            children: [
+              // NEW: Show document analysis status
+              if (_documentAnalyzed)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.info.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.info.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.check_circle, size: 16, color: AppColors.success),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Medical document analyzed. Data has been auto-filled.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.success,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.info, size: 16, color: AppColors.info),
+                        onPressed: () {
+                          if (_documentAnalysisData != null) {
+                            _showAIAnalysisResults(_documentAnalysisData!);
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -1447,7 +2009,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                     contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16, vertical: 16),
                   ),
-                  isExpanded: true, // ⭐ هذا يحل مشكلة الoverflow
+                  isExpanded: true,
                   items: [
                     const DropdownMenuItem<int>(
                       value: null,
@@ -1601,6 +2163,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                   onSaved: (v) => _additionalNotes = v ?? '',
                 ),
                 const SizedBox(height: 24),
+                _buildMedicalDocumentUpload(),
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -2321,7 +2884,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
               ),
               const SizedBox(height: 20),
               _buildSection(
-                title: 'Recommended for you (${filteredInstitutions.length})',
+                title: 'Recommended for you ',
                 icon: Icons.recommend,
                 children: [
                   if (filteredInstitutions.isEmpty)
@@ -2684,111 +3247,114 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
   }
 
   Widget _buildInstitutionCard(Map<String, dynamic> institution) {
-    final id = institution['id'] ?? institution['institution_id'] ?? 0;
-    final name = institution['name'] ?? 'Unknown Institution';
-    final city = institution['city'] ?? '';
-    final matchScore = institution['match_score'] ?? '0%';
-    final specialties = institution['matching_specialties'] ?? [];
-    final distance = institution['distance']?.toString();
-    final isSelected = _selectedInstitutionId == id;
+  final id = institution['id'] ?? institution['institution_id'] ?? 0;
+  final name = institution['name'] ?? 'Unknown Institution';
+  final city = institution['city'] ?? '';
+  final matchScore = institution['match_score'] ?? '0%';
+  final specialties = institution['matching_specialties'] ?? [];
+  final distance = institution['distance']?.toString();
+  final isSelected = _selectedInstitutionId == id;
 
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      color:
-          isSelected ? AppColors.primary.withOpacity(0.05) : AppColors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: isSelected ? AppColors.primary : AppColors.accent3,
-          width: isSelected ? 2 : 1,
+  return Card(
+    margin: const EdgeInsets.symmetric(vertical: 4),
+    color:
+        isSelected ? AppColors.primary.withOpacity(0.05) : AppColors.surface,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+      side: BorderSide(
+        color: isSelected ? AppColors.primary : AppColors.accent3,
+        width: isSelected ? 2 : 1,
+      ),
+    ),
+    elevation: 2,
+    child: ListTile(
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.primary.withOpacity(0.2)
+              : AppColors.accent1,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          Icons.school,
+          color: isSelected ? AppColors.primary : AppColors.textLight,
+          size: 20,
         ),
       ),
-      elevation: 2,
-      child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        leading: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? AppColors.primary.withOpacity(0.2)
-                : AppColors.accent1,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            Icons.school,
-            color: isSelected ? AppColors.primary : AppColors.textLight,
-            size: 20,
-          ),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              name,
-              style: TextStyle(
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                color: isSelected ? AppColors.primary : AppColors.textDark,
-              ),
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            name,
+            style: TextStyle(
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+              color: isSelected ? AppColors.primary : AppColors.textDark,
             ),
-            const SizedBox(height: 2),
-            if (city.isNotEmpty && city != 'null')
-              Row(
-                children: [
-                  Icon(Icons.location_on, size: 12, color: AppColors.textLight),
-                  const SizedBox(width: 4),
-                  Expanded(
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+          ),
+          const SizedBox(height: 2),
+          if (city.isNotEmpty && city != 'null')
+            Row(
+              children: [
+                Icon(Icons.location_on, size: 12, color: AppColors.textLight),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    city,
+                    style:
+                        TextStyle(fontSize: 12, color: AppColors.textLight),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 4),
+          if (specialties.isNotEmpty && specialties is List)
+            Wrap(
+              spacing: 4,
+              runSpacing: 2,
+              children:
+                  (specialties as List).take(2).map<Widget>((specialty) {
+                // ⬇️ استبدال ConstrainedBox بـ Container مع عرض محدود
+                return Container(
+                  constraints: const BoxConstraints(maxWidth: 120),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                          color: AppColors.primary.withOpacity(0.3)),
+                    ),
                     child: Text(
-                      city,
+                      specialty.toString(),
                       style:
-                          TextStyle(fontSize: 12, color: AppColors.textLight),
+                          TextStyle(fontSize: 10, color: AppColors.primary),
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
                     ),
                   ),
-                ],
-              ),
-          ],
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            if (specialties.isNotEmpty && specialties is List)
-              Wrap(
-                spacing: 4,
-                runSpacing: 2,
-                children:
-                    (specialties as List).take(2).map<Widget>((specialty) {
-                  return ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 120),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                            color: AppColors.primary.withOpacity(0.3)),
-                      ),
-                      child: Text(
-                        specialty.toString(),
-                        style:
-                            TextStyle(fontSize: 10, color: AppColors.primary),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 6,
-              runSpacing: 4,
+                );
+              }).toList(),
+            ),
+          const SizedBox(height: 6),
+          // ⬇️ التصحيح الرئيسي: استخدام SingleChildScrollView بدلاً من Wrap للرقعات
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
               children: [
+                // رقاقة نتيجة المطابقة
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -2813,6 +3379,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                     ],
                   ),
                 ),
+                const SizedBox(width: 6),
+                // رقاقة التقييم
                 if (institution['rating'] != null)
                   Container(
                     padding:
@@ -2839,6 +3407,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                       ],
                     ),
                   ),
+                const SizedBox(width: 6),
+                // رقاقة السعر
                 if (institution['avg_price'] != null &&
                     double.tryParse(institution['avg_price'].toString()) !=
                         null)
@@ -2856,6 +3426,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                       children: [
                         Icon(Icons.attach_money,
                             size: 10, color: AppColors.success),
+                        SizedBox(width: 2),
                         Text(
                           '${double.parse(institution['avg_price'].toString()).toStringAsFixed(0)}',
                           style: TextStyle(
@@ -2867,6 +3438,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                       ],
                     ),
                   ),
+                const SizedBox(width: 6),
+                // رقاقة المسافة
                 if (distance != null)
                   Container(
                     padding:
@@ -2893,6 +3466,8 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                       ],
                     ),
                   ),
+                const SizedBox(width: 6),
+                // رقاقة الخدمات المتاحة
                 if (institution['available_services'] != null &&
                     institution['available_services'] is List &&
                     (institution['available_services'] as List).isNotEmpty)
@@ -2924,20 +3499,21 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                   ),
               ],
             ),
-          ],
-        ),
-        trailing: isSelected
-            ? Icon(Icons.check_circle, color: AppColors.success, size: 24)
-            : Icon(Icons.radio_button_unchecked,
-                color: AppColors.textLight, size: 24),
-        onTap: () {
-          setState(() {
-            _selectedInstitutionId = id;
-          });
-        },
+          ),
+        ],
       ),
-    );
-  }
+      trailing: isSelected
+          ? Icon(Icons.check_circle, color: AppColors.success, size: 24)
+          : Icon(Icons.radio_button_unchecked,
+              color: AppColors.textLight, size: 24),
+      onTap: () {
+        setState(() {
+          _selectedInstitutionId = id;
+        });
+      },
+    ),
+  );
+}
 
   Widget _buildNoInstitutionsWidget() {
     return Container(
@@ -3269,76 +3845,79 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
     return parts.join(', ');
   }
 
- 
   void _goToNextStep() {
-  switch (_currentStep) {
-    case ChildFormStep.basicInfo:
-      _saveBasicInfo();
-      break;
-    case ChildFormStep.medicalInfo:
-      _formKey.currentState?.save();
-      
-      if (_financialAssessmentRecommended && _showFinancialAssessment) {
-    setState(() {
-      _currentStep = ChildFormStep.financialAssessment;
-    });
-  } else {
-    _analyzeMedicalCondition();
-  }
-  break;
-    case ChildFormStep.financialAssessment: // ⬅️ حالة جديدة
-      _performFinancialAssessment();
-      break;
-    case ChildFormStep.selectInstitution:
-      _requestRegistration();
-      break;
-    case ChildFormStep.confirmation:
-      Navigator.pop(context, true);
-      break;
-  }
-}
-
-// في _goToPreviousStep():
-void _goToPreviousStep() {
-  setState(() {
     switch (_currentStep) {
+      case ChildFormStep.basicInfo:
+        _saveBasicInfo();
+        break;
       case ChildFormStep.medicalInfo:
-        _currentStep = ChildFormStep.basicInfo;
+        _formKey.currentState?.save();
+
+        if (_financialAssessmentRecommended && _showFinancialAssessment) {
+          setState(() {
+            _currentStep = ChildFormStep.financialAssessment;
+          });
+        } else {
+          _analyzeMedicalCondition();
+        }
         break;
       case ChildFormStep.financialAssessment: // ⬅️ حالة جديدة
-        _currentStep = ChildFormStep.medicalInfo;
+        _performFinancialAssessment();
         break;
       case ChildFormStep.selectInstitution:
-        _currentStep = _showFinancialAssessment 
-            ? ChildFormStep.financialAssessment 
-            : ChildFormStep.medicalInfo;
+        _requestRegistration();
         break;
       case ChildFormStep.confirmation:
-        _currentStep = ChildFormStep.selectInstitution;
-        break;
-      default:
+        Navigator.pop(context, true);
         break;
     }
-  });
-}
+  }
+
+// في _goToPreviousStep():
+  void _goToPreviousStep() {
+    setState(() {
+      switch (_currentStep) {
+        case ChildFormStep.medicalInfo:
+          _currentStep = ChildFormStep.basicInfo;
+          break;
+        case ChildFormStep.financialAssessment: // ⬅️ حالة جديدة
+          _currentStep = ChildFormStep.medicalInfo;
+          break;
+        case ChildFormStep.selectInstitution:
+          _currentStep = _showFinancialAssessment
+              ? ChildFormStep.financialAssessment
+              : ChildFormStep.medicalInfo;
+          break;
+        case ChildFormStep.confirmation:
+          _currentStep = ChildFormStep.selectInstitution;
+          break;
+        default:
+          break;
+      }
+    });
+  }
 
 // في _getActionButtonText():
-String _getActionButtonText() {
-  switch (_currentStep) {
-    case ChildFormStep.basicInfo:
-      return 'Continue to Medical Info';
-    case ChildFormStep.medicalInfo:
-      return _showFinancialAssessment ? 'Continue to Financial Assessment' : 'Analyze & Find Institutions';
-    case ChildFormStep.financialAssessment: // ⬅️ حالة جديدة
-      return _skipFinancialAssessment ? 'Skip & Continue' : 'Submit Assessment';
-    case ChildFormStep.selectInstitution:
-      return 'Request Registration';
-    case ChildFormStep.confirmation:
-      return 'Finish';
-    default:
-      return 'Continue';
+  String _getActionButtonText() {
+    switch (_currentStep) {
+      case ChildFormStep.basicInfo:
+        return 'Continue to Medical Info';
+      case ChildFormStep.medicalInfo:
+        return _showFinancialAssessment
+            ? 'Continue to Financial Assessment'
+            : 'Analyze & Find Institutions';
+      case ChildFormStep.financialAssessment: // ⬅️ حالة جديدة
+        return _skipFinancialAssessment
+            ? 'Skip & Continue'
+            : 'Submit Assessment';
+      case ChildFormStep.selectInstitution:
+        return 'Request Registration';
+      case ChildFormStep.confirmation:
+        return 'Finish';
+      default:
+        return 'Continue';
+    }
   }
-}
 
   String _getStepTitle() {
     switch (_currentStep) {
@@ -3371,6 +3950,7 @@ String _getActionButtonText() {
         return 1.0;
     }
   }
+
   double _parseMatchScore(dynamic score) {
     if (score == null) return 0.0;
     if (score is double) return score;

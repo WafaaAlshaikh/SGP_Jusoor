@@ -88,6 +88,12 @@ location_lng: {
   type: DataTypes.FLOAT,
   allowNull: true
 },
+medical_documents: {
+  type: DataTypes.JSON,
+  allowNull: true,
+  comment: 'Array of uploaded medical documents with metadata'
+},
+
   deleted_at: { type: DataTypes.DATE, allowNull: true }
 }, { 
   tableName: 'Children', 

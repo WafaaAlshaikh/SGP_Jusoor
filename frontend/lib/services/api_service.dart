@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:file_picker/file_picker.dart';
 import '../models/child_model.dart';
 import '../models/session.dart';
 import '../models/questionnaire_model.dart';
@@ -4326,4 +4327,125 @@ static Future<Map<String, dynamic>> getDonorProfile(String token) async {
     rethrow;
   }
 }
+
+// services/api_service.dart
+
+static Future<Map<String, dynamic>> uploadMedicalDocument(
+  String token,
+  String childId,
+  PlatformFile file,
+) async {
+  try {
+    print('📤 ========== UPLOAD DEBUG ==========');
+    print('📤 File name: ${file.name}');
+    print('📤 File path: ${file.path}');
+    print('📤 File size: ${file.size} bytes');
+    print('📤 File extension: ${file.extension}');
+    
+    // التحقق من وجود المسار
+    if (file.path == null || file.path!.isEmpty) {
+      throw Exception('File path is null or empty');
+    }
+
+    // التحقق من وجود الملف
+    final fileExists = await File(file.path!).exists();
+    print('📤 File exists: $fileExists');
+    
+    if (!fileExists) {
+      throw Exception('File does not exist at path: ${file.path}');
+    }
+
+    // إنشاء الطلب
+    var request = http.MultipartRequest(
+      'POST',
+      Uri.parse('http://10.0.2.2:5000/api/children/$childId/upload-document'),
+    );
+
+    // إضافة الـ headers
+    request.headers['Authorization'] = 'Bearer $token';
+    print('📤 Authorization token added');
+
+    // إضافة الملف
+    final multipartFile = await http.MultipartFile.fromPath(
+      'medical_document', // ⚠️ تأكد من الاسم
+      file.path!,
+      filename: file.name,
+    );
+    
+    request.files.add(multipartFile);
+    print('📤 File added to request:');
+    print('   - Field name: medical_document');
+    print('   - Filename: ${multipartFile.filename}');
+    print('   - Content type: ${multipartFile.contentType}');
+    print('   - Length: ${multipartFile.length}');
+
+    // إرسال الطلب
+    print('📤 Sending request to: ${request.url}');
+    final streamedResponse = await request.send();
+    
+    print('📡 Response status: ${streamedResponse.statusCode}');
+    
+    // قراءة الاستجابة
+    final responseBody = await streamedResponse.stream.bytesToString();
+    print('📡 Response body: $responseBody');
+    
+    final result = jsonDecode(responseBody);
+
+    if (streamedResponse.statusCode == 200) {
+      print('✅ Upload successful!');
+      return {
+        'success': true,
+        ...result,
+      };
+    } else {
+      print('❌ Upload failed');
+      return {
+        'success': false,
+        'message': result['message'] ?? 'Upload failed',
+        'error_code': result['error_code'],
+      };
+    }
+    
+  } catch (e, stackTrace) {
+    print('❌ ========== UPLOAD ERROR ==========');
+    print('❌ Error: $e');
+    print('❌ Stack trace: $stackTrace');
+    
+    return {
+      'success': false,
+      'message': 'Network error: $e',
+    };
+  }
+}
+  /// حذف مستند طبي
+  static Future<Map<String, dynamic>> deleteMedicalDocument(
+    String token,
+    String childId,
+    String fileId,
+  ) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('http://10.0.2.2:5000/api/children/$childId/documents/$fileId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        return {
+          'success': false,
+          'message': 'Failed to delete document',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Network error: $e',
+      };
+    }
+  }
+
 }

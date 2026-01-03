@@ -758,97 +758,164 @@ _buildWebDrawerItem(
 
   // 🔥 كروت الملخص للويب
   Widget _buildWebSummaryCards() {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 4,
-      crossAxisSpacing: 16,
-      mainAxisSpacing: 16,
-      childAspectRatio: 1.2,
-      children: [
-        _SummaryCard(
-          icon: Icons.calendar_month,
-          title: 'Upcoming Sessions',
-          count: dashboardData['upcomingSessionsCount'] ?? 0,
-          buttonText: 'View ➔',
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SpecialistSessionsScreen())),
-        ),
-        _SummaryCard(
-          icon: Icons.people,
-          title: 'My Children',
-          count: dashboardData['childrenCount'] ?? 0,
-          buttonText: 'View ➔',
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SpecialistChildrenScreen())),
-        ),
-        _SummaryCard(
-          icon: Icons.mail_outline,
-          title: 'New Messages',
-          count: unreadMessagesCount,
-          buttonText: 'Open ➔',
-          onTap: () {
-            Navigator.pop(context);
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ChatListScreen(),
-              ),
-            );
-          },
-        ),
-        _SummaryCard(
-          icon: Icons.psychology_outlined,
-          title: 'AI Insights',
-          count: 3,
-          buttonText: 'Explore ➔',
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AIInsightsScreen())),
-        ),
-      ],
-    );
-  }
-
+  return GridView.count(
+    shrinkWrap: true,
+    physics: const NeverScrollableScrollPhysics(),
+    crossAxisCount: 5, // ⬅️ غيري من 4 إلى 5
+    crossAxisSpacing: 16,
+    mainAxisSpacing: 16,
+    childAspectRatio: 1.1, // ⬅️ عدلي النسبة لتكون أصغر قليلاً
+    children: [
+      // ⭐⭐⭐ أضف هذا - كارت التقييمات للويب ⭐⭐⭐
+      _SummaryCard(
+        icon: Icons.star,
+        title: 'My Rating',
+        count: _totalRatings,
+        buttonText: 'View ➔',
+        insightText: '${_specialistRating.toStringAsFixed(1)}/5.0',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SpecialistRatingsScreen())),
+      ),
+      
+      _SummaryCard(
+        icon: Icons.calendar_month,
+        title: 'Upcoming Sessions',
+        count: dashboardData['upcomingSessionsCount'] ?? 0,
+        buttonText: 'View ➔',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SpecialistSessionsScreen())),
+      ),
+      
+      _SummaryCard(
+        icon: Icons.people,
+        title: 'My Children',
+        count: dashboardData['childrenCount'] ?? 0,
+        buttonText: 'View ➔',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SpecialistChildrenScreen())),
+      ),
+      
+      // ⭐⭐⭐ أضف هذا - كارت الرسائل للويب ⭐⭐⭐
+      _SummaryCard(
+        icon: Icons.mail_outline,
+        title: 'New Messages',
+        count: unreadMessagesCount,
+        buttonText: 'Open ➔',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ChatListScreen())),
+      ),
+      
+      // ⭐⭐⭐ أضف هذا - كارت الرؤى الذكية للويب ⭐⭐⭐
+      _SummaryCard(
+        icon: Icons.psychology_outlined,
+        title: 'AI Insights',
+        count: 3,
+        buttonText: 'Explore ➔',
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AIInsightsScreen())),
+      ),
+    ],
+  );
+}
   // 🔥 الإجراءات السريعة للويب
   Widget _buildWebQuickActions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          "Quick Actions",
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textDark),
-        ),
-        const SizedBox(height: 16),
-        GridView.count(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: 4,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: 2.5,
-          children: [
-            _QuickActionButton(
-              icon: Icons.add_circle_outline,
-              text: 'Add Session',
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AddSessionScreen())),
-            ),
-            _QuickActionButton(
-              icon: Icons.edit_note,
-              text: 'New Evaluation',
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AddEvaluationScreen())),
-            ),
-            _QuickActionButton(
-              icon: Icons.article_outlined,
-              text: 'New Post',
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => CreatePostScreen())),
-            ),
-            _QuickActionButton(
-              icon: Icons.beach_access,
-              text: 'Vacation Request',
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => VacationRequestScreen())),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text(
+        "Quick Actions",
+        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textDark),
+      ),
+      const SizedBox(height: 16),
+      GridView.count(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisCount: 4,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: 2.5,
+        children: [
+          _QuickActionButton(
+            icon: Icons.add_circle_outline,
+            text: 'Add Session',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AddSessionScreen())),
+          ),
+          
+          _QuickActionButton(
+            icon: Icons.edit_note,
+            text: 'New Evaluation',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AddEvaluationScreen())),
+          ),
+          
+          // ⭐⭐⭐ أضف هذا - زر الرسائل للويب ⭐⭐⭐
+          _QuickActionButton(
+            icon: Icons.mail_outline,
+            text: 'Messages',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ChatListScreen())),
+          ),
+          
+          // ⭐⭐⭐ أضف هذا - زر التقارير للويب ⭐⭐⭐
+          _QuickActionButton(
+            icon: Icons.assessment,
+            text: 'Reports',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ReportsListScreen(
+                    scope: ReportsScope.user,
+                    title: 'My Reports',
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      
+      // ⭐⭐⭐ أضف هذا - صف إضافي للويب ⭐⭐⭐
+      const SizedBox(height: 16),
+      GridView.count(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisCount: 4,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: 2.5,
+        children: [
+          // ⭐⭐⭐ أضف هذا - زر التحليلات للويب ⭐⭐⭐
+          _QuickActionButton(
+            icon: Icons.insights,
+            text: 'Analytics',
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Analytics screen coming soon')),
+              );
+            },
+          ),
+          
+          _QuickActionButton(
+            icon: Icons.article_outlined,
+            text: 'New Post',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => CreatePostScreen())),
+          ),
+          
+          _QuickActionButton(
+            icon: Icons.beach_access,
+            text: 'Vacation Request',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => VacationRequestScreen())),
+          ),
+          
+          // زر إضافي يمكن استخدامه لاحقاً
+          _QuickActionButton(
+            icon: Icons.download,
+            text: 'Export Data',
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Export feature coming soon')),
+              );
+            },
+          ),
+        ],
+      ),
+    ],
+  );
+}
 
   // 🔥 النشاط الحديث للويب
   Widget _buildWebRecentActivity() {
@@ -1120,13 +1187,14 @@ _buildWebDrawerItem(
   final isSmallScreen = screenWidth < 360;
   
   return SizedBox(
-    height: isSmallScreen ? 180 : 200, // تقليل الارتفاع للشاشات الصغيرة
+    height: isSmallScreen ? 180 : 200,
     child: ListView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       children: [
+        // كارت التقييمات (موجود)
         SizedBox(
-          width: isSmallScreen ? screenWidth * 0.55 : screenWidth * 0.6, // تقليل العرض
+          width: isSmallScreen ? screenWidth * 0.55 : screenWidth * 0.6,
           child: SpecialistRatingCard(
             rating: _specialistRating,
             totalRatings: _totalRatings,
@@ -1134,11 +1202,13 @@ _buildWebDrawerItem(
               context,
               MaterialPageRoute(builder: (context) => SpecialistRatingsScreen()),
             ),
-            showDetails: false, // غيري إلى false لتقليل الحجم
-            compact: true, // إذا كان ال widget يدعم وضع المدمج
+            showDetails: false,
+            compact: true,
           ),
         ),
-        const SizedBox(width: 12), // مسافة أقل
+        const SizedBox(width: 12),
+        
+        // كارت الجلسات القادمة (موجود)
         SizedBox(
           width: isSmallScreen ? screenWidth * 0.55 : screenWidth * 0.6,
           child: _SummaryCard(
@@ -1150,6 +1220,8 @@ _buildWebDrawerItem(
           ),
         ),
         const SizedBox(width: 12),
+        
+        // كارت الأطفال (موجود)
         SizedBox(
           width: isSmallScreen ? screenWidth * 0.55 : screenWidth * 0.6,
           child: _SummaryCard(
@@ -1160,24 +1232,128 @@ _buildWebDrawerItem(
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SpecialistChildrenScreen())),
           ),
         ),
+        const SizedBox(width: 12),
+        
+        // ⭐⭐⭐ أضف هذا - كارت الرسائل الجديدة ⭐⭐⭐
+        SizedBox(
+          width: isSmallScreen ? screenWidth * 0.55 : screenWidth * 0.6,
+          child: _SummaryCard(
+            icon: Icons.mail_outline,
+            title: 'New Messages',
+            count: unreadMessagesCount,
+            buttonText: 'Open Messages ➔',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ChatListScreen())),
+          ),
+        ),
+        const SizedBox(width: 12),
+        
+        // ⭐⭐⭐ أضف هذا - كارت الرؤى الذكية ⭐⭐⭐
+        SizedBox(
+          width: isSmallScreen ? screenWidth * 0.55 : screenWidth * 0.6,
+          child: _SummaryCard(
+            icon: Icons.psychology_outlined,
+            title: 'AI Insight Center',
+            count: 3, // يمكن تغيير هذا لبيانات حقيقية
+            buttonText: 'View ➔',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AIInsightsScreen())),
+          ),
+        ),
       ],
     ),
   );
 }
    // في دالة _buildQuickActions أضيفي بعد return:
 Widget _buildQuickActions() {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Text("Quick Actions", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textDark)),
+  final screenWidth = MediaQuery.of(context).size.width;
+  final isSmallScreen = screenWidth < 360;
+  final double buttonWidth = isSmallScreen ? screenWidth * 0.42 : 175.0;
+  
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text(
+        "Quick Actions", 
+        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textDark)
+      ),
       const SizedBox(height: 12),
-      Wrap(spacing: 20, runSpacing: 14, children: [
-        _QuickActionButton(icon: Icons.add_circle_outline, text: 'Add Session', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AddSessionScreen()))),
-        _QuickActionButton(icon: Icons.edit_note, text: 'New Evaluation', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AddEvaluationScreen()))),
-        _QuickActionButton(icon: Icons.article_outlined, text: 'New Post/Article', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => CreatePostScreen()))),
-        _QuickActionButton(icon: Icons.beach_access, text: 'Vacation Request', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => VacationRequestScreen()))),
-      ]),
-    ]);
-  }
-
+      Wrap(
+        spacing: isSmallScreen ? 10 : 20,
+        runSpacing: 14,
+        children: [
+          // ⭐⭐⭐ أضف هذا - زر الرسائل ⭐⭐⭐
+          // SizedBox(
+          //   width: buttonWidth,
+          //   child: _QuickActionButton(
+          //     icon: Icons.mail_outline,
+          //     text: 'Messages',
+          //     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ChatListScreen())),
+          //   ),
+          // ),
+          
+          _QuickActionButton(
+            icon: Icons.add_circle_outline,
+            text: 'Add Session',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AddSessionScreen())),
+          ),
+          
+          _QuickActionButton(
+            icon: Icons.edit_note,
+            text: 'New Evaluation',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AddEvaluationScreen())),
+          ),
+          
+          // ⭐⭐⭐ أضف هذا - زر التقارير ⭐⭐⭐
+          // SizedBox(
+          //   width: buttonWidth,
+          //   child: _QuickActionButton(
+          //     icon: Icons.assessment,
+          //     text: 'Reports',
+          //     onTap: () {
+          //       Navigator.push(
+          //         context,
+          //         MaterialPageRoute(
+          //           builder: (_) => const ReportsListScreen(
+          //             scope: ReportsScope.user,
+          //             title: 'My Reports',
+          //           ),
+          //         ),
+          //       );
+          //     },
+          //   ),
+          // ),
+          
+          // ⭐⭐⭐ أضف هذا - زر التحليلات ⭐⭐⭐
+          // SizedBox(
+          //   width: buttonWidth,
+          //   child: _QuickActionButton(
+          //     icon: Icons.insights,
+          //     text: 'Analytics',
+          //     onTap: () {
+          //       // يمكنك إضافة شاشة Analytics هنا
+          //       // Navigator.push(context, MaterialPageRoute(builder: (context) => AnalyticsScreen()));
+          //       ScaffoldMessenger.of(context).showSnackBar(
+          //         SnackBar(content: Text('Analytics screen coming soon')),
+          //       );
+          //     },
+          //   ),
+          // ),
+          
+          _QuickActionButton(
+            icon: Icons.article_outlined,
+            text: 'New Post',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => CreatePostScreen())),
+          ),
+          
+          _QuickActionButton(
+            icon: Icons.beach_access,
+            text: 'Vacation Request',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => VacationRequestScreen())),
+          ),
+        ],
+      ),
+    ],
+  );
+}
   // في دالة _buildRecentActivityFeed أضيفي قبل return:
 Widget _buildRecentActivityFeed() {
   return Column(
