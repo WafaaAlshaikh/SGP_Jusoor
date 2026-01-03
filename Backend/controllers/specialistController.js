@@ -595,6 +595,187 @@ const getAvailableSessionTypes = async (req, res) => {
   }
 };
 
+// const addSessionsForChildren = async (req, res) => {
+//   try {
+//     const specialistId = req.user.user_id;
+//     const { 
+//       child_ids, 
+//       session_type_id,
+//       date, 
+//       time, 
+//       session_type = 'Onsite',
+//       notes 
+//     } = req.body;
+
+//     if (!child_ids || !Array.isArray(child_ids) || child_ids.length === 0) {
+//       return res.status(400).json({ 
+//         success: false,
+//         message: 'يجب تحديد طفل واحد على الأقل' 
+//       });
+//     }
+
+//     if (!session_type_id || !date || !time) {
+//       return res.status(400).json({ 
+//         success: false,
+//         message: 'الحقول المطلوبة: session_type_id, date, time' 
+//       });
+//     }
+
+//     const specialist = await Specialist.findOne({
+//       where: { specialist_id: specialistId }
+//     });
+
+//     if (!specialist || !specialist.institution_id) {
+//       return res.status(404).json({ 
+//         success: false,
+//         message: 'المختص أو المؤسسة غير موجودة' 
+//       });
+//     }
+
+//     const sessionType = await SessionType.findOne({
+//       where: {
+//         session_type_id,
+//         institution_id: specialist.institution_id,
+//         approval_status: 'Approved'
+//       }
+//     });
+
+//     if (!sessionType) {
+//       return res.status(404).json({ 
+//         success: false,
+//         message: 'نوع الجلسة غير موجود أو غير موافق عليه' 
+//       });
+//     }
+
+//     const children = await Child.findAll({
+//       where: {
+//         child_id: { [Op.in]: child_ids },
+//         current_institution_id: specialist.institution_id,
+//         registration_status: 'Approved',
+//         deleted_at: null
+//       },
+//       include: [
+//         {
+//           model: Parent,
+//           attributes: ['parent_id']
+//         }
+//       ]
+//     });
+
+//     if (children.length !== child_ids.length) {
+//       return res.status(400).json({ 
+//         success: false,
+//         message: 'بعض الأطفال غير موجودين أو غير مسجلين في المؤسسة' 
+//       });
+//     }
+
+//     const sessionDateTime = new Date(`${date}T${time}`);
+//     if (sessionDateTime < new Date()) {
+//       return res.status(400).json({ 
+//         success: false,
+//         message: 'لا يمكن جدولة جلسة في الماضي' 
+//       });
+//     }
+
+//     const dayOfWeek = sessionDateTime.toLocaleDateString('en-US', { weekday: 'long' });
+//     const SpecialistSchedule = require('../model/SpecialistSchedule');
+    
+//     const specialistSchedule = await SpecialistSchedule.findOne({
+//       where: {
+//         specialist_id: specialistId,
+//         day_of_week: dayOfWeek
+//       }
+//     });
+
+//     if (!specialistSchedule) {
+//       return res.status(400).json({ 
+//         success: false,
+//         message: 'لا يوجد جدول عمل للمختص في هذا اليوم' 
+//       });
+//     }
+
+//     const sessionTime = time.substring(0, 5); 
+//     const scheduleStart = specialistSchedule.start_time.substring(0, 5);
+//     const scheduleEnd = specialistSchedule.end_time.substring(0, 5);
+
+//     if (sessionTime < scheduleStart || sessionTime >= scheduleEnd) {
+//       return res.status(400).json({ 
+//         success: false,
+//         message: `الوقت المحدد خارج ساعات العمل (${scheduleStart} - ${scheduleEnd})` 
+//       });
+//     }
+
+//     const conflictSessions = await Session.findAll({
+//       where: {
+//         specialist_id: specialistId,
+//         date,
+//         time: { [Op.like]: `${sessionTime}%` }, 
+//         status: { 
+//           [Op.notIn]: ['Cancelled', 'Rejected', 'Completed', 'Pending Approval'] 
+//         }
+//       }
+//     });
+
+//     if (conflictSessions.length > 0) {
+//       return res.status(400).json({ 
+//         success: false,
+//         message: 'هذا الوقت محجوز مسبقاً' 
+//       });
+//     }
+
+//     const createdSessions = [];
+//     const notifications = [];
+
+//     for (const child of children) {
+//       const session = await Session.create({
+//         child_id: child.child_id,
+//         specialist_id: specialistId,
+//         institution_id: specialist.institution_id,
+//         session_type_id,
+//         date,
+//         time: `${sessionTime}:00`, 
+//         session_type,
+//         status: 'Pending Approval', 
+//         parent_approved: null, 
+//         is_pending: true,
+//         parent_notes: notes || null
+//       });
+
+//       createdSessions.push(session);
+
+//       if (child.Parent && child.Parent.parent_id) {
+//         const notification = await Notification.create({
+//           user_id: child.Parent.parent_id,
+//           title: 'طلب موافقة على جلسة جديدة',
+//           message: `تم إنشاء جلسة جديدة لطفلك ${child.full_name} في ${date} الساعة ${sessionTime}. يرجى الموافقة أو الرفض.`,
+//           type: 'session_update',
+//           related_id: session.session_id,
+//           is_read: false
+//         });
+//         notifications.push(notification);
+//       }
+//     }
+
+//     res.status(201).json({
+//       success: true,
+//       message: `تم إنشاء ${createdSessions.length} جلسة بنجاح وتم إرسال طلبات الموافقة للأهل`,
+//       data: {
+//         sessions: createdSessions,
+//         count: createdSessions.length
+//       }
+//     });
+
+//   } catch (err) {
+//     console.error('Error in addSessionsForChildren:', err);
+//     res.status(500).json({ 
+//       success: false,
+//       message: 'خطأ في إنشاء الجلسات', 
+//       error: err.message 
+//     });
+//   }
+// };
+
+
 const addSessionsForChildren = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
@@ -737,31 +918,90 @@ const addSessionsForChildren = async (req, res) => {
         session_type,
         status: 'Pending Approval', 
         parent_approved: null, 
-        is_pending: true,
-        parent_notes: notes || null
-      });
+    is_pending: true,
+    parent_notes: notes || null,
+    // 🔴 أضف هذه الأسطر لحل المشكلة:
+    original_price: sessionType.price, // سعر الجلسة الأصلي
+    final_price: sessionType.price,    // سعر نهائي مؤقت (سيتم تحديثه بعد المساعدة المالية)
+    applied_discount_percentage: 0,    // نسبة خصم مؤقتة
+    financial_assistance_applied: false // لم يتم تطبيق المساعدة بعد
+  });
 
-      createdSessions.push(session);
+      // 🔴 **إضافة المساعدة المالية التلقائية بعد إنشاء الجلسة مباشرة**
+      let financialAidResult = null;
+      try {
+        const AutoFinancialAidService = require('../services/autoFinancialAidService');
+        financialAidResult = await AutoFinancialAidService.autoApplyFinancialAid(session.session_id);
+        
+        console.log(`✅ المساعدة المالية التلقائية للجلسة ${session.session_id}:`, 
+          financialAidResult.auto_applied ? 
+          `خصم ${financialAidResult.discount_percentage}% - السعر النهائي: ${financialAidResult.final_price}` : 
+          'بدون خصم');
+        
+      } catch (aidError) {
+        console.error(`❌ خطأ في المساعدة المالية للجلسة ${session.session_id}:`, aidError);
+        // نستمر في العملية حتى لو فشلت المساعدة المالية
+      }
 
+      // تحديث الإشعار للأهل بناءً على نتيجة المساعدة المالية
       if (child.Parent && child.Parent.parent_id) {
+        let notificationMessage = `تم إنشاء جلسة جديدة لطفلك ${child.full_name} في ${date} الساعة ${sessionTime}. `;
+        
+        if (financialAidResult && financialAidResult.auto_applied) {
+          if (financialAidResult.final_price === 0) {
+            notificationMessage += `🎉 **المميز: الجلسة مجانية بالكامل!**`;
+          } else if (financialAidResult.discount_percentage > 0) {
+            notificationMessage += `💰 **المميز: تم تطبيق خصم تلقائي ${financialAidResult.discount_percentage}%، السعر النهائي: ${financialAidResult.final_price} دينار**`;
+          }
+        } else {
+          notificationMessage += `السعر: ${sessionType.price} دينار.`;
+        }
+        
+        notificationMessage += `\nيرجى الموافقة أو الرفض في أقرب وقت.`;
+
         const notification = await Notification.create({
           user_id: child.Parent.parent_id,
           title: 'طلب موافقة على جلسة جديدة',
-          message: `تم إنشاء جلسة جديدة لطفلك ${child.full_name} في ${date} الساعة ${sessionTime}. يرجى الموافقة أو الرفض.`,
-          type: 'session_update',
+          message: notificationMessage,
+          type: financialAidResult && financialAidResult.auto_applied ? 'auto_financial_aid' : 'session_update',
           related_id: session.session_id,
-          is_read: false
+          is_read: false,
+          metadata: financialAidResult || {}
         });
         notifications.push(notification);
       }
+
+      createdSessions.push({
+        ...session.toJSON(),
+        financial_aid_applied: financialAidResult?.auto_applied || false,
+        discount_percentage: financialAidResult?.discount_percentage || 0,
+        final_price: financialAidResult?.final_price || sessionType.price
+      });
     }
+
+    // إضافة إشعار للمختص أيضاً
+    await Notification.create({
+      user_id: specialistId,
+      title: 'تم إنشاء جلسات جديدة',
+      message: `تم إنشاء ${createdSessions.length} جلسة في ${date} الساعة ${sessionTime}. ${createdSessions.filter(s => s.financial_aid_applied).length} جلسة حصلت على مساعدة مالية تلقائية.`,
+      type: 'sessions_created',
+      related_id: null,
+      is_read: false
+    });
 
     res.status(201).json({
       success: true,
-      message: `تم إنشاء ${createdSessions.length} جلسة بنجاح وتم إرسال طلبات الموافقة للأهل`,
+      message: `تم إنشاء ${createdSessions.length} جلسة بنجاح`,
       data: {
         sessions: createdSessions,
-        count: createdSessions.length
+        summary: {
+          total: createdSessions.length,
+          with_financial_aid: createdSessions.filter(s => s.financial_aid_applied).length,
+          total_discount: createdSessions.reduce((sum, session) => sum + (session.financial_aid_applied ? session.discount_percentage : 0), 0),
+          estimated_total_original: createdSessions.reduce((sum, session) => sum + parseFloat(sessionType.price), 0),
+          estimated_total_final: createdSessions.reduce((sum, session) => sum + parseFloat(session.final_price || sessionType.price), 0),
+          total_savings: createdSessions.reduce((sum, session) => sum + (session.financial_aid_applied ? (parseFloat(sessionType.price) - parseFloat(session.final_price || sessionType.price)) : 0), 0)
+        }
       }
     });
 

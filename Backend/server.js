@@ -265,15 +265,21 @@ app.use('/api/manager', require('./routes/manager/institutionProfileRoutes'));
 
 app.use('/api/manager/cms', require('./routes/manager/institutionCmsRoutes'));
 
+app.use('/api/manager/impact', require('./routes/manager/impactPostRoutes'));
+
 // Manager Donations (campaigns + statistics)
 app.use('/api/manager/donations', require('./routes/manager/donationCampaignRoutes'));
 
 const ratingRoutes = require('./routes/ratingRoutes');
 app.use('/api/ratings', ratingRoutes);
 
+app.use('/api/impact', require('./routes/impactRoutes'));
+
 app.use('/api/notifications', require('./routes/notificationRoutes'));
 
 app.use('/api/device-tokens', require('./routes/deviceTokenRoutes'));
+
+app.use('/api/invites', require('./routes/inviteRoutes'));
 
 // app.js or server.js
 const financialRoutes = require('./routes/financialRoutes');

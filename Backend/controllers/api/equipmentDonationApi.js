@@ -27,6 +27,38 @@ exports.getInstitutionsForEquipmentDonation = async (req, res) => {
   }
 };
 
+exports.getOpenEquipmentCampaigns = async (req, res) => {
+  try {
+    const campaigns = await EquipmentDonationCampaign.findAll({
+      where: {
+        status: { [Op.in]: ['open', 'partially_fulfilled'] }
+      },
+      include: [
+        {
+          model: Institution,
+          as: 'institution',
+          attributes: ['institution_id', 'name', 'city', 'is_active']
+        }
+      ],
+      order: [['priority_score_snapshot', 'DESC'], ['created_at', 'ASC']]
+    });
+
+    const data = campaigns.filter(c => c?.institution?.is_active);
+
+    return res.status(200).json({
+      success: true,
+      data
+    });
+  } catch (error) {
+    console.error('Error fetching open equipment campaigns:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'خطأ في جلب حملات المعدات',
+      error: error.message
+    });
+  }
+};
+
 // API للحصول على حملات تبرع المعدات لمؤسسة (لا تحتاج مصادقة)
 exports.getInstitutionEquipmentCampaigns = async (req, res) => {
   try {
@@ -85,9 +117,21 @@ exports.getEquipmentCampaignDetails = async (req, res) => {
       });
     }
 
-    const campaign = await EquipmentDonationCampaign.findByPk(campaignId);
+    const campaign = await EquipmentDonationCampaign.findByPk(campaignId, {
+      include: [
+        {
+          model: Institution,
+          as: 'institution',
+          attributes: ['institution_id', 'name', 'city', 'is_active']
+        }
+      ]
+    });
     if (!campaign) {
       return res.status(404).json({ success: false, message: 'الحملة غير موجودة' });
+    }
+
+    if (campaign?.institution && campaign.institution.is_active === false) {
+      return res.status(400).json({ success: false, message: 'المؤسسة غير نشطة حالياً' });
     }
 
     return res.status(200).json({ success: true, data: campaign });

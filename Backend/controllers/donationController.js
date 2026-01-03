@@ -1,4 +1,21 @@
-const { Donation,Manager, Institution, DonationCampaign, DonationAllocation, Invoice, Session, Child } = require('../model');
+const {
+  Donation,
+  Manager,
+  User,
+  Institution,
+  DonationCampaign,
+  DonationAllocation,
+  Invoice,
+  Session,
+  Child,
+  EquipmentDonation,
+  InstitutionEquipmentInventory,
+  EquipmentAllocation,
+  ChildEquipmentNeed,
+  ImpactPost,
+  DonationInvite,
+  DonationInviteEvent,
+} = require('../model');
 const Stripe = require('stripe');
 require('dotenv').config();
 const sequelize = require('../config/db');
@@ -199,6 +216,256 @@ exports.confirmDonation = async (req, res) => {
   }
 };
 
+// Manager: institution-level impact (money + equipment + posts)
+exports.getManagerDonationImpactV2 = async (req, res) => {
+  try {
+    const managerId = req.user.user_id;
+    const institution = await getManagerInstitution(managerId);
+    if (!institution) {
+      return res.status(404).json({ success: false, message: 'Manager or institution not found' });
+    }
+
+    const institutionId = institution.institution_id;
+
+    const paidDonationWhere = {
+      institution_id: institutionId,
+      status: 'completed',
+      payment_status: 'paid',
+    };
+
+    // ===== Money impact (institution-level) =====
+    const donationAgg = await Donation.findOne({
+      where: paidDonationWhere,
+      attributes: [[Donation.sequelize.fn('SUM', Donation.sequelize.col('amount')), 'total']],
+      raw: true,
+    });
+    const totalDonationsAmount = parseFloat(donationAgg?.total || 0);
+
+    const paidDonations = await Donation.findAll({
+      where: paidDonationWhere,
+      attributes: ['donation_id'],
+      raw: true,
+    });
+    const paidDonationIds = paidDonations.map((d) => d.donation_id);
+
+    const allocations = await DonationAllocation.findAll({
+      where: {
+        institution_id: institutionId,
+        ...(paidDonationIds.length ? { donation_id: { [Op.in]: paidDonationIds } } : { donation_id: -1 }),
+      },
+      attributes: ['allocation_id', 'donation_id', 'invoice_id', 'amount_allocated', 'created_at'],
+      order: [['created_at', 'DESC']],
+      raw: true,
+    });
+
+    const totalAllocatedAmount = allocations.reduce(
+      (sum, a) => sum + parseFloat(a.amount_allocated || 0),
+      0,
+    );
+
+    const invoiceIds = [...new Set(allocations.map((a) => a.invoice_id).filter((id) => !!id))];
+    let sessionsSupportedCount = 0;
+    let childrenSupportedCount = 0;
+    let moneyTimeline = [];
+
+    if (invoiceIds.length) {
+      const invoices = await Invoice.findAll({
+        where: { invoice_id: { [Op.in]: invoiceIds } },
+        attributes: ['invoice_id', 'session_id'],
+        raw: true,
+      });
+
+      const sessionIds = [...new Set(invoices.map((i) => i.session_id).filter((id) => !!id))];
+      sessionsSupportedCount = sessionIds.length;
+
+      if (sessionIds.length) {
+        const sessions = await Session.findAll({
+          where: { session_id: { [Op.in]: sessionIds } },
+          attributes: ['session_id', 'child_id', 'date', 'session_type'],
+          raw: true,
+        });
+
+        const childIds = [...new Set(sessions.map((s) => s.child_id).filter((id) => !!id))];
+        childrenSupportedCount = childIds.length;
+
+        const children = childIds.length
+          ? await Child.findAll({
+              where: { child_id: { [Op.in]: childIds } },
+              attributes: ['child_id', 'full_name'],
+              raw: true,
+            })
+          : [];
+
+        const childById = children.reduce((acc, c) => {
+          acc[c.child_id] = c;
+          return acc;
+        }, {});
+        const sessionById = sessions.reduce((acc, s) => {
+          acc[s.session_id] = s;
+          return acc;
+        }, {});
+
+        moneyTimeline = allocations.slice(0, 10).map((a) => {
+          const invoice = invoices.find((i) => i.invoice_id === a.invoice_id);
+          const session = invoice ? sessionById[invoice.session_id] : null;
+          const child = session ? childById[session.child_id] : null;
+          return {
+            allocation_id: a.allocation_id,
+            amount: parseFloat(a.amount_allocated || 0),
+            date: a.created_at,
+            child_name: child ? child.full_name : null,
+            session_type: session ? session.session_type : null,
+          };
+        });
+      }
+    }
+
+    const moneyImpact = {
+      totalDonationsAmount,
+      totalAllocatedAmount,
+      donationBalance: parseFloat(institution.donation_balance || 0),
+      sessionsSupportedCount,
+      childrenSupportedCount,
+      timeline: moneyTimeline,
+    };
+
+    // ===== Equipment impact (institution-level) =====
+    const equipmentDonations = await EquipmentDonation.findAll({
+      where: { institution_id: institutionId },
+      attributes: ['equipment_donation_id', 'donor_id', 'equipment_name', 'status', 'estimated_value', 'created_at', 'actual_delivery_date'],
+      order: [['created_at', 'DESC']],
+      raw: true,
+    });
+
+    const equipmentDonationIds = equipmentDonations.map((d) => d.equipment_donation_id);
+    const equipmentEstimatedValueTotal = equipmentDonations.reduce(
+      (sum, d) => sum + (parseFloat(d.estimated_value || 0) || 0),
+      0,
+    );
+
+    const inventoryItems = await InstitutionEquipmentInventory.findAll({
+      where: {
+        institution_id: institutionId,
+        ...(equipmentDonationIds.length ? { source_donation_id: { [Op.in]: equipmentDonationIds } } : {}),
+      },
+      attributes: ['inventory_item_id', 'institution_id', 'equipment_name', 'category_id', 'usage_type', 'source_donation_id', 'created_at'],
+      raw: true,
+    });
+
+    const inventoryItemIds = inventoryItems.map((x) => x.inventory_item_id);
+    const equipmentAllocations = inventoryItemIds.length
+      ? await EquipmentAllocation.findAll({
+          where: { institution_id: institutionId, inventory_item_id: { [Op.in]: inventoryItemIds } },
+          attributes: ['allocation_id', 'institution_id', 'inventory_item_id', 'need_id', 'child_id', 'allocation_mode', 'usage_type', 'status', 'created_at'],
+          order: [['created_at', 'DESC']],
+          raw: true,
+        })
+      : [];
+
+    const allocationNeedIds = [...new Set(equipmentAllocations.map((a) => a.need_id).filter((x) => !!x))];
+    const allocationChildIds = [...new Set(equipmentAllocations.map((a) => a.child_id).filter((x) => !!x))];
+
+    const [needs, eqChildren] = await Promise.all([
+      allocationNeedIds.length
+        ? ChildEquipmentNeed.findAll({
+            where: { need_id: { [Op.in]: allocationNeedIds } },
+            attributes: ['need_id', 'child_id', 'equipment_name', 'equipment_type', 'severity', 'priority_score', 'status'],
+            raw: true,
+          })
+        : [],
+      allocationChildIds.length
+        ? Child.findAll({
+            where: { child_id: { [Op.in]: allocationChildIds } },
+            attributes: ['child_id', 'full_name'],
+            raw: true,
+          })
+        : [],
+    ]);
+
+    const needById = (needs || []).reduce((acc, n) => {
+      acc[n.need_id] = n;
+      return acc;
+    }, {});
+    const childById = (eqChildren || []).reduce((acc, c) => {
+      acc[c.child_id] = c;
+      return acc;
+    }, {});
+    const inventoryById = inventoryItems.reduce((acc, it) => {
+      acc[it.inventory_item_id] = it;
+      return acc;
+    }, {});
+    const donationById = equipmentDonations.reduce((acc, d) => {
+      acc[d.equipment_donation_id] = d;
+      return acc;
+    }, {});
+
+    const equipmentTimeline = [...equipmentAllocations.slice(0, 10)].map((a) => {
+      const inv = inventoryById[a.inventory_item_id] || null;
+      const donation = inv?.source_donation_id ? donationById[inv.source_donation_id] : null;
+      const need = a.need_id ? needById[a.need_id] || null : null;
+      const child = a.child_id ? childById[a.child_id] || null : null;
+      return {
+        allocation_id: a.allocation_id,
+        status: a.status,
+        date: a.created_at,
+        inventory_item_id: a.inventory_item_id,
+        equipment_donation_id: donation ? donation.equipment_donation_id : inv?.source_donation_id || null,
+        equipment_name: inv?.equipment_name || donation?.equipment_name || null,
+        need_id: a.need_id,
+        need,
+        child_id: a.child_id,
+        child_name: child ? child.full_name : null,
+      };
+    });
+
+    const equipmentImpact = {
+      total_count: equipmentDonations.length,
+      delivered_count: equipmentDonations.filter((d) => d.status === 'delivered').length,
+      pending_count: equipmentDonations.filter((d) => ['pending', 'approved', 'scheduled'].includes(d.status)).length,
+      rejected_or_cancelled_count: equipmentDonations.filter((d) => ['rejected', 'cancelled'].includes(d.status)).length,
+      estimated_value_total: equipmentEstimatedValueTotal,
+      inventory_items_count: inventoryItems.length,
+      allocated_count: equipmentAllocations.length,
+      delivered_allocation_count: equipmentAllocations.filter((a) => a.status === 'delivered').length,
+      needs_supported_count: new Set(equipmentAllocations.map((a) => a.need_id).filter((x) => !!x)).size,
+      children_supported_count: new Set(equipmentAllocations.map((a) => a.child_id).filter((x) => !!x)).size,
+      timeline: equipmentTimeline,
+    };
+
+    // ===== Impact posts stats =====
+    const [postsTotal, postsPublished] = await Promise.all([
+      ImpactPost.count({ where: { institution_id: institutionId } }),
+      ImpactPost.count({ where: { institution_id: institutionId, is_published: true } }),
+    ]);
+
+    const postsStats = {
+      total: postsTotal,
+      published: postsPublished,
+      drafts: Math.max(0, postsTotal - postsPublished),
+    };
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        institution: {
+          institution_id: institutionId,
+          name: institution.name,
+        },
+        money_impact: moneyImpact,
+        equipment_impact: equipmentImpact,
+        impact_posts: postsStats,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching manager donation impact v2:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch impact',
+      error: error.message,
+    });
+  }
+};
+
 // Get list of institutions available for donation
 exports.getDonationInstitutions = async (req, res) => {
   try {
@@ -295,7 +562,7 @@ exports.createDonationCheckout = async (req, res) => {
       // يمكن السماح بالتبرع بدون معلومات شخصية تماماً
     }
 
-    const { institution_id, amount, campaign_id, mode, currency = 'usd', anonymous = false } = req.body;
+    const { institution_id, amount, campaign_id, mode, currency = 'usd', anonymous = false, invite_code } = req.body;
 
     // ==================== 2. التحقق من المدخلات ====================
     if (!institution_id || !amount) {
@@ -401,6 +668,38 @@ exports.createDonationCheckout = async (req, res) => {
       }
     }
 
+    // ==================== 4.5 التحقق من invite_code (إذا وجد) ====================
+    let invite = null;
+    let inviteId = null;
+    const inviteCodeStr = (invite_code ?? '').toString().trim();
+    if (inviteCodeStr) {
+      invite = await DonationInvite.findOne({
+        where: {
+          code: inviteCodeStr,
+          is_active: true,
+        },
+        raw: true,
+      });
+
+      if (!invite) {
+        return res.status(404).json({ success: false, message: 'Invalid invite code' });
+      }
+
+      if (parseInt(invite.institution_id, 10) !== parsedInstitutionId) {
+        return res.status(400).json({ success: false, message: 'Invite code does not match this institution' });
+      }
+
+      // If invite is tied to a specific campaign, enforce it
+      if (invite.campaign_id && parsedCampaignId && parseInt(invite.campaign_id, 10) !== parsedCampaignId) {
+        return res.status(400).json({ success: false, message: 'Invite code does not match this campaign' });
+      }
+      if (invite.campaign_id && !parsedCampaignId) {
+        return res.status(400).json({ success: false, message: 'This invite is tied to a campaign; campaign_id is required' });
+      }
+
+      inviteId = invite.invite_id;
+    }
+
     // ==================== 5. تحديد نوع التبرع ====================
     const donationMode = (mode === 'monthly' || mode === 'recurring') ? 'monthly' : 'one_time';
     
@@ -452,7 +751,8 @@ exports.createDonationCheckout = async (req, res) => {
       mode: donationMode,
       timestamp: new Date().toISOString(),
       ip_address: req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress || '',
-      user_agent: req.headers['user-agent'] || ''
+      user_agent: req.headers['user-agent'] || '',
+      invite_code: inviteCodeStr || '',
     };
 
     // ==================== 8. إعداد طرق الدفع - الإصلاح هنا ====================
@@ -553,6 +853,26 @@ exports.createDonationCheckout = async (req, res) => {
     };
 
     const donation = await Donation.create(donationData);
+
+    // Log invite checkout_started (if any)
+    if (inviteId) {
+      try {
+        await DonationInviteEvent.create({
+          invite_id: inviteId,
+          event_type: 'checkout_started',
+          referred_user_id: donorId || null,
+          donation_id: donation.donation_id,
+          stripe_session_id: session.id,
+          amount: parsedAmount,
+          currency: currency.toLowerCase(),
+          ip_address: metadata.ip_address,
+          user_agent: metadata.user_agent,
+          created_at: new Date(),
+        });
+      } catch (e) {
+        console.warn('Failed to log invite checkout_started:', e.message);
+      }
+    }
 
     // ==================== 6. إرجاع النتيجة ====================
     return res.status(200).json({
@@ -989,6 +1309,338 @@ exports.getDonationImpact = async (req, res) => {
   }
 };
 
+exports.getDonationImpactV2 = async (req, res) => {
+  try {
+    const donorId = req.user.user_id;
+
+    // ===== Money impact (same logic as getDonationImpact) =====
+    const donationAgg = await Donation.findOne({
+      where: { donor_id: donorId },
+      attributes: [[Donation.sequelize.fn('SUM', Donation.sequelize.col('amount')), 'total']],
+      raw: true,
+    });
+
+    const totalDonationsAmount = parseFloat(donationAgg?.total || 0);
+
+    const donations = await Donation.findAll({
+      where: { donor_id: donorId },
+      attributes: ['donation_id', 'campaign_id'],
+      raw: true,
+    });
+
+    let moneyImpact = {
+      totalDonationsAmount,
+      totalAllocatedAmount: 0,
+      sessionsSupportedCount: 0,
+      childrenSupportedCount: 0,
+      timeline: [],
+    };
+
+    if (donations.length) {
+      const donationIds = donations.map((d) => d.donation_id);
+
+      const allocations = await DonationAllocation.findAll({
+        where: {
+          donation_id: {
+            [Op.in]: donationIds,
+          },
+        },
+        attributes: ['allocation_id', 'donation_id', 'invoice_id', 'amount_allocated', 'created_at'],
+        order: [['created_at', 'DESC']],
+        raw: true,
+      });
+
+      if (allocations.length) {
+        const totalAllocatedAmount = allocations.reduce(
+          (sum, a) => sum + parseFloat(a.amount_allocated || 0),
+          0,
+        );
+
+        const invoiceIds = [...new Set(allocations.map((a) => a.invoice_id).filter((id) => !!id))];
+
+        let sessionsSupportedCount = 0;
+        let childrenSupportedCount = 0;
+        let timeline = [];
+
+        if (invoiceIds.length > 0) {
+          const invoices = await Invoice.findAll({
+            where: {
+              invoice_id: {
+                [Op.in]: invoiceIds,
+              },
+            },
+            attributes: ['invoice_id', 'session_id'],
+            raw: true,
+          });
+
+          const sessionIds = [...new Set(invoices.map((i) => i.session_id).filter((id) => !!id))];
+
+          if (sessionIds.length > 0) {
+            sessionsSupportedCount = sessionIds.length;
+
+            const sessions = await Session.findAll({
+              where: {
+                session_id: {
+                  [Op.in]: sessionIds,
+                },
+              },
+              attributes: ['session_id', 'child_id', 'date', 'session_type'],
+              raw: true,
+            });
+
+            const childIds = [...new Set(sessions.map((s) => s.child_id).filter((id) => !!id))];
+            childrenSupportedCount = childIds.length;
+
+            const children = await Child.findAll({
+              where: {
+                child_id: {
+                  [Op.in]: childIds,
+                },
+              },
+              attributes: ['child_id', 'full_name'],
+              raw: true,
+            });
+
+            const childById = children.reduce((acc, c) => {
+              acc[c.child_id] = c;
+              return acc;
+            }, {});
+
+            const sessionById = sessions.reduce((acc, s) => {
+              acc[s.session_id] = s;
+              return acc;
+            }, {});
+
+            const allocationsForTimeline = allocations.slice(0, 10);
+            timeline = allocationsForTimeline.map((a) => {
+              const invoice = invoices.find((i) => i.invoice_id === a.invoice_id);
+              const session = invoice ? sessionById[invoice.session_id] : null;
+              const child = session ? childById[session.child_id] : null;
+              const donation = donations.find((d) => d.donation_id === a.donation_id);
+
+              return {
+                allocation_id: a.allocation_id,
+                amount: parseFloat(a.amount_allocated || 0),
+                date: a.created_at,
+                child_name: child ? child.full_name : null,
+                session_type: session ? session.session_type : null,
+                campaign_id: donation ? donation.campaign_id : null,
+              };
+            });
+          }
+        }
+
+        moneyImpact = {
+          totalDonationsAmount,
+          totalAllocatedAmount,
+          sessionsSupportedCount,
+          childrenSupportedCount,
+          timeline,
+        };
+      }
+    }
+
+    // ===== Equipment impact (linked to inventory + allocations) =====
+    const equipmentDonations = await EquipmentDonation.findAll({
+      where: { donor_id: donorId },
+      attributes: [
+        'equipment_donation_id',
+        'institution_id',
+        'equipment_name',
+        'status',
+        'estimated_value',
+        'created_at',
+        'actual_delivery_date',
+      ],
+      order: [['created_at', 'DESC']],
+      raw: true,
+    });
+
+    const equipmentDonationIds = equipmentDonations.map((d) => d.equipment_donation_id);
+
+    const equipmentTotalCount = equipmentDonations.length;
+    const equipmentDeliveredCount = equipmentDonations.filter((d) => d.status === 'delivered').length;
+    const equipmentPendingCount = equipmentDonations.filter((d) => ['pending', 'approved', 'scheduled'].includes(d.status)).length;
+    const equipmentRejectedOrCancelledCount = equipmentDonations.filter((d) => ['rejected', 'cancelled'].includes(d.status)).length;
+
+    const equipmentEstimatedValueTotal = equipmentDonations.reduce(
+      (sum, d) => sum + (parseFloat(d.estimated_value || 0) || 0),
+      0,
+    );
+
+    // Link delivered donations to inventory items (source_donation_id)
+    let allocations = [];
+    let inventoryItems = [];
+    if (equipmentDonationIds.length) {
+      inventoryItems = await InstitutionEquipmentInventory.findAll({
+        where: {
+          source_donation_id: { [Op.in]: equipmentDonationIds },
+        },
+        attributes: [
+          'inventory_item_id',
+          'institution_id',
+          'equipment_name',
+          'category_id',
+          'usage_type',
+          'source_donation_id',
+          'created_at',
+        ],
+        raw: true,
+      });
+
+      const inventoryItemIds = inventoryItems.map((x) => x.inventory_item_id);
+      if (inventoryItemIds.length) {
+        allocations = await EquipmentAllocation.findAll({
+          where: {
+            inventory_item_id: { [Op.in]: inventoryItemIds },
+          },
+          attributes: [
+            'allocation_id',
+            'institution_id',
+            'inventory_item_id',
+            'need_id',
+            'child_id',
+            'allocation_mode',
+            'usage_type',
+            'status',
+            'delivery_notes',
+            'parent_confirmed_at',
+            'created_at',
+            'updated_at',
+          ],
+          order: [['created_at', 'DESC']],
+          raw: true,
+        });
+      }
+    }
+
+    const inventoryById = inventoryItems.reduce((acc, it) => {
+      acc[it.inventory_item_id] = it;
+      return acc;
+    }, {});
+
+    const allocationNeedIds = [...new Set(allocations.map((a) => a.need_id).filter((x) => !!x))];
+    const allocationChildIds = [...new Set(allocations.map((a) => a.child_id).filter((x) => !!x))];
+
+    const [needs, children] = await Promise.all([
+      allocationNeedIds.length
+        ? ChildEquipmentNeed.findAll({
+            where: { need_id: { [Op.in]: allocationNeedIds } },
+            attributes: ['need_id', 'child_id', 'equipment_name', 'equipment_type', 'severity', 'priority_score', 'status'],
+            raw: true,
+          })
+        : [],
+      allocationChildIds.length
+        ? Child.findAll({
+            where: { child_id: { [Op.in]: allocationChildIds } },
+            attributes: ['child_id', 'full_name'],
+            raw: true,
+          })
+        : [],
+    ]);
+
+    const needById = (needs || []).reduce((acc, n) => {
+      acc[n.need_id] = n;
+      return acc;
+    }, {});
+    const childById2 = (children || []).reduce((acc, c) => {
+      acc[c.child_id] = c;
+      return acc;
+    }, {});
+
+    const allocatedCount = allocations.length;
+    const deliveredAllocationCount = allocations.filter((a) => a.status === 'delivered').length;
+
+    const needsSupportedCount = new Set(allocations.map((a) => a.need_id).filter((x) => !!x)).size;
+    const childrenSupportedByEquipmentCount = new Set(allocations.map((a) => a.child_id).filter((x) => !!x)).size;
+
+    // Timeline: combine donations + inventory + allocations (latest 10 events)
+    const donationById = equipmentDonations.reduce((acc, d) => {
+      acc[d.equipment_donation_id] = d;
+      return acc;
+    }, {});
+
+    const donationEvents = equipmentDonations.map((d) => ({
+      event_type: 'equipment_donation',
+      date: d.created_at,
+      institution_id: d.institution_id,
+      equipment_donation_id: d.equipment_donation_id,
+      equipment_name: d.equipment_name,
+      status: d.status,
+      estimated_value: d.estimated_value != null ? parseFloat(d.estimated_value) : null,
+      delivered_at: d.actual_delivery_date || null,
+    }));
+
+    const inventoryEvents = inventoryItems.map((it) => ({
+      event_type: 'inventory_added',
+      date: it.created_at,
+      institution_id: it.institution_id,
+      inventory_item_id: it.inventory_item_id,
+      equipment_name: it.equipment_name,
+      source_donation_id: it.source_donation_id,
+    }));
+
+    const allocationEvents = allocations.map((a) => {
+      const inv = inventoryById[a.inventory_item_id] || null;
+      const donation = inv?.source_donation_id ? donationById[inv.source_donation_id] : null;
+      const need = a.need_id ? needById[a.need_id] || null : null;
+      const child = a.child_id ? childById2[a.child_id] || null : null;
+
+      return {
+        event_type: 'equipment_allocated',
+        date: a.created_at,
+        institution_id: a.institution_id,
+        allocation_id: a.allocation_id,
+        status: a.status,
+        inventory_item_id: a.inventory_item_id,
+        equipment_donation_id: donation ? donation.equipment_donation_id : inv?.source_donation_id || null,
+        equipment_name: inv?.equipment_name || donation?.equipment_name || null,
+        need_id: a.need_id,
+        need: need,
+        child_id: a.child_id,
+        child_name: child ? child.full_name : null,
+      };
+    });
+
+    const equipmentTimeline = [...donationEvents, ...inventoryEvents, ...allocationEvents]
+      .filter((e) => !!e.date)
+      .sort((a, b) => {
+        const ad = new Date(a.date).getTime();
+        const bd = new Date(b.date).getTime();
+        return bd - ad;
+      })
+      .slice(0, 10);
+
+    const equipmentImpact = {
+      total_count: equipmentTotalCount,
+      delivered_count: equipmentDeliveredCount,
+      pending_count: equipmentPendingCount,
+      rejected_or_cancelled_count: equipmentRejectedOrCancelledCount,
+      estimated_value_total: equipmentEstimatedValueTotal,
+      allocated_count: allocatedCount,
+      delivered_allocation_count: deliveredAllocationCount,
+      needs_supported_count: needsSupportedCount,
+      children_supported_count: childrenSupportedByEquipmentCount,
+      timeline: equipmentTimeline,
+    };
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        money_impact: moneyImpact,
+        equipment_impact: equipmentImpact,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching donation impact v2:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch donation impact',
+      error: error.message,
+    });
+  }
+};
+
 // Confirm donation after returning from Stripe Checkout using session_id
 exports.confirmDonationFromStripe = async (req, res) => {
   try {
@@ -1176,20 +1828,26 @@ exports.getDonationStatistics = async (req, res) => {
 
     const institutionId = institution.institution_id;
 
+    const paidDonationWhere = {
+      institution_id: institutionId,
+      status: 'completed',
+      payment_status: 'paid',
+    };
+
     // 1. إحصائيات أساسية
     const totalDonations = await Donation.sum('amount', {
-      where: { institution_id: institutionId }
+      where: paidDonationWhere,
     });
 
     const totalDonors = await Donation.count({
-      where: { institution_id: institutionId },
+      where: paidDonationWhere,
       distinct: true,
       col: 'donor_id'
     });
 
     // 2. متوسط التبرع
     const avgDonation = await Donation.findOne({
-      where: { institution_id: institutionId },
+      where: paidDonationWhere,
       attributes: [
         [sequelize.fn('AVG', sequelize.col('amount')), 'avg_amount']
       ],
@@ -1203,7 +1861,7 @@ exports.getDonationStatistics = async (req, res) => {
         SUM(amount) as total_amount,
         COUNT(donation_id) as donation_count
       FROM Donations
-      WHERE institution_id = ?
+      WHERE institution_id = ? AND status = 'completed' AND payment_status = 'paid'
       GROUP BY donor_id
       ORDER BY total_amount DESC
       LIMIT 1
@@ -1220,14 +1878,14 @@ exports.getDonationStatistics = async (req, res) => {
 
     const recentDonations = await Donation.sum('amount', {
       where: {
-        institution_id: institutionId,
+        ...paidDonationWhere,
         date: { [Op.gte]: thirtyDaysAgo }
       }
     });
 
     const recentDonors = await Donation.count({
       where: {
-        institution_id: institutionId,
+        ...paidDonationWhere,
         date: { [Op.gte]: thirtyDaysAgo }
       },
       distinct: true,
@@ -1236,7 +1894,7 @@ exports.getDonationStatistics = async (req, res) => {
 
     // 5. توزيع التبرعات حسب المبلغ (للعروض المرئية)
     const donationDistribution = await Donation.findAll({
-      where: { institution_id: institutionId },
+      where: paidDonationWhere,
       attributes: [
         [sequelize.literal(`
           CASE 
@@ -1279,7 +1937,7 @@ exports.getDonationStatistics = async (req, res) => {
       FROM Donations d
       LEFT JOIN Users u ON d.donor_id = u.user_id
       LEFT JOIN DonationCampaigns dc ON d.campaign_id = dc.campaign_id
-      WHERE d.institution_id = ?
+      WHERE d.institution_id = ? AND d.status = 'completed' AND d.payment_status = 'paid'
       ORDER BY d.date DESC
       LIMIT 20
     `;
@@ -1300,6 +1958,7 @@ exports.getDonationStatistics = async (req, res) => {
       FROM Donations d
       LEFT JOIN DonationCampaigns dc ON d.campaign_id = dc.campaign_id
       WHERE d.institution_id = ? 
+        AND d.status = 'completed' AND d.payment_status = 'paid'
         AND d.campaign_id IS NOT NULL
       GROUP BY d.campaign_id, dc.name, dc.status
     `;
@@ -1483,7 +2142,11 @@ exports.getFilteredDonationStatistics = async (req, res) => {
     const institutionId = institution.institution_id;
 
     // بناء where clause
-    const whereClause = { institution_id: institutionId };
+    const whereClause = {
+      institution_id: institutionId,
+      status: 'completed',
+      payment_status: 'paid',
+    };
 
     if (startDate) {
       whereClause.date = { ...whereClause.date, [Op.gte]: new Date(startDate) };
@@ -1678,5 +2341,99 @@ async function sendDonationSuccessNotification(donation, stripeSession) {
   }
 }
 
+// ==================== Get Donor Profile ====================
+exports.getDonorProfile = async (req, res) => {
+  try {
+    const donorId = req.user.user_id;
+
+    console.log('🔍 Fetching donor profile for user:', donorId);
+
+    // البحث عن المستخدم في قاعدة البيانات
+    const donor = await User.findByPk(donorId, {
+      attributes: [
+        'user_id',
+        'full_name',
+        'email',
+        'phone',
+        'profile_picture',
+        'city',
+        'region',
+        'location_address',
+        'created_at'
+      ],
+      raw: true
+    });
+
+    console.log('📋 Donor found:', donor ? 'Yes' : 'No');
+
+    if (!donor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Donor not found'
+      });
+    }
+
+    // جلب إحصائيات التبرعات
+    const donationStats = await Donation.findOne({
+      where: { donor_id: donorId },
+      attributes: [
+        [sequelize.fn('COUNT', sequelize.col('donation_id')), 'total_donations'],
+        [sequelize.fn('SUM', sequelize.col('amount')), 'total_amount'],
+        [sequelize.fn('MAX', sequelize.col('date')), 'last_donation_date']
+      ],
+      raw: true
+    });
+
+    console.log('📊 Donation stats:', donationStats);
+
+    // جلب المؤسسات التي تبرع لها
+    const institutionsDonated = await Donation.findAll({
+      where: { donor_id: donorId },
+      include: [{
+        model: Institution,
+        attributes: ['institution_id', 'name', 'city'],
+        required: false
+      }],
+      attributes: ['institution_id'],
+      group: ['institution_id', 'Institution.institution_id', 'Institution.name', 'Institution.city'],
+      raw: true,
+      nest: true
+    });
+
+    // تنسيق البيانات
+    const formattedInstitutions = institutionsDonated
+      .filter(item => item.Institution)
+      .map(item => ({
+        institution_id: item.Institution.institution_id,
+        name: item.Institution.name,
+        city: item.Institution.city
+      }));
+
+    const response = {
+      success: true,
+      data: {
+        ...donor,
+        stats: {
+          total_donations: parseInt(donationStats?.total_donations || 0),
+          total_amount: parseFloat(donationStats?.total_amount || 0),
+          last_donation_date: donationStats?.last_donation_date
+        },
+        institutions_donated: formattedInstitutions
+      }
+    };
+
+    console.log('✅ Sending donor profile response');
+    return res.status(200).json(response);
+    
+  } catch (error) {
+    console.error('❌ Error fetching donor profile:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch donor profile',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+};
 // ==================== إغلاق الملف هنا ====================
 module.exports = exports;

@@ -36,6 +36,8 @@ const Post = require('./Post');
 const Donation = require('./Donation');
 const DonationAllocation = require('./DonationAllocation');
 const DonationCampaign = require('./DonationCampaign');
+const DonationInvite = require('./DonationInvite');
+const DonationInviteEvent = require('./DonationInviteEvent');
 const Resource = require('./Resource');
 const ResourceDiagnosis = require('./ResourceDiagnosis');
 const Comment = require('./Comment');
@@ -66,6 +68,8 @@ const InstitutionProject = require('./InstitutionProject');
 const InstitutionFAQ = require('./InstitutionFAQ');
 const InstitutionMedia = require('./InstitutionMedia');
 
+const ImpactPost = require('./ImpactPost');
+
 const AdminUser = require('./AdminUser');
 const AuditLog = require('./AuditLog');
 const SystemSettings = require('./SystemSettings');
@@ -91,6 +95,21 @@ Donation.belongsTo(Institution, {
 Donation.belongsTo(DonationCampaign, {
   foreignKey: 'campaign_id'
 });
+
+DonationInvite.belongsTo(User, { foreignKey: 'inviter_user_id', as: 'inviter' });
+User.hasMany(DonationInvite, { foreignKey: 'inviter_user_id', as: 'donationInvites' });
+
+DonationInvite.belongsTo(Institution, { foreignKey: 'institution_id', as: 'institution' });
+Institution.hasMany(DonationInvite, { foreignKey: 'institution_id', as: 'donationInvites' });
+
+DonationInvite.belongsTo(DonationCampaign, { foreignKey: 'campaign_id', as: 'campaign' });
+DonationCampaign.hasMany(DonationInvite, { foreignKey: 'campaign_id', as: 'donationInvites' });
+
+DonationInviteEvent.belongsTo(DonationInvite, { foreignKey: 'invite_id', as: 'invite' });
+DonationInvite.hasMany(DonationInviteEvent, { foreignKey: 'invite_id', as: 'events' });
+
+DonationInviteEvent.belongsTo(User, { foreignKey: 'referred_user_id', as: 'referredUser' });
+DonationInviteEvent.belongsTo(Donation, { foreignKey: 'donation_id', as: 'donation' });
 
 
 Questionnaire.hasMany(Question, { 
@@ -123,6 +142,16 @@ Manager.belongsTo(Institution, { foreignKey: 'institution_id' });
 Specialist.belongsTo(Institution, { foreignKey: 'institution_id' });
 SessionType.belongsTo(Institution, { foreignKey: 'institution_id' });
 Session.belongsTo(Institution, { foreignKey: 'institution_id' });
+
+EquipmentDonationCampaign.belongsTo(Institution, {
+  foreignKey: 'institution_id',
+  as: 'institution'
+});
+
+Institution.hasMany(EquipmentDonationCampaign, {
+  foreignKey: 'institution_id',
+  as: 'equipmentCampaigns'
+});
 
 // Child relationships 
 Child.belongsTo(Parent, { foreignKey: 'parent_id' });
@@ -221,6 +250,8 @@ module.exports = {
   Donation,
   DonationAllocation,
   DonationCampaign,
+  DonationInvite,
+  DonationInviteEvent,
   Resource,
   ResourceDiagnosis,
   ChildAttachment,
@@ -252,6 +283,7 @@ module.exports = {
   InstitutionProject,
   InstitutionFAQ,
   InstitutionMedia,
+  ImpactPost,
   AdminUser,
   AuditLog,
   SystemSettings,

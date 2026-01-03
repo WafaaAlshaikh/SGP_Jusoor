@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/screens/donation_screen.dart';
 import 'package:frontend/screens/equipment_donation_screen.dart';
 import 'package:frontend/services/api_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_colors.dart';
 
 class EquipmentCampaignsScreen extends StatefulWidget {
@@ -11,46 +13,61 @@ class EquipmentCampaignsScreen extends StatefulWidget {
 }
 
 class _EquipmentCampaignsScreenState extends State<EquipmentCampaignsScreen> {
-  bool _loadingInstitutions = true;
-  bool _loadingCampaigns = false;
+  bool _loadingCampaigns = true;
   String? _error;
 
-  List<Map<String, dynamic>> _institutions = [];
-  int? _selectedInstitutionId;
-  Map<String, dynamic>? _selectedInstitution;
-
   List<Map<String, dynamic>> _campaigns = [];
+
+  bool _isLoadingAI = false;
+  String? _aiSummary;
+  List<Map<String, dynamic>> _aiRecommendations = [];
 
   @override
   void initState() {
     super.initState();
-    _loadInstitutions();
+    _loadCampaigns();
+    _loadDonorAIRecommendations();
   }
 
-  Future<void> _loadInstitutions() async {
+  Future<void> _loadDonorAIRecommendations() async {
     try {
-      setState(() {
-        _loadingInstitutions = true;
-        _error = null;
-      });
-
-      final institutions = await ApiService.getEquipmentInstitutions();
+      final prefs = await SharedPreferences.getInstance();
+      final token = (prefs.getString('token') ?? '').trim();
+      if (token.isEmpty) return;
 
       if (!mounted) return;
       setState(() {
-        _institutions = institutions;
-        _loadingInstitutions = false;
+        _isLoadingAI = true;
       });
-    } catch (e) {
+
+      final result = await ApiService.getDonorAIRecommendations(token, limit: 6);
+
+      if (!mounted) return;
+      if (result['success'] == true) {
+        final recs = (result['recommendations'] as List?) ?? [];
+        setState(() {
+          _aiSummary = result['ai_summary']?.toString();
+          _aiRecommendations = recs.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          _isLoadingAI = false;
+        });
+      } else {
+        setState(() {
+          _aiSummary = null;
+          _aiRecommendations = [];
+          _isLoadingAI = false;
+        });
+      }
+    } catch (_) {
       if (!mounted) return;
       setState(() {
-        _error = 'Failed to load institutions';
-        _loadingInstitutions = false;
+        _aiSummary = null;
+        _aiRecommendations = [];
+        _isLoadingAI = false;
       });
     }
   }
 
-  Future<void> _loadCampaigns(int institutionId) async {
+  Future<void> _loadCampaigns() async {
     try {
       setState(() {
         _loadingCampaigns = true;
@@ -58,7 +75,7 @@ class _EquipmentCampaignsScreenState extends State<EquipmentCampaignsScreen> {
         _campaigns = [];
       });
 
-      final campaigns = await ApiService.getInstitutionEquipmentCampaigns(institutionId);
+      final campaigns = await ApiService.getOpenEquipmentCampaigns();
 
       if (!mounted) return;
       setState(() {
@@ -72,18 +89,6 @@ class _EquipmentCampaignsScreenState extends State<EquipmentCampaignsScreen> {
         _loadingCampaigns = false;
       });
     }
-  }
-
-  void _selectInstitution(Map<String, dynamic> inst) {
-    final id = inst['institution_id'];
-    if (id is! int) return;
-
-    setState(() {
-      _selectedInstitutionId = id;
-      _selectedInstitution = inst;
-    });
-
-    _loadCampaigns(id);
   }
 
   Future<void> _openCampaignDetails(Map<String, dynamic> campaign) async {
@@ -121,9 +126,11 @@ class _EquipmentCampaignsScreenState extends State<EquipmentCampaignsScreen> {
                 final qtyFulfilled = (c['quantity_fulfilled'] ?? 0);
                 final status = (c['status'] ?? '').toString();
 
-                final inst = _selectedInstitution;
-                final instId = inst?['institution_id'] is int ? inst!['institution_id'] as int : null;
-                final instName = (inst?['name'] ?? '').toString();
+                final instObj = (c['institution'] is Map) ? Map<String, dynamic>.from(c['institution'] as Map) : null;
+                final instId = (instObj?['institution_id'] is int)
+                    ? instObj!['institution_id'] as int
+                    : (c['institution_id'] is int ? c['institution_id'] as int : null);
+                final instName = (instObj?['name'] ?? '').toString();
 
                 return Padding(
                   padding: EdgeInsets.only(
@@ -188,7 +195,7 @@ class _EquipmentCampaignsScreenState extends State<EquipmentCampaignsScreen> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) => EquipmentDonationScreen(
+                                    builder: (_) => CombinedEquipmentScreen(
                                       institutionId: instId,
                                       institutionName: instName,
                                       equipmentName: equipmentName,
@@ -229,65 +236,142 @@ class _EquipmentCampaignsScreenState extends State<EquipmentCampaignsScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          await _loadInstitutions();
-          if (_selectedInstitutionId != null) {
-            await _loadCampaigns(_selectedInstitutionId!);
-          }
+          await _loadCampaigns();
+          await _loadDonorAIRecommendations();
         },
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: AppColors.accent2.withOpacity(0.2)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Choose an institution',
-                    style: TextStyle(fontWeight: FontWeight.w800, color: AppColors.textDark),
-                  ),
-                  const SizedBox(height: 10),
-                  if (_loadingInstitutions)
-                    const LinearProgressIndicator(minHeight: 3)
-                  else
-                    DropdownButtonFormField<int>(
-                      value: _selectedInstitutionId,
-                      isExpanded: true,
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      ),
-                      items: _institutions
-                          .where((x) => x['institution_id'] is int)
-                          .map(
-                            (inst) => DropdownMenuItem<int>(
-                              value: inst['institution_id'] as int,
-                              child: Text((inst['name'] ?? '').toString()),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (val) {
-                        if (val == null) return;
-                        final inst = _institutions.firstWhere(
-                          (x) => x['institution_id'] == val,
-                          orElse: () => <String, dynamic>{},
-                        );
-                        if (inst.isNotEmpty) {
-                          _selectInstitution(inst);
-                        }
-                      },
+            const SizedBox(height: 4),
+            if (_isLoadingAI)
+              Container(
+                padding: const EdgeInsets.all(16),
+                color: AppColors.primary.withOpacity(0.06),
+                child: const Row(
+                  children: [
+                    SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     ),
-                ],
+                    SizedBox(width: 10),
+                    Expanded(child: Text('Loading AI suggestions...')),
+                  ],
+                ),
+              )
+            else if (_aiRecommendations.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.all(16),
+                color: AppColors.primary.withOpacity(0.06),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'AI Suggestions for You',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    if ((_aiSummary ?? '').trim().isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        _aiSummary!,
+                        style: const TextStyle(color: Colors.black87),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 140,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _aiRecommendations.length,
+                        itemBuilder: (context, index) {
+                          final r = _aiRecommendations[index];
+                          final id = r['institution_id'];
+                          final name = (r['name'] ?? '').toString();
+                          final reasons = (r['reasons'] is List)
+                              ? (r['reasons'] as List).map((x) => x.toString()).toList()
+                              : <String>[];
+
+                          return Container(
+                            width: 300,
+                            margin: EdgeInsets.only(right: index == _aiRecommendations.length - 1 ? 0 : 12),
+                            child: Card(
+                              elevation: 1,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      name.isEmpty ? 'Institution' : name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontWeight: FontWeight.w800),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      reasons.isNotEmpty ? reasons.first : 'Suggested for you',
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(color: Colors.grey),
+                                    ),
+                                    const Spacer(),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: OutlinedButton(
+                                            onPressed: id is int
+                                                ? () {
+                                                    Navigator.push(
+                                                      context,
+                                                      MaterialPageRoute(
+                                                        builder: (_) => DonationScreen(
+                                                          institutionId: id,
+                                                          institutionName: name,
+                                                        ),
+                                                      ),
+                                                    );
+                                                  }
+                                                : null,
+                                            child: const Text('Donate Money'),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: ElevatedButton(
+                                            onPressed: id is int
+                                                ? () {
+                                                    Navigator.push(
+                                                      context,
+                                                      MaterialPageRoute(
+                                                        builder: (_) => CombinedEquipmentScreen(
+                                                          institutionId: id,
+                                                          institutionName: name,
+                                                        ),
+                                                      ),
+                                                    );
+                                                  }
+                                                : null,
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: AppColors.primary,
+                                              foregroundColor: Colors.white,
+                                            ),
+                                            child: const Text('Donate Equipment'),
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 14),
             if (_error != null)
               Container(
                 padding: const EdgeInsets.all(12),
@@ -301,14 +385,7 @@ class _EquipmentCampaignsScreenState extends State<EquipmentCampaignsScreen> {
                   style: const TextStyle(color: Colors.red),
                 ),
               ),
-            if (_selectedInstitutionId == null)
-              const Padding(
-                padding: EdgeInsets.only(top: 24),
-                child: Center(
-                  child: Text('Select an institution to view equipment campaigns'),
-                ),
-              )
-            else if (_loadingCampaigns)
+            if (_loadingCampaigns)
               const Padding(
                 padding: EdgeInsets.only(top: 24),
                 child: Center(child: CircularProgressIndicator()),
@@ -351,6 +428,8 @@ class _CampaignCard extends StatelessWidget {
     final status = (campaign['status'] ?? '').toString();
     final needed = (campaign['quantity_needed'] ?? 1);
     final fulfilled = (campaign['quantity_fulfilled'] ?? 0);
+    final instObj = (campaign['institution'] is Map) ? Map<String, dynamic>.from(campaign['institution'] as Map) : null;
+    final instName = (instObj?['name'] ?? '').toString();
 
     return Material(
       color: Colors.transparent,
@@ -396,6 +475,10 @@ class _CampaignCard extends StatelessWidget {
                         color: AppColors.textDark,
                       ),
                     ),
+                    if (instName.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(instName, style: const TextStyle(color: AppColors.textGray)),
+                    ],
                     if (type.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(type, style: const TextStyle(color: AppColors.textGray)),

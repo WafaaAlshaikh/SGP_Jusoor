@@ -6,4 +6,7 @@ const aiRecommendationsController = require('../controllers/aiRecommendationsCon
 // Get AI-powered recommendations for institutions
 router.get('/recommendations', authMiddleware, aiRecommendationsController.getRecommendations);
 
+// Get AI-powered recommendations for donors (money + equipment)
+router.get('/donor/recommendations', authMiddleware, aiRecommendationsController.getDonorRecommendations);
+
 module.exports = router;

@@ -1,7 +1,9 @@
 // controllers/webhookController.js
-const { Donation, Institution, DonationCampaign, User } = require('../model');
+const { Donation, Institution, DonationCampaign, User, DonationInvite } = require('../model');
 const Stripe = require('stripe');
 require('dotenv').config();
+
+const inviteController = require('./inviteController');
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -12,56 +14,56 @@ exports.handleStripeWebhook = async (req, res) => {
   let event;
 
   try {
-    // ✅ 1. التحقق من صحة الـ webhook
+    // 1. التحقق من صحة الـ webhook
     event = stripe.webhooks.constructEvent(
       req.body, 
       sig, 
       webhookSecret
     );
     
-    console.log('✅ Webhook verified:', event.type);
+    console.log(' Webhook verified:', event.type);
 
   } catch (err) {
-    console.error('❌ Webhook signature verification failed:', err.message);
+    console.error(' Webhook signature verification failed:', err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  // ✅ 2. معالجة الأحداث المختلفة
+  // 2. معالجة الأحداث المختلفة
   try {
     switch (event.type) {
-      // ✅ نجاح الدفع لمرة واحدة
+      // نجاح الدفع لمرة واحدة
       case 'checkout.session.completed':
         await handleCheckoutSessionCompleted(event.data.object);
         break;
 
-      // ✅ نجاح الدفع الشهري
+      // نجاح الدفع الشهري
       case 'invoice.payment_succeeded':
         await handleInvoicePaymentSucceeded(event.data.object);
         break;
 
-      // ❌ فشل الدفع
+      // فشل الدفع
       case 'invoice.payment_failed':
         await handleInvoicePaymentFailed(event.data.object);
         break;
 
-      // 🔄 إلغاء الاشتراك
+      // إلغاء الاشتراك
       case 'customer.subscription.deleted':
         await handleSubscriptionDeleted(event.data.object);
         break;
 
-      // ⚠️ تحديث الاشتراك
+      // تحديث الاشتراك
       case 'customer.subscription.updated':
         await handleSubscriptionUpdated(event.data.object);
         break;
 
       default:
-        console.log(`⚠️ Unhandled event type: ${event.type}`);
+        console.log(` Unhandled event type: ${event.type}`);
     }
 
     res.json({ received: true, event: event.type });
 
   } catch (error) {
-    console.error('❌ Error processing webhook:', error);
+    console.error(' Error processing webhook:', error);
     res.status(500).json({ 
       error: 'Webhook processing failed',
       message: error.message 
@@ -72,7 +74,7 @@ exports.handleStripeWebhook = async (req, res) => {
 // ==================== معالج نجاح جلسة الدفع ====================
 async function handleCheckoutSessionCompleted(session) {
   try {
-    console.log('💳 Processing checkout.session.completed');
+    console.log(' Processing checkout.session.completed');
     console.log('   Session ID:', session.id);
     console.log('   Payment Status:', session.payment_status);
 
@@ -82,7 +84,7 @@ async function handleCheckoutSessionCompleted(session) {
     });
 
     if (!donation) {
-      console.error('❌ Donation not found for session:', session.id);
+      console.error(' Donation not found for session:', session.id);
       return;
     }
 
@@ -110,6 +112,25 @@ async function handleCheckoutSessionCompleted(session) {
         receipt_url: session.invoice?.receipt_url || null,
       });
 
+      // Invite/referral tracking (if invite_code exists)
+      try {
+        const inviteCode = (session.metadata?.invite_code ?? '').toString().trim();
+        if (inviteCode) {
+          const invite = await DonationInvite.findOne({ where: { code: inviteCode, is_active: true }, raw: true });
+          if (invite?.invite_id) {
+            await inviteController._markInviteDonationCompleted({
+              inviteId: invite.invite_id,
+              stripeSessionId: session.id,
+              donationId: donation.donation_id,
+              amount: donation.amount,
+              currency: donation.currency,
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Invite donation_completed log failed:', e.message);
+      }
+
       // تحديث رصيد المؤسسة
       const institution = await Institution.findByPk(donation.institution_id);
       if (institution) {
@@ -118,7 +139,7 @@ async function handleCheckoutSessionCompleted(session) {
         await institution.update({
           donation_balance: newBalance
         });
-        console.log(`✅ Institution balance updated: ${newBalance} JOD`);
+        console.log(` Institution balance updated: ${newBalance} JOD`);
       }
 
       // تحديث رصيد الحملة (إن وجدت)
@@ -130,21 +151,21 @@ async function handleCheckoutSessionCompleted(session) {
           await campaign.update({
             amount_raised: newRaised
           });
-          console.log(`✅ Campaign amount updated: ${newRaised} JOD`);
+          console.log(` Campaign amount updated: ${newRaised} JOD`);
         }
       }
 
-      console.log('✅ Donation completed successfully:', donation.donation_id);
+      console.log(' Donation completed successfully:', donation.donation_id);
 
       // إرسال إشعار للمتبرع (اختياري)
       await sendDonationSuccessNotification(donation);
 
     } else {
-      console.warn('⚠️ Payment not completed:', session.payment_status);
+      console.warn(' Payment not completed:', session.payment_status);
     }
 
   } catch (error) {
-    console.error('❌ Error in handleCheckoutSessionCompleted:', error);
+    console.error(' Error in handleCheckoutSessionCompleted:', error);
     throw error;
   }
 }

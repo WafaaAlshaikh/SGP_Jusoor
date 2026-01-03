@@ -3,6 +3,50 @@ const { Session, SessionType, Child, Specialist, ChildRegistrationRequest, Insti
 const { Op, Sequelize } = require('sequelize');
 const Invoice = require('../../model/Invoice')
 
+async function resolveManagerInstitution(managerUserId) {
+  const manager = await Manager.findOne({
+    where: {
+      manager_id: managerUserId,
+      is_active: true,
+    },
+    include: [{
+      model: Institution,
+      attributes: ['institution_id', 'name', 'donation_balance'],
+    }],
+  });
+
+  if (manager && manager.Institution) {
+    return {
+      institutionId: manager.Institution.institution_id,
+      institution: manager.Institution,
+    };
+  }
+
+  const user = await User.findOne({
+    where: { user_id: managerUserId },
+    attributes: ['user_id', 'role', 'institution_id'],
+  });
+
+  if (!user || user.role !== 'Manager' || !user.institution_id) {
+    return null;
+  }
+
+  const institution = await Institution.findOne({
+    where: { institution_id: user.institution_id },
+    attributes: ['institution_id', 'name', 'donation_balance'],
+  });
+
+  if (!institution) {
+    return null;
+  }
+
+  return {
+    institutionId: institution.institution_id,
+    institution,
+  };
+}
+
+
 exports.getManagerDashboardStats = async (req, res) => {
 
   try {
@@ -10,33 +54,16 @@ exports.getManagerDashboardStats = async (req, res) => {
 
     console.log('Manager ID:', managerId);
 
-    // الحصول على المؤسسة الخاصة بالمدير
-    const manager = await Manager.findOne({
-      where: { 
-        manager_id: managerId, 
-        is_active: true 
-      },
-      include: [{
-        model: Institution,
-        attributes: ['institution_id', 'name', 'donation_balance']
-      }]
-    });
-
-    if (!manager) {
+    const resolved = await resolveManagerInstitution(managerId);
+    if (!resolved) {
       return res.status(404).json({
         success: false,
-        message: 'المدير غير موجود'
+        message: 'المدير أو المؤسسة غير موجودة'
       });
     }
 
-    if (!manager.Institution) {
-      return res.status(404).json({
-        success: false,
-        message: 'المؤسسة غير موجودة'
-      });
-    }
-
-    const institutionId = manager.Institution.institution_id;
+    const institutionId = resolved.institutionId;
+    const institution = resolved.institution;
     console.log('Institution ID:', institutionId);
 
     const currentDate = new Date();
@@ -184,20 +211,14 @@ exports.getManagerDashboardStats = async (req, res) => {
     try {
       const [totalDonationsRaw, totalAllocatedRaw] = await Promise.all([
         Donation.sum('amount', {
-          where: { institution_id: institutionId }
+          where: { institution_id: institutionId, status: 'completed', payment_status: 'paid' }
         }),
         DonationAllocation.sum('amount_allocated', {
           where: { institution_id: institutionId }
         })
       ]);
 
-      const institution = manager.Institution
-        ? manager.Institution
-        : await Institution.findByPk(institutionId);
-
-      const donationBalance = institution
-        ? parseFloat(institution.donation_balance || 0)
-        : 0;
+      const donationBalance = parseFloat(institution.donation_balance || 0);
 
       donationStats = {
         totalDonations: parseFloat(totalDonationsRaw || 0),
@@ -420,8 +441,9 @@ exports.getManagerDashboardStats = async (req, res) => {
       success: true,
       data: {
         institution: {
-          id: manager.Institution.institution_id,
-          name: manager.Institution.name
+          id: institution.institution_id,
+          name: institution.name,
+          donation_balance: institution.donation_balance || 0
         },
         sessionStats: {
           totalSessions,
@@ -488,25 +510,17 @@ exports.getFinancialReport = async (req, res) => {
   try {
     const managerId = req.user.user_id;
 
-    const manager = await Manager.findOne({
-      where: {
-        manager_id: managerId,
-        is_active: true
-      },
-      include: [{
-        model: Institution,
-        attributes: ['institution_id', 'name', 'donation_balance']
-      }]
-    });
-
-    if (!manager || !manager.Institution) {
+    const resolved = await resolveManagerInstitution(managerId);
+    if (!resolved) {
       return res.status(404).json({
         success: false,
         message: 'المدير أو المؤسسة غير موجودة'
       });
     }
 
-    const institutionId = manager.Institution.institution_id;
+    const institutionId = resolved.institutionId;
+    const institution = resolved.institution;
+
     const currentDate = new Date();
 
     const currentMonthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
@@ -590,7 +604,7 @@ exports.getFinancialReport = async (req, res) => {
         allocatedThisMonthRaw,
       ] = await Promise.all([
         Donation.sum('amount', {
-          where: { institution_id: institutionId }
+          where: { institution_id: institutionId, status: 'completed', payment_status: 'paid' }
         }),
         DonationAllocation.sum('amount_allocated', {
           where: { institution_id: institutionId }
@@ -598,6 +612,8 @@ exports.getFinancialReport = async (req, res) => {
         Donation.sum('amount', {
           where: {
             institution_id: institutionId,
+            status: 'completed',
+            payment_status: 'paid',
             date: { [Op.between]: [currentMonthStart, currentMonthEnd] }
           }
         }),
@@ -609,7 +625,7 @@ exports.getFinancialReport = async (req, res) => {
         }),
       ]);
 
-      const donationBalance = parseFloat(manager.Institution.donation_balance || 0);
+      const donationBalance = parseFloat(institution.donation_balance || 0);
 
       donationSummary = {
         totalDonationsAllTime: parseFloat(totalDonationsAllTimeRaw || 0),
@@ -632,8 +648,8 @@ exports.getFinancialReport = async (req, res) => {
       success: true,
       data: {
         institution: {
-          id: manager.Institution.institution_id,
-          name: manager.Institution.name
+          id: institution.institution_id,
+          name: institution.name
         },
         period: {
           start: currentMonthStart.toISOString().split('T')[0],
@@ -677,29 +693,20 @@ exports.getDonationDetails = async (req, res) => {
   try {
     const managerId = req.user.user_id;
 
-    const manager = await Manager.findOne({
-      where: {
-        manager_id: managerId,
-        is_active: true
-      },
-      include: [{
-        model: Institution,
-        attributes: ['institution_id', 'name']
-      }]
-    });
-
-    if (!manager || !manager.Institution) {
+    const resolved = await resolveManagerInstitution(managerId);
+    if (!resolved) {
       return res.status(404).json({
         success: false,
         message: 'المدير أو المؤسسة غير موجودة'
       });
     }
 
-    const institutionId = manager.Institution.institution_id;
+    const institutionId = resolved.institutionId;
+    const institution = resolved.institution;
 
     // قائمة التبرعات للمؤسسة
     const donations = await Donation.findAll({
-      where: { institution_id: institutionId },
+      where: { institution_id: institutionId, status: 'completed', payment_status: 'paid' },
       order: [['date', 'DESC']],
       attributes: ['donation_id', 'donor_id', 'amount', 'date', 'campaign_id']
     });
@@ -737,8 +744,8 @@ exports.getDonationDetails = async (req, res) => {
       success: true,
       data: {
         institution: {
-          id: manager.Institution.institution_id,
-          name: manager.Institution.name
+          id: institution.institution_id,
+          name: institution.name
         },
         donations,
         allocations,
@@ -896,171 +903,6 @@ exports.getInvoiceDebugInfo = async (req, res) => {
   } catch (error) {
     console.error('Invoice debug error:', error);
     res.status(500).json({ error: error.message });
-  }
-};
-// أضف هذا الـ route للت debugging
-exports.getDebugInfo = async (req, res) => {
-  try {
-    const managerId = req.user.user_id;
-    
-    const manager = await Manager.findOne({
-      where: { manager_id: managerId },
-      include: [Institution]
-    });
-
-    if (!manager) {
-      return res.status(404).json({ error: 'Manager not found' });
-    }
-
-    // عدِّد جميع الجداول للتأكد من البيانات
-    const childrenCount = await Child.count({
-      where: { current_institution_id: manager.Institution.institution_id }
-    });
-
-    const specialistsCount = await Specialist.count({
-      where: { institution_id: manager.Institution.institution_id }
-    });
-
-    const sessionsCount = await Session.count({
-      where: { institution_id: manager.Institution.institution_id }
-    });
-
-    const sessionTypesCount = await SessionType.count({
-      where: { institution_id: manager.Institution.institution_id }
-    });
-
-    res.json({
-      manager: {
-        id: manager.manager_id,
-        institution: manager.Institution
-      },
-      counts: {
-        children: childrenCount,
-        specialists: specialistsCount,
-        sessions: sessionsCount,
-        sessionTypes: sessionTypesCount
-      }
-    });
-
-  } catch (error) {
-    console.error('Debug error:', error);
-    res.status(500).json({ error: error.message });
-  }
-};
-
-// أضف هذا الـ route للت debugging
-exports.getDebugInfo = async (req, res) => {
-  try {
-    const managerId = req.user.user_id;
-    
-    const manager = await Manager.findOne({
-      where: { manager_id: managerId },
-      include: [Institution]
-    });
-
-    if (!manager) {
-      return res.status(404).json({ error: 'Manager not found' });
-    }
-
-    // عدِّد جميع الجداول للتأكد من البيانات
-    const childrenCount = await Child.count({
-      where: { current_institution_id: manager.Institution.institution_id }
-    });
-
-    const specialistsCount = await Specialist.count({
-      where: { institution_id: manager.Institution.institution_id }
-    });
-
-    const sessionsCount = await Session.count({
-      where: { institution_id: manager.Institution.institution_id }
-    });
-
-    res.json({
-      manager: {
-        id: manager.manager_id,
-        institution: manager.Institution
-      },
-      counts: {
-        children: childrenCount,
-        specialists: specialistsCount,
-        sessions: sessionsCount
-      }
-    });
-
-  } catch (error) {
-    console.error('Debug error:', error);
-    res.status(500).json({ error: error.message });
-  }
-};
-
-// في managerDashboardController.js أضف:
-exports.getEquipmentDonationStats = async (req, res) => {
-  try {
-    const managerId = req.user.user_id;
-
-    const manager = await Manager.findOne({
-      where: { 
-        manager_id: managerId,
-        is_active: true 
-      },
-      include: [{
-        model: Institution,
-        attributes: ['institution_id']
-      }]
-    });
-
-    if (!manager || !manager.Institution) {
-      return res.status(404).json({
-        success: false,
-        message: 'المدير أو المؤسسة غير موجودة'
-      });
-    }
-
-    const institutionId = manager.Institution.institution_id;
-
-    // إحصائيات التبرعات العينية
-    const equipmentStats = await EquipmentDonation.findAll({
-      where: { institution_id: institutionId },
-      attributes: [
-        'status',
-        [sequelize.fn('COUNT', sequelize.col('equipment_donation_id')), 'count']
-      ],
-      group: ['status'],
-      raw: true
-    });
-
-    // التبرعات العينية الأخيرة (آخر 5)
-    const recentEquipmentDonations = await EquipmentDonation.findAll({
-      where: { institution_id: institutionId },
-      include: [
-        {
-          model: EquipmentCategory,
-          attributes: ['name_ar'],
-          required: false
-        }
-      ],
-      order: [['created_at', 'DESC']],
-      limit: 5
-    });
-
-    return res.status(200).json({
-      success: true,
-      data: {
-        summary: equipmentStats.reduce((acc, stat) => {
-          acc[stat.status] = parseInt(stat.count);
-          return acc;
-        }, {}),
-        recentDonations: recentEquipmentDonations
-      }
-    });
-
-  } catch (error) {
-    console.error('Error in getEquipmentDonationStats:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'خطأ في جلب إحصائيات التبرعات العينية',
-      error: error.message
-    });
   }
 };
 

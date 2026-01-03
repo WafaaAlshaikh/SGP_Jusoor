@@ -9,6 +9,8 @@ router.use(authMiddleware);
 router.get('/statistics', donationController.getDonationStatistics);
 router.get('/statistics/filtered', donationController.getFilteredDonationStatistics);
 
+router.get('/impact/v2', donationController.getManagerDonationImpactV2);
+
 router.get('/campaigns', donationCampaignController.getCampaigns);
 router.post('/campaigns', donationCampaignController.createCampaign);
 router.put('/campaigns/:id', donationCampaignController.updateCampaign);

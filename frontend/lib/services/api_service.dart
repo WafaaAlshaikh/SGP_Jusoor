@@ -18,6 +18,87 @@ class ApiService {
     }
   }
 
+  // ================= Invite / Referral (Donations) =================
+
+  static Future<Map<String, dynamic>> createDonationInvite(
+    String token, {
+    required int institutionId,
+    int? campaignId,
+    String? shareMessage,
+  }) async {
+    try {
+      final url = _buildUrl('invites/donations');
+      final body = <String, dynamic>{
+        'institution_id': institutionId,
+        if (campaignId != null) 'campaign_id': campaignId,
+        if (shareMessage != null && shareMessage.trim().isNotEmpty) 'share_message': shareMessage.trim(),
+      };
+
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(body),
+      );
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode == 201 && data['success'] == true) {
+        return data;
+      }
+      throw Exception(data['message'] ?? 'Failed to create invite');
+    } catch (e) {
+      print('❌ Error creating donation invite: $e');
+      rethrow;
+    }
+  }
+
+  static Future<Map<String, dynamic>> resolveDonationInvite({
+    String? token,
+    required String code,
+  }) async {
+    try {
+      final url = _buildUrl('invites/donations/$code');
+      final headers = <String, String>{
+        'Content-Type': 'application/json',
+        if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+      };
+
+      final response = await http.get(Uri.parse(url), headers: headers);
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode == 200 && data['success'] == true) {
+        return data;
+      }
+      throw Exception(data['message'] ?? 'Failed to resolve invite');
+    } catch (e) {
+      print('❌ Error resolving donation invite: $e');
+      rethrow;
+    }
+  }
+
+  static Future<Map<String, dynamic>> getMyDonationInviteStats(String token) async {
+    try {
+      final url = _buildUrl('invites/donations/my/stats');
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode == 200 && data['success'] == true) {
+        return data;
+      }
+      throw Exception(data['message'] ?? 'Failed to load invite stats');
+    } catch (e) {
+      print('❌ Error loading invite stats: $e');
+      rethrow;
+    }
+  }
+
   static String _publicEquipmentBaseUrl() {
     return '${ApiService.baseUrl}/api/public/equipment';
   }
@@ -270,6 +351,104 @@ static Future<Map<String, dynamic>> signupInitial(
       'success': false,
       'message': 'An error occurred. Please try again.',
     };
+  }
+}
+
+/// Get donation impact/statistics v2 (money + equipment)
+static Future<Map<String, dynamic>> getDonationImpactV2(String token) async {
+  try {
+    final url = _buildUrl('donations/impact/v2');
+
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['success'] == true) {
+        return data;
+      }
+    }
+
+    throw Exception('Failed to load donation impact v2');
+  } catch (e) {
+    print('❌ Error loading donation impact v2: $e');
+    rethrow;
+  }
+}
+
+/// Get donor impact feed (ImpactPost)
+static Future<Map<String, dynamic>> getDonorImpactFeed(
+  String token, {
+  int page = 1,
+  int limit = 10,
+  int? campaignId,
+  int? equipmentCampaignId,
+}) async {
+  try {
+    final queryParams = <String, String>{
+      'page': page.toString(),
+      'limit': limit.toString(),
+    };
+
+    if (campaignId != null) {
+      queryParams['campaign_id'] = campaignId.toString();
+    }
+    if (equipmentCampaignId != null) {
+      queryParams['equipment_campaign_id'] = equipmentCampaignId.toString();
+    }
+
+    final url = Uri.parse(_buildUrl('impact/feed')).replace(queryParameters: queryParams);
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['success'] == true) {
+        return data;
+      }
+    }
+
+    throw Exception('Failed to load impact feed');
+  } catch (e) {
+    print('❌ Error loading impact feed: $e');
+    rethrow;
+  }
+}
+
+static Future<List<Map<String, dynamic>>> getOpenEquipmentCampaigns() async {
+  try {
+    final url = Uri.parse('${_publicEquipmentBaseUrl()}/campaigns');
+
+    final response = await http.get(
+      url,
+      headers: {'Content-Type': 'application/json'},
+    ).timeout(const Duration(seconds: 30));
+
+    if (response.statusCode == 200) {
+      final Map<String, dynamic> data = jsonDecode(response.body);
+
+      if (data['success'] == true) {
+        final List<dynamic> campaigns = data['data'] ?? [];
+        return List<Map<String, dynamic>>.from(campaigns);
+      } else {
+        throw Exception('API Error: ${data['message']}');
+      }
+    } else {
+      throw Exception('Failed to load campaigns. Status: ${response.statusCode}');
+    }
+  } catch (e) {
+    rethrow;
   }
 }
 
@@ -2199,6 +2378,41 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
     }
   }
 
+  static Future<Map<String, dynamic>> getDonorAIRecommendations(
+    String token, {
+    int limit = 8,
+  }) async {
+    try {
+      final uri = Uri.parse(_buildUrl('ai/donor/recommendations')).replace(
+        queryParameters: {
+          'limit': limit.toString(),
+        },
+      );
+
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+
+      return {
+        'success': false,
+        'recommendations': [],
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'recommendations': [],
+      };
+    }
+  }
+
   // Create a review
   static Future<Map<String, dynamic>> createReview(
     String token, {
@@ -3562,6 +3776,7 @@ static Future<Map<String, dynamic>> createDonationCheckout(
     required double amount,
     String mode = 'one_time',
     int? campaignId,
+    String? inviteCode,
     bool anonymous = false,
     String? donorName,
     String? donorEmail,
@@ -3580,6 +3795,10 @@ static Future<Map<String, dynamic>> createDonationCheckout(
     
     if (campaignId != null) {
       body['campaign_id'] = campaignId;
+    }
+
+    if (inviteCode != null && inviteCode.trim().isNotEmpty) {
+      body['invite_code'] = inviteCode.trim();
     }
     
     // ✅ إضافة بيانات المتبرع المجهول إذا كانت متوفرة
@@ -4082,6 +4301,28 @@ static Future<Map<String, dynamic>> getEquipmentDonationDetails({
     }
   } catch (e) {
     print('Error getting equipment donation details: $e');
+    rethrow;
+  }
+}
+
+// دالة جديدة لجلب بيانات المتبرع
+static Future<Map<String, dynamic>> getDonorProfile(String token) async {
+  try {
+    final response = await http.get(
+      Uri.parse(_buildUrl('donations/donor/profile')),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Failed to load donor profile: ${response.statusCode}');
+    }
+  } catch (e) {
+    print('Error fetching donor profile: $e');
     rethrow;
   }
 }

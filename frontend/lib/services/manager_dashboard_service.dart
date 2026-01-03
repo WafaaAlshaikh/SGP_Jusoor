@@ -12,6 +12,122 @@ class ManagerDashboardService {
     return prefs.getString('token');
   }
 
+  // ================= Impact Posts (Manager) =================
+
+  static Future<Map<String, dynamic>> listImpactPosts({
+    int page = 1,
+    int limit = 20,
+    String? type,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      final query = <String, String>{
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+      if (type != null && type.trim().isNotEmpty) {
+        query['type'] = type.trim();
+      }
+
+      final uri = Uri.parse('$_baseUrl/manager/impact/posts').replace(queryParameters: query);
+      final response = await http.get(uri, headers: headers);
+
+      final Map<String, dynamic> data = json.decode(response.body);
+      if (response.statusCode == 200 && data['success'] == true) {
+        return data['data'] as Map<String, dynamic>;
+      }
+
+      throw Exception(data['message'] ?? 'Failed to load impact posts');
+    } catch (e) {
+      print('Error listing impact posts: $e');
+      rethrow;
+    }
+  }
+
+  static Future<Map<String, dynamic>> createImpactPost(Map<String, dynamic> body) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/manager/impact/posts'),
+        headers: headers,
+        body: json.encode(body),
+      );
+
+      final Map<String, dynamic> data = json.decode(response.body);
+      if ((response.statusCode == 201 || response.statusCode == 200) && data['success'] == true) {
+        return data['data'] as Map<String, dynamic>;
+      }
+      throw Exception(data['message'] ?? 'Failed to create impact post');
+    } catch (e) {
+      print('Error creating impact post: $e');
+      rethrow;
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateImpactPost(int postId, Map<String, dynamic> body) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.put(
+        Uri.parse('$_baseUrl/manager/impact/posts/$postId'),
+        headers: headers,
+        body: json.encode(body),
+      );
+
+      final Map<String, dynamic> data = json.decode(response.body);
+      if (response.statusCode == 200 && data['success'] == true) {
+        return (data['data'] is Map<String, dynamic>) ? (data['data'] as Map<String, dynamic>) : <String, dynamic>{};
+      }
+      throw Exception(data['message'] ?? 'Failed to update impact post');
+    } catch (e) {
+      print('Error updating impact post: $e');
+      rethrow;
+    }
+  }
+
+  static Future<void> deleteImpactPost(int postId) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.delete(
+        Uri.parse('$_baseUrl/manager/impact/posts/$postId'),
+        headers: headers,
+      );
+
+      final Map<String, dynamic> data = json.decode(response.body);
+      if (response.statusCode == 200 && data['success'] == true) {
+        return;
+      }
+      throw Exception(data['message'] ?? 'Failed to delete impact post');
+    } catch (e) {
+      print('Error deleting impact post: $e');
+      rethrow;
+    }
+  }
+
+  // Get institution-level impact (money + equipment + impact posts)
+  static Future<Map<String, dynamic>> getInstitutionDonationImpactV2() async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$_baseUrl/manager/donations/impact/v2'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        if (data['success'] == true) {
+          return data['data'] as Map<String, dynamic>;
+        } else {
+          throw Exception(data['message'] ?? 'Failed to load impact');
+        }
+      } else {
+        throw Exception('Failed to load impact: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error fetching institution donation impact v2: $e');
+      rethrow;
+    }
+  }
+
   // دالة للحصول على الـ Headers
   static Future<Map<String, String>> _getHeaders() async {
     final token = await _getToken();
@@ -183,7 +299,7 @@ class ManagerDashboardService {
           throw Exception(data['message'] ?? 'Failed to fetch donation details');
         }
       } else {
-        throw Exception('Failed to load donation details: ${response.statusCode}');
+        throw Exception('Failed to load donation details: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
       print('Error fetching donation details: $e');

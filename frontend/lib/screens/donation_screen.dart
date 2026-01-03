@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
 import '../theme/app_colors.dart';
 import 'stripe_checkout_screen.dart';
+import 'donation_campaign_details_screen.dart';
 
 class DonationScreen extends StatefulWidget {
   final int? institutionId;
@@ -29,14 +30,27 @@ class _DonationScreenState extends State<DonationScreen> {
   bool _isLoading = true;
   String? _errorMessage;
   List<Map<String, dynamic>> _institutions = [];
+  bool _isLoadingAI = false;
+  String? _aiSummary;
+  List<Map<String, dynamic>> _aiRecommendations = [];
+  bool _isLoadingImpact = false;
+  String? _impactError;
+  Map<String, dynamic>? _impactV2;
+  List<Map<String, dynamic>> _impactFeedItems = [];
+  int _impactFeedPage = 1;
+  bool _impactFeedHasMore = false;
+  String _authToken = '';
   String _donationMode = 'one_time';
   List<Map<String, dynamic>> _campaignsForSelectedInstitution = [];
   int? _selectedCampaignId;
   bool _didAutoOpenForInstitution = false;
   Map<String, dynamic>? _currentInstitution;
+
   bool _isAnonymous = false;
   final TextEditingController _donorNameController = TextEditingController();
   final TextEditingController _donorEmailController = TextEditingController();
+
+  final TextEditingController _inviteCodeController = TextEditingController();
 
   @override
   void initState() {
@@ -52,9 +66,15 @@ class _DonationScreenState extends State<DonationScreen> {
       });
 
       final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token') ?? '';
+      final token = (prefs.getString('token') ?? '').trim();
+      _authToken = token;
 
       final institutions = await ApiService.getDonationInstitutions(token);
+
+      if (token.isNotEmpty) {
+        _loadDonorAIRecommendations(token);
+        _loadImpact(token);
+      }
 
       final filtered = widget.institutionId == null
           ? institutions
@@ -87,6 +107,94 @@ class _DonationScreenState extends State<DonationScreen> {
         _errorMessage = 'Failed to load institutions: ${e.toString()}';
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _loadImpact(String token) async {
+    try {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingImpact = true;
+        _impactError = null;
+      });
+
+      final v2 = await ApiService.getDonationImpactV2(token);
+      final feed = await ApiService.getDonorImpactFeed(token, page: 1, limit: 10);
+
+      if (!mounted) return;
+
+      final v2Data = (v2['data'] is Map) ? Map<String, dynamic>.from(v2['data'] as Map) : <String, dynamic>{};
+      final feedData = (feed['data'] is Map) ? Map<String, dynamic>.from(feed['data'] as Map) : <String, dynamic>{};
+      final items = (feedData['items'] is List)
+          ? (feedData['items'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : <Map<String, dynamic>>[];
+      final pagination = (feedData['pagination'] is Map) ? Map<String, dynamic>.from(feedData['pagination'] as Map) : <String, dynamic>{};
+      final totalPages = (pagination['totalPages'] is int)
+          ? pagination['totalPages'] as int
+          : int.tryParse('${pagination['totalPages'] ?? ''}') ?? 1;
+      final page = (pagination['page'] is int) ? pagination['page'] as int : int.tryParse('${pagination['page'] ?? ''}') ?? 1;
+
+      setState(() {
+        _impactV2 = v2Data;
+        _impactFeedItems = items;
+        _impactFeedPage = page;
+        _impactFeedHasMore = page < totalPages;
+        _isLoadingImpact = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _impactV2 = null;
+        _impactFeedItems = [];
+        _impactFeedPage = 1;
+        _impactFeedHasMore = false;
+        _impactError = 'Failed to load impact';
+        _isLoadingImpact = false;
+      });
+    }
+  }
+
+  Future<void> _loadDonorAIRecommendations(String token) async {
+    try {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingAI = true;
+      });
+
+      final result = await ApiService.getDonorAIRecommendations(token, limit: 6);
+
+      if (!mounted) return;
+      if (result['success'] == true) {
+        final recs = (result['recommendations'] as List?) ?? [];
+        setState(() {
+          _aiSummary = result['ai_summary']?.toString();
+          _aiRecommendations = recs.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          _isLoadingAI = false;
+        });
+      } else {
+        setState(() {
+          _aiRecommendations = [];
+          _aiSummary = null;
+          _isLoadingAI = false;
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _aiRecommendations = [];
+        _aiSummary = null;
+        _isLoadingAI = false;
+      });
+    }
+  }
+
+  Map<String, dynamic>? _findInstitutionById(int institutionId) {
+    try {
+      return _institutions.firstWhere(
+        (x) => x['institution_id'] == institutionId,
+      );
+    } catch (_) {
+      return null;
     }
   }
 
@@ -172,10 +280,9 @@ class _DonationScreenState extends State<DonationScreen> {
                             final campaign = _campaignsForSelectedInstitution[index];
                             final int id = campaign['campaign_id'] as int;
                             final bool isSelected = _selectedCampaignId == id;
-                            final double target = 
-                                double.tryParse('${campaign['target_amount'] ?? 0}') ?? 0;
+                            final double target = double.tryParse('${campaign['target_amount'] ?? 0}') ?? 0;
                             final String status = campaign['status']?.toString() ?? 'active';
-                            
+
                             return Card(
                               margin: const EdgeInsets.only(bottom: 12),
                               color: isSelected ? AppColors.primary.withOpacity(0.1) : null,
@@ -219,7 +326,7 @@ class _DonationScreenState extends State<DonationScreen> {
                                             vertical: 2,
                                           ),
                                           decoration: BoxDecoration(
-                                            color: status == 'active' 
+                                            color: status == 'active'
                                                 ? Colors.green.withOpacity(0.2)
                                                 : Colors.orange.withOpacity(0.2),
                                             borderRadius: BorderRadius.circular(4),
@@ -229,9 +336,7 @@ class _DonationScreenState extends State<DonationScreen> {
                                             style: TextStyle(
                                               fontSize: 10,
                                               fontWeight: FontWeight.bold,
-                                              color: status == 'active' 
-                                                  ? Colors.green
-                                                  : Colors.orange,
+                                              color: status == 'active' ? Colors.green : Colors.orange,
                                             ),
                                           ),
                                         ),
@@ -239,12 +344,42 @@ class _DonationScreenState extends State<DonationScreen> {
                                     ),
                                   ],
                                 ),
-                                trailing: isSelected
-                                    ? Icon(
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      tooltip: 'Campaign details',
+                                      icon: const Icon(Icons.info_outline),
+                                      onPressed: () {
+                                        final inst = _currentInstitution != null
+                                            ? Map<String, dynamic>.from(_currentInstitution as Map)
+                                            : <String, dynamic>{};
+                                        final camp = Map<String, dynamic>.from(campaign);
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => DonationCampaignDetailsScreen(
+                                              institution: inst,
+                                              campaign: camp,
+                                              onDonate: () {
+                                                setStateDialog(() {
+                                                  _donationMode = 'campaign';
+                                                  _selectedCampaignId = id;
+                                                });
+                                                Navigator.pop(context);
+                                              },
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                    if (isSelected)
+                                      Icon(
                                         Icons.check_circle,
                                         color: AppColors.primary,
-                                      )
-                                    : null,
+                                      ),
+                                  ],
+                                ),
                                 onTap: () {
                                   setStateDialog(() {
                                     _selectedCampaignId = id;
@@ -282,7 +417,7 @@ class _DonationScreenState extends State<DonationScreen> {
   Future<void> _showDonateDialog(Map<String, dynamic> institution) async {
     final TextEditingController amountController = TextEditingController();
     _currentInstitution = institution;
-    
+
     // Load campaigns for this institution
     await _loadCampaignsForInstitution(institution['institution_id'] as int);
 
@@ -292,390 +427,483 @@ class _DonationScreenState extends State<DonationScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
-            return AlertDialog(
-              title: Text(
-                'Donate to ${institution['name'] ?? ''}',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Amount Input
-                    TextField(
-                      controller: amountController,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      decoration: InputDecoration(
-                        labelText: 'Amount (JOD)',
-                        hintText: 'Enter donation amount',
-                        prefixIcon: const Icon(Icons.attach_money),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    
-                    // Donation Type
-                    const Text(
-                      'Donation Type',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Column(
-                      children: [
-                        RadioListTile<String>(
-                          value: 'one_time',
-                          groupValue: _donationMode,
-                          title: const Text('One-time Donation'),
-                          subtitle: const Text('Single donation to general fund'),
-                          onChanged: (val) {
-                            if (val == null) return;
-                            setStateDialog(() {
-                              _donationMode = val;
-                              _selectedCampaignId = null;
-                            });
-                          },
-                        ),
-                        RadioListTile<String>(
-                          value: 'monthly',
-                          groupValue: _donationMode,
-                          title: const Text('Monthly Donation'),
-                          subtitle: const Text('Recurring monthly donation'),
-                          onChanged: (val) {
-                            if (val == null) return;
-                            setStateDialog(() {
-                              _donationMode = val;
-                              _selectedCampaignId = null;
-                            });
-                          },
-                        ),
-                        RadioListTile<String>(
-                          value: 'campaign',
-                          groupValue: _donationMode,
-                          title: const Text('Campaign Donation'),
-                          subtitle: const Text('Support specific campaign'),
-                          onChanged: (val) {
-                            if (val == null) return;
-                            setStateDialog(() {
-                              _donationMode = val;
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                    
-                    // Campaign Selection (if mode is campaign)
-                    if (_donationMode == 'campaign') ...[
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Select Campaign',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      
-                      if (_campaignsForSelectedInstitution.isEmpty)
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            borderRadius: BorderRadius.circular(8),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.85,
+                ),
+                child: IntrinsicHeight(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Title
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(12),
+                            topRight: Radius.circular(12),
                           ),
-                          child: const Text(
-                            'No active campaigns available for this institution. Please choose another donation type.',
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                        )
-                      else
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        ),
+                        child: Row(
                           children: [
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey[300]!),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (_selectedCampaignId != null)
-                                    ..._campaignsForSelectedInstitution
-                                        .where((c) => c['campaign_id'] == _selectedCampaignId)
-                                        .map((campaign) => Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  campaign['name']?.toString() ?? '',
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                                if ((campaign['description']?.toString() ?? '').isNotEmpty)
-                                                  Padding(
-                                                    padding: const EdgeInsets.only(top: 4),
-                                                    child: Text(
-                                                      campaign['description']?.toString() ?? '',
-                                                      style: const TextStyle(
-                                                        fontSize: 12,
-                                                        color: Colors.grey,
-                                                      ),
-                                                    ),
-                                                  ),
-                                              ],
-                                            ))
-                                        .toList()
-                                  else
-                                    const Text(
-                                      'No campaign selected',
-                                      style: TextStyle(color: Colors.grey),
-                                    ),
-                                ],
-                              ),
+                            Icon(
+                              Icons.volunteer_activism,
+                              color: Colors.white,
                             ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: OutlinedButton.icon(
-                                    onPressed: () => _openCampaignSelectorInDialog(setStateDialog),
-                                    icon: const Icon(Icons.search),
-                                    label: const Text('Browse Campaigns'),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: AppColors.primary,
-                                      side: BorderSide(color: AppColors.primary),
-                                    ),
-                                  ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Donate to ${institution['name'] ?? ''}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  fontSize: 16,
                                 ),
-                                if (_selectedCampaignId != null)
-                                  IconButton(
-                                    icon: const Icon(Icons.clear),
-                                    onPressed: () {
-                                      setStateDialog(() {
-                                        _selectedCampaignId = null;
-                                      });
-                                    },
-                                    tooltip: 'Clear selection',
-                                  ),
-                              ],
+                              ),
                             ),
                           ],
                         ),
-                    ],
-                    
-                    // Quick Amount Buttons
-                    const SizedBox(height: 20),
-                    const Text(
-                      'Quick Amounts (JOD)',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    const SizedBox(height: 20),
-                    // Anonymous Donor Option
-StatefulBuilder(
-  builder: (context, setStateDialog) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Donor Information',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
-          ),
-        ),
-        const SizedBox(height: 8),
-        
-        // Anonymous Toggle
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Donate Anonymously'),
-          subtitle: const Text('Your name will not be displayed publicly'),
-          value: _isAnonymous,
-          onChanged: (value) {
-            setStateDialog(() {
-              _isAnonymous = value;
-              if (value) {
-                // إذا اختار التبرع المجهول، نمسح الحقول
-                _donorNameController.clear();
-                _donorEmailController.clear();
-              }
-            });
-          },
-        ),
-        
-        // Donor Information Fields (تظهر فقط إذا لم يكن مجهولاً)
-        if (!_isAnonymous) ...[
-          const SizedBox(height: 16),
-          
-          // Donor Name
-          TextField(
-            controller: _donorNameController,
-            decoration: InputDecoration(
-              labelText: 'Your Name (Optional)',
-              hintText: 'Enter your name',
-              prefixIcon: const Icon(Icons.person),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          ),
-          
-          const SizedBox(height: 12),
-          
-          // Donor Email
-          TextField(
-            controller: _donorEmailController,
-            keyboardType: TextInputType.emailAddress,
-            decoration: InputDecoration(
-              labelText: 'Your Email (Optional)',
-              hintText: 'Enter your email for receipt',
-              prefixIcon: const Icon(Icons.email),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          ),
-          
-          const SizedBox(height: 8),
-          Text(
-            'Your information will be kept private and only used for receipt purposes',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
-            ),
-          ),
-        ],
-        
-        // Note for Anonymous Donors
-        if (_isAnonymous) ...[
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.info, color: Colors.blue[700]),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Thank you for your anonymous donation! '
-                    'Your contribution will be recorded without personal details.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.blue[700],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ],
-    );
-  },
-),
 
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [10, 25, 50, 100, 250, 500].map((amount) {
-                        return ElevatedButton(
-                          onPressed: () {
-                            amountController.text = amount.toString();
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.grey[200],
-                            foregroundColor: Colors.black87,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                          ),
-                          child: Text('$amount'),
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    final amount = amountController.text.trim();
-                    if (amount.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Please enter donation amount'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                      return;
-                    }
-                    
-                    if (_donationMode == 'campaign' && _selectedCampaignId == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Please select a campaign'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                      return;
-                    }
-                    
-                    Navigator.of(context).pop(true);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('Continue to Payment'),
-                ),
-                // في الـ showDonateDialog أضف:
-ElevatedButton.icon(
-  onPressed: () {
-    Navigator.pop(context); // Close current dialog
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => EquipmentDonationScreen(
-          institutionId: institution['institution_id'] as int,
-          institutionName: institution['name'],
-        ),
-      ),
-    );
-  },
-  icon: const Icon(Icons.medical_services),
-  label: const Text('Donate Medical Equipment'),
-  style: ElevatedButton.styleFrom(
-    backgroundColor: Colors.purple,
-    foregroundColor: Colors.white,
-    padding: const EdgeInsets.symmetric(vertical: 12),
+                      // Content
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              TextField(
+                                controller: _inviteCodeController,
+                                decoration: InputDecoration(
+                                  labelText: 'Invite Code (optional)',
+                                  hintText: 'Enter invite code to support the same campaign',
+                                  prefixIcon: const Icon(Icons.link),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+
+                              // Amount Input
+                              TextField(
+                                controller: amountController,
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(decimal: true),
+                                decoration: InputDecoration(
+                                  labelText: 'Amount (JOD)',
+                                  hintText: 'Enter donation amount',
+                                  prefixIcon: const Icon(Icons.attach_money),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+
+                              // Donation Type
+                              const Text(
+                                'Donation Type',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Column(
+                                children: [
+                                  RadioListTile<String>(
+                                    value: 'one_time',
+                                    groupValue: _donationMode,
+                                    title: const Text('One-time Donation'),
+                                    subtitle: const Text('Single donation to general fund'),
+                                    onChanged: (val) {
+                                      if (val == null) return;
+                                      setStateDialog(() {
+                                        _donationMode = val;
+                                        _selectedCampaignId = null;
+                                      });
+                                    },
+                                  ),
+                                  RadioListTile<String>(
+                                    value: 'monthly',
+                                    groupValue: _donationMode,
+                                    title: const Text('Monthly Donation'),
+                                    subtitle: const Text('Recurring monthly donation'),
+                                    onChanged: (val) {
+                                      if (val == null) return;
+                                      setStateDialog(() {
+                                        _donationMode = val;
+                                        _selectedCampaignId = null;
+                                      });
+                                    },
+                                  ),
+                                  RadioListTile<String>(
+                                    value: 'campaign',
+                                    groupValue: _donationMode,
+                                    title: const Text('Campaign Donation'),
+                                    subtitle: const Text('Support specific campaign'),
+                                    onChanged: (val) {
+                                      if (val == null) return;
+                                      setStateDialog(() {
+                                        _donationMode = val;
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+
+                              // Campaign Selection (if mode is campaign)
+                              if (_donationMode == 'campaign') ...[
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'Select Campaign',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+
+                                if (_campaignsForSelectedInstitution.isEmpty)
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[100],
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Text(
+                                      'No active campaigns available for this institution. Please choose another donation type.',
+                                      style: TextStyle(color: Colors.grey),
+                                    ),
+                                  )
+                                else
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          border: Border.all(color: Colors.grey[300]!),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            if (_selectedCampaignId != null)
+                                              ..._campaignsForSelectedInstitution
+                                                  .where((c) => c['campaign_id'] == _selectedCampaignId)
+                                                  .map((campaign) => Column(
+                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                                        children: [
+                                                          Text(
+                                                            campaign['name']?.toString() ?? '',
+                                                            style: const TextStyle(
+                                                              fontWeight: FontWeight.bold,
+                                                            ),
+                                                          ),
+                                                          if ((campaign['description']?.toString() ?? '').isNotEmpty)
+                                                            Padding(
+                                                              padding: const EdgeInsets.only(top: 4),
+                                                              child: Text(
+                                                                campaign['description']?.toString() ?? '',
+                                                                style: const TextStyle(
+                                                                  fontSize: 12,
+                                                                  color: Colors.grey,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          const SizedBox(height: 8),
+                                                          Align(
+                                                            alignment: Alignment.centerLeft,
+                                                            child: TextButton.icon(
+                                                              onPressed: () {
+                                                                final inst = _currentInstitution != null
+                                                                    ? Map<String, dynamic>.from(_currentInstitution as Map)
+                                                                    : <String, dynamic>{};
+                                                                final camp = Map<String, dynamic>.from(campaign);
+                                                                Navigator.push(
+                                                                  context,
+                                                                  MaterialPageRoute(
+                                                                    builder: (_) => DonationCampaignDetailsScreen(
+                                                                      institution: inst,
+                                                                      campaign: camp,
+                                                                      onDonate: () {
+                                                                        setStateDialog(() {
+                                                                          _donationMode = 'campaign';
+                                                                          _selectedCampaignId = (campaign['campaign_id'] is int)
+                                                                              ? campaign['campaign_id'] as int
+                                                                              : int.tryParse('${campaign['campaign_id'] ?? ''}');
+                                                                        });
+                                                                        Navigator.pop(context);
+                                                                      },
+                                                                    ),
+                                                                  ),
+                                                                );
+                                                              },
+                                                              icon: const Icon(Icons.info_outline, size: 18),
+                                                              label: const Text('Campaign details'),
+                                                              style: TextButton.styleFrom(
+                                                                foregroundColor: AppColors.primary,
+                                                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ))
+                                                  .toList()
+                                            else
+                                              const Text(
+                                                'No campaign selected',
+                                                style: TextStyle(color: Colors.grey),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          Expanded(
+  child: OutlinedButton.icon(
+    onPressed: () => _openCampaignSelectorInDialog(setStateDialog),
+    icon: const Icon(Icons.search),
+    label: const Text('Browse Campaigns'),
+    style: OutlinedButton.styleFrom(
+      foregroundColor: AppColors.primary,
+      side: BorderSide(color: AppColors.primary),
+    ),
   ),
 ),
-              ],
+                                          if (_selectedCampaignId != null)
+                                            IconButton(
+                                              icon: const Icon(Icons.clear),
+                                              onPressed: () {
+                                                setStateDialog(() {
+                                                  _selectedCampaignId = null;
+                                                });
+                                              },
+                                              tooltip: 'Clear selection',
+                                            ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                              ],
+
+                              // Quick Amount Buttons
+                              const SizedBox(height: 20),
+                              const Text(
+                                'Quick Amounts (JOD)',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [10, 25, 50, 100, 250, 500].map((amount) {
+                                  return ElevatedButton(
+                                    onPressed: () {
+                                      amountController.text = amount.toString();
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.grey[200],
+                                      foregroundColor: Colors.black87,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 8,
+                                      ),
+                                    ),
+                                    child: Text('$amount'),
+                                  );
+                                }).toList(),
+                              ),
+                              const SizedBox(height: 20),
+
+                              // Anonymous Donor Option
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Donor Information',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+
+                                  // Anonymous Toggle
+                                  SwitchListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    title: const Text('Donate Anonymously'),
+                                    subtitle: const Text('Your name will not be displayed publicly'),
+                                    value: _isAnonymous,
+                                    onChanged: (value) {
+                                      setStateDialog(() {
+                                        _isAnonymous = value;
+                                        if (value) {
+                                          // إذا اختار التبرع المجهول، نمسح الحقول
+                                          _donorNameController.clear();
+                                          _donorEmailController.clear();
+                                        }
+                                      });
+                                    },
+                                  ),
+
+                                  // Donor Information Fields (تظهر فقط إذا لم يكن مجهولاً)
+                                  if (!_isAnonymous) ...[
+                                    const SizedBox(height: 16),
+
+                                    // Donor Name
+                                    TextField(
+                                      controller: _donorNameController,
+                                      decoration: InputDecoration(
+                                        labelText: 'Your Name (Optional)',
+                                        hintText: 'Enter your name',
+                                        prefixIcon: const Icon(Icons.person),
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                      ),
+                                    ),
+
+                                    const SizedBox(height: 12),
+
+                                    // Donor Email
+                                    TextField(
+                                      controller: _donorEmailController,
+                                      keyboardType: TextInputType.emailAddress,
+                                      decoration: InputDecoration(
+                                        labelText: 'Your Email (Optional)',
+                                        hintText: 'Enter your email for receipt',
+                                        prefixIcon: const Icon(Icons.email),
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                      ),
+                                    ),
+
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Your information will be kept private and only used for receipt purposes',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+
+                                  // Note for Anonymous Donors
+                                  if (_isAnonymous) ...[
+                                    const SizedBox(height: 12),
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.info, color: Colors.blue[700]),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Text(
+                                              'Thank you for your anonymous donation! '
+                                              'Your contribution will be recorded without personal details.',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.blue[700],
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // Actions
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          borderRadius: const BorderRadius.only(
+                            bottomLeft: Radius.circular(12),
+                            bottomRight: Radius.circular(12),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.of(context).pop(false),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.grey[700],
+                                  side: BorderSide(color: Colors.grey[300]!),
+                                ),
+                                child: const Text('Cancel'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  final amount = amountController.text.trim();
+                                  if (amount.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Please enter donation amount'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                    return;
+                                  }
+
+                                  if (_donationMode == 'campaign' && _selectedCampaignId == null) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Please select a campaign'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                    return;
+                                  }
+
+                                  Navigator.of(context).pop(true);
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primary,
+                                  foregroundColor: Colors.white,
+                                ),
+                                child: const Text('Continue to Payment'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             );
           },
         );
@@ -686,7 +914,7 @@ ElevatedButton.icon(
 
     final raw = amountController.text.trim();
     final amount = double.tryParse(raw.replaceAll(',', '.'));
-    
+
     if (amount == null || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -701,229 +929,230 @@ ElevatedButton.icon(
   }
 
   Future<void> _startDonationCheckout(
-  Map<String, dynamic> institution, 
-  double amount
-) async {
-  try {
-    // Show loading
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const AlertDialog(
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Preparing payment...'),
-          ],
-        ),
-      ),
-    );
-
-    // ✅ التعديل هنا: التحقق من إذا كان المستخدم مسجل دخول أم لا
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token') ?? '';
-    
-    // ✅ إعداد البيانات بناءً على حالة المستخدم
-    Map<String, dynamic> requestBody = {
-      'institution_id': institution['institution_id'],
-      'amount': amount,
-      'mode': _donationMode == 'monthly' ? 'monthly' : 'one_time',
-      'campaign_id': _selectedCampaignId,
-      'anonymous': _isAnonymous, // ✅ إضافة هذا الحقل
-    };
-    
-    // ✅ إذا كان متبرع مجهول وأدخل بيانات، نرسلها
-    if (_isAnonymous && (_donorNameController.text.isNotEmpty || _donorEmailController.text.isNotEmpty)) {
-      if (_donorNameController.text.isNotEmpty) {
-        requestBody['donor_name'] = _donorNameController.text;
-      }
-      if (_donorEmailController.text.isNotEmpty) {
-        requestBody['donor_email'] = _donorEmailController.text;
-      }
-    }
-    
-    Map<String, dynamic> result;
-    
-    // ✅ تحديد أي API نستخدم بناءً على حالة المصادقة
-    if (token.isEmpty) {
-      // ⭐ مستخدم غير مسجل - نستخدم مسار التبرع المرن
-      print('🟡 Using flexible checkout (unauthenticated)');
-      
-      // يمكننا استخدام نفس API ولكن بدون token
-      final response = await http.post(
-        Uri.parse('${ApiService.baseUrl}/api/donations/flexible/checkout'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(requestBody),
-      );
-      
-      if (response.statusCode == 200) {
-        result = jsonDecode(response.body);
-      } else {
-        throw Exception('Failed to create checkout');
-      }
-    } else {
-      // ✅ مستخدم مسجل - نستخدم API مع المصادقة
-      result = await ApiService.createDonationCheckout(
-        token,
-        institutionId: institution['institution_id'] as int,
-        amount: amount,
-        mode: _donationMode == 'monthly' ? 'monthly' : 'one_time',
-        campaignId: _selectedCampaignId,
-        anonymous: _isAnonymous, // ✅ إضافة هذه المعلمة
-        donorName: _donorNameController.text.isNotEmpty 
-            ? _donorNameController.text 
-            : null,
-        donorEmail: _donorEmailController.text.isNotEmpty 
-            ? _donorEmailController.text 
-            : null,
-      );
-    }
-
-    Navigator.pop(context); // Remove loading
-
-    final url = (result['url'] ?? result['checkout_url'])?.toString();
-
-    if (url == null || url.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not get checkout URL from server'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    // فتح WebView
-    final paymentCompleted = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(
-        builder: (context) => StripeCheckoutScreen(
-          checkoutUrl: url,
-          sessionId: (result['sessionId'] ?? result['session_id'])?.toString(),
-          institutionId: institution['institution_id'] as int,
-          institutionName: institution['name'] ?? 'Institution',
-          amount: amount,
-        ),
-      ),
-    ) ?? false;
-
-    if (paymentCompleted && context.mounted) {
-      // الانتقال لصفحة النجاح
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => DonationSuccessScreen(
-            sessionId: (result['sessionId'] ?? result['session_id'])?.toString(),
-            institutionId: institution['institution_id'] as int,
-            isAnonymous: _isAnonymous, // ✅ تمرير حالة التبرع المجهول
+    Map<String, dynamic> institution,
+    double amount,
+  ) async {
+    try {
+      // Show loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Preparing payment...'),
+            ],
           ),
         ),
       );
-    }
 
-  } catch (e) {
-    print('Payment error: $e');
-    
-    if (context.mounted) {
-      Navigator.pop(context);
-      
-      String errorMessage = 'Failed to process payment';
-      if (e.toString().contains('401') || e.toString().contains('Unauthorized')) {
-        // ⭐ تغيير الرسالة للمستخدم غير المسجل
-        errorMessage = 'You can still donate anonymously without login';
-      } else if (e.toString().contains('Network')) {
-        errorMessage = 'Network error. Please check your connection';
+      // ✅ التعديل هنا: التحقق من إذا كان المستخدم مسجل دخول أم لا
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? '';
+
+      // ✅ إعداد البيانات بناءً على حالة المستخدم
+      Map<String, dynamic> requestBody = {
+        'institution_id': institution['institution_id'],
+        'amount': amount,
+        'mode': _donationMode == 'monthly' ? 'monthly' : 'one_time',
+        'campaign_id': _selectedCampaignId,
+        'anonymous': _isAnonymous, // ✅ إضافة هذا الحقل
+        'invite_code': _inviteCodeController.text.trim().isEmpty ? null : _inviteCodeController.text.trim(),
+      };
+
+      // ✅ إذا كان متبرع مجهول وأدخل بيانات، نرسلها
+      if (_isAnonymous && (_donorNameController.text.isNotEmpty || _donorEmailController.text.isNotEmpty)) {
+        if (_donorNameController.text.isNotEmpty) {
+          requestBody['donor_name'] = _donorNameController.text;
+        }
+        if (_donorEmailController.text.isNotEmpty) {
+          requestBody['donor_email'] = _donorEmailController.text;
+        }
       }
 
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Payment Failed'),
-          content: Text(errorMessage),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
-            ),
-            // ⭐ إضافة زر للتبرع المجهول إذا فشل بسبب المصادقة
-            if (e.toString().contains('401'))
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  setState(() {
-                    _isAnonymous = true;
-                  });
-                  _startDonationCheckout(institution, amount);
-                },
-                child: const Text('Donate Anonymously'),
-              ),
-          ],
+      Map<String, dynamic> result;
+
+      // ✅ تحديد أي API نستخدم بناءً على حالة المصادقة
+      if (token.isEmpty) {
+        // ⭐ مستخدم غير مسجل - نستخدم مسار التبرع المرن
+        print('🟡 Using flexible checkout (unauthenticated)');
+
+        // يمكننا استخدام نفس API ولكن بدون token
+        final response = await http.post(
+          Uri.parse('${ApiService.baseUrl}/api/donations/flexible/checkout'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(requestBody),
+        );
+
+        if (response.statusCode == 200) {
+          result = jsonDecode(response.body);
+        } else {
+          throw Exception('Failed to create checkout');
+        }
+      } else {
+        // ✅ مستخدم مسجل - نستخدم API مع المصادقة
+        result = await ApiService.createDonationCheckout(
+          token,
+          institutionId: institution['institution_id'] as int,
+          amount: amount,
+          mode: _donationMode == 'monthly' ? 'monthly' : 'one_time',
+          campaignId: _selectedCampaignId,
+          inviteCode: _inviteCodeController.text.trim().isEmpty ? null : _inviteCodeController.text.trim(),
+          anonymous: _isAnonymous, // ✅ إضافة هذه المعلمة
+          donorName: _donorNameController.text.isNotEmpty
+              ? _donorNameController.text
+              : null,
+          donorEmail: _donorEmailController.text.isNotEmpty
+              ? _donorEmailController.text
+              : null,
+        );
+      }
+
+      Navigator.pop(context); // Remove loading
+
+      final url = (result['url'] ?? result['checkout_url'])?.toString();
+
+      if (url == null || url.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not get checkout URL from server'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // فتح WebView
+      final paymentCompleted = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => StripeCheckoutScreen(
+            checkoutUrl: url,
+            sessionId: (result['sessionId'] ?? result['session_id'])?.toString(),
+            institutionId: institution['institution_id'] as int,
+            institutionName: institution['name'] ?? 'Institution',
+            amount: amount,
+          ),
         ),
-      );
+      ) ?? false;
+
+      if (paymentCompleted && context.mounted) {
+        // الانتقال لصفحة النجاح
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DonationSuccessScreen(
+              sessionId: (result['sessionId'] ?? result['session_id'])?.toString(),
+              institutionId: institution['institution_id'] as int,
+              isAnonymous: _isAnonymous, // ✅ تمرير حالة التبرع المجهول
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Payment error: $e');
+
+      if (context.mounted) {
+        Navigator.pop(context);
+
+        String errorMessage = 'Failed to process payment';
+        if (e.toString().contains('401') || e.toString().contains('Unauthorized')) {
+          // ⭐ تغيير الرسالة للمستخدم غير المسجل
+          errorMessage = 'You can still donate anonymously without login';
+        } else if (e.toString().contains('Network')) {
+          errorMessage = 'Network error. Please check your connection';
+        }
+
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Payment Failed'),
+            content: Text(errorMessage),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+              // ⭐ إضافة زر للتبرع المجهول إذا فشل بسبب المصادقة
+              if (e.toString().contains('401'))
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    setState(() {
+                      _isAnonymous = true;
+                    });
+                    _startDonationCheckout(institution, amount);
+                  },
+                  child: const Text('Donate Anonymously'),
+                ),
+            ],
+          ),
+        );
+      }
     }
   }
-}
 
-/// Open Stripe checkout URL
-static Future<void> launchStripeCheckout(String url) async {
-  final uri = Uri.parse(url);
-  
-  if (await canLaunchUrl(uri)) {
-    await launchUrl(
-      uri,
-      mode: LaunchMode.externalApplication,
-      webOnlyWindowName: '_blank',
-    );
-  } else {
-    throw Exception('Could not launch Stripe checkout');
+  /// Open Stripe checkout URL
+  static Future<void> launchStripeCheckout(String url) async {
+    final uri = Uri.parse(url);
+
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+        webOnlyWindowName: '_blank',
+      );
+    } else {
+      throw Exception('Could not launch Stripe checkout');
+    }
   }
-}
 
-/// Copy URL to clipboard
-static Future<void> copyToClipboard(String text) async {
-  await Clipboard.setData(ClipboardData(text: text));
-}
+  /// Copy URL to clipboard
+  static Future<void> copyToClipboard(String text) async {
+    await Clipboard.setData(ClipboardData(text: text));
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.institutionId != null && 
-          (widget.institutionName ?? '').trim().isNotEmpty
-              ? 'Donate to ${widget.institutionName}'
-              : 'Support Institutions',
-        ),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        actions: [
-          if (_institutions.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.info_outline),
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('About Donations'),
-                    content: const Text(
-                      'Your donations help support children\'s therapy sessions. '
-                      'You can donate to specific campaigns or to the general fund. '
-                      'All donations are processed securely through Stripe.',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('OK'),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-        ],
-      ),
+      // appBar: AppBar(
+      //   title: Text(
+      //     widget.institutionId != null &&
+      //             (widget.institutionName ?? '').trim().isNotEmpty
+      //         ? 'Donate to ${widget.institutionName}'
+      //         : 'Support Institutions',
+      //   ),
+      //   backgroundColor: AppColors.primary,
+      //   foregroundColor: Colors.white,
+      //   actions: [
+      //     if (_institutions.isNotEmpty)
+      //       IconButton(
+      //         icon: const Icon(Icons.info_outline),
+      //         onPressed: () {
+      //           showDialog(
+      //             context: context,
+      //             builder: (context) => AlertDialog(
+      //               title: const Text('About Donations'),
+      //               content: const Text(
+      //                 'Your donations help support children\'s therapy sessions. '
+      //                 'You can donate to specific campaigns or to the general fund. '
+      //                 'All donations are processed securely through Stripe.',
+      //               ),
+      //               actions: [
+      //                 TextButton(
+      //                   onPressed: () => Navigator.pop(context),
+      //                   child: const Text('OK'),
+      //                 ),
+      //               ],
+      //             ),
+      //           );
+      //         },
+      //       ),
+      //   ],
+      // ),
       body: _isLoading
           ? const Center(
               child: Column(
@@ -1003,33 +1232,121 @@ static Future<void> copyToClipboard(String text) async {
                         ],
                       ),
                     )
-                  : Column(
-                      children: [
-                        // Header with total count
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          color: AppColors.primary.withOpacity(0.1),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.verified_user,
-                                color: AppColors.primary,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  '${_institutions.length} institution${_institutions.length != 1 ? 's' : ''} available for donation',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w500,
+                  : SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          if (_isLoadingAI)
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              color: AppColors.primary.withOpacity(0.06),
+                              child: const Row(
+                                children: [
+                                  SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
                                   ),
-                                ),
+                                  SizedBox(width: 10),
+                                  Expanded(child: Text('Loading AI suggestions...')),
+                                ],
                               ),
-                            ],
-                          ),
-                        ),
-                        // Institutions List
-                        Expanded(
-                          child: ListView.builder(
+                            )
+                          else if (_aiRecommendations.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              color: AppColors.primary.withOpacity(0.06),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'AI Suggestions for You',
+                                    style: TextStyle(fontWeight: FontWeight.w800),
+                                  ),
+                                  if ((_aiSummary ?? '').trim().isNotEmpty) ...[
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      _aiSummary!,
+                                      style: const TextStyle(color: Colors.black87),
+                                    ),
+                                  ],
+                                  const SizedBox(height: 12),
+                                  SizedBox(
+                                    height: 120,
+                                    child: ListView.builder(
+                                      scrollDirection: Axis.horizontal,
+                                      itemCount: _aiRecommendations.length,
+                                      itemBuilder: (context, index) {
+                                        final r = _aiRecommendations[index];
+                                        final id = r['institution_id'];
+                                        final name = (r['name'] ?? '').toString();
+                                        final reasons = (r['reasons'] is List)
+                                            ? (r['reasons'] as List).map((x) => x.toString()).toList()
+                                            : <String>[];
+
+                                        return Container(
+                                          width: 260,
+                                          margin: EdgeInsets.only(right: index == _aiRecommendations.length - 1 ? 0 : 12),
+                                          child: Card(
+                                            elevation: 1,
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                            child: InkWell(
+                                              borderRadius: BorderRadius.circular(12),
+                                              onTap: id is int
+                                                  ? () {
+                                                      final inst = _findInstitutionById(id);
+                                                      if (inst != null) {
+                                                        _showDonateDialog(inst);
+                                                      }
+                                                    }
+                                                  : null,
+                                              child: Padding(
+                                                padding: const EdgeInsets.all(12),
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      name.isEmpty ? 'Institution' : name,
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: const TextStyle(fontWeight: FontWeight.w800),
+                                                    ),
+                                                    const SizedBox(height: 6),
+                                                    Text(
+                                                      reasons.isNotEmpty ? reasons.first : 'Suggested for you',
+                                                      maxLines: 2,
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: const TextStyle(color: Colors.grey),
+                                                    ),
+                                                    const Spacer(),
+                                                    Row(
+                                                      children: [
+                                                        const Icon(Icons.volunteer_activism, size: 16, color: AppColors.primary),
+                                                        const SizedBox(width: 6),
+                                                        Text(
+                                                          'Donate',
+                                                          style: TextStyle(
+                                                            color: AppColors.primary,
+                                                            fontWeight: FontWeight.w700,
+                                                          ),
+                                                        )
+                                                      ],
+                                                    )
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          // Institutions List
+                          ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
                             padding: const EdgeInsets.all(16),
                             itemCount: _institutions.length,
                             itemBuilder: (context, index) {
@@ -1129,8 +1446,9 @@ static Future<void> copyToClipboard(String text) async {
                               );
                             },
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 80), // Add padding for FAB
+                        ],
+                      ),
                     ),
       floatingActionButton: _institutions.isNotEmpty
           ? FloatingActionButton.extended(

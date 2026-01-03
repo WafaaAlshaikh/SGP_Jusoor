@@ -8,6 +8,7 @@ import '../services/rating_service.dart';
 import '../models/rating_models.dart';
 import '../theme/app_colors.dart';
 import 'donation_screen.dart';
+import 'equipment_donation_screen.dart';
 import '../widgets/institution_registration_request_sheet.dart';
 import '../widgets/review_dialog.dart';
 
@@ -2629,7 +2630,7 @@ IconButton(
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) => DonationScreen(
+                                      builder: (_) => CombinedEquipmentScreen(
                                         institutionId: widget.institutionId,
                                         institutionName: (institution['name'] ?? widget.institutionName)?.toString(),
                                       ),

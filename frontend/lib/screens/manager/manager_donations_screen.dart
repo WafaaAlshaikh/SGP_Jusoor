@@ -4,6 +4,7 @@ import '../../theme/app_colors.dart';
 import '../../services/manager_dashboard_service.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'manager_impact_posts_screen.dart';
 
 class ManagerDonationsScreen extends StatefulWidget {
   const ManagerDonationsScreen({Key? key}) : super(key: key);
@@ -28,6 +29,10 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
 
   final ScrollController _donationsScrollController = ScrollController();
   int _donationsViewIndex = 0;
+
+  bool _isLoadingImpactV2 = false;
+  Map<String, dynamic>? _impactV2;
+  String? _impactV2Error;
 
   Map<String, dynamic>? _asStringMap(dynamic value) {
     if (value is Map) {
@@ -79,6 +84,7 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
   @override
   void initState() {
     super.initState();
+
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(() {
       setState(() {
@@ -86,7 +92,6 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
       });
     });
     _loadData();
-    _loadFilterData(); // تحميل بيانات الفلاتر
   }
 
   @override
@@ -105,13 +110,16 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
       final result = await ManagerDashboardService.getDonationDetails();
       final campaigns = await ManagerDashboardService.getDonationCampaigns();
       final stats = await ManagerDashboardService.getDonationStatistics();
-      
+
+      await _loadImpactV2();
+
       setState(() {
         _data = result;
         _stats = stats;
         _donations = List<dynamic>.from(result['donations'] as List? ?? []);
         _allocations = List<dynamic>.from(result['allocations'] as List? ?? []);
         _campaigns = campaigns;
+
         final topDonor = stats['topDonor'];
         _topDonors = topDonor != null ? [topDonor] : [];
         _latestDonations = List<dynamic>.from(stats['latestDonations'] ?? []);
@@ -120,11 +128,45 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
         _processLatestDonations();
         _isLoading = false;
       });
+
+      _loadFilterData(); // تحميل بيانات الفلاتر بعد تحميل الحملات
     } catch (e) {
       setState(() {
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _loadImpactV2() async {
+    try {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingImpactV2 = true;
+        _impactV2Error = null;
+      });
+
+      final data = await ManagerDashboardService.getInstitutionDonationImpactV2();
+
+      if (!mounted) return;
+      setState(() {
+        _impactV2 = data;
+        _isLoadingImpactV2 = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _impactV2 = null;
+        _impactV2Error = 'Failed to load impact';
+        _isLoadingImpactV2 = false;
+      });
+    }
+  }
+
+  int _toInt(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString()) ?? 0;
   }
 
   // ========== دوال الفلاتر المتقدمة الجديدة ==========
@@ -134,10 +176,10 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
     setState(() {
       _availableCampaigns = List<Map<String, dynamic>>.from(_campaigns);
     });
-    
+
     // تجميع المتبرعين من البيانات المحملة
     final Set<Map<String, dynamic>> uniqueDonors = {};
-    
+
     // جمع من التبرعات
     for (final donation in _donations) {
       final donor = _asStringMap(donation['donor']);
@@ -145,7 +187,7 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
         uniqueDonors.add(donor);
       }
     }
-    
+
     // جمع من أحدث التبرعات
     for (final donation in _latestDonations) {
       final donor = _asStringMap(donation['donor']);
@@ -153,7 +195,7 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
         uniqueDonors.add(donor);
       }
     }
-    
+
     // جمع من أفضل المتبرعين
     for (final donorData in _topDonors) {
       final donorInfo = _asStringMap(donorData['donor_info']);
@@ -161,7 +203,7 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
         uniqueDonors.add(donorInfo);
       }
     }
-    
+
     setState(() {
       _donorsList = uniqueDonors.toList();
     });
@@ -173,27 +215,27 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
   void _applyAdvancedFilters() {
     List<dynamic> filteredDonations = List<dynamic>.from(_donations);
     List<dynamic> filteredAllocations = List<dynamic>.from(_allocations);
-    
+
     // فلترة حسب التاريخ
     filteredDonations = _filterByDate(filteredDonations);
     filteredAllocations = _filterByDate(filteredAllocations);
-    
+
     // فلترة حسب المبلغ
     filteredDonations = _filterByAmount(filteredDonations);
     filteredAllocations = _filterByAmount(filteredAllocations);
-    
+
     // فلترة حسب نوع المتبرع
     filteredDonations = _filterByDonorType(filteredDonations);
-    
+
     // فلترة حسب الحملات
     filteredDonations = _filterByCampaign(filteredDonations);
-    
+
     // فلترة حسب حالة الفواتير
     filteredAllocations = _filterByInvoiceStatus(filteredAllocations);
-    
+
     // فلترة حسب التكرار
     filteredDonations = _filterByFrequency(filteredDonations);
-    
+
     // فلترات إضافية
     if (_filterState['onlyLargeDonations'] == true) {
       filteredDonations = filteredDonations.where((d) {
@@ -201,14 +243,14 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
         return amount >= 1000; // تبرعات كبيرة
       }).toList();
     }
-    
+
     if (_filterState['onlyWithContact'] == true) {
       filteredDonations = filteredDonations.where((d) {
         final donor = _asStringMap(d['donor']) ?? {};
         return (donor['email'] != null || donor['phone'] != null);
       }).toList();
     }
-    
+
     if (_filterState['onlyRecurring'] == true) {
       final recurringDonors = _identifyRecurringDonors(filteredDonations);
       filteredDonations = filteredDonations.where((d) {
@@ -217,10 +259,10 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
         return recurringDonors.contains(donorId);
       }).toList();
     }
-    
+
     // تطبيق الترتيب
     filteredDonations = _applySorting(filteredDonations);
-    
+
     setState(() {
       _filteredDonations = filteredDonations;
       _filteredAllocations = filteredAllocations;
@@ -229,11 +271,11 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
 
   List<dynamic> _filterByDate(List<dynamic> items) {
     if (_filterState['dateRange'] == 'all') return items;
-    
+
     final now = DateTime.now();
     DateTime? startDate;
     DateTime? endDate;
-    
+
     switch (_filterState['dateRange']) {
       case 'today':
         startDate = DateTime(now.year, now.month, now.day);
@@ -284,13 +326,13 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
         endDate = _filterState['dateTo'];
         break;
     }
-    
+
     if (startDate == null || endDate == null) return items;
-    
+
     return items.where((item) {
       DateTime? date;
-      final dateStr = item['date']?.toString() ?? item['created_at']?.toString();
-      
+      final dateStr = item['date']?.toString();
+
       if (dateStr != null) {
         try {
           date = DateTime.parse(dateStr);
@@ -298,9 +340,9 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
           return false;
         }
       }
-      
-      return date != null && 
-             !date.isBefore(startDate!) && 
+
+      return date != null &&
+             !date.isBefore(startDate!) &&
              !date.isAfter(endDate!);
     }).toList();
   }
@@ -308,43 +350,43 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
   List<dynamic> _filterByAmount(List<dynamic> items) {
     final minAmount = _filterState['amountMin'];
     final maxAmount = _filterState['amountMax'];
-    
+
     if (minAmount == null && maxAmount == null) return items;
-    
+
     return items.where((item) {
       final amount = double.tryParse(item['amount'].toString()) ?? 0;
-      
+
       bool passesMin = minAmount == null || amount >= minAmount;
       bool passesMax = maxAmount == null || amount <= maxAmount;
-      
+
       return passesMin && passesMax;
     }).toList();
   }
 
   List<dynamic> _filterByDonorType(List<dynamic> items) {
     final donorTypes = _filterState['donorTypes'] as List<String>;
-    
+
     if (donorTypes.isEmpty) return items;
-    
+
     return items.where((item) {
       final donor = _asStringMap(item['donor']) ?? {};
       final isCorporate = donor['is_corporate'] == true;
       final hasName = donor['name'] != null && donor['name'].toString().isNotEmpty;
       final isAnonymous = !hasName || donor['name'].toString().toLowerCase() == 'anonymous';
-      
+
       if (donorTypes.contains('corporate') && isCorporate) return true;
       if (donorTypes.contains('individual') && !isCorporate && hasName && !isAnonymous) return true;
       if (donorTypes.contains('anonymous') && isAnonymous) return true;
-      
+
       return false;
     }).toList();
   }
 
   List<dynamic> _filterByCampaign(List<dynamic> items) {
     final campaignIds = _filterState['campaignIds'] as List<int>;
-    
+
     if (campaignIds.isEmpty) return items;
-    
+
     return items.where((item) {
       final campaignId = item['campaign_id'] ?? item['campaign']?['id'];
       return campaignId != null && campaignIds.contains(campaignId);
@@ -353,51 +395,51 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
 
   List<dynamic> _filterByInvoiceStatus(List<dynamic> items) {
     final invoiceStatuses = _filterState['invoiceStatus'] as List<String>;
-    
+
     if (invoiceStatuses.isEmpty) return items;
-    
+
     return items.where((item) {
       final invoiceId = item['invoice_id'];
       if (invoiceId == null) return false;
-      
+
       final invoice = (_data['invoices'] as Map<String, dynamic>?)?[invoiceId.toString()];
       final status = invoice?['status']?.toString().toLowerCase();
-      
+
       return status != null && invoiceStatuses.contains(status);
     }).toList();
   }
 
   List<dynamic> _filterByFrequency(List<dynamic> items) {
     final frequencies = _filterState['donationFrequency'] as List<String>;
-    
+
     if (frequencies.isEmpty) return items;
-    
+
     // تجميع التبرعات حسب المتبرعين
     final Map<int, List<dynamic>> donorDonations = {};
-    
+
     for (final donation in items) {
       final donorIdRaw = _asStringMap(donation['donor'])?['id'] ?? 0;
       final donorId = donorIdRaw is int ? donorIdRaw : int.tryParse(donorIdRaw.toString()) ?? 0;
       donorDonations.putIfAbsent(donorId, () => []).add(donation);
     }
-    
+
     // تحديد نمط التبرع لكل متبرع
     final Set<int> matchingDonorIds = {};
-    
+
     for (final entry in donorDonations.entries) {
       final donations = entry.value;
       if (donations.length < 2 && frequencies.contains('one_time')) {
         matchingDonorIds.add(entry.key);
         continue;
       }
-      
+
       final pattern = _determineDonationPattern(donations);
-      
+
       if (frequencies.contains(pattern)) {
         matchingDonorIds.add(entry.key);
       }
     }
-    
+
     return items.where((item) {
       final donorIdRaw = _asStringMap(item['donor'])?['id'] ?? 0;
       final donorId = donorIdRaw is int ? donorIdRaw : int.tryParse(donorIdRaw.toString()) ?? 0;
@@ -407,7 +449,7 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
 
   String _determineDonationPattern(List<dynamic> donations) {
     if (donations.length < 2) return 'one_time';
-    
+
     final dates = <DateTime>[];
     for (final donation in donations) {
       final dateStr = donation['date']?.toString();
@@ -417,13 +459,13 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
         } catch (_) {}
       }
     }
-    
+
     if (dates.length < 2) return 'one_time';
-    
+
     dates.sort();
     final totalDays = dates.last.difference(dates.first).inDays;
     final avgDays = totalDays / (dates.length - 1);
-    
+
     if (avgDays <= 35) return 'monthly';
     if (avgDays <= 95) return 'quarterly';
     if (avgDays <= 370) return 'yearly';
@@ -433,57 +475,57 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
   Set<int> _identifyRecurringDonors(List<dynamic> donations) {
     final Map<int, List<dynamic>> donorDonations = {};
     final Set<int> recurringDonors = {};
-    
+
     for (final donation in donations) {
       final donorIdRaw = _asStringMap(donation['donor'])?['id'] ?? 0;
       final donorId = donorIdRaw is int ? donorIdRaw : int.tryParse(donorIdRaw.toString()) ?? 0;
       donorDonations.putIfAbsent(donorId, () => []).add(donation);
     }
-    
+
     for (final entry in donorDonations.entries) {
       if (entry.value.length >= 2) {
         recurringDonors.add(entry.key);
       }
     }
-    
+
     return recurringDonors;
   }
 
   List<dynamic> _applySorting(List<dynamic> items) {
     final sortBy = _filterState['sortBy'] as String;
-    
+
     items.sort((a, b) {
       switch (sortBy) {
         case 'date_desc':
           final dateA = DateTime.tryParse(a['date']?.toString() ?? '');
           final dateB = DateTime.tryParse(b['date']?.toString() ?? '');
           return dateB?.compareTo(dateA ?? DateTime(1900)) ?? 0;
-        
+
         case 'date_asc':
           final dateA = DateTime.tryParse(a['date']?.toString() ?? '');
           final dateB = DateTime.tryParse(b['date']?.toString() ?? '');
           return dateA?.compareTo(dateB ?? DateTime(1900)) ?? 0;
-        
+
         case 'amount_desc':
           final amountA = double.tryParse(a['amount'].toString()) ?? 0;
           final amountB = double.tryParse(b['amount'].toString()) ?? 0;
           return amountB.compareTo(amountA);
-        
+
         case 'amount_asc':
           final amountA = double.tryParse(a['amount'].toString()) ?? 0;
           final amountB = double.tryParse(b['amount'].toString()) ?? 0;
           return amountA.compareTo(amountB);
-        
+
         case 'donor_name':
           final nameA = (_asStringMap(a['donor'])?['name'] ?? '').toString().toLowerCase();
           final nameB = (_asStringMap(b['donor'])?['name'] ?? '').toString().toLowerCase();
           return nameA.compareTo(nameB);
-        
+
         default:
           return 0;
       }
     });
-    
+
     return items;
   }
 
@@ -491,14 +533,14 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
     final now = DateTime.now();
     final initialStart = _selectedRange?.start ?? DateTime(now.year, now.month, 1);
     final initialEnd = _selectedRange?.end ?? now;
-    
+
     final picked = await showDateRangePicker(
       context: context,
       firstDate: DateTime(now.year - 5),
       lastDate: DateTime(now.year + 1),
       initialDateRange: DateTimeRange(start: initialStart, end: initialEnd),
     );
-    
+
     if (picked != null) {
       setState(() {
         _selectedRange = picked;
@@ -540,13 +582,13 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
 
   void _processLatestDonations() {
     final Map<int, Map<String, dynamic>> donorsMap = {};
-    
+
     for (final donation in _latestDonations) {
       final donor = _asStringMap(donation['donor']) ?? {};
       final donorId = donor['id'] ?? 0;
-      
+
       if (donorId == 0) continue; // Skip anonymous
-      
+
       if (!donorsMap.containsKey(donorId)) {
         donorsMap[donorId] = {
           'donor': donor,
@@ -557,7 +599,7 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
           'lastDonationDate': null,
         };
       }
-      
+
       final amount = double.tryParse(donation['amount'].toString()) ?? 0;
       final dateStr = donation['date']?.toString();
       DateTime? date;
@@ -566,24 +608,24 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
           date = DateTime.parse(dateStr);
         } catch (_) {}
       }
-      
+
       final donorData = donorsMap[donorId]!;
       donorData['donations'].add(donation);
       donorData['totalAmount'] += amount;
       donorData['donationCount'] += 1;
-      
+
       if (date != null) {
-        if (donorData['firstDonationDate'] == null || 
+        if (donorData['firstDonationDate'] == null ||
             date.isBefore(donorData['firstDonationDate'])) {
           donorData['firstDonationDate'] = date;
         }
-        if (donorData['lastDonationDate'] == null || 
+        if (donorData['lastDonationDate'] == null ||
             date.isAfter(donorData['lastDonationDate'])) {
           donorData['lastDonationDate'] = date;
         }
       }
     }
-    
+
     // Convert to list and sort by total amount (descending)
     _processedDonors = donorsMap.values.toList()
       ..sort((a, b) => (b['totalAmount'] as double)
@@ -676,10 +718,10 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
             ],
           ),
         ),
-        
+
         // Search and Filters (فقط في عرض List)
         if (_donationsViewIndex == 1) _buildFiltersBar(),
-        
+
         // المحتوى الرئيسي
         Expanded(
           child: _donationsViewIndex == 0
@@ -696,7 +738,7 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
     required String label,
   }) {
     final isSelected = _donationsViewIndex == index;
-    
+
     return InkWell(
       onTap: () {
         setState(() {
@@ -734,35 +776,178 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
   Widget _buildAnalyticsContent() {
     final summary = _stats['summary'] as Map<String, dynamic>? ?? {};
     final recent = summary['recent30Days'] as Map<String, dynamic>? ?? {};
-    
+
     return SingleChildScrollView(
       controller: _donationsScrollController,
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
+          _buildImpactV2Section(),
+          const SizedBox(height: 16),
           // Stats Summary Cards
           _buildStatsSummary(summary, recent),
           const SizedBox(height: 16),
-          
+
           // Top Donor Card
           _buildTopDonorCard(),
           const SizedBox(height: 16),
-          
+
           // Distribution Chart
           _buildDistributionChart(),
           const SizedBox(height: 16),
-          
+
           // Quick Donations Summary (جديد)
           _buildQuickDonationsSummary(),
           const SizedBox(height: 16),
-          
+
           // Top Donors Section
           _buildTopDonorsSection(),
           const SizedBox(height: 16),
-          
+
           // Recent Donors Section
           _buildLatestAnalyticsDonationsSection(),
           const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImpactV2Section() {
+    final money = (_impactV2?['money_impact'] is Map)
+        ? Map<String, dynamic>.from(_impactV2!['money_impact'] as Map)
+        : <String, dynamic>{};
+    final equipment = (_impactV2?['equipment_impact'] is Map)
+        ? Map<String, dynamic>.from(_impactV2!['equipment_impact'] as Map)
+        : <String, dynamic>{};
+    final posts = (_impactV2?['impact_posts'] is Map)
+        ? Map<String, dynamic>.from(_impactV2!['impact_posts'] as Map)
+        : <String, dynamic>{};
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Impact Overview',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+              ),
+              if (_isLoadingImpactV2)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                IconButton(
+                  icon: const Icon(Icons.refresh, size: 20),
+                  onPressed: _loadImpactV2,
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ManagerImpactPostsScreen()),
+                );
+              },
+              icon: const Icon(Icons.article_rounded, size: 18),
+              label: const Text('Manage Impact Posts'),
+            ),
+          ),
+          if ((_impactV2Error ?? '').isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                _impactV2Error!,
+                style: const TextStyle(color: Colors.red),
+              ),
+            ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildSummaryStatCard(
+                  title: 'Money Donated',
+                  value: '${_toDouble(money['totalDonationsAmount']).toStringAsFixed(0)} JOD',
+                  icon: Icons.attach_money_rounded,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildSummaryStatCard(
+                  title: 'Allocated',
+                  value: '${_toDouble(money['totalAllocatedAmount']).toStringAsFixed(0)} JOD',
+                  icon: Icons.receipt_long_rounded,
+                  color: Colors.green,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildSummaryStatCard(
+                  title: 'Equipment Donated',
+                  value: _toInt(equipment['total_count']).toString(),
+                  icon: Icons.medical_services,
+                  color: Colors.purple,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildSummaryStatCard(
+                  title: 'Equipment Allocated',
+                  value: _toInt(equipment['allocated_count']).toString(),
+                  icon: Icons.inventory_2,
+                  color: Colors.deepPurple,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildSummaryStatCard(
+                  title: 'Impact Posts',
+                  value: _toInt(posts['total']).toString(),
+                  icon: Icons.article_rounded,
+                  color: AppColors.accent3,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildSummaryStatCard(
+                  title: 'Published',
+                  value: _toInt(posts['published']).toString(),
+                  icon: Icons.public,
+                  color: Colors.teal,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
