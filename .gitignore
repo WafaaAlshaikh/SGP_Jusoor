@@ -6,5 +6,9 @@ node_modules/
 .env/
 /Backend/.env/
 /Backend/node_modules/
+/Backend/firebase/
+/Backend/uploads/
+
+
 
 /frontend/android/
