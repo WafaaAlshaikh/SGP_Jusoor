@@ -941,6 +941,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
               Navigator.pushNamed(context, '/reportManagement');
             },
           ),
+          // في _buildDrawer() في admin_dashboard.dart
+ListTile(
+  leading: Icon(Icons.article, color: AppColors.primary, size: 20),
+  title: Text('App Content Management', style: TextStyle(fontSize: 14)),
+  onTap: () {
+    Navigator.pop(context);
+    Navigator.pushNamed(context, '/appContentManagement');
+  },
+),  
           ListTile(
             leading: Icon(Icons.settings, color: AppColors.primary, size: 20),
             title: Text('System Settings', style: TextStyle(fontSize: 14)),

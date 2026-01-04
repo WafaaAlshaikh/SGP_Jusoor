@@ -2,9 +2,18 @@
 const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
-const { adminMiddleware, requirePermission } = require('../middleware/adminMiddleware');
+const { adminMiddleware,
+  requirePermission,
+  checkContentPermission,
+  requireAdminLevel,
+  preventSelfModification,
+  auditAdminRequests } = require('../middleware/adminMiddleware');
 
-// Apply admin middleware to all routes
+// 👤 Public Content (for regular users) - MUST be before adminMiddleware
+router.get('/public/help-sections', adminController.getHelpSections);
+router.get('/public/about-content', adminController.getAboutContent);
+
+// Apply admin middleware to all admin-protected routes
 router.use(adminMiddleware);
 
 // 📊 Dashboard
@@ -48,10 +57,74 @@ router.get('/system/health', adminController.getSystemHealth);
 router.get('/settings', requirePermission('can_manage_settings'), adminController.getSettings);
 router.put('/settings/:setting_id', requirePermission('can_manage_settings'), adminController.updateSetting);
 
-// 🗑️ Content Moderation
+// Content Moderation
 router.post('/moderate/remove', requirePermission('can_manage_users'), adminController.removeContent);
 
-// 📜 Audit Logs
+// Audit Logs
 router.get('/audit-logs', requirePermission('can_view_statistics'), adminController.getAuditLogs);
 
+
+// App Content Management
+router.get('/content', 
+  checkContentPermission('view'),
+  auditAdminRequests('content_list'),
+  adminController.getAllContent
+);
+
+router.get('/content/:content_id',
+  checkContentPermission('view'),
+  auditAdminRequests('content_view'),
+  adminController.getContentDetails
+);
+
+router.post('/content',
+  checkContentPermission('create'),
+  auditAdminRequests('content_create'),
+  adminController.createContent
+);
+
+router.put('/content/:content_id',
+  checkContentPermission('edit'),
+  auditAdminRequests('content_update'),
+  adminController.updateContent
+);
+
+router.delete('/content/:content_id',
+  checkContentPermission('delete'),
+  auditAdminRequests('content_delete'),
+  requireAdminLevel('super_admin', 'admin'), // فقط super_admin و admin يمكنهم الحذف
+  adminController.deleteContent
+);
+
+router.post('/content/reorder',
+  checkContentPermission('reorder'),
+  auditAdminRequests('content_reorder'),
+  adminController.reorderContent
+);
+
+// 📊 Content Statistics
+router.get('/content/statistics',
+  checkContentPermission('view'),
+  adminController.getContentStatistics
+);
+
+// 📋 Batch Operations
+router.post('/content/batch-update',
+  checkContentPermission('edit'),
+  requireAdminLevel('super_admin', 'admin'),
+  adminController.batchUpdateContentStatus
+);
+
+router.post('/content/import',
+  adminMiddleware,
+  checkContentPermission('create'),
+  requireAdminLevel('super_admin'),
+  adminController.importContent
+);
+
+router.get('/content/export',
+  adminMiddleware,
+  checkContentPermission('view'),
+  adminController.exportContent
+);
 module.exports = router;

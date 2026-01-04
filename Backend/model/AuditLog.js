@@ -13,29 +13,18 @@ const AuditLog = sequelize.define('AuditLog', {
     allowNull: false
   },
   action_type: {
-    type: DataTypes.ENUM(
-      'institution_create',
-      'institution_approval',
-      'institution_rejection',
-      'institution_suspension',
-      'user_approval',
-      'user_suspension',
-      'report_resolution',
-      'content_removal',
-      'setting_change',
-      'payment_review',
-      'other'
-    ),
-    allowNull: false
-  },
+  type: DataTypes.STRING(50),
+  allowNull: false
+},
+
   target_type: {
     type: DataTypes.STRING(50),
     allowNull: false
   },
   target_id: {
-    type: DataTypes.STRING(100),
-    allowNull: false
-  },
+  type: DataTypes.INTEGER,
+  allowNull: true
+},
   details: {
     type: DataTypes.TEXT,
     allowNull: true

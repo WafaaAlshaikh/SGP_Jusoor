@@ -1,4 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:frontend/services/admin_api_service.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import '../l10n/app_localizations.dart';
@@ -366,96 +370,413 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   }
 
   // ========== Help & Support Section ==========
-  Widget _buildHelpSection(AppLocalizations l10n) {
-    return Card(
-      elevation: 2,
-      color: AppColors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionTitle(l10n.get('helpSupport')),
+  // Widget _buildHelpSection(AppLocalizations l10n) {
+  //   return Card(
+  //     elevation: 2,
+  //     color: AppColors.surface,
+  //     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  //     child: Padding(
+  //       padding: const EdgeInsets.all(16),
+  //       child: Column(
+  //         crossAxisAlignment: CrossAxisAlignment.start,
+  //         children: [
+  //           _buildSectionTitle(l10n.get('helpSupport')),
 
-            _buildSettingsItem(
-              icon: Icons.help,
-              title: l10n.get('helpCenter'),
-              subtitle: l10n.get('helpCenterDesc'),
-              onTap: () => _openHelpCenter(l10n),
-            ),
+  //           _buildSettingsItem(
+  //             icon: Icons.help,
+  //             title: l10n.get('helpCenter'),
+  //             subtitle: l10n.get('helpCenterDesc'),
+  //             onTap: () => _openHelpCenter(l10n),
+  //           ),
 
-            _buildSettingsItem(
-              icon: Icons.contact_support,
-              title: l10n.get('contactSupport'),
-              subtitle: l10n.get('contactSupportDesc'),
-              onTap: () => _contactSupport(l10n),
-            ),
+  //           _buildSettingsItem(
+  //             icon: Icons.contact_support,
+  //             title: l10n.get('contactSupport'),
+  //             subtitle: l10n.get('contactSupportDesc'),
+  //             onTap: () => _contactSupport(l10n),
+  //           ),
 
-            _buildSettingsItem(
-              icon: Icons.feedback,
-              title: l10n.get('sendFeedback'),
-              subtitle: l10n.get('sendFeedbackDesc'),
-              onTap: () => _sendFeedback(l10n),
-            ),
+  //           _buildSettingsItem(
+  //             icon: Icons.feedback,
+  //             title: l10n.get('sendFeedback'),
+  //             subtitle: l10n.get('sendFeedbackDesc'),
+  //             onTap: () => _sendFeedback(l10n),
+  //           ),
 
-            _buildSettingsItem(
-              icon: Icons.star,
-              title: l10n.get('rateApp'),
-              subtitle: l10n.get('rateAppDesc'),
-              onTap: () => _rateApp(l10n),
-            ),
-          ],
+  //           _buildSettingsItem(
+  //             icon: Icons.star,
+  //             title: l10n.get('rateApp'),
+  //             subtitle: l10n.get('rateAppDesc'),
+  //             onTap: () => _rateApp(l10n),
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
+
+  // تعديل ProfileSettingsScreen لاستخدام المحتوى الإداري
+
+// في _buildHelpSection - استبدال المحتوى الثابت بطلب من API
+Widget _buildHelpSection(AppLocalizations l10n) {
+  return FutureBuilder<Map<String, dynamic>>(
+    future: _fetchHelpSections(l10n),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return _buildLoadingCard();
+      }
+      
+      if (snapshot.hasError || !snapshot.hasData) {
+        return _buildErrorCard(l10n);
+      }
+      
+      final sections = snapshot.data!['sections'] ?? [];
+      
+      return Card(
+        elevation: 2,
+        color: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSectionTitle(l10n.get('helpSupport')),
+              
+              for (var section in sections)
+                _buildHelpSectionItem(
+                  icon: _getIconFromKey(section['icon']),
+                  title: section['title_${Localizations.localeOf(context).languageCode}'] ?? section['title_ar'],
+                  subtitle: section['content_${Localizations.localeOf(context).languageCode}'] ?? section['content_ar'],
+                  onTap: () => _showHelpDetails(section),
+                ),
+            ],
+          ),
         ),
-      ),
+      );
+    },
+  );
+}
+
+Future<Map<String, dynamic>> _fetchHelpSections(AppLocalizations l10n) async {
+  try {
+    final token = await AdminApiService.getToken();
+    final language = Localizations.localeOf(context).languageCode;
+    
+    final response = await http.get(
+      Uri.parse('${AdminApiService.baseUrl}/public/help-sections')
+          .replace(queryParameters: {
+        'lang': language,
+      }),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
     );
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body)['data'];
+    } else {
+      throw Exception('Failed to load help sections');
+    }
+  } catch (e) {
+    print('Error fetching help sections: $e');
+    return {'sections': []};
   }
+}
 
   // ========== About Section ==========
-  Widget _buildAboutSection(AppLocalizations l10n) {
-    return Card(
-      elevation: 2,
-      color: AppColors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
+  // Widget _buildAboutSection(AppLocalizations l10n) {
+  //   return Card(
+  //     elevation: 2,
+  //     color: AppColors.surface,
+  //     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  //     child: Padding(
+  //       padding: const EdgeInsets.all(16),
+  //       child: Column(
+  //         crossAxisAlignment: CrossAxisAlignment.start,
+  //         children: [
+  //           _buildSectionTitle(l10n.get('about')),
+
+  //           _buildSettingsItem(
+  //             icon: Icons.info,
+  //             title: l10n.get('appVersion'),
+  //             subtitle: '1.2.3 (Build 456)',
+  //             onTap: () {},
+  //           ),
+
+  //           _buildSettingsItem(
+  //             icon: Icons.description,
+  //             title: l10n.get('termsOfService'),
+  //             subtitle: l10n.get('termsOfServiceDesc'),
+  //             onTap: () => _showTerms(l10n),
+  //           ),
+
+  //           _buildSettingsItem(
+  //             icon: Icons.security,
+  //             title: l10n.get('privacyPolicy'),
+  //             subtitle: l10n.get('privacyPolicyDesc'),
+  //             onTap: () => _showPrivacyPolicy(l10n),
+  //           ),
+
+  //           _buildSettingsItem(
+  //             icon: Icons.copyright,
+  //             title: l10n.get('copyright'),
+  //             subtitle: '© 2024 Jusoor App. ${l10n.get('allRightsReserved')}',
+  //             onTap: () {},
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
+
+
+// ========== About Section ==========
+Widget _buildAboutSection(AppLocalizations l10n) {
+  return FutureBuilder<Map<String, dynamic>>(
+    future: _fetchAboutContent(l10n),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return _buildLoadingCard();
+      }
+      
+      if (snapshot.hasError || !snapshot.hasData) {
+        return _buildAboutFallback(l10n);
+      }
+      
+      final data = snapshot.data!;
+      final sections = data['about_sections'] ?? [];
+      final privacyPolicy = data['privacy_policy'];
+      final termsOfService = data['terms_of_service'];
+      final appInfo = data['app_info'] ?? {
+        'version': '1.0.0',
+        'build': '1',
+        'copyright': '© ${DateTime.now().year} Jusoor App'
+      };
+
+      return Card(
+        elevation: 2,
+        color: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSectionTitle(l10n.get('about')),
+              
+              // أقسام About الديناميكية
+              for (var section in sections)
+                _buildAboutSectionItem(
+                  icon: _getIconFromKey(section['icon']),
+                  title: section['title_${Localizations.localeOf(context).languageCode}'] ?? section['title_ar'],
+                  content: section['content_${Localizations.localeOf(context).languageCode}'] ?? section['content_ar'],
+                ),
+              
+              // إصدار التطبيق (ثابت)
+              _buildSettingsItem(
+                icon: Icons.info,
+                title: l10n.get('appVersion'),
+                subtitle: '${appInfo['version']} (Build ${appInfo['build']})',
+                onTap: () {},
+              ),
+              
+              // شروط الخدمة (ديناميكي)
+              if (termsOfService != null)
+                _buildSettingsItem(
+                  icon: Icons.description,
+                  title: l10n.get('termsOfService'),
+                  subtitle: l10n.get('termsOfServiceDesc'),
+                  onTap: () => _showTermsDetails(termsOfService, l10n),
+                )
+              else
+                _buildSettingsItem(
+                  icon: Icons.description,
+                  title: l10n.get('termsOfService'),
+                  subtitle: l10n.get('termsOfServiceDesc'),
+                  onTap: () => _showTerms(l10n),
+                ),
+              
+              // سياسة الخصوصية (ديناميكي)
+              if (privacyPolicy != null)
+                _buildSettingsItem(
+                  icon: Icons.security,
+                  title: l10n.get('privacyPolicy'),
+                  subtitle: l10n.get('privacyPolicyDesc'),
+                  onTap: () => _showPrivacyPolicyDetails(privacyPolicy, l10n),
+                )
+              else
+                _buildSettingsItem(
+                  icon: Icons.security,
+                  title: l10n.get('privacyPolicy'),
+                  subtitle: l10n.get('privacyPolicyDesc'),
+                  onTap: () => _showPrivacyPolicy(l10n),
+                ),
+              
+              // حقوق النشر
+              _buildSettingsItem(
+                icon: Icons.copyright,
+                title: l10n.get('copyright'),
+                subtitle: appInfo['copyright'] ?? '© ${DateTime.now().year} Jusoor App',
+                onTap: () {},
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+Widget _buildAboutFallback(AppLocalizations l10n) {
+  return Card(
+    elevation: 2,
+    color: AppColors.surface,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle(l10n.get('about')),
+          _buildSettingsItem(
+            icon: Icons.info,
+            title: l10n.get('appVersion'),
+            subtitle: '1.2.3 (Build 456)',
+            onTap: () {},
+          ),
+          _buildSettingsItem(
+            icon: Icons.description,
+            title: l10n.get('termsOfService'),
+            subtitle: l10n.get('termsOfServiceDesc'),
+            onTap: () => _showTerms(l10n),
+          ),
+          _buildSettingsItem(
+            icon: Icons.security,
+            title: l10n.get('privacyPolicy'),
+            subtitle: l10n.get('privacyPolicyDesc'),
+            onTap: () => _showPrivacyPolicy(l10n),
+          ),
+          _buildSettingsItem(
+            icon: Icons.copyright,
+            title: l10n.get('copyright'),
+            subtitle: '© 2024 Jusoor App. ${l10n.get('allRightsReserved')}',
+            onTap: () {},
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _buildAboutSectionItem({
+  required IconData icon,
+  required String title,
+  required String content,
+}) {
+  return ExpansionTile(
+    leading: Icon(icon, color: AppColors.primary),
+    title: Text(
+      title,
+      style: TextStyle(
+        fontWeight: FontWeight.w500,
+        color: AppColors.textDark,
+      ),
+    ),
+    children: [
+      Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionTitle(l10n.get('about')),
-
-            _buildSettingsItem(
-              icon: Icons.info,
-              title: l10n.get('appVersion'),
-              subtitle: '1.2.3 (Build 456)',
-              onTap: () {},
-            ),
-
-            _buildSettingsItem(
-              icon: Icons.description,
-              title: l10n.get('termsOfService'),
-              subtitle: l10n.get('termsOfServiceDesc'),
-              onTap: () => _showTerms(l10n),
-            ),
-
-            _buildSettingsItem(
-              icon: Icons.security,
-              title: l10n.get('privacyPolicy'),
-              subtitle: l10n.get('privacyPolicyDesc'),
-              onTap: () => _showPrivacyPolicy(l10n),
-            ),
-
-            _buildSettingsItem(
-              icon: Icons.copyright,
-              title: l10n.get('copyright'),
-              subtitle: '© 2024 Jusoor App. ${l10n.get('allRightsReserved')}',
-              onTap: () {},
-            ),
-          ],
+        child: Text(
+          content,
+          style: TextStyle(color: AppColors.textGray),
         ),
       ),
+    ],
+  );
+}
+
+void _showTermsDetails(Map<String, dynamic> termsData, AppLocalizations l10n) {
+  final language = Localizations.localeOf(context).languageCode;
+  final title = termsData['title_$language'] ?? termsData['title_ar'];
+  final content = termsData['content_$language'] ?? termsData['content_ar'];
+
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      backgroundColor: AppColors.surface,
+      title: Text(title, style: TextStyle(color: AppColors.textDark)),
+      content: SingleChildScrollView(
+        child: Text(content, style: TextStyle(color: AppColors.textGray)),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('Close', style: TextStyle(color: AppColors.textGray)),
+        ),
+      ],
+    ),
+  );
+}
+
+void _showPrivacyPolicyDetails(Map<String, dynamic> policyData, AppLocalizations l10n) {
+  final language = Localizations.localeOf(context).languageCode;
+  final title = policyData['title_$language'] ?? policyData['title_ar'];
+  final content = policyData['content_$language'] ?? policyData['content_ar'];
+
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      backgroundColor: AppColors.surface,
+      title: Text(title, style: TextStyle(color: AppColors.textDark)),
+      content: SingleChildScrollView(
+        child: Text(content, style: TextStyle(color: AppColors.textGray)),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('Close', style: TextStyle(color: AppColors.textGray)),
+        ),
+      ],
+    ),
+  );
+}
+  // دالة مشابهة لجلب محتوى About من الـ Admin
+Future<Map<String, dynamic>> _fetchAboutContent(AppLocalizations l10n) async {
+  try {
+    final token = await AdminApiService.getToken();
+    final language = Localizations.localeOf(context).languageCode;
+    
+    final response = await http.get(
+      Uri.parse('${AdminApiService.baseUrl}/public/about-content')
+          .replace(queryParameters: {
+        'lang': language,
+      }),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
     );
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body)['data'];
+    } else {
+      throw Exception('Failed to load about content');
+    }
+  } catch (e) {
+    print('Error fetching about content: $e');
+    return {
+      'about_sections': [],
+      'privacy_policy': null,
+      'terms_of_service': null,
+      'app_info': {
+        'version': '1.0.0',
+        'build': '1',
+        'copyright': '© ${DateTime.now().year} Jusoor App'
+      }
+    };
   }
+}
 
   // ========== Action Buttons ==========
   Widget _buildActionButtons(AppLocalizations l10n) {
@@ -948,34 +1269,114 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   }
 
   void _openHelpCenter(AppLocalizations l10n) {
+  // بدلاً من الرسالة، افتح تفاصيل قسم المساعدة الأول
+  final sections = []; // يمكنك تخزين القسم الأول أو إعادة استخدام API
+  if (sections.isNotEmpty) {
+    _showHelpDetails(sections.first);
+  } else {
     _showSuccessMessage(l10n.get('helpCenterOpened'));
   }
+}
 
-  void _contactSupport(AppLocalizations l10n) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: Text(l10n.get('contactSupport'), style: TextStyle(color: AppColors.textDark)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(l10n.get('contactSupportContent'), style: TextStyle(color: AppColors.textGray)),
-            const SizedBox(height: 16),
-            _buildContactOption(Icons.email, l10n.get('emailSupport'), 'support@jusoor.com', l10n),
-            _buildContactOption(Icons.phone, l10n.get('phoneSupport'), '+962 6 123 4567', l10n),
-            _buildContactOption(Icons.chat, l10n.get('liveChat'), l10n.get('available9to5'), l10n),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n.get('close'), style: TextStyle(color: AppColors.textGray)),
-          ),
-        ],
+void _contactSupport(AppLocalizations l10n) {
+  // البحث عن قسم "الدعم الفني" في المحتوى الديناميكي
+  showDialog(
+    context: context,
+    builder: (context) => FutureBuilder<Map<String, dynamic>>(
+      future: _fetchHelpSections(l10n),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return AlertDialog(
+            content: Center(child: CircularProgressIndicator()),
+          );
+        }
+        
+        if (snapshot.hasError || !snapshot.hasData) {
+          return _buildContactFallback(l10n);
+        }
+        
+        final sections = snapshot.data!['sections'] ?? [];
+        final supportSection = sections.firstWhere(
+          (section) => section['section_key']?.contains('support') == true ||
+                      section['title_ar']?.contains('دعم') == true ||
+                      section['title_en']?.contains('support') == true,
+          orElse: () => null,
+        );
+        
+        if (supportSection != null) {
+          final language = Localizations.localeOf(context).languageCode;
+          final title = supportSection['title_$language'] ?? supportSection['title_ar'];
+          final content = supportSection['content_$language'] ?? supportSection['content_ar'];
+          
+          return AlertDialog(
+            backgroundColor: AppColors.surface,
+            title: Text(title, style: TextStyle(color: AppColors.textDark)),
+            content: SingleChildScrollView(
+              child: Text(content, style: TextStyle(color: AppColors.textGray)),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Close', style: TextStyle(color: AppColors.textGray)),
+              ),
+            ],
+          );
+        } else {
+          return _buildContactFallback(l10n);
+        }
+      },
+    ),
+  );
+}
+
+AlertDialog _buildContactFallback(AppLocalizations l10n) {
+  return AlertDialog(
+    backgroundColor: AppColors.surface,
+    title: Text(l10n.get('contactSupport'), style: TextStyle(color: AppColors.textDark)),
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(l10n.get('contactSupportContent'), style: TextStyle(color: AppColors.textGray)),
+        const SizedBox(height: 16),
+        _buildContactOption(Icons.email, l10n.get('emailSupport'), 'support@jusoor.com', l10n),
+        _buildContactOption(Icons.phone, l10n.get('phoneSupport'), '+962 6 123 4567', l10n),
+        _buildContactOption(Icons.chat, l10n.get('liveChat'), l10n.get('available9to5'), l10n),
+      ],
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: Text('Close', style: TextStyle(color: AppColors.textGray)),
       ),
-    );
-  }
+    ],
+  );
+}
+
+  // void _contactSupport(AppLocalizations l10n) {
+  //   showDialog(
+  //     context: context,
+  //     builder: (context) => AlertDialog(
+  //       backgroundColor: AppColors.surface,
+  //       title: Text(l10n.get('contactSupport'), style: TextStyle(color: AppColors.textDark)),
+  //       content: Column(
+  //         mainAxisSize: MainAxisSize.min,
+  //         children: [
+  //           Text(l10n.get('contactSupportContent'), style: TextStyle(color: AppColors.textGray)),
+  //           const SizedBox(height: 16),
+  //           _buildContactOption(Icons.email, l10n.get('emailSupport'), 'support@jusoor.com', l10n),
+  //           _buildContactOption(Icons.phone, l10n.get('phoneSupport'), '+962 6 123 4567', l10n),
+  //           _buildContactOption(Icons.chat, l10n.get('liveChat'), l10n.get('available9to5'), l10n),
+  //         ],
+  //       ),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () => Navigator.pop(context),
+  //           child: Text(l10n.get('close'), style: TextStyle(color: AppColors.textGray)),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   Widget _buildContactOption(IconData icon, String title, String subtitle, AppLocalizations l10n) {
     return ListTile(
@@ -989,78 +1390,219 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     );
   }
 
+  // void _sendFeedback(AppLocalizations l10n) {
+  //   showDialog(
+  //     context: context,
+  //     builder: (context) => AlertDialog(
+  //       backgroundColor: AppColors.surface,
+  //       title: Text(l10n.get('sendFeedback'), style: TextStyle(color: AppColors.textDark)),
+  //       content: Column(
+  //         mainAxisSize: MainAxisSize.min,
+  //         children: [
+  //           TextField(
+  //             decoration: InputDecoration(
+  //               labelText: l10n.get('subject'),
+  //               labelStyle: TextStyle(color: AppColors.textGray),
+  //               border: OutlineInputBorder(
+  //                 borderRadius: BorderRadius.circular(8),
+  //                 borderSide: BorderSide(color: AppColors.primary),
+  //               ),
+  //               focusedBorder: OutlineInputBorder(
+  //                 borderRadius: BorderRadius.circular(8),
+  //                 borderSide: BorderSide(color: AppColors.primary),
+  //               ),
+  //             ),
+  //           ),
+  //           const SizedBox(height: 10),
+  //           TextField(
+  //             decoration: InputDecoration(
+  //               labelText: l10n.get('yourFeedback'),
+  //               labelStyle: TextStyle(color: AppColors.textGray),
+  //               border: OutlineInputBorder(
+  //                 borderRadius: BorderRadius.circular(8),
+  //                 borderSide: BorderSide(color: AppColors.primary),
+  //               ),
+  //               focusedBorder: OutlineInputBorder(
+  //                 borderRadius: BorderRadius.circular(8),
+  //                 borderSide: BorderSide(color: AppColors.primary),
+  //               ),
+  //             ),
+  //             maxLines: 5,
+  //           ),
+  //           const SizedBox(height: 10),
+  //           Row(
+  //             children: [
+  //               Icon(Icons.star_border, color: Colors.amber[600]),
+  //               Icon(Icons.star_border, color: Colors.amber[600]),
+  //               Icon(Icons.star_border, color: Colors.amber[600]),
+  //               Icon(Icons.star_border, color: Colors.amber[600]),
+  //               Icon(Icons.star_border, color: Colors.amber[600]),
+  //             ],
+  //           ),
+  //         ],
+  //       ),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () => Navigator.pop(context),
+  //           child: Text(l10n.get('cancel'), style: TextStyle(color: AppColors.textGray)),
+  //         ),
+  //         ElevatedButton(
+  //           onPressed: () {
+  //             Navigator.pop(context);
+  //             _showSuccessMessage(l10n.get('thankYouForFeedback'));
+  //           },
+  //           style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+  //           child: Text(l10n.get('sendFeedback'), style: TextStyle(color: AppColors.textWhite)),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
+
+  // void _rateApp(AppLocalizations l10n) {
+  //   _showSuccessMessage(l10n.get('openingAppStoreForRating'));
+  // }
+
   void _sendFeedback(AppLocalizations l10n) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: Text(l10n.get('sendFeedback'), style: TextStyle(color: AppColors.textDark)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              decoration: InputDecoration(
-                labelText: l10n.get('subject'),
-                labelStyle: TextStyle(color: AppColors.textGray),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: AppColors.primary),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: AppColors.primary),
-                ),
+  // يمكنك إضافة قسم "إرسال ملاحظات" في المحتوى الديناميكي
+  showDialog(
+    context: context,
+    builder: (context) => FutureBuilder<Map<String, dynamic>>(
+      future: _fetchHelpSections(l10n),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return AlertDialog(
+            content: Center(child: CircularProgressIndicator()),
+          );
+        }
+        
+        if (snapshot.hasError || !snapshot.hasData) {
+          return _buildFeedbackForm(l10n);
+        }
+        
+        final sections = snapshot.data!['sections'] ?? [];
+        final feedbackSection = sections.firstWhere(
+          (section) => section['section_key']?.contains('feedback') == true ||
+                      section['title_ar']?.contains('ملاحظات') == true ||
+                      section['title_en']?.contains('feedback') == true,
+          orElse: () => null,
+        );
+        
+        if (feedbackSection != null) {
+          final language = Localizations.localeOf(context).languageCode;
+          final title = feedbackSection['title_$language'] ?? feedbackSection['title_ar'];
+          final content = feedbackSection['content_$language'] ?? feedbackSection['content_ar'];
+          
+          return AlertDialog(
+            backgroundColor: AppColors.surface,
+            title: Text(title, style: TextStyle(color: AppColors.textDark)),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(content, style: TextStyle(color: AppColors.textGray)),
+                  SizedBox(height: 16),
+                  _buildFeedbackFormFields(l10n),
+                ],
               ),
             ),
-            const SizedBox(height: 10),
-            TextField(
-              decoration: InputDecoration(
-                labelText: l10n.get('yourFeedback'),
-                labelStyle: TextStyle(color: AppColors.textGray),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: AppColors.primary),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: AppColors.primary),
-                ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(l10n.get('cancel'), style: TextStyle(color: AppColors.textGray)),
               ),
-              maxLines: 5,
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Icon(Icons.star_border, color: Colors.amber[600]),
-                Icon(Icons.star_border, color: Colors.amber[600]),
-                Icon(Icons.star_border, color: Colors.amber[600]),
-                Icon(Icons.star_border, color: Colors.amber[600]),
-                Icon(Icons.star_border, color: Colors.amber[600]),
-              ],
-            ),
-          ],
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _showSuccessMessage(l10n.get('thankYouForFeedback'));
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                child: Text(l10n.get('sendFeedback'), style: TextStyle(color: AppColors.textWhite)),
+              ),
+            ],
+          );
+        } else {
+          return _buildFeedbackForm(l10n);
+        }
+      },
+    ),
+  );
+}
+
+AlertDialog _buildFeedbackForm(AppLocalizations l10n) {
+  return AlertDialog(
+    backgroundColor: AppColors.surface,
+    title: Text(l10n.get('sendFeedback'), style: TextStyle(color: AppColors.textDark)),
+    content: _buildFeedbackFormFields(l10n),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: Text(l10n.get('cancel'), style: TextStyle(color: AppColors.textGray)),
+      ),
+      ElevatedButton(
+        onPressed: () {
+          Navigator.pop(context);
+          _showSuccessMessage(l10n.get('thankYouForFeedback'));
+        },
+        style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+        child: Text(l10n.get('sendFeedback'), style: TextStyle(color: AppColors.textWhite)),
+      ),
+    ],
+  );
+}
+
+Column _buildFeedbackFormFields(AppLocalizations l10n) {
+  return Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      TextField(
+        decoration: InputDecoration(
+          labelText: l10n.get('subject'),
+          labelStyle: TextStyle(color: AppColors.textGray),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: AppColors.primary),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: AppColors.primary),
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n.get('cancel'), style: TextStyle(color: AppColors.textGray)),
+      ),
+      const SizedBox(height: 10),
+      TextField(
+        decoration: InputDecoration(
+          labelText: l10n.get('yourFeedback'),
+          labelStyle: TextStyle(color: AppColors.textGray),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: AppColors.primary),
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _showSuccessMessage(l10n.get('thankYouForFeedback'));
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-            child: Text(l10n.get('sendFeedback'), style: TextStyle(color: AppColors.textWhite)),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: AppColors.primary),
           ),
+        ),
+        maxLines: 5,
+      ),
+      const SizedBox(height: 10),
+      Row(
+        children: [
+          Icon(Icons.star_border, color: Colors.amber[600]),
+          Icon(Icons.star_border, color: Colors.amber[600]),
+          Icon(Icons.star_border, color: Colors.amber[600]),
+          Icon(Icons.star_border, color: Colors.amber[600]),
+          Icon(Icons.star_border, color: Colors.amber[600]),
         ],
       ),
-    );
-  }
+    ],
+  );
+}
 
-  void _rateApp(AppLocalizations l10n) {
-    _showSuccessMessage(l10n.get('openingAppStoreForRating'));
-  }
+void _rateApp(AppLocalizations l10n) {
+  // يمكنك إضافة رابط متجر التطبيقات في المحتوى الديناميكي
+  _showSuccessMessage(l10n.get('openingAppStoreForRating'));
+}
 
   void _showTerms(AppLocalizations l10n) {
     _showSuccessMessage(l10n.get('termsOfService'));
@@ -1133,4 +1675,134 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
       ),
     );
   }
+
+  Widget _buildLoadingCard() {
+  return Card(
+    elevation: 2,
+    color: AppColors.surface,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle('Loading...'),
+          SizedBox(height: 20),
+          Center(child: CircularProgressIndicator()),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _buildErrorCard(AppLocalizations l10n) {
+  return Card(
+    elevation: 2,
+    color: AppColors.surface,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle(l10n.get('helpSupport')),
+          SizedBox(height: 10),
+          Center(
+            child: Column(
+              children: [
+                Icon(Icons.error_outline, color: Colors.orange, size: 40),
+                SizedBox(height: 10),
+                Text('Unable to load help content', 
+                     style: TextStyle(color: AppColors.textGray)),
+                SizedBox(height: 10),
+                ElevatedButton.icon(
+                  onPressed: () => setState(() {}),
+                  icon: Icon(Icons.refresh),
+                  label: Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _buildHelpSectionItem({
+  required IconData icon,
+  required String title,
+  required String subtitle,
+  required VoidCallback onTap,
+}) {
+  return ListTile(
+    contentPadding: const EdgeInsets.symmetric(vertical: 4),
+    leading: Icon(icon, color: AppColors.primary),
+    title: Text(
+      title,
+      style: TextStyle(
+        fontWeight: FontWeight.w500,
+        color: AppColors.textDark,
+      ),
+    ),
+    subtitle: Text(
+      subtitle.length > 100 ? '${subtitle.substring(0, 100)}...' : subtitle,
+      style: TextStyle(color: AppColors.textGray),
+    ),
+    trailing: Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textLight),
+    onTap: onTap,
+  );
+}
+
+void _showHelpDetails(Map<String, dynamic> section) {
+  final language = Localizations.localeOf(context).languageCode;
+  final title = section['title_$language'] ?? section['title_ar'];
+  final content = section['content_$language'] ?? section['content_ar'];
+
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      backgroundColor: AppColors.surface,
+      title: Text(title, style: TextStyle(color: AppColors.textDark)),
+      content: SingleChildScrollView(
+        child: Text(content, style: TextStyle(color: AppColors.textGray)),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('Close', style: TextStyle(color: AppColors.textGray)),
+        ),
+      ],
+    ),
+  );
+}
+
+IconData _getIconFromKey(String? iconKey) {
+  final iconMap = {
+    'help': Icons.help,
+    'contact_support': Icons.contact_support,
+    'feedback': Icons.feedback,
+    'star': Icons.star,
+    'info': Icons.info,
+    'description': Icons.description,
+    'security': Icons.security,
+    'copyright': Icons.copyright,
+    'email': Icons.email,
+    'phone': Icons.phone,
+    'chat': Icons.chat,
+    'settings': Icons.settings,
+    'person': Icons.person,
+    'business': Icons.business,
+    'home': Icons.home,
+    'school': Icons.school,
+    'work': Icons.work,
+    'medical_services': Icons.medical_services,
+    'local_hospital': Icons.local_hospital,
+    'child_care': Icons.child_care,
+    'family_restroom': Icons.family_restroom,
+    'psychology': Icons.psychology,
+    'support_agent': Icons.support_agent,
+  };
+  return iconMap[iconKey] ?? Icons.help_outline;
+}
 }

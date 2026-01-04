@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:frontend/screens/admin/app_content_management.dart';
 import 'package:frontend/screens/financial_assistance_dashboard.dart';
 import 'package:frontend/screens/manager_home_screen.dart';
 
@@ -268,6 +269,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         '/donationManagement': (context) => DonationManagement(),
         '/reportManagement': (context) => ReportManagement(),
         '/systemSettings': (context) => SystemSettings(),
+        '/appContentManagement': (context) =>  AppContentManagement(),
         '/adminProfile': (context) => const ProfileScreen(),
     // '/financial-assessment': (context) => FinancialAssessmentScreen(),
     // '/assistance-request': (context) => AssistanceRequestScreen(),

@@ -1,4 +1,3 @@
-// models/AdminUser.js
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/db');
 const User = require('./User');
@@ -19,12 +18,21 @@ const AdminUser = sequelize.define('AdminUser', {
   permissions: {
     type: DataTypes.JSON,
     defaultValue: {
+      // الصلاحيات الأساسية
       can_manage_institutions: true,
       can_manage_users: true,
       can_manage_reports: true,
       can_view_statistics: true,
       can_manage_settings: true,
-      can_manage_donations: true
+      can_manage_donations: true,
+      
+      // صلاحيات المحتوى المضافة
+      can_manage_content: true,
+      can_view_content: true,
+      can_create_content: true,
+      can_edit_content: true,
+      can_delete_content: true,
+      can_reorder_content: true
     }
   },
   last_login: {

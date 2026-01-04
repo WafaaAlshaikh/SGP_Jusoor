@@ -1,5 +1,5 @@
 // controllers/adminController.js
-const { Op } = require('sequelize');
+const { Op, Sequelize } = require('sequelize');
 const sequelize = require('../config/db');
 const User = require('../model/User');
 const Institution = require('../model/Institution');
@@ -20,6 +20,7 @@ const Post = require('../model/Post');
 const Comment = require('../model/Comment');
 const ChildRegistrationRequest = require('../model/ChildRegistrationRequest');
 const SpecialistRegistrationRequest = require('../model/SpecialistRegistrationRequest');
+const AppContent = require('../model/AppContent');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
@@ -2725,6 +2726,791 @@ async getAllInstitutions(req, res) {
       });
     }
   }
+
+  // في controllers/adminController.js - أضف هذه الدوال
+
+// ==================== 📱 APP CONTENT MANAGEMENT ====================
+
+async getAllContent(req, res) {
+  try {
+    const { 
+      content_type, 
+      is_active, 
+      page = 1, 
+      limit = 50,
+      search = ''
+    } = req.query;
+    
+    const offset = (page - 1) * limit;
+
+    const whereCondition = {};
+    
+    if (content_type) whereCondition.content_type = content_type;
+    if (is_active !== undefined) whereCondition.is_active = is_active === 'true';
+    
+    if (search) {
+      whereCondition[Op.or] = [
+        { title_ar: { [Op.like]: `%${search}%` } },
+        { title_en: { [Op.like]: `%${search}%` } },
+        { content_ar: { [Op.like]: `%${search}%` } },
+        { content_en: { [Op.like]: `%${search}%` } }
+      ];
+    }
+
+   const contents = await AppContent.findAndCountAll({
+  where: whereCondition,
+  include: [
+    { model: User, as: 'creator', attributes: ['user_id', 'full_name', 'email'], required: false },
+    { model: User, as: 'updater', attributes: ['user_id', 'full_name', 'email'], required: false }
+  ],
+  order: [['content_type', 'ASC'], ['display_order', 'ASC'], ['created_at', 'DESC']],
+  limit: parseInt(limit),
+  offset: parseInt(offset)
+});
+
+
+    res.json({
+      success: true,
+      data: {
+        contents: contents.rows,
+        total: contents.count,
+        page: parseInt(page),
+        totalPages: Math.ceil(contents.count / limit),
+        statistics: {
+          by_type: await AppContent.findAll({
+            attributes: [
+              'content_type',
+              [sequelize.fn('COUNT', sequelize.col('content_id')), 'count']
+            ],
+            group: ['content_type'],
+            raw: true
+          }),
+          total_active: await AppContent.count({ where: { is_active: true } }),
+          total_inactive: await AppContent.count({ where: { is_active: false } })
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get all content error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error fetching content' 
+    });
+  }
+}
+
+async getContentDetails(req, res) {
+  try {
+    const { content_id } = req.params;
+
+    const content = await AppContent.findByPk(content_id, {
+      include: [
+        {
+          model: User,
+          as: 'creator',
+          attributes: ['user_id', 'full_name', 'email']
+        },
+        {
+          model: User,
+          as: 'updater',
+          attributes: ['user_id', 'full_name', 'email']
+        }
+      ]
+    });
+
+    if (!content) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Content not found' 
+      });
+    }
+
+    // جلب تاريخ التعديلات
+    const auditLogs = await AuditLog.findAll({
+      where: {
+        target_type: 'AppContent',
+        target_id: content_id
+      },
+      order: [['created_at', 'DESC']],
+      limit: 10
+    });
+
+    res.json({
+      success: true,
+      data: {
+        content,
+        audit_logs: auditLogs,
+        change_history: auditLogs.map(log => ({
+          action: log.action_type,
+          admin: log.admin_id,
+          details: log.details,
+          timestamp: log.created_at
+        }))
+      }
+    });
+  } catch (error) {
+    console.error('Get content details error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error fetching content details' 
+    });
+  }
+}
+
+async createContent(req, res) {
+  const transaction = await sequelize.transaction();
+  
+  try {
+    const {
+      content_type,
+      title_ar,
+      title_en,
+      content_ar,
+      content_en,
+      section_key,
+      display_order = 0,
+      is_active = true,
+      icon = null,
+      metadata = {}
+    } = req.body;
+
+    const normalizedMetadata = (metadata && typeof metadata === 'object') ? metadata : {};
+
+    if (
+      content_type === 'help_section' &&
+      (!normalizedMetadata.visible_to ||
+        (Array.isArray(normalizedMetadata.visible_to) && normalizedMetadata.visible_to.length === 0))
+    ) {
+      normalizedMetadata.visible_to = ['all'];
+    }
+
+    // التحقق من البيانات المطلوبة
+    if (!content_type || !title_ar || !title_en || !content_ar || !content_en || !section_key) {
+      await transaction.rollback();
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Missing required fields' 
+      });
+    }
+
+    // التحقق من أن section_key فريد
+    const existingContent = await AppContent.findOne({
+      where: { section_key },
+      transaction
+    });
+
+    if (existingContent) {
+      await transaction.rollback();
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Section key already exists' 
+      });
+    }
+
+    // إنشاء المحتوى
+    const content = await AppContent.create({
+      content_type,
+      title_ar,
+      title_en,
+      content_ar,
+      content_en,
+      section_key,
+      display_order,
+      is_active,
+      icon,
+      metadata: normalizedMetadata,
+      created_by: req.user.user_id,
+      updated_by: req.user.user_id
+    }, { transaction });
+
+    // تسجيل العملية
+    await AuditLog.create({
+      admin_id: req.user.user_id,
+      action_type: 'content_create',
+      target_type: 'AppContent',
+      target_id: content.content_id,
+      details: JSON.stringify({
+        content_type,
+        title_ar,
+        title_en,
+        section_key
+      }),
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      created_at: new Date()
+    }, { transaction });
+
+    await transaction.commit();
+
+    res.status(201).json({
+      success: true,
+      message: 'Content created successfully',
+      data: content
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Create content error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error creating content' 
+    });
+  }
+}
+
+async updateContent(req, res) {
+  const transaction = await sequelize.transaction();
+  
+  try {
+    const { content_id } = req.params;
+    const updateData = req.body;
+
+    const content = await AppContent.findByPk(content_id, { transaction });
+    if (!content) {
+      await transaction.rollback();
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Content not found' 
+      });
+    }
+
+    const oldData = content.toJSON();
+    
+    // الحقول المسموح بتحديثها
+    const allowedFields = [
+      'title_ar', 'title_en', 'content_ar', 'content_en',
+      'display_order', 'is_active', 'icon', 'metadata'
+    ];
+
+    const filteredUpdate = {};
+    Object.keys(updateData).forEach(key => {
+      if (allowedFields.includes(key)) {
+        filteredUpdate[key] = updateData[key];
+      }
+    });
+
+    filteredUpdate.updated_by = req.user.user_id;
+
+    await content.update(filteredUpdate, { transaction });
+
+    // تسجيل العملية
+    const changes = {};
+    Object.keys(filteredUpdate).forEach(key => {
+      if (oldData[key] !== filteredUpdate[key]) {
+        changes[key] = {
+          old: oldData[key],
+          new: filteredUpdate[key]
+        };
+      }
+    });
+
+    await AuditLog.create({
+      admin_id: req.user.user_id,
+      action_type: 'content_update',
+      target_type: 'AppContent',
+      target_id: content_id,
+      details: JSON.stringify(changes),
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      created_at: new Date()
+    }, { transaction });
+
+    await transaction.commit();
+
+    res.json({
+      success: true,
+      message: 'Content updated successfully',
+      data: content
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Update content error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error updating content' 
+    });
+  }
+}
+
+async deleteContent(req, res) {
+  const transaction = await sequelize.transaction();
+  
+  try {
+    const { content_id } = req.params;
+
+    const content = await AppContent.findByPk(content_id, { transaction });
+    if (!content) {
+      await transaction.rollback();
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Content not found' 
+      });
+    }
+
+    // حفظ نسخة احتياطية قبل الحذف
+    const backupData = content.toJSON();
+
+    // حذف المحتوى
+    await content.destroy({ transaction });
+
+    // تسجيل العملية
+    await AuditLog.create({
+      admin_id: req.user.user_id,
+      action_type: 'content_delete',
+      target_type: 'AppContent',
+      target_id: content_id,
+      details: JSON.stringify({
+        deleted_content: backupData,
+        deleted_by: req.user.user_id
+      }),
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      created_at: new Date()
+    }, { transaction });
+
+    await transaction.commit();
+
+    res.json({
+      success: true,
+      message: 'Content deleted successfully'
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Delete content error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error deleting content' 
+    });
+  }
+}
+
+async reorderContent(req, res) {
+  const transaction = await sequelize.transaction();
+  
+  try {
+    const { content_type, order_updates } = req.body;
+
+    if (!content_type || !Array.isArray(order_updates)) {
+      await transaction.rollback();
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Content type and order updates array are required' 
+      });
+    }
+
+    // تحديث ترتيب المحتويات
+    for (const update of order_updates) {
+      const { content_id, display_order } = update;
+      
+      if (content_id && display_order !== undefined) {
+        await AppContent.update(
+          { display_order, updated_by: req.user.user_id },
+          { 
+            where: { 
+              content_id,
+              content_type 
+            },
+            transaction 
+          }
+        );
+      }
+    }
+
+    // تسجيل العملية
+    await AuditLog.create({
+      admin_id: req.user.user_id,
+      action_type: 'content_reorder',
+      target_type: 'AppContent',
+      target_id: null,
+      details: JSON.stringify({
+        content_type,
+        order_updates
+      }),
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      created_at: new Date()
+    }, { transaction });
+
+    await transaction.commit();
+
+    // جلب المحتويات بعد التحديث
+    const updatedContents = await AppContent.findAll({
+      where: { content_type },
+      order: [['display_order', 'ASC']]
+    });
+
+    res.json({
+      success: true,
+      message: 'Content order updated successfully',
+      data: updatedContents
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Reorder content error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error reordering content' 
+    });
+  }
+}
+
+// دوال لجلب المحتوى للمستخدمين العاديين
+
+async getHelpSections(req, res) {
+  try {
+    const language = req.query.lang || 'ar'; // 'ar' أو 'en'
+    const userRole = req.user?.role || 'Parent'; // افتراضي Parent
+
+    const whereCondition = {
+      content_type: 'help_section',
+      is_active: true
+    };
+
+    // يمكن إضافة فلترة حسب دور المستخدم إذا لزم
+    if (userRole === 'Parent') {
+      whereCondition[Op.and] = Sequelize.literal(
+        `metadata IS NULL
+         OR JSON_EXTRACT(metadata, '$.visible_to') IS NULL
+         OR JSON_CONTAINS(metadata->'$.visible_to', '"parent"')
+         OR JSON_CONTAINS(metadata->'$.visible_to', '"all"')`
+      );
+    }
+
+    const sections = await AppContent.findAll({
+      where: whereCondition,
+      attributes: [
+        'content_id',
+        language === 'ar' ? 'title_ar' : 'title_en',
+        language === 'ar' ? 'content_ar' : 'content_en',
+        'icon',
+        'display_order',
+        'section_key'
+      ],
+      order: [['display_order', 'ASC']]
+    });
+
+    res.json({
+      success: true,
+      data: {
+        sections,
+        language
+      }
+    });
+  } catch (error) {
+    console.error('Get help sections error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error fetching help sections' 
+    });
+  }
+}
+
+async getAboutContent(req, res) {
+  try {
+    const language = req.query.lang || 'ar';
+
+    const contents = await AppContent.findAll({
+      where: {
+        content_type: 'about_section',
+        is_active: true
+      },
+      attributes: [
+        'content_id',
+        language === 'ar' ? 'title_ar' : 'title_en',
+        language === 'ar' ? 'content_ar' : 'content_en',
+        'icon',
+        'display_order'
+      ],
+      order: [['display_order', 'ASC']]
+    });
+
+    // جلب سياسة الخصوصية وشروط الخدمة
+    const privacyPolicy = await AppContent.findOne({
+      where: {
+        content_type: 'privacy_policy',
+        is_active: true
+      },
+      attributes: [
+        'content_id',
+        language === 'ar' ? 'title_ar' : 'title_en',
+        language === 'ar' ? 'content_ar' : 'content_en'
+      ]
+    });
+
+    const termsOfService = await AppContent.findOne({
+      where: {
+        content_type: 'terms_of_service',
+        is_active: true
+      },
+      attributes: [
+        'content_id',
+        language === 'ar' ? 'title_ar' : 'title_en',
+        language === 'ar' ? 'content_ar' : 'content_en'
+      ]
+    });
+
+    res.json({
+      success: true,
+      data: {
+        about_sections: contents,
+        privacy_policy: privacyPolicy,
+        terms_of_service: termsOfService,
+        app_info: {
+          version: '1.2.3',
+          build: '456',
+          copyright: `© ${new Date().getFullYear()} Jusoor App`
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get about content error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error fetching about content' 
+    });
+  }
+}
+
+// controllers/adminController.js
+
+// ==================== 📱 APP CONTENT MANAGEMENT (متابعة) ====================
+
+async batchUpdateContentStatus(req, res) {
+  const transaction = await sequelize.transaction();
+  
+  try {
+    const { content_ids, is_active, reason } = req.body;
+
+    if (!Array.isArray(content_ids) || content_ids.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Content IDs array is required'
+      });
+    }
+
+    // تحديث حالة المحتويات
+    await AppContent.update(
+      {
+        is_active,
+        updated_by: req.user.user_id,
+        updated_at: new Date()
+      },
+      {
+        where: {
+          content_id: { [Op.in]: content_ids }
+        },
+        transaction
+      }
+    );
+
+    // تسجيل العملية
+    await AuditLog.create({
+      admin_id: req.user.user_id,
+      action_type: 'content_batch_update',
+      target_type: 'AppContent',
+      target_id: null,
+      details: JSON.stringify({
+        content_ids,
+        is_active,
+        reason,
+        updated_count: content_ids.length
+      }),
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      created_at: new Date()
+    }, { transaction });
+
+    await transaction.commit();
+
+    res.json({
+      success: true,
+      message: `Updated ${content_ids.length} content items successfully`
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Batch update content error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error batch updating content'
+    });
+  }
+}
+
+async getContentStatistics(req, res) {
+  try {
+    const statistics = await AppContent.findAll({
+      attributes: [
+        'content_type',
+        'is_active',
+        [sequelize.fn('COUNT', sequelize.col('content_id')), 'count']
+      ],
+      group: ['content_type', 'is_active'],
+      raw: true
+    });
+
+    const totalByType = await AppContent.findAll({
+      attributes: [
+        'content_type',
+        [sequelize.fn('COUNT', sequelize.col('content_id')), 'total']
+      ],
+      group: ['content_type'],
+      raw: true
+    });
+
+    const recentActivity = await AppContent.findAll({
+      attributes: [
+        [sequelize.fn('DATE', sequelize.col('created_at')), 'date'],
+        [sequelize.fn('COUNT', sequelize.col('content_id')), 'created'],
+        [sequelize.fn('COUNT', sequelize.col('updated_at')), 'updated']
+      ],
+      where: {
+        created_at: {
+          [Op.gte]: new Date(new Date() - 30 * 24 * 60 * 60 * 1000)
+        }
+      },
+      group: ['date'],
+      order: [['date', 'DESC']],
+      raw: true
+    });
+
+    res.json({
+      success: true,
+      data: {
+        by_type_and_status: statistics,
+        total_by_type: totalByType,
+        recent_activity: recentActivity,
+        summary: {
+          total_content: await AppContent.count(),
+          active_content: await AppContent.count({ where: { is_active: true } }),
+          inactive_content: await AppContent.count({ where: { is_active: false } })
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get content statistics error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching content statistics'
+    });
+  }
+}
+
+async importContent(req, res) {
+  const transaction = await sequelize.transaction();
+  
+  try {
+    const { contents } = req.body;
+
+    if (!Array.isArray(contents) || contents.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Contents array is required'
+      });
+    }
+
+    const results = {
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      errors: []
+    };
+
+    for (const contentData of contents) {
+      try {
+        const existing = await AppContent.findOne({
+          where: { section_key: contentData.section_key },
+          transaction
+        });
+
+        if (existing) {
+          // تحديث المحتوى الموجود
+          await existing.update({
+            ...contentData,
+            updated_by: req.user.user_id,
+            updated_at: new Date()
+          }, { transaction });
+          results.updated++;
+        } else {
+          // إنشاء محتوى جديد
+          await AppContent.create({
+            ...contentData,
+            created_by: req.user.user_id,
+            updated_by: req.user.user_id
+          }, { transaction });
+          results.created++;
+        }
+      } catch (error) {
+        results.skipped++;
+        results.errors.push({
+          section_key: contentData.section_key,
+          error: error.message
+        });
+      }
+    }
+
+    // تسجيل العملية
+    await AuditLog.create({
+      admin_id: req.user.user_id,
+      action_type: 'content_import',
+      target_type: 'AppContent',
+      target_id: null,
+      details: JSON.stringify(results),
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      created_at: new Date()
+    }, { transaction });
+
+    await transaction.commit();
+
+    res.json({
+      success: true,
+      message: `Import completed: ${results.created} created, ${results.updated} updated, ${results.skipped} skipped`,
+      data: results
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Import content error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error importing content'
+    });
+  }
+}
+
+async exportContent(req, res) {
+  try {
+    const { content_type, is_active } = req.query;
+
+    const whereCondition = {};
+    if (content_type) whereCondition.content_type = content_type;
+    if (is_active !== undefined) whereCondition.is_active = is_active === 'true';
+
+    const contents = await AppContent.findAll({
+      where: whereCondition,
+      attributes: { exclude: ['created_by', 'updated_by'] },
+      order: [['content_type', 'ASC'], ['display_order', 'ASC']]
+    });
+
+    const exportData = {
+      exported_at: new Date().toISOString(),
+      exported_by: req.user.user_id,
+      total_items: contents.length,
+      contents: contents.map(content => content.toJSON())
+    };
+
+    res.json({
+      success: true,
+      data: exportData
+    });
+  } catch (error) {
+    console.error('Export content error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error exporting content'
+    });
+  }
+}
 }
 
 module.exports = new AdminController();
