@@ -681,87 +681,58 @@ class _DonorDashboardScreenState extends State<DonorDashboardScreen> {
               mainAxisSize: MainAxisSize.min, // مهم لمنع التمدد الزائد
               children: [
                 // صورة
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                  ),
-                  child: CircleAvatar(
-                    radius: 42,
-                    backgroundColor: Colors.white,
-                    backgroundImage: _authToken.isNotEmpty
-                        ? const AssetImage('assets/images/jusoor_logo.png')
-                        : const AssetImage('assets/images/jusoor_logo.png') as ImageProvider,
-                  ),
-                ),
-
-                const SizedBox(height: 10),
-
-                Text(
-                  _authToken.isNotEmpty ? 'Jusoor Donor' : 'Guest User',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-
-                const SizedBox(height: 4),
-
-                Text(
-                  _authToken.isNotEmpty ? 'Making impact every day' : 'Login to start donating',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.85),
-                    fontSize: 13,
-                  ),
-                ),
-
-                const SizedBox(height: 30),
-
-
-
-
-                // معلومات المستخدم بدلاً من الأزرار الدائرية
                 // Container(
-                //   width: double.infinity,
-                //   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                //   margin: const EdgeInsets.symmetric(horizontal: 20),
-                //   decoration: BoxDecoration(
-                //     color: Colors.white.withOpacity(0.15),
-                //     borderRadius: BorderRadius.circular(16),
-                //     border: Border.all(color: Colors.white.withOpacity(0.3)),
+                //   padding: const EdgeInsets.all(4),
+                //   decoration: const BoxDecoration(
+                //     color: Colors.white,
+                //     shape: BoxShape.circle,
                 //   ),
-                //   child: Column(
-                //     mainAxisSize: MainAxisSize.min,
-                //     children: [
-                //       // Email
-                //       _buildUserInfoItem(
-                //         icon: Icons.email_outlined,
-                //         label: 'Email',
-                //         value: _userData?['email'] ?? 'Not available',
-                //       ),
-                //       const SizedBox(height: 8),
-                      
-                //       // Phone
-                //       _buildUserInfoItem(
-                //         icon: Icons.phone_outlined,
-                //         label: 'Phone',
-                //         value: _userData?['phone'] ?? 'Not available',
-                //       ),
-                //       const SizedBox(height: 8),
-                      
-                //       // Location
-                //       _buildUserInfoItem(
-                //         icon: Icons.location_on_outlined,
-                //         label: 'Location',
-                //         value: _userData?['city'] != null && _userData?['region'] != null
-                //             ? '${_userData?['city']}, ${_userData?['region']}'
-                //             : (_userData?['city'] ?? _userData?['region'] ?? 'Not available'),
-                //       ),
-                //     ],
+                //   child: CircleAvatar(
+                //     radius: 42,
+                //     backgroundColor: Colors.white,
+                //     backgroundImage: _authToken.isNotEmpty
+                //         ? const AssetImage('assets/images/jusoor_logo.png')
+                //         : const AssetImage('assets/images/jusoor_logo.png') as ImageProvider,
                 //   ),
                 // ),
+
+                // صورة donor عادية بدون دائرة
+Container(
+  // width: 120, // عرض الصورة حسب الحجم اللي بدك إياه
+  // height: 120, // ارتفاع الصورة
+  decoration: BoxDecoration(
+    borderRadius: BorderRadius.circular(8), // اختياري: حواف مدوّرة خفيفة
+    // color: Colors.white.withOpacity(0.1), // خلفية خفيفة إذا بدك
+  ),
+  child: Image.asset(
+    'assets/images/donors.png', // اسم الصورة اللي رفعتها
+    fit: BoxFit.cover, // تغطية كامل الـ Container
+  ),
+),
+
+
+                const SizedBox(height: 5),
+
+                // Text(
+                //   _authToken.isNotEmpty ? 'Jusoor Donor' : 'Guest User',
+                //   style: const TextStyle(
+                //     color: Colors.white,
+                //     fontSize: 18,
+                //     fontWeight: FontWeight.w800,
+                //   ),
+                // ),
+
+                // const SizedBox(height: 4),
+
+                // Text(
+                //   _authToken.isNotEmpty ? 'Making impact every day' : 'Login to start donating',
+                //   style: TextStyle(
+                //     color: Colors.white.withOpacity(0.85),
+                //     fontSize: 13,
+                //   ),
+                // ),
+
+                // const SizedBox(height: 30),
 
                 const SizedBox(height: 14),
                 
@@ -818,50 +789,6 @@ Positioned(
 ),
 
 
-
-        // Stats Card - تأكد من وضعه بشكل صحيح
-        // Positioned(
-        //   bottom: 0,
-        //   left: 16,
-        //   right: 16,
-        //   child: Container(
-        //     padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-        //     decoration: BoxDecoration(
-        //       color: Colors.white,
-        //       borderRadius: BorderRadius.circular(22),
-        //       boxShadow: [
-        //         BoxShadow(
-        //           color: Colors.black.withOpacity(0.12),
-        //           blurRadius: 20,
-        //           offset: const Offset(0, 8),
-        //         ),
-        //       ],
-        //     ),
-        //     child: Row(
-        //       mainAxisAlignment: MainAxisAlignment.spaceAround,
-        //       children: [
-        //         Flexible(
-        //           child: _statItem(
-        //             _authToken.isEmpty ? '0' : '${_toDouble(_impactV2?['money_impact']?['totalDonationsAmount'] ?? 0).toStringAsFixed(0)}',
-        //             'JOD Donated',
-        //           ),
-        //         ),
-        //         Flexible(
-        //           child: _statItem(
-        //             _authToken.isEmpty ? '0' : '${_toInt(_impactV2?['money_impact']?['childrenSupportedCount'] ?? 0) + _toInt(_impactV2?['equipment_impact']?['children_supported_count'] ?? 0)}',
-        //             'Children',
-        //           ),
-        //         ),
-        //         Flexible(
-        //           child: _statItem(
-        //             _authToken.isEmpty ? '0' : '${_toInt(_impactV2?['equipment_impact']?['total_count'] ?? 0)}',
-        //             'Equipment',
-        //           ),
-        //         ),
-        //       ],
-        //     ),
-        //   ),
-        // ),
       ],
     ),
   );
@@ -1680,34 +1607,34 @@ const SizedBox(height: 24),
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Intro Card
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        AppColors.primary.withOpacity(0.12),
-                        AppColors.accent1.withOpacity(0.45),
-                    ],
-                    ),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Support Families, Change Lives',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      SizedBox(height: 6),
-                      Text(
-                        'Browse institutions and donate to impactful programs.',
-                      ),
-                    ],
-                  ),
-                ),
+                // Container(
+                //   padding: const EdgeInsets.all(16),
+                //   decoration: BoxDecoration(
+                //     gradient: LinearGradient(
+                //       colors: [
+                //         AppColors.primary.withOpacity(0.12),
+                //         AppColors.accent1.withOpacity(0.45),
+                //     ],
+                //     ),
+                //     borderRadius: BorderRadius.circular(18),
+                //   ),
+                //   child: const Column(
+                //     crossAxisAlignment: CrossAxisAlignment.start,
+                //     children: [
+                //       Text(
+                //         'Support Families, Change Lives',
+                //         style: TextStyle(
+                //           fontSize: 18,
+                //           fontWeight: FontWeight.w800,
+                //         ),
+                //       ),
+                //       SizedBox(height: 6),
+                //       Text(
+                //         'Browse institutions and donate to impactful programs.',
+                //       ),
+                //     ],
+                //   ),
+                // ),
 
                 const SizedBox(height: 22),
 

@@ -89,12 +89,12 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
 
         // تحديث sidebar items مع إضافة التبرعات العينية
         _sidebarItems = [
-          {
-            'title': 'Public Institution Preview',
-            'icon': Icons.public_rounded,
-            'count': 0,
-            'route': 'public_preview',
-          },
+          // {
+          //   'title': 'Public Institution Preview',
+          //   'icon': Icons.public_rounded,
+          //   'count': 0,
+          //   'route': 'public_preview',
+          // },
           {
             'title': 'Complete Institution Setup',
             'icon': Icons.verified_outlined,
@@ -124,11 +124,11 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             'icon': Icons.request_quote_rounded,
             'count': data['pendingRequests']['financial'] ?? 0,
           },
-          {
-            'title': 'Free Session Offers',
-            'icon': Icons.volunteer_activism_rounded,
-            'count': 0,
-          },
+          // {
+          //   'title': 'Free Session Offers',
+          //   'icon': Icons.volunteer_activism_rounded,
+          //   'count': 0,
+          // },
           {
             'title': 'Parent Workshops',
             'icon': Icons.groups_2_rounded,
@@ -153,17 +153,17 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             'count': 0, // يمكنك جلب العدد من API
             'route': 'equipment_donations',
           },
-          {
-            'title': 'Equipment Campaigns',
-            'icon': Icons.campaign_rounded,
-            'count': 0,
-            'route': 'equipment_campaigns',
-          },
-          {
-            'title': 'Session Management',
-            'icon': Icons.calendar_today_rounded,
-            'count': data['sessionStats']['monthlySessions'] ?? 0,
-          },
+          // {
+          //   'title': 'Equipment Campaigns',
+          //   'icon': Icons.campaign_rounded,
+          //   'count': 0,
+          //   'route': 'equipment_campaigns',
+          // },
+          // {
+          //   'title': 'Session Management',
+          //   'icon': Icons.calendar_today_rounded,
+          //   'count': data['sessionStats']['monthlySessions'] ?? 0,
+          // },
           {
             'title': 'Community',
             'icon': Icons.groups_rounded,
@@ -224,12 +224,12 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           {'label': 'Other', 'value': 5, 'color': AppColors.accent3},
         ];
         _sidebarItems = [
-          {
-            'title': 'Public Institution Preview',
-            'icon': Icons.public_rounded,
-            'count': 0,
-            'route': 'public_preview',
-          },
+          // {
+          //   'title': 'Public Institution Preview',
+          //   'icon': Icons.public_rounded,
+          //   'count': 0,
+          //   'route': 'public_preview',
+          // },
           {
             'title': 'Complete Institution Setup',
             'icon': Icons.verified_outlined,
@@ -259,11 +259,11 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             'icon': Icons.request_quote_rounded,
             'count': 0,
           },
-          {
-            'title': 'Free Session Offers',
-            'icon': Icons.volunteer_activism_rounded,
-            'count': 0,
-          },
+          // {
+          //   'title': 'Free Session Offers',
+          //   'icon': Icons.volunteer_activism_rounded,
+          //   'count': 0,
+          // },
           {
             'title': 'Parent Workshops',
             'icon': Icons.groups_2_rounded,
@@ -287,17 +287,17 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             'count': 0,
             'route': 'equipment_donations',
           },
-          {
-            'title': 'Equipment Campaigns',
-            'icon': Icons.campaign_rounded,
-            'count': 0,
-            'route': 'equipment_campaigns',
-          },
-          {
-            'title': 'Session Management',
-            'icon': Icons.calendar_today_rounded,
-            'count': 0,
-          },
+          // {
+          //   'title': 'Equipment Campaigns',
+          //   'icon': Icons.campaign_rounded,
+          //   'count': 0,
+          //   'route': 'equipment_campaigns',
+          // },
+          // {
+          //   'title': 'Session Management',
+          //   'icon': Icons.calendar_today_rounded,
+          //   'count': 0,
+          // },
           {
             'title': 'Community',
             'icon': Icons.groups_rounded,
@@ -455,14 +455,14 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
         ),
       );
       break;
-    case 'equipment_campaigns':
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const ManagerEquipmentCampaignsScreen(),
-        ),
-      );
-      break;
+    // case 'equipment_campaigns':
+    //   Navigator.push(
+    //     context,
+    //     MaterialPageRoute(
+    //       builder: (context) => const ManagerEquipmentCampaignsScreen(),
+    //     ),
+    //   );
+    //   break;
     case 'community':
       Navigator.push(
         context,
@@ -552,14 +552,14 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
         ),
       );
     }
-    if (title == 'Free Session Offers') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const ManagerFreeSessionsScreen(),
-        ),
-      );
-    }
+    // if (title == 'Free Session Offers') {
+    //   Navigator.push(
+    //     context,
+    //     MaterialPageRoute(
+    //       builder: (context) => const ManagerFreeSessionsScreen(),
+    //     ),
+    //   );
+    // }
     if (title == 'Parent Workshops') {
       Navigator.push(
         context,

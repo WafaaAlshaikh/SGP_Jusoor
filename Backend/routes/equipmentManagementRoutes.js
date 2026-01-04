@@ -16,6 +16,7 @@ router.get('/specialist/needs', authMiddleware, equipmentManagementController.ge
 router.get('/manager/inventory', authMiddleware, managerAuthMiddleware, equipmentManagementController.getManagerInventory);
 router.get('/manager/needs', authMiddleware, managerAuthMiddleware, equipmentManagementController.getManagerNeeds);
 router.get('/manager/campaigns', authMiddleware, managerAuthMiddleware, equipmentManagementController.getManagerEquipmentCampaigns);
+router.get('/manager/campaigns/stats', authMiddleware, managerAuthMiddleware, equipmentManagementController.getManagerEquipmentCampaignStats);
 router.put('/manager/campaigns/:campaign_id', authMiddleware, managerAuthMiddleware, equipmentManagementController.updateManagerEquipmentCampaign);
 router.post('/manager/allocate/child', authMiddleware, managerAuthMiddleware, equipmentManagementController.allocateManuallyToChild);
 router.post('/manager/inventory/internal', authMiddleware, managerAuthMiddleware, equipmentManagementController.setInventoryInternalUse);

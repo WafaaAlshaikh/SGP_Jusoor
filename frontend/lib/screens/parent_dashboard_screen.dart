@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/screens/donor_dashboard_screen.dart';
 import 'package:frontend/screens/financial_assistance_dashboard.dart';
 import 'package:frontend/screens/general_assessment_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -6,6 +7,7 @@ import '../theme/app_colors.dart';
 import '../services/api_service.dart';
 import '../models/dashboard_data.dart';
 import 'upcoming_sessions_screen.dart';
+import 'browse_centers_screen.dart';
 import 'manage_children_screen.dart';
 import 'educational_resources_screen.dart';
 import 'sessions_screen.dart';
@@ -356,8 +358,8 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               SizedBox(height: 20),
               _buildMainActions(),
               SizedBox(height: 20),
-              _buildPaymentOverview(),
-              SizedBox(height: 20),
+              // _buildPaymentOverview(),
+              // SizedBox(height: 20),
               _buildCommunitySection(),
               SizedBox(height: 20),
               _buildRecentNotificationsFeed(),
@@ -1208,7 +1210,7 @@ void _showFinancialAssistanceOptions() {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const DonationScreen(),
+                            builder: (_) => const DonorDashboardScreen(),
                           ),
                         );
                       },
@@ -1217,24 +1219,24 @@ void _showFinancialAssistanceOptions() {
                 ],
               ),
               SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildModernActionCard(
-                      icon: Icons.apartment,
-                      title: 'Explore Institutions',
-                      subtitle: 'View profiles, media, team and reviews',
-                      color: AppColors.primary,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const BrowseCentersScreen()),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
+              // Row(
+              //   children: [
+              //     Expanded(
+              //       child: _buildModernActionCard(
+              //         icon: Icons.apartment,
+              //         title: 'Explore Institutions',
+              //         subtitle: 'View profiles, media, team and reviews',
+              //         color: AppColors.primary,
+              //         onTap: () {
+              //           Navigator.push(
+              //             context,
+              //             MaterialPageRoute(builder: (_) => const BrowseCentersScreen()),
+              //           );
+              //         },
+              //       ),
+              //     ),
+              //   ],
+              // ),
             ],
           ),
         ),
@@ -1301,74 +1303,74 @@ void _showFinancialAssistanceOptions() {
   }
 
   // === PAYMENT OVERVIEW ===
-  Widget _buildPaymentOverview() {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12.withOpacity(0.04),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          )
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Payments ',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textDark,
-            ),
-          ),
-          SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Next due: 25 Oct 2025',
-                style: TextStyle(
-                  color: AppColors.textGray,
-                  fontSize: 14,
-                ),
-              ),
-              TextButton(
-                onPressed: () {},
-                child: Text(
-                  'Pay Now ',
-                  style: TextStyle(
-                    color: AppColors.primary,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 8),
-          LinearProgressIndicator(
-            value: 0.8,
-            color: AppColors.primary,
-            backgroundColor: AppColors.textLight.withOpacity(0.2),
-            minHeight: 6,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          SizedBox(height: 6),
-          Text(
-            '80% paid this month',
-            style: TextStyle(
-              fontSize: 12,
-              color: AppColors.textGray,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // Widget _buildPaymentOverview() {
+  //   return Container(
+  //     padding: EdgeInsets.all(16),
+  //     decoration: BoxDecoration(
+  //       color: AppColors.surface,
+  //       borderRadius: BorderRadius.circular(16),
+  //       boxShadow: [
+  //         BoxShadow(
+  //           color: Colors.black12.withOpacity(0.04),
+  //           blurRadius: 8,
+  //           offset: Offset(0, 2),
+  //         )
+  //       ],
+  //     ),
+  //     child: Column(
+  //       crossAxisAlignment: CrossAxisAlignment.start,
+  //       children: [
+  //         Text(
+  //           'Payments ',
+  //           style: TextStyle(
+  //             fontSize: 16,
+  //             fontWeight: FontWeight.bold,
+  //             color: AppColors.textDark,
+  //           ),
+  //         ),
+  //         SizedBox(height: 12),
+  //         Row(
+  //           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  //           children: [
+  //             Text(
+  //               'Next due: 25 Oct 2025',
+  //               style: TextStyle(
+  //                 color: AppColors.textGray,
+  //                 fontSize: 14,
+  //               ),
+  //             ),
+  //             TextButton(
+  //               onPressed: () {},
+  //               child: Text(
+  //                 'Pay Now ',
+  //                 style: TextStyle(
+  //                   color: AppColors.primary,
+  //                   fontSize: 14,
+  //                 ),
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //         SizedBox(height: 8),
+  //         LinearProgressIndicator(
+  //           value: 0.8,
+  //           color: AppColors.primary,
+  //           backgroundColor: AppColors.textLight.withOpacity(0.2),
+  //           minHeight: 6,
+  //           borderRadius: BorderRadius.circular(8),
+  //         ),
+  //         SizedBox(height: 6),
+  //         Text(
+  //           '80% paid this month',
+  //           style: TextStyle(
+  //             fontSize: 12,
+  //             color: AppColors.textGray,
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   // === COMMUNITY SECTION ===
   Widget _buildCommunitySection() {
@@ -1862,13 +1864,13 @@ void _showFinancialAssistanceOptions() {
                       );
                     },
                   ),
-                  _buildDrawerItem(
-                    icon: Icons.assessment,
-                    title: 'Progress Reports',
-                    onTap: () {
-                      Navigator.pop(context);
-                    },
-                  ),
+                  // _buildDrawerItem(
+                  //   icon: Icons.assessment,
+                  //   title: 'Progress Reports',
+                  //   onTap: () {
+                  //     Navigator.pop(context);
+                  //   },
+                  // ),
                   _buildDrawerItem(
                     icon: Icons.chat,
                     title: 'Messages',
@@ -1879,7 +1881,7 @@ void _showFinancialAssistanceOptions() {
                   ),
                   _buildDrawerItem(
                     icon: Icons.star,
-                    title: 'تقييماتي',
+                    title: 'My Reviews',
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
@@ -1888,17 +1890,17 @@ void _showFinancialAssistanceOptions() {
                       );
                     },
                   ),
-                  _buildDrawerItem(
-                    icon: Icons.business,
-                    title: 'مراجعات المراكز',
-                    onTap: () {
-                      Navigator.pop(context);
-                      // Navigator.push(
-                      //   context,
-                      //   MaterialPageRoute(builder: (context) => const BrowseCentersScreen()),
-                      // );
-                    },
-                  ),
+                  // _buildDrawerItem(
+                  //   icon: Icons.business,
+                  //   title: 'مراجعات المراكز',
+                  //   onTap: () {
+                  //     Navigator.pop(context);
+                  //     // Navigator.push(
+                  //     //   context,
+                  //     //   MaterialPageRoute(builder: (context) => const BrowseCentersScreen()),
+                  //     // );
+                  //   },
+                  // ),
                   _buildDrawerItem(
                     icon: Icons.payment,
                     title: 'Payments',
@@ -1915,7 +1917,7 @@ void _showFinancialAssistanceOptions() {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (context) => const DonationScreen()),
+                            builder: (context) => const BrowseCentersScreen()),
                       );
                     },
                   ),
@@ -1931,19 +1933,19 @@ void _showFinancialAssistanceOptions() {
                       );
                     },
                   ),
-                  _buildDrawerItem(
-                    icon: Icons.volunteer_activism,
-                    title: 'Free Session Offers',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ParentFreeSessionsScreen(),
-                        ),
-                      );
-                    },
-                  ),
+                    // _buildDrawerItem(
+                    //   icon: Icons.volunteer_activism,
+                    //   title: 'Free Session Offers',
+                    //   onTap: () {
+                    //     Navigator.pop(context);
+                    //     Navigator.push(
+                    //       context,
+                    //       MaterialPageRoute(
+                    //         builder: (context) => const ParentFreeSessionsScreen(),
+                    //       ),
+                    //     );
+                    //   },
+                    // ),
 
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),

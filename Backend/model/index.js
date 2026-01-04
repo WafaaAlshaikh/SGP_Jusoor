@@ -153,6 +153,21 @@ Institution.hasMany(EquipmentDonationCampaign, {
   as: 'equipmentCampaigns'
 });
 
+EquipmentDonationCampaign.belongsTo(Child, {
+  foreignKey: 'child_id',
+  as: 'child'
+});
+
+EquipmentDonationCampaign.belongsTo(ChildEquipmentNeed, {
+  foreignKey: 'need_id',
+  as: 'need'
+});
+
+EquipmentDonationCampaign.belongsTo(EquipmentCategory, {
+  foreignKey: 'category_id',
+  as: 'category'
+});
+
 // Child relationships 
 Child.belongsTo(Parent, { foreignKey: 'parent_id' });
 Child.belongsTo(Diagnosis, { 

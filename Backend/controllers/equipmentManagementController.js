@@ -15,7 +15,7 @@ const {
 
 const AIEquipmentNeedsService = require('../services/aiEquipmentNeedsService');
 
-const { Op } = require('sequelize');
+const { Op, Sequelize } = require('sequelize');
 
 async function logHistory({ institution_id, inventory_item_id, event_type, related_id = null, actor_user_id = null, details = null }) {
   await EquipmentItemHistory.create({
@@ -246,30 +246,328 @@ exports.createNeedBySpecialist = async (req, res) => {
   }
 };
 
+exports.getManagerEquipmentCampaignStats = async (req, res) => {
+  try {
+    const institutionId = req.institution_id;
+    const {
+      status,
+      category_id,
+      child_id,
+      need_id,
+      startDate,
+      endDate,
+    } = req.query;
+
+    const where = { institution_id: institutionId };
+    if (status && String(status).trim()) where.status = String(status).trim();
+    if (category_id && Number.isFinite(parseInt(category_id, 10))) where.category_id = parseInt(category_id, 10);
+    if (child_id && Number.isFinite(parseInt(child_id, 10))) where.child_id = parseInt(child_id, 10);
+    if (need_id && Number.isFinite(parseInt(need_id, 10))) where.need_id = parseInt(need_id, 10);
+    if (startDate || endDate) {
+      where.created_at = {};
+      if (startDate) where.created_at[Op.gte] = new Date(startDate);
+      if (endDate) where.created_at[Op.lte] = new Date(endDate);
+    }
+
+    const [
+      totals,
+      byStatus,
+      byCategory,
+      byChild,
+      byNeed,
+      recent,
+    ] = await Promise.all([
+      EquipmentDonationCampaign.findOne({
+        where,
+        attributes: [
+          [Sequelize.fn('COUNT', Sequelize.col('campaign_id')), 'campaigns_count'],
+          [Sequelize.fn('SUM', Sequelize.col('quantity_needed')), 'quantity_needed_total'],
+          [Sequelize.fn('SUM', Sequelize.col('quantity_fulfilled')), 'quantity_fulfilled_total'],
+        ],
+        raw: true,
+      }),
+      EquipmentDonationCampaign.findAll({
+        where,
+        attributes: [
+          'status',
+          [Sequelize.fn('COUNT', Sequelize.col('campaign_id')), 'count'],
+        ],
+        group: ['status'],
+        raw: true,
+      }),
+      EquipmentDonationCampaign.findAll({
+        where: { ...where, category_id: { [Op.ne]: null } },
+        attributes: [
+          'category_id',
+          [Sequelize.fn('COUNT', Sequelize.col('campaign_id')), 'count'],
+          [Sequelize.fn('SUM', Sequelize.col('quantity_needed')), 'needed'],
+          [Sequelize.fn('SUM', Sequelize.col('quantity_fulfilled')), 'fulfilled'],
+        ],
+        group: ['category_id'],
+        raw: true,
+      }),
+      EquipmentDonationCampaign.findAll({
+        where: { ...where, child_id: { [Op.ne]: null } },
+        attributes: [
+          'child_id',
+          [Sequelize.fn('COUNT', Sequelize.col('campaign_id')), 'count'],
+          [Sequelize.fn('SUM', Sequelize.col('quantity_needed')), 'needed'],
+          [Sequelize.fn('SUM', Sequelize.col('quantity_fulfilled')), 'fulfilled'],
+        ],
+        group: ['child_id'],
+        order: [[Sequelize.literal('needed'), 'DESC']],
+        limit: 20,
+        raw: true,
+      }),
+      EquipmentDonationCampaign.findAll({
+        where: { ...where, need_id: { [Op.ne]: null } },
+        attributes: [
+          'need_id',
+          [Sequelize.fn('COUNT', Sequelize.col('campaign_id')), 'count'],
+          [Sequelize.fn('SUM', Sequelize.col('quantity_needed')), 'needed'],
+          [Sequelize.fn('SUM', Sequelize.col('quantity_fulfilled')), 'fulfilled'],
+        ],
+        group: ['need_id'],
+        order: [[Sequelize.literal('needed'), 'DESC']],
+        limit: 20,
+        raw: true,
+      }),
+      EquipmentDonationCampaign.findAll({
+        where,
+        attributes: {
+          include: [[Sequelize.literal(`
+  CASE 
+    WHEN EquipmentDonationCampaign.quantity_needed > 0 
+    THEN 
+      (EquipmentDonationCampaign.quantity_fulfilled / EquipmentDonationCampaign.quantity_needed) * 100 
+    ELSE 0 
+  END
+`)
+, 'fulfillment_percentage']],
+        },
+        include: [
+          { model: EquipmentCategory, as: 'category', attributes: ['category_id', 'name_ar', 'name_en'], required: false },
+          { model: Child, as: 'child', attributes: ['child_id', 'full_name'], required: false },
+          { model: ChildEquipmentNeed, as: 'need', attributes: ['need_id', 'equipment_name', 'equipment_type', 'severity', 'priority_score', 'status'], required: false },
+        ],
+        order: [['created_at', 'DESC']],
+        limit: 10,
+      }),
+    ]);
+
+    const quantityNeededTotal = parseInt(totals?.quantity_needed_total || 0, 10) || 0;
+    const quantityFulfilledTotal = parseInt(totals?.quantity_fulfilled_total || 0, 10) || 0;
+    const fulfillmentRate = quantityNeededTotal > 0
+      ? parseFloat(((quantityFulfilledTotal / quantityNeededTotal) * 100).toFixed(1))
+      : 0;
+
+    const categoryIds = [...new Set((byCategory || []).map((x) => x.category_id).filter((x) => !!x))];
+    const childIds = [...new Set((byChild || []).map((x) => x.child_id).filter((x) => !!x))];
+    const needIds = [...new Set((byNeed || []).map((x) => x.need_id).filter((x) => !!x))];
+
+    const [categories, children, needs] = await Promise.all([
+      categoryIds.length
+        ? EquipmentCategory.findAll({ where: { category_id: { [Op.in]: categoryIds } }, attributes: ['category_id', 'name_ar', 'name_en'], raw: true })
+        : [],
+      childIds.length
+        ? Child.findAll({ where: { child_id: { [Op.in]: childIds } }, attributes: ['child_id', 'full_name'], raw: true })
+        : [],
+      needIds.length
+        ? ChildEquipmentNeed.findAll({ where: { need_id: { [Op.in]: needIds } }, attributes: ['need_id', 'equipment_name', 'equipment_type', 'severity', 'priority_score', 'status', 'child_id'], raw: true })
+        : [],
+    ]);
+
+    const categoryById = (categories || []).reduce((acc, c) => {
+      acc[c.category_id] = c;
+      return acc;
+    }, {});
+    const childById = (children || []).reduce((acc, c) => {
+      acc[c.child_id] = c;
+      return acc;
+    }, {});
+    const needById = (needs || []).reduce((acc, n) => {
+      acc[n.need_id] = n;
+      return acc;
+    }, {});
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        summary: {
+          campaigns_count: parseInt(totals?.campaigns_count || 0, 10) || 0,
+          quantity_needed_total: quantityNeededTotal,
+          quantity_fulfilled_total: quantityFulfilledTotal,
+          fulfillment_rate: fulfillmentRate,
+        },
+        byStatus: (byStatus || []).reduce((acc, r) => {
+          acc[r.status] = parseInt(r.count || 0, 10) || 0;
+          return acc;
+        }, {}),
+        byCategory: (byCategory || []).map((r) => {
+          const needed = parseInt(r.needed || 0, 10) || 0;
+          const fulfilled = parseInt(r.fulfilled || 0, 10) || 0;
+          return {
+            category_id: r.category_id,
+            category: categoryById[r.category_id] || null,
+            campaigns_count: parseInt(r.count || 0, 10) || 0,
+            quantity_needed: needed,
+            quantity_fulfilled: fulfilled,
+            fulfillment_rate: needed > 0 ? parseFloat(((fulfilled / needed) * 100).toFixed(1)) : 0,
+          };
+        }),
+        byChild: (byChild || []).map((r) => {
+          const needed = parseInt(r.needed || 0, 10) || 0;
+          const fulfilled = parseInt(r.fulfilled || 0, 10) || 0;
+          return {
+            child_id: r.child_id,
+            child: childById[r.child_id] || null,
+            campaigns_count: parseInt(r.count || 0, 10) || 0,
+            quantity_needed: needed,
+            quantity_fulfilled: fulfilled,
+            fulfillment_rate: needed > 0 ? parseFloat(((fulfilled / needed) * 100).toFixed(1)) : 0,
+          };
+        }),
+        byNeed: (byNeed || []).map((r) => {
+          const needed = parseInt(r.needed || 0, 10) || 0;
+          const fulfilled = parseInt(r.fulfilled || 0, 10) || 0;
+          return {
+            need_id: r.need_id,
+            need: needById[r.need_id] || null,
+            campaigns_count: parseInt(r.count || 0, 10) || 0,
+            quantity_needed: needed,
+            quantity_fulfilled: fulfilled,
+            fulfillment_rate: needed > 0 ? parseFloat(((fulfilled / needed) * 100).toFixed(1)) : 0,
+          };
+        }),
+        recentCampaigns: recent,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'خطأ في جلب تحليلات حملات المعدات', error: error.message });
+  }
+};
+
 exports.getManagerEquipmentCampaigns = async (req, res) => {
   try {
     const institutionId = req.institution_id;
-    const { status, page = 1, limit = 20 } = req.query;
+    const {
+      status,
+      category_id,
+      child_id,
+      need_id,
+      search,
+      minFulfillment,
+      maxFulfillment,
+      minPriority,
+      maxPriority,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 20,
+    } = req.query;
     const pageNum = parseInt(page) || 1;
     const limitNum = parseInt(limit) || 20;
     const offset = (pageNum - 1) * limitNum;
 
     const where = { institution_id: institutionId };
-    if (status) {
-      where.status = status;
+    if (status && String(status).trim()) where.status = String(status).trim();
+    if (category_id && Number.isFinite(parseInt(category_id, 10))) where.category_id = parseInt(category_id, 10);
+    if (child_id && Number.isFinite(parseInt(child_id, 10))) where.child_id = parseInt(child_id, 10);
+    if (need_id && Number.isFinite(parseInt(need_id, 10))) where.need_id = parseInt(need_id, 10);
+    if (minPriority && Number.isFinite(parseInt(minPriority, 10))) {
+      where.priority_score_snapshot = {
+        ...(where.priority_score_snapshot || {}),
+        [Op.gte]: parseInt(minPriority, 10),
+      };
     }
+    if (maxPriority && Number.isFinite(parseInt(maxPriority, 10))) {
+      where.priority_score_snapshot = {
+        ...(where.priority_score_snapshot || {}),
+        [Op.lte]: parseInt(maxPriority, 10),
+      };
+    }
+    if (startDate || endDate) {
+      where.created_at = {};
+      if (startDate) where.created_at[Op.gte] = new Date(startDate);
+      if (endDate) where.created_at[Op.lte] = new Date(endDate);
+    }
+    if (search && String(search).trim()) {
+      const q = String(search).trim();
+      where[Op.or] = [
+        { equipment_name: { [Op.like]: `%${q}%` } },
+        { equipment_type: { [Op.like]: `%${q}%` } },
+      ];
+    }
+
+    const minF = minFulfillment !== undefined ? parseFloat(minFulfillment) : null;
+    const maxF = maxFulfillment !== undefined ? parseFloat(maxFulfillment) : null;
+    const hasFulfillmentFilter =
+      (minF !== null && Number.isFinite(minF)) || (maxF !== null && Number.isFinite(maxF));
+
+    const fulfillmentExpr = Sequelize.literal(`
+  CASE 
+    WHEN EquipmentDonationCampaign.quantity_needed > 0 
+    THEN 
+      (EquipmentDonationCampaign.quantity_fulfilled / EquipmentDonationCampaign.quantity_needed) * 100 
+    ELSE 0 
+  END
+`);
+
 
     const campaigns = await EquipmentDonationCampaign.findAndCountAll({
       where,
+      attributes: {
+        include: [[fulfillmentExpr, 'fulfillment_percentage']],
+      },
+      include: [
+        {
+          model: EquipmentCategory,
+          as: 'category',
+          attributes: ['category_id', 'name_ar', 'name_en'],
+          required: false,
+        },
+        {
+          model: Child,
+          as: 'child',
+          attributes: ['child_id', 'full_name'],
+          required: false,
+        },
+        {
+          model: ChildEquipmentNeed,
+          as: 'need',
+          attributes: ['need_id', 'equipment_name', 'equipment_type', 'severity', 'priority_score', 'status'],
+          required: false,
+        },
+      ],
+      having: hasFulfillmentFilter
+        ? Sequelize.where(
+            fulfillmentExpr,
+            {
+              ...(minF !== null && Number.isFinite(minF) ? { [Op.gte]: minF } : {}),
+              ...(maxF !== null && Number.isFinite(maxF) ? { [Op.lte]: maxF } : {}),
+            },
+          )
+        : undefined,
       order: [['status', 'ASC'], ['priority_score_snapshot', 'DESC'], ['created_at', 'ASC']],
       offset,
-      limit: limitNum
+      limit: limitNum,
+      subQuery: false,
+    });
+
+    const categories = await EquipmentCategory.findAll({
+      where: { is_active: true },
+      attributes: ['category_id', 'name_ar', 'name_en'],
+      order: [['name_ar', 'ASC']],
     });
 
     return res.status(200).json({
       success: true,
       data: {
         campaigns: campaigns.rows,
+        filters: {
+          statuses: ['open', 'partially_fulfilled', 'fulfilled', 'closed'],
+          categories,
+        },
         pagination: {
           page: pageNum,
           limit: limitNum,

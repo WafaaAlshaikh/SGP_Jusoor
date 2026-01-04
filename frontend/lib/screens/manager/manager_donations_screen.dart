@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../../services/manager_dashboard_service.dart';
+import '../../services/equipment_management_service.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'manager_impact_posts_screen.dart';
@@ -47,6 +48,263 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
     return double.tryParse(value.toString()) ?? 0;
   }
 
+  int _toInt(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString()) ?? 0;
+  }
+
+  Color _equipmentStatusColor(String status) {
+    switch (status) {
+      case 'pending':
+        return Colors.orange;
+      case 'approved':
+        return Colors.green;
+      case 'scheduled':
+        return Colors.blue;
+      case 'delivered':
+        return Colors.purple;
+      case 'rejected':
+        return Colors.red;
+      case 'cancelled':
+        return Colors.grey;
+      default:
+        return AppColors.textGray;
+    }
+  }
+
+  Future<void> _openEquipmentDonationManageSheet(Map<String, dynamic> donation) async {
+    final donationIdRaw = donation['id'] ?? donation['equipment_donation_id'];
+    final donationId = donationIdRaw is int ? donationIdRaw : int.tryParse(donationIdRaw.toString());
+    if (donationId == null) return;
+
+    String status = (donation['status'] ?? 'pending').toString();
+    final notesController = TextEditingController(text: (donation['admin_notes'] ?? '').toString());
+    final rejectionController = TextEditingController(text: (donation['rejection_reason'] ?? '').toString());
+    DateTime? actualDeliveryDate;
+    final actualDeliveryRaw = donation['actual_delivery_date']?.toString();
+    if (actualDeliveryRaw != null && actualDeliveryRaw.isNotEmpty) {
+      actualDeliveryDate = DateTime.tryParse(actualDeliveryRaw);
+    }
+
+    final ok = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Manage Equipment Donation', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: status,
+                  decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Status'),
+                  items: const [
+                    DropdownMenuItem(value: 'pending', child: Text('pending')),
+                    DropdownMenuItem(value: 'approved', child: Text('approved')),
+                    DropdownMenuItem(value: 'scheduled', child: Text('scheduled')),
+                    DropdownMenuItem(value: 'delivered', child: Text('delivered')),
+                    DropdownMenuItem(value: 'rejected', child: Text('rejected')),
+                    DropdownMenuItem(value: 'cancelled', child: Text('cancelled')),
+                  ],
+                  onChanged: (v) {
+                    if (v != null) status = v;
+                  },
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: notesController,
+                  maxLines: 2,
+                  decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Admin notes'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: rejectionController,
+                  maxLines: 2,
+                  decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Rejection reason (optional)'),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime.now().add(const Duration(days: 3650)),
+                      initialDate: actualDeliveryDate ?? DateTime.now(),
+                    );
+                    if (picked != null) {
+                      actualDeliveryDate = picked;
+                    }
+                  },
+                  icon: const Icon(Icons.calendar_today_rounded, size: 18),
+                  label: Text(
+                    actualDeliveryDate == null
+                        ? 'Actual delivery date'
+                        : DateFormat('yyyy-MM-dd').format(actualDeliveryDate!),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryDark),
+                        child: const Text('Save'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (ok == true) {
+      final payload = <String, dynamic>{
+        'status': status,
+        'admin_notes': notesController.text.trim().isEmpty ? null : notesController.text.trim(),
+        'rejection_reason': rejectionController.text.trim().isEmpty ? null : rejectionController.text.trim(),
+        'actual_delivery_date': actualDeliveryDate?.toIso8601String(),
+      };
+      payload.removeWhere((k, v) => v == null);
+
+      try {
+        await ManagerDashboardService.updateEquipmentDonationStatus(donationId, payload);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Equipment donation updated')),
+        );
+        await _loadEquipmentDonations();
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _openEquipmentCampaignManageSheet(Map<String, dynamic> campaign) async {
+    final campaignIdRaw = campaign['campaign_id'] ?? campaign['id'];
+    final campaignId = campaignIdRaw is int ? campaignIdRaw : int.tryParse(campaignIdRaw.toString());
+    if (campaignId == null) return;
+
+    String status = (campaign['status'] ?? 'open').toString();
+    final quantityController = TextEditingController(text: (campaign['quantity_fulfilled'] ?? '').toString());
+
+    final ok = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Manage Equipment Campaign', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: status,
+                  decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Status'),
+                  items: const [
+                    DropdownMenuItem(value: 'open', child: Text('open')),
+                    DropdownMenuItem(value: 'partially_fulfilled', child: Text('partially_fulfilled')),
+                    DropdownMenuItem(value: 'fulfilled', child: Text('fulfilled')),
+                    DropdownMenuItem(value: 'closed', child: Text('closed')),
+                  ],
+                  onChanged: (v) {
+                    if (v != null) status = v;
+                  },
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: quantityController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: 'Quantity fulfilled',
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryDark),
+                        child: const Text('Save'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (ok == true) {
+      final quantity = int.tryParse(quantityController.text.trim());
+      final payload = <String, dynamic>{
+        'status': status,
+        'quantity_fulfilled': quantity,
+      };
+      payload.removeWhere((k, v) => v == null);
+
+      try {
+        await EquipmentManagementService.updateManagerEquipmentCampaign(
+          campaignId: campaignId,
+          status: payload['status'] as String?,
+          quantityFulfilled: payload['quantity_fulfilled'] as int?,
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Equipment campaign updated')),
+        );
+        await _loadEquipmentCampaigns();
+        await _loadEquipmentCampaignStats();
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update: $e')),
+        );
+      }
+    }
+  }
+
   DateTimeRange? _selectedRange;
   String _quickFilter = 'all';
   String _searchText = '';
@@ -56,6 +314,33 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
   late TabController _tabController;
   int _currentTabIndex = 0;
   List<Map<String, dynamic>> _processedDonors = [];
+
+  bool _isLoadingEquipment = false;
+  Map<String, dynamic> _equipmentStats = {};
+  List<dynamic> _equipmentDonations = [];
+  String? _equipmentError;
+
+  bool _isLoadingEquipmentCampaigns = false;
+  String? _equipmentCampaignsError;
+  List<Map<String, dynamic>> _equipmentCampaigns = [];
+  Map<String, dynamic> _equipmentCampaignStats = {};
+  List<Map<String, dynamic>> _equipmentCampaignCategories = [];
+  int _equipmentCampaignPage = 1;
+  int _equipmentCampaignPages = 1;
+
+  Map<String, dynamic> _equipmentCampaignFilters = {
+    'status': 'open',
+    'categoryId': null,
+    'childId': null,
+    'needId': null,
+    'search': '',
+    'minFulfillment': null,
+    'maxFulfillment': null,
+    'minPriority': null,
+    'maxPriority': null,
+    'startDate': null,
+    'endDate': null,
+  };
 
   // ========== متغيرات الفلاتر المتقدمة الجديدة ==========
   Map<String, dynamic> _filterState = {
@@ -85,7 +370,7 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
   void initState() {
     super.initState();
 
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _tabController.addListener(() {
       setState(() {
         _currentTabIndex = _tabController.index;
@@ -113,10 +398,15 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
 
       await _loadImpactV2();
 
+      await _loadEquipmentDonations();
+      await _loadEquipmentCampaigns();
+      await _loadEquipmentCampaignStats();
+
       setState(() {
         _data = result;
         _stats = stats;
         _donations = List<dynamic>.from(result['donations'] as List? ?? []);
+
         _allocations = List<dynamic>.from(result['allocations'] as List? ?? []);
         _campaigns = campaigns;
 
@@ -162,55 +452,370 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
     }
   }
 
-  int _toInt(dynamic value) {
-    if (value == null) return 0;
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    return int.tryParse(value.toString()) ?? 0;
+  Future<void> _loadEquipmentDonations() async {
+    try {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingEquipment = true;
+        _equipmentError = null;
+      });
+
+      final stats = await ManagerDashboardService.getEquipmentDonationStats();
+      final list = await ManagerDashboardService.getEquipmentDonationsList(page: 1, limit: 20);
+
+      if (!mounted) return;
+      setState(() {
+        _equipmentStats = Map<String, dynamic>.from(stats);
+        _equipmentDonations = List<dynamic>.from(list['donations'] ?? []);
+        _isLoadingEquipment = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _equipmentError = e.toString();
+        _isLoadingEquipment = false;
+      });
+    }
+  }
+
+  Future<void> _loadEquipmentCampaigns() async {
+    try {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingEquipmentCampaigns = true;
+        _equipmentCampaignsError = null;
+      });
+
+      final result = await EquipmentManagementService.getManagerEquipmentCampaigns(
+        status: (_equipmentCampaignFilters['status'] as String?)?.isEmpty == true
+            ? null
+            : _equipmentCampaignFilters['status'] as String?,
+        categoryId: _equipmentCampaignFilters['categoryId'] as int?,
+        childId: _equipmentCampaignFilters['childId'] as int?,
+        needId: _equipmentCampaignFilters['needId'] as int?,
+        search: (_equipmentCampaignFilters['search'] as String?)?.trim(),
+        minFulfillment: _equipmentCampaignFilters['minFulfillment'] as double?,
+        maxFulfillment: _equipmentCampaignFilters['maxFulfillment'] as double?,
+        minPriority: _equipmentCampaignFilters['minPriority'] as int?,
+        maxPriority: _equipmentCampaignFilters['maxPriority'] as int?,
+        startDate: _equipmentCampaignFilters['startDate'] as DateTime?,
+        endDate: _equipmentCampaignFilters['endDate'] as DateTime?,
+        page: _equipmentCampaignPage,
+        limit: 20,
+      );
+
+      final rawCampaigns = result['campaigns'];
+      final pagination = result['pagination'] as Map<String, dynamic>?;
+      final filters = result['filters'] as Map<String, dynamic>?;
+
+      final campaigns = (rawCampaigns is List)
+          ? rawCampaigns.map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : <Map<String, dynamic>>[];
+
+      final categoriesRaw = filters?['categories'];
+      final categories = (categoriesRaw is List)
+          ? categoriesRaw.map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : <Map<String, dynamic>>[];
+
+      if (!mounted) return;
+      setState(() {
+        _equipmentCampaigns = campaigns;
+        _equipmentCampaignCategories = categories;
+        _equipmentCampaignPages = (pagination?['pages'] ?? 1) is int ? (pagination?['pages'] ?? 1) as int : 1;
+        _isLoadingEquipmentCampaigns = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _equipmentCampaignsError = e.toString();
+        _isLoadingEquipmentCampaigns = false;
+      });
+    }
+  }
+
+  Future<void> _loadEquipmentCampaignStats() async {
+    try {
+      final data = await EquipmentManagementService.getManagerEquipmentCampaignStats(
+        status: (_equipmentCampaignFilters['status'] as String?)?.isEmpty == true
+            ? null
+            : _equipmentCampaignFilters['status'] as String?,
+        categoryId: _equipmentCampaignFilters['categoryId'] as int?,
+        childId: _equipmentCampaignFilters['childId'] as int?,
+        needId: _equipmentCampaignFilters['needId'] as int?,
+        startDate: _equipmentCampaignFilters['startDate'] as DateTime?,
+        endDate: _equipmentCampaignFilters['endDate'] as DateTime?,
+      );
+      if (!mounted) return;
+      setState(() {
+        _equipmentCampaignStats = Map<String, dynamic>.from(data);
+      });
+    } catch (_) {
+      return;
+    }
+  }
+
+  Future<void> _openEquipmentCampaignFilters() async {
+    final current = Map<String, dynamic>.from(_equipmentCampaignFilters);
+
+    final searchController = TextEditingController(text: (current['search'] ?? '').toString());
+    final childIdController = TextEditingController(text: current['childId']?.toString() ?? '');
+    final needIdController = TextEditingController(text: current['needId']?.toString() ?? '');
+    final minFulfillmentController = TextEditingController(text: current['minFulfillment']?.toString() ?? '');
+    final maxFulfillmentController = TextEditingController(text: current['maxFulfillment']?.toString() ?? '');
+    final minPriorityController = TextEditingController(text: current['minPriority']?.toString() ?? '');
+    final maxPriorityController = TextEditingController(text: current['maxPriority']?.toString() ?? '');
+
+    String status = (current['status'] ?? 'open').toString();
+    int? categoryId = current['categoryId'] as int?;
+    DateTime? startDate = current['startDate'] as DateTime?;
+    DateTime? endDate = current['endDate'] as DateTime?;
+
+    final applied = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Equipment Campaign Filters', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: status,
+                  decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Status'),
+                  items: const [
+                    DropdownMenuItem(value: 'open', child: Text('open')),
+                    DropdownMenuItem(value: 'partially_fulfilled', child: Text('partially_fulfilled')),
+                    DropdownMenuItem(value: 'fulfilled', child: Text('fulfilled')),
+                    DropdownMenuItem(value: 'closed', child: Text('closed')),
+                  ],
+                  onChanged: (v) {
+                    if (v != null) status = v;
+                  },
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<int?>(
+                  value: categoryId,
+                  decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Category'),
+                  items: [
+                    const DropdownMenuItem<int?>(value: null, child: Text('All')),
+                    ..._equipmentCampaignCategories.map((c) {
+                      final id = c['category_id'];
+                      final name = (c['name_ar'] ?? c['name_en'] ?? '').toString();
+                      if (id is! int) return const DropdownMenuItem<int?>(value: null, child: Text(''));
+                      return DropdownMenuItem<int?>(value: id, child: Text(name.isEmpty ? 'Category $id' : name));
+                    }).toList(),
+                  ],
+                  onChanged: (v) => categoryId = v,
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: searchController,
+                  decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Search (name/type)'),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: childIdController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Child ID'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: needIdController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Need ID'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: minFulfillmentController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Min fulfillment %'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: maxFulfillmentController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Max fulfillment %'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: minPriorityController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Min priority'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: maxPriorityController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Max priority'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime.now().add(const Duration(days: 3650)),
+                            initialDate: startDate ?? DateTime.now(),
+                          );
+                          if (picked != null) {
+                            startDate = picked;
+                          }
+                        },
+                        child: Text(startDate == null ? 'Start date' : DateFormat('yyyy-MM-dd').format(startDate!)),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime.now().add(const Duration(days: 3650)),
+                            initialDate: endDate ?? DateTime.now(),
+                          );
+                          if (picked != null) {
+                            endDate = picked;
+                          }
+                        },
+                        child: Text(endDate == null ? 'End date' : DateFormat('yyyy-MM-dd').format(endDate!)),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryDark),
+                        child: const Text('Apply'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (applied == true) {
+      final parsedChildId = int.tryParse(childIdController.text.trim());
+      final parsedNeedId = int.tryParse(needIdController.text.trim());
+      final parsedMinF = double.tryParse(minFulfillmentController.text.trim());
+      final parsedMaxF = double.tryParse(maxFulfillmentController.text.trim());
+      final parsedMinP = int.tryParse(minPriorityController.text.trim());
+      final parsedMaxP = int.tryParse(maxPriorityController.text.trim());
+
+      setState(() {
+        _equipmentCampaignFilters = {
+          'status': status,
+          'categoryId': categoryId,
+          'childId': parsedChildId,
+          'needId': parsedNeedId,
+          'search': searchController.text.trim(),
+          'minFulfillment': parsedMinF,
+          'maxFulfillment': parsedMaxF,
+          'minPriority': parsedMinP,
+          'maxPriority': parsedMaxP,
+          'startDate': startDate,
+          'endDate': endDate,
+        };
+        _equipmentCampaignPage = 1;
+      });
+
+      await _loadEquipmentCampaigns();
+      await _loadEquipmentCampaignStats();
+    }
   }
 
   // ========== دوال الفلاتر المتقدمة الجديدة ==========
   void _loadFilterData() async {
-  try {
-    // تحميل الحملات من البيانات الموجودة
-    setState(() {
-      _availableCampaigns = List<Map<String, dynamic>>.from(_campaigns);
-    });
+    try {
+      // تحميل الحملات من البيانات الموجودة
+      setState(() {
+        _availableCampaigns = List<Map<String, dynamic>>.from(_campaigns);
+      });
 
-    // تجميع المتبرعين من البيانات المحملة
-    final Set<Map<String, dynamic>> uniqueDonors = {};
+      // تجميع المتبرعين من البيانات المحملة
+      final Set<Map<String, dynamic>> uniqueDonors = {};
 
-    // جمع من التبرعات
-    for (final donation in _donations) {
-      final donor = _asStringMap(donation['donor']);
-      if (donor != null && donor['id'] != null) {
-        uniqueDonors.add(donor);
+      // جمع من التبرعات
+      for (final donation in _donations) {
+        final donor = _asStringMap(donation['donor']);
+        if (donor != null && donor['id'] != null) {
+          uniqueDonors.add(donor);
+        }
       }
-    }
 
-    // جمع من أحدث التبرعات
-    for (final donation in _latestDonations) {
-      final donor = _asStringMap(donation['donor']);
-      if (donor != null && donor['id'] != null) {
-        uniqueDonors.add(donor);
+      // جمع من أحدث التبرعات
+      for (final donation in _latestDonations) {
+        final donor = _asStringMap(donation['donor']);
+        if (donor != null && donor['id'] != null) {
+          uniqueDonors.add(donor);
+        }
       }
-    }
 
-    // جمع من أفضل المتبرعين
-    for (final donorData in _topDonors) {
-      final donorInfo = _asStringMap(donorData['donor_info']);
-      if (donorInfo != null && donorInfo['id'] != null) {
-        uniqueDonors.add(donorInfo);
+      // جمع من أفضل المتبرعين
+      for (final donorData in _topDonors) {
+        final donorInfo = _asStringMap(donorData['donor_info']);
+        if (donorInfo != null && donorInfo['id'] != null) {
+          uniqueDonors.add(donorInfo);
+        }
       }
-    }
 
-    setState(() {
-      _donorsList = uniqueDonors.toList();
-    });
-  } catch (e) {
-    print('Error loading filter data: $e');
+      setState(() {
+        _donorsList = uniqueDonors.toList();
+      });
+    } catch (e) {
+      print('Error loading filter data: $e');
+    }
   }
-}
 
   void _applyAdvancedFilters() {
     List<dynamic> filteredDonations = List<dynamic>.from(_donations);
@@ -642,12 +1247,20 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
           controller: _tabController,
           tabs: const [
             Tab(
-              icon: Icon(Icons.analytics_rounded, size: 20),
+              icon: Icon(Icons.analytics_rounded,  size: 20),
               text: 'Donations',
             ),
             Tab(
               icon: Icon(Icons.campaign_rounded, size: 20),
               text: 'Campaigns',
+            ),
+            Tab(
+              icon: Icon(Icons.volunteer_activism_rounded, size: 20),
+              text: 'Equipment',
+            ),
+            Tab(
+              icon: Icon(Icons.inventory_2_rounded, size: 20),
+              text: 'Eq Campaigns',
             ),
           ],
           indicatorColor: Colors.white,
@@ -664,6 +1277,8 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
                 children: [
                   _buildDonationsAnalyticsTab(),
                   _buildCampaignsTab(),
+                  _buildEquipmentDonationsTab(),
+                  _buildEquipmentCampaignsTab(),
                 ],
               ),
             ),
@@ -680,7 +1295,6 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
   Widget _buildDonationsAnalyticsTab() {
     return Column(
       children: [
-        // Header مع toggle بين Analytics و Donations List
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           color: AppColors.surface,
@@ -718,15 +1332,344 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
             ],
           ),
         ),
-
-        // Search and Filters (فقط في عرض List)
         if (_donationsViewIndex == 1) _buildFiltersBar(),
-
-        // المحتوى الرئيسي
         Expanded(
           child: _donationsViewIndex == 0
               ? _buildAnalyticsContent()
               : _buildDonationsListContent(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEquipmentDonationsTab() {
+    if (_isLoadingEquipment) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_equipmentError != null) {
+      return Center(child: Padding(padding: const EdgeInsets.all(16), child: Text('Failed to load: $_equipmentError')));
+    }
+
+    final summary = (_equipmentStats['summary'] is Map)
+        ? Map<String, dynamic>.from(_equipmentStats['summary'] as Map)
+        : <String, dynamic>{};
+    final total = _toInt(summary['totalDonations']);
+    final delivered = _toInt(summary['deliveredDonations']);
+    final recent30 = _toInt(summary['recentDonations30Days']);
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                title: 'Total',
+                value: total.toString(),
+                icon: Icons.inventory_2_rounded,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildStatCard(
+                title: 'Delivered',
+                value: delivered.toString(),
+                icon: Icons.check_circle_rounded,
+                color: Colors.green,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildStatCard(
+                title: 'Last 30d',
+                value: recent30.toString(),
+                icon: Icons.schedule_rounded,
+                color: Colors.orange,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Latest Equipment Donations', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+            IconButton(onPressed: _loadEquipmentDonations, icon: const Icon(Icons.refresh)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (_equipmentDonations.isEmpty)
+          const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 40), child: Text('No equipment donations')))
+        else
+          ..._equipmentDonations.map((d) {
+            final m = _asStringMap(d) ?? {};
+            final title = (m['equipment_name'] ?? '').toString();
+            final status = (m['status'] ?? '').toString();
+            final donor = (m['contact_person'] ?? (m['donor'] is Map ? (m['donor']['full_name'] ?? '') : '')).toString();
+            final created = (m['created_at'] ?? '').toString();
+            final statusColor = _equipmentStatusColor(status);
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.accent2.withOpacity(0.18)),
+              ),
+              child: InkWell(
+                onTap: () => _openEquipmentDonationManageSheet(m),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title.isEmpty ? 'Equipment' : title,
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: statusColor.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            status,
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: statusColor),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text('Donor: ${donor.isEmpty ? 'Anonymous' : donor}', style: const TextStyle(color: AppColors.textGray)),
+                    if (created.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text('Created: $created', style: const TextStyle(color: AppColors.textGray, fontSize: 12)),
+                    ],
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: OutlinedButton(
+                        onPressed: () => _openEquipmentDonationManageSheet(m),
+                        child: const Text('Manage'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+      ],
+    );
+  }
+
+  Widget _buildEquipmentCampaignsTab() {
+    final summary = (_equipmentCampaignStats['summary'] is Map)
+        ? Map<String, dynamic>.from(_equipmentCampaignStats['summary'] as Map)
+        : <String, dynamic>{};
+    final fulfillmentRate = _toDouble(summary['fulfillment_rate']);
+    final campaignsCount = _toInt(summary['campaigns_count']);
+
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          color: AppColors.surface,
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildStatCard(
+                      title: 'Campaigns',
+                      value: campaignsCount.toString(),
+                      icon: Icons.campaign_rounded,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildStatCard(
+                      title: 'Fulfillment',
+                      value: '${fulfillmentRate.toStringAsFixed(1)}%',
+                      icon: Icons.percent_rounded,
+                      color: Colors.green,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _openEquipmentCampaignFilters,
+                      icon: const Icon(Icons.filter_alt_rounded, size: 18),
+                      label: const Text('Filters'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  IconButton(
+                    onPressed: () async {
+                      await _loadEquipmentCampaigns();
+                      await _loadEquipmentCampaignStats();
+                    },
+                    icon: const Icon(Icons.refresh),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _isLoadingEquipmentCampaigns
+              ? const Center(child: CircularProgressIndicator())
+              : _equipmentCampaignsError != null
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text('Failed to load: $_equipmentCampaignsError'),
+                      ),
+                    )
+                  : _equipmentCampaigns.isEmpty
+                      ? const Center(child: Text('No equipment campaigns found'))
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _equipmentCampaigns.length + 1,
+                          itemBuilder: (context, index) {
+                            if (index == _equipmentCampaigns.length) {
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    TextButton(
+                                      onPressed: _equipmentCampaignPage > 1
+                                          ? () {
+                                              setState(() => _equipmentCampaignPage -= 1);
+                                              _loadEquipmentCampaigns();
+                                            }
+                                          : null,
+                                      child: const Text('Prev'),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                                      child: Text('Page $_equipmentCampaignPage / $_equipmentCampaignPages'),
+                                    ),
+                                    TextButton(
+                                      onPressed: _equipmentCampaignPage < _equipmentCampaignPages
+                                          ? () {
+                                              setState(() => _equipmentCampaignPage += 1);
+                                              _loadEquipmentCampaigns();
+                                            }
+                                          : null,
+                                      child: const Text('Next'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
+
+                            final c = _equipmentCampaigns[index];
+                            final title = (c['equipment_name'] ?? '').toString();
+                            final status = (c['status'] ?? '').toString();
+                            final needed = _toInt(c['quantity_needed']);
+                            final fulfilled = _toInt(c['quantity_fulfilled']);
+                            final fulfillment = _toDouble(c['fulfillment_percentage']);
+                            final child = _asStringMap(c['child']);
+                            final need = _asStringMap(c['need']);
+
+                            final childName = child?['full_name']?.toString();
+                            final needId = need?['need_id']?.toString();
+                            final needStatus = need?['status']?.toString();
+                            final needSeverity = need?['severity']?.toString();
+                            final needPriority = need?['priority_score']?.toString();
+                            final idRaw = c['campaign_id'] ?? c['id'];
+                            final campaignId = idRaw is int ? idRaw : int.tryParse(idRaw.toString());
+
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: AppColors.accent2.withOpacity(0.18)),
+                              ),
+                              child: InkWell(
+                                onTap: () => _openEquipmentCampaignManageSheet(c),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            title.isEmpty ? 'Equipment Campaign' : title,
+                                            style: const TextStyle(fontWeight: FontWeight.w800),
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.primary.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: Text(
+                                            status,
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                              color: AppColors.primary,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      'Needed: $needed | Fulfilled: $fulfilled | ${fulfillment.toStringAsFixed(1)}%',
+                                      style: const TextStyle(color: AppColors.textGray),
+                                    ),
+                                    if (childName != null || needId != null || needStatus != null || needSeverity != null || needPriority != null) ...[
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '${childName != null ? 'Child: $childName' : ''}'
+                                        '${childName != null && needId != null ? ' • ' : ''}'
+                                        '${needId != null ? 'Need: $needId' : ''}'
+                                        '${(childName != null || needId != null) && (needStatus != null || needSeverity != null || needPriority != null) ? ' • ' : ''}'
+                                        '${needStatus != null ? 'Status: $needStatus' : ''}'
+                                        '${needSeverity != null ? ' | Severity: $needSeverity' : ''}'
+                                        '${needPriority != null ? ' | Priority: $needPriority' : ''}',
+                                        style: const TextStyle(color: AppColors.textGray, fontSize: 12),
+                                      ),
+                                    ],
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      children: [
+                                        if (campaignId != null)
+                                          Expanded(
+                                            child: Text(
+                                              'Campaign ID: $campaignId',
+                                              style: const TextStyle(color: AppColors.textGray, fontSize: 12),
+                                            ),
+                                          )
+                                        else
+                                          const Spacer(),
+                                        OutlinedButton(
+                                          onPressed: () => _openEquipmentCampaignManageSheet(c),
+                                          child: const Text('Manage'),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
         ),
       ],
     );
