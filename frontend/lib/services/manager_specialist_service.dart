@@ -176,7 +176,7 @@ class ManagerSpecialistService {
     required String dayOfWeek,
     required String startTime,
     required String endTime,
-    String? specialistFcmToken,
+    // ❌ أزل: String? specialistFcmToken,
   }) async {
     try {
       final token = await _getToken();
@@ -188,10 +188,10 @@ class ManagerSpecialistService {
         'day_of_week': dayOfWeek,
         'start_time': startTime,
         'end_time': endTime,
-        'specialist_fcm_token': specialistFcmToken,
+        // ❌ أزل: 'specialist_fcm_token': specialistFcmToken,
       };
 
-      print('📤 Adding schedule with notification token: ${specialistFcmToken != null}');
+      print('📤 Adding schedule');
 
       final response = await http.post(
         Uri.parse('$_baseUrl/manager/specialists/$specialistId/schedule'),
@@ -205,19 +205,7 @@ class ManagerSpecialistService {
       final responseBody = jsonDecode(response.body);
 
       if (response.statusCode == 201) {
-        // 👇 استخدم الملف المشترك
-        if (specialistFcmToken != null) {
-          await NotificationSharedService.sendScheduleNotification(
-            specialistToken: specialistFcmToken,
-            action: 'added',
-            dayOfWeek: dayOfWeek,
-            startTime: startTime,
-            endTime: endTime,
-          ).catchError((e) {
-            print('⚠️ Schedule notification failed (continuing): $e');
-          });
-        }
-
+        // ❌ أزل إرسال الإشعار من الفرونت
         return responseBody;
       } else {
         throw Exception('Failed to add schedule: ${responseBody['message']}');
@@ -232,7 +220,7 @@ class ManagerSpecialistService {
   static Future<Map<String, dynamic>> addMultipleSchedules({
     required int specialistId,
     required List<Map<String, dynamic>> schedules,
-    String? specialistFcmToken,
+    // ❌ أزل: String? specialistFcmToken,
   }) async {
     try {
       final token = await _getToken();
@@ -242,10 +230,10 @@ class ManagerSpecialistService {
 
       final requestBody = {
         'schedules': schedules,
-        'specialist_fcm_token': specialistFcmToken,
+        // ❌ أزل: 'specialist_fcm_token': specialistFcmToken,
       };
 
-      print('📤 Adding multiple schedules with notification token: ${specialistFcmToken != null}');
+      print('📤 Adding multiple schedules');
 
       final response = await http.post(
         Uri.parse('$_baseUrl/manager/specialists/$specialistId/schedules/bulk'),
@@ -259,18 +247,7 @@ class ManagerSpecialistService {
       final responseBody = jsonDecode(response.body);
 
       if (response.statusCode == 201) {
-        // 👇 استخدم الملف المشترك
-        if (specialistFcmToken != null && schedules.isNotEmpty) {
-          await NotificationSharedService.sendScheduleNotification(
-            specialistToken: specialistFcmToken,
-            action: 'bulk_added',
-            dayOfWeek: schedules.first['day_of_week'] ?? 'Multiple days',
-            numberOfSchedules: schedules.length,
-          ).catchError((e) {
-            print('⚠️ Bulk schedule notification failed (continuing): $e');
-          });
-        }
-
+        // ❌ أزل إرسال الإشعار من الفرونت
         return responseBody;
       } else {
         throw Exception('Failed to add schedules: ${responseBody['message']}');
@@ -287,8 +264,7 @@ class ManagerSpecialistService {
     String? dayOfWeek,
     String? startTime,
     String? endTime,
-    String? specialistFcmToken,
-
+    // ❌ أزل: String? specialistFcmToken,
   }) async {
     try {
       final token = await _getToken();
@@ -300,9 +276,9 @@ class ManagerSpecialistService {
       if (dayOfWeek != null) requestBody['day_of_week'] = dayOfWeek;
       if (startTime != null) requestBody['start_time'] = startTime;
       if (endTime != null) requestBody['end_time'] = endTime;
-      if (specialistFcmToken != null) requestBody['specialist_fcm_token'] = specialistFcmToken;
+      // ❌ أزل: if (specialistFcmToken != null) requestBody['specialist_fcm_token'] = specialistFcmToken;
 
-      print('📤 Updating schedule with notification token: ${specialistFcmToken != null}');
+      print('📤 Updating schedule');
 
       final response = await http.put(
         Uri.parse('$_baseUrl/manager/schedules/$scheduleId'),
@@ -316,19 +292,7 @@ class ManagerSpecialistService {
       final responseBody = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
-        // 👇 استخدم الملف المشترك
-        if (specialistFcmToken != null) {
-          await NotificationSharedService.sendScheduleNotification(
-            specialistToken: specialistFcmToken,
-            action: 'updated',
-            dayOfWeek: dayOfWeek ?? 'schedule',
-            startTime: startTime,
-            endTime: endTime,
-          ).catchError((e) {
-            print('⚠️ Update schedule notification failed (continuing): $e');
-          });
-        }
-
+        // ❌ أزل إرسال الإشعار من الفرونت
         return responseBody;
       } else {
         throw Exception('Failed to update schedule: ${responseBody['message']}');
@@ -342,7 +306,7 @@ class ManagerSpecialistService {
   // ==================== حذف جدول مع الإشعارات ====================
   static Future<Map<String, dynamic>> deleteSchedule({
     required int scheduleId,
-    String? specialistFcmToken,
+    // ❌ أزل: String? specialistFcmToken,
   }) async {
     try {
       final token = await _getToken();
@@ -350,34 +314,20 @@ class ManagerSpecialistService {
         throw Exception('No authentication token found');
       }
 
-      final Map<String, dynamic> requestBody = {};
-      if (specialistFcmToken != null) requestBody['specialist_fcm_token'] = specialistFcmToken;
-
-      print('📤 Deleting schedule with notification token: ${specialistFcmToken != null}');
-
+      // ❌ أزل body بالكامل
       final response = await http.delete(
         Uri.parse('$_baseUrl/manager/schedules/$scheduleId'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
-        body: specialistFcmToken != null ? jsonEncode(requestBody) : null,
+        // ❌ أزل: body: specialistFcmToken != null ? jsonEncode(requestBody) : null,
       );
 
       final responseBody = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
-        // 👇 استخدم الملف المشترك
-        if (specialistFcmToken != null) {
-          await NotificationSharedService.sendScheduleNotification(
-            specialistToken: specialistFcmToken,
-            action: 'deleted',
-            dayOfWeek: 'schedule',
-          ).catchError((e) {
-            print('⚠️ Delete schedule notification failed (continuing): $e');
-          });
-        }
-
+        // ❌ أزل إرسال الإشعار من الفرونت
         return responseBody;
       } else {
         throw Exception('Failed to delete schedule: ${responseBody['message']}');
@@ -387,6 +337,7 @@ class ManagerSpecialistService {
       rethrow;
     }
   }
+
 
   // ==================== جلب التقرير الشامل للأخصائي ====================
   static Future<Map<String, dynamic>> getSpecialistComprehensiveReport(int specialistId) async {

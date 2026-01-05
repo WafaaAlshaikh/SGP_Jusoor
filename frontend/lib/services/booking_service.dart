@@ -1,10 +1,19 @@
 // services/booking_service.dart
 import 'dart:convert';
 import 'dart:io'; // ⬅️⬅️⬅️ أضف هذا السطر
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/booking_models.dart';
 
 class BookingService {
+
+   static String get _baseUrl {
+    if (kIsWeb) {
+      return 'http://localhost:5000/api';
+    } else {
+      return 'http://10.0.2.2:5000/api';
+    }
+  }
 
 
   static Future<List<SessionType>> getSuitableSessionTypes(String token,
@@ -12,7 +21,7 @@ class BookingService {
     try {
       final response = await http.get(
         Uri.parse(
-            'http://10.0.2.2:5000/api/booking/child/$childId/suitable-session-types'),
+            '$_baseUrl/booking/child/$childId/suitable-session-types'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -48,7 +57,7 @@ class BookingService {
     try {
       final response = await http.get(
         Uri.parse(
-            'http://10.0.2.2:5000/api/booking/institution-session-types/$institutionId'),
+            '$_baseUrl/booking/institution-session-types/$institutionId'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -74,7 +83,7 @@ class BookingService {
     required String date,
   }) async {
     try {
-      final uri = Uri.parse('http://10.0.2.2:5000/api/booking/available-slots')
+      final uri = Uri.parse('$_baseUrl/booking/available-slots')
           .replace(
         queryParameters: {
           'institution_id': institutionId.toString(),
@@ -138,7 +147,7 @@ class BookingService {
 
       // ⬇️⬇️⬇️ التصحيح هنا - استخدم الـ URL الصحيح
       final response = await http.post(
-        Uri.parse('http://10.0.2.2:5000/api/booking/book-session'),
+        Uri.parse('$_baseUrl/booking/book-session'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -234,7 +243,7 @@ class BookingService {
       print(' - Payment Method: $paymentMethod');
 
       final response = await http.post(
-        Uri.parse('http://10.0.2.2:5000/api/booking/confirm-payment/$sessionId'),
+        Uri.parse('$_baseUrl/booking/confirm-payment/$sessionId'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -281,7 +290,7 @@ class BookingService {
       print(' - Payment Data: $paymentData');
 
       final response = await http.post(
-        Uri.parse('http://10.0.2.2:5000/api/booking/confirm-payment/$sessionId'),
+        Uri.parse('$_baseUrl/booking/confirm-payment/$sessionId'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',

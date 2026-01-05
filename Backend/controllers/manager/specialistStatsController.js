@@ -12,11 +12,120 @@ const {
   VacationRequest,
   Manager,
   SpecialistSchedule,
-  Child,  // ⬅️ تأكد من إضافة هذا
+  Child,
   SessionRating 
 } = require('../../model/index');
 
+// ==================== دوال مساعدة جديدة ====================
 
+/**
+ * جلب FCM Token للأخصائي من قاعدة البيانات
+ * @param {number} specialistId - معرف الأخصائي
+ * @returns {Promise<string|null>} - FCM Token أو null إذا لم يوجد
+ */
+const getSpecialistFCMToken = async (specialistId) => {
+  try {
+    const [tokenResult] = await sequelize.query(`
+      SELECT token 
+      FROM UserDeviceTokens 
+      WHERE user_id = ? 
+        AND is_active = 1
+      ORDER BY updated_at DESC 
+      LIMIT 1
+    `, { replacements: [specialistId] });
+
+    return tokenResult.length > 0 ? tokenResult[0].token : null;
+  } catch (error) {
+    console.error('❌ خطأ في جلب FCM Token للأخصائي:', error);
+    return null;
+  }
+};
+
+// 🔧 دالة مساعدة لإرسال إشعارات الجداول
+const sendScheduleNotification = async (specialistToken, action, scheduleData) => {
+  try {
+    if (!specialistToken || specialistToken.trim() === '') {
+      console.log('⚠️ لا يوجد توكن للأخصائي لإرسال إشعار الجدول');
+      return;
+    }
+
+    let title, body, notificationData = {};
+
+    switch (action) {
+      case 'added':
+        title = '📅 New Schedule Added';
+        body = `New schedule added for ${scheduleData.day_of_week}: ${scheduleData.start_time} - ${scheduleData.end_time}`;
+        notificationData = {
+          type: 'schedule_change',
+          action: 'added',
+          day_of_week: scheduleData.day_of_week,
+          start_time: scheduleData.start_time,
+          end_time: scheduleData.end_time,
+          schedule_id: scheduleData.schedule_id?.toString(),
+          timestamp: new Date().toISOString(),
+          channel: 'default_channel'  // ⬅️ أضف هذا
+        };
+        break;
+
+      case 'updated':
+        title = '🔄 Schedule Updated';
+        body = `Schedule for ${scheduleData.day_of_week} has been updated`;
+        notificationData = {
+          type: 'schedule_change',
+          action: 'updated',
+          day_of_week: scheduleData.day_of_week,
+          start_time: scheduleData.start_time || '',
+          end_time: scheduleData.end_time || '',
+          schedule_id: scheduleData.schedule_id?.toString(),
+          timestamp: new Date().toISOString(),
+          channel: 'default_channel'  // ⬅️ أضف هذا
+        };
+        break;
+
+      case 'deleted':
+        title = '🗑️ Schedule Deleted';
+        body = `Schedule for ${scheduleData.day_of_week} has been deleted`;
+        notificationData = {
+          type: 'schedule_change',
+          action: 'deleted',
+          schedule_id: scheduleData.schedule_id?.toString(),
+          timestamp: new Date().toISOString(),
+          channel: 'default_channel'  // ⬅️ أضف هذا
+        };
+        break;
+
+      case 'bulk_added':
+        title = '📋 Multiple Schedules Added';
+        body = `${scheduleData.count} schedules have been added`;
+        notificationData = {
+          type: 'schedule_change',
+          action: 'bulk_added',
+          count: scheduleData.count?.toString(),
+          timestamp: new Date().toISOString(),
+          channel: 'default_channel'  // ⬅️ أضف هذا
+        };
+        break;
+
+      default:
+        title = '📅 Schedule Modified';
+        body = 'Your schedule has been modified';
+        notificationData = {
+          channel: 'default_channel'  // ⬅️ أضف هذا
+        };
+    }
+
+    await NotificationService.sendToToken(
+      specialistToken.trim(),
+      title,
+      body,
+      notificationData
+    );
+
+    console.log(`✅ إشعار الجدول ${action} تم إرساله`);
+  } catch (error) {
+    console.error(`❌ خطأ في إرسال إشعار الجدول ${action}:`, error.message);
+  }
+};
 
 // Helper function to send welcome email
 const sendWelcomeEmail = async (email, full_name, password) => {
@@ -128,7 +237,7 @@ Jusoor System Team
             border: 1px solid #ffeaa7;
             border-radius: 5px;
             padding: 15px;
-            margin: 20px 0;
+            margin: 20px 0,
             color: #856404;
         }
         .button {
@@ -1144,86 +1253,6 @@ exports.getAllSpecialistsSchedules = async (req, res) => {
   }
 };
 
-// 🔧 دالة مساعدة لإرسال إشعارات الجداول
-const sendScheduleNotification = async (specialistToken, action, scheduleData) => {
-  try {
-    if (!specialistToken || specialistToken.trim() === '') {
-      console.log('⚠️ No specialist token provided for schedule notification');
-      return;
-    }
-
-    let title, body, notificationData = {};
-
-    switch (action) {
-      case 'added':
-        title = '📅 New Schedule Added';
-        body = `New schedule added for ${scheduleData.day_of_week}: ${scheduleData.start_time} - ${scheduleData.end_time}`;
-        notificationData = {
-          type: 'schedule_change',
-          action: 'added',
-          day_of_week: scheduleData.day_of_week,
-          start_time: scheduleData.start_time,
-          end_time: scheduleData.end_time,
-          schedule_id: scheduleData.schedule_id?.toString(),
-          timestamp: new Date().toISOString()
-        };
-        break;
-
-      case 'updated':
-        title = '🔄 Schedule Updated';
-        body = `Schedule for ${scheduleData.day_of_week} has been updated`;
-        notificationData = {
-          type: 'schedule_change',
-          action: 'updated',
-          day_of_week: scheduleData.day_of_week,
-          start_time: scheduleData.start_time || '',
-          end_time: scheduleData.end_time || '',
-          schedule_id: scheduleData.schedule_id?.toString(),
-          timestamp: new Date().toISOString()
-        };
-        break;
-
-      case 'deleted':
-        title = '🗑️ Schedule Deleted';
-        body = `Schedule has been deleted`;
-        notificationData = {
-          type: 'schedule_change',
-          action: 'deleted',
-          schedule_id: scheduleData.schedule_id?.toString(),
-          timestamp: new Date().toISOString()
-        };
-        break;
-
-      case 'bulk_added':
-        title = '📋 Multiple Schedules Added';
-        body = `${scheduleData.count} schedules have been added`;
-        notificationData = {
-          type: 'schedule_change',
-          action: 'bulk_added',
-          count: scheduleData.count?.toString(),
-          timestamp: new Date().toISOString()
-        };
-        break;
-
-      default:
-        title = '📅 Schedule Modified';
-        body = 'Your schedule has been modified';
-    }
-
-    await NotificationService.sendToToken(
-      specialistToken.trim(),
-      title,
-      body,
-      notificationData
-    );
-
-    console.log(`✅ Schedule ${action} notification sent`);
-  } catch (error) {
-    console.error(`❌ Error sending schedule ${action} notification:`, error.message);
-  }
-};
-
-
 /**
  * @desc    Get specialist schedule by ID (الحصول على جدول أخصائي محدد)
  * @route   GET /api/manager/specialists/:id/schedule
@@ -1343,7 +1372,6 @@ exports.getSpecialistSchedule = async (req, res) => {
   }
 };
 
-
 /**
  * @desc    Add schedule for specialist (إضافة جدول دوام لأخصائي)
  * @route   POST /api/manager/specialists/:id/schedule
@@ -1353,8 +1381,7 @@ exports.addSpecialistSchedule = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     const specialistId = req.params.id;
-    const { day_of_week, start_time, end_time, specialist_fcm_token } = req.body; // 👈 استقبل التوكن
-
+    const { day_of_week, start_time, end_time } = req.body; // ✅ تم التعديل: أزلنا specialist_fcm_token
 
     // الحصول على مؤسسة المدير
     const manager = await Manager.findOne({
@@ -1393,8 +1420,6 @@ exports.addSpecialistSchedule = async (req, res) => {
         message: 'Specialist not found or not approved'
       });
     }
-
-   
 
     // التحقق من البيانات
     if (!day_of_week || !start_time || !end_time) {
@@ -1436,10 +1461,13 @@ exports.addSpecialistSchedule = async (req, res) => {
       end_time
     });
 
+    // ✅ التعديل: جلب التوكن من قاعدة البيانات بدلاً من الفرونت
+    const specialistToken = await getSpecialistFCMToken(specialistId);
+    
     // 👇 إرسال الإشعار إذا كان في توكن
-    if (specialist_fcm_token) {
+    if (specialistToken) {
       await sendScheduleNotification(
-        specialist_fcm_token,
+        specialistToken,
         'added',
         {
           day_of_week,
@@ -1483,9 +1511,7 @@ exports.updateSpecialistSchedule = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     const scheduleId = req.params.scheduleId;
-    const { day_of_week, start_time, end_time, specialist_fcm_token } = req.body;
-    // بيانات التعديل
-    
+    const { day_of_week, start_time, end_time } = req.body; // ✅ تم التعديل: أزلنا specialist_fcm_token
 
     // التحقق من وجود بيانات للتعديل
     if (!day_of_week && !start_time && !end_time) {
@@ -1534,8 +1560,7 @@ exports.updateSpecialistSchedule = async (req, res) => {
     if (start_time) updateData.start_time = start_time;
     if (end_time) updateData.end_time = end_time;
 
-    // تحديث الجدول
-   const oldData = {
+    const oldData = {
       day_of_week: schedule.day_of_week,
       start_time: schedule.start_time,
       end_time: schedule.end_time
@@ -1544,10 +1569,13 @@ exports.updateSpecialistSchedule = async (req, res) => {
     // تحديث الجدول
     await schedule.update(updateData);
 
+    // ✅ التعديل: جلب التوكن من قاعدة البيانات بدلاً من الفرونت
+    const specialistToken = await getSpecialistFCMToken(schedule.specialist_id);
+    
     // 👇 إرسال الإشعار إذا كان في توكن
-    if (specialist_fcm_token) {
+    if (specialistToken) {
       await sendScheduleNotification(
-        specialist_fcm_token,
+        specialistToken,
         'updated',
         {
           day_of_week: day_of_week || oldData.day_of_week,
@@ -1582,7 +1610,6 @@ exports.updateSpecialistSchedule = async (req, res) => {
   }
 };
 
-
 /**
  * @desc    Delete specialist schedule (حذف جدول دوام أخصائي)
  * @route   DELETE /api/manager/schedules/:scheduleId
@@ -1592,7 +1619,7 @@ exports.deleteSpecialistSchedule = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     const scheduleId = req.params.scheduleId;
-    const { specialist_fcm_token } = req.body; // 👈 استقبل التوكن
+    // ✅ تم التعديل: أزلنا const { specialist_fcm_token } = req.body;
 
     // العثور على الجدول والتحقق من الصلاحيات
     const schedule = await SpecialistSchedule.findByPk(scheduleId, {
@@ -1627,10 +1654,13 @@ exports.deleteSpecialistSchedule = async (req, res) => {
     // حذف الجدول
     await schedule.destroy();
 
+    // ✅ التعديل: جلب التوكن من قاعدة البيانات بدلاً من الفرونت
+    const specialistToken = await getSpecialistFCMToken(schedule.specialist_id);
+    
     // 👇 إرسال الإشعار إذا كان في توكن
-    if (specialist_fcm_token) {
+    if (specialistToken) {
       await sendScheduleNotification(
-        specialist_fcm_token,
+        specialistToken,
         'deleted',
         scheduleData
       ).catch(error => {
@@ -1653,7 +1683,6 @@ exports.deleteSpecialistSchedule = async (req, res) => {
   }
 };
 
-
 /**
  * @desc    Add multiple schedules for specialist (إضافة جداول متعددة لأخصائي)
  * @route   POST /api/manager/specialists/:id/schedules/bulk
@@ -1663,7 +1692,8 @@ exports.addMultipleSchedules = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     const specialistId = req.params.id;
-    const { schedules, specialist_fcm_token } = req.body;
+    const { schedules } = req.body; // ✅ تم التعديل: أزلنا specialist_fcm_token
+
     // الحصول على مؤسسة المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
@@ -1697,8 +1727,6 @@ exports.addMultipleSchedules = async (req, res) => {
         message: 'Specialist not found or not approved'
       });
     }
-
-   
 
     if (!schedules || !Array.isArray(schedules) || schedules.length === 0) {
       return res.status(400).json({
@@ -1764,10 +1792,13 @@ exports.addMultipleSchedules = async (req, res) => {
 
       await transaction.commit();
 
+      // ✅ التعديل: جلب التوكن من قاعدة البيانات بدلاً من الفرونت
+      const specialistToken = await getSpecialistFCMToken(specialistId);
+      
       // 👇 إرسال الإشعار إذا كان في توكن
-      if (specialist_fcm_token && createdSchedules.length > 0) {
+      if (specialistToken && createdSchedules.length > 0) {
         await sendScheduleNotification(
-          specialist_fcm_token,
+          specialistToken,
           'bulk_added',
           {
             count: createdSchedules.length,
@@ -1804,6 +1835,7 @@ exports.addMultipleSchedules = async (req, res) => {
     });
   }
 };
+
 
 
 // ==================== وظائف إدارة طلبات الإجازات ====================

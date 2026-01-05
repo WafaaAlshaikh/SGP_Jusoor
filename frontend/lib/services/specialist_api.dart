@@ -13,6 +13,15 @@ class SpecialistService {
     }
   }
 
+  static String _buildUrl(String endpoint) {
+  if (kIsWeb) {
+    return 'http://localhost:5000/api/$endpoint';
+  } else {
+    return 'http://10.0.2.2:5000/api/$endpoint';
+  }
+}
+
+
   static Future<Map<String, dynamic>> getAvailableSessionTypes() async {
     try {
       final token = await _getToken();
@@ -276,7 +285,7 @@ static Future<Map<String, dynamic>> getSpecialistRatings() async {
       final token = prefs.getString('token') ?? '';
 
       final response = await http.get(
-        Uri.parse('http://10.0.2.2:5000/api/ratings/specialist-ratings'),
+        Uri.parse(_buildUrl('ratings/specialist-ratings')),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -301,7 +310,7 @@ static Future<Map<String, dynamic>> getSpecialistRatings() async {
     final token = prefs.getString('token') ?? '';
 
     final response = await http.get(
-      Uri.parse('http://10.0.2.2:5000/api/ratings/specialist-stats'),
+      Uri.parse(_buildUrl('ratings/specialist-stats')),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -380,4 +389,6 @@ static Future<Map<String, dynamic>> getSpecialistRatings() async {
     };
   }
 }
+
+
 }

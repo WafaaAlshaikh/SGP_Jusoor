@@ -41,14 +41,14 @@ router.get('/me', authMiddleware, (req, res) => {
 
 router.get('/imminent-sessions', authMiddleware, specialistOnly, getImminentSessions);
 
-// 🔹 إضافة جلسة
-router.post('/add-session', authMiddleware, specialistOnly, addSession);
-router.get(
-  '/institution-children',
-  authMiddleware,
-  specialistOnly,
-  getChildrenInInstitution
-);
+// // 🔹 إضافة جلسة
+// router.post('/add-session', authMiddleware, specialistOnly, addSession);
+// router.get(
+//   '/institution-children',
+//   authMiddleware,
+//   specialistOnly,
+//   getChildrenInInstitution
+// );
 
 // ✅ جلب الأطفال المؤهلين (نفس المؤسسة + نفس الحالة)
 router.get(

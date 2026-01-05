@@ -1,9 +1,15 @@
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class OllamaService {
-  static const String baseUrl = 'http://10.0.2.2:5001';
-
+  static String get baseUrl {
+  if (kIsWeb) {
+    return 'http://localhost:5001';
+  } else {
+    return 'http://10.0.2.2:5001';
+  }
+}
   // دالة فحص الحالة الجديدة
   static Future<Map<String, dynamic>> healthCheck() async {
     try {

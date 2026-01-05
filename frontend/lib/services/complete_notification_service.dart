@@ -24,31 +24,31 @@ class CompleteNotificationService {
   bool _isAppInForeground = true;
 
   // 
-  Future<void> initializeCompleteNotifications() async {
-    try {
-      print('');
-
-      // 1. 
-      await _initializeLocalNotifications();
-
-      // 2. FCM
-      await _initializeFCM();
-
-      // 3. 
-      await _requestPermissions();
-
-      // 4. 
-      await _getFCMToken();
-
-      // 5. 
-      await _cleanOldNotifications();
-
-      print('');
-
-    } catch (e) {
-      print(' $e');
-    }
-  }
+  // Future<void> initializeCompleteNotifications() async {
+  //   try {
+  //     print('');
+  //
+  //     // 1.
+  //     await _initializeLocalNotifications();
+  //
+  //     // 2. FCM
+  //     await _initializeFCM();
+  //
+  //     // 3.
+  //     await _requestPermissions();
+  //
+  //     // 4.
+  //     await _getFCMToken();
+  //
+  //     // 5.
+  //     await _cleanOldNotifications();
+  //
+  //     print('');
+  //
+  //   } catch (e) {
+  //     print(' $e');
+  //   }
+  // }
 
   //  1. 
   Future<void> _initializeLocalNotifications() async {
@@ -119,61 +119,87 @@ class CompleteNotificationService {
   }
 
   // 
+  // Future<void> _createNotificationChannels() async {
+  //   //
+  //   final AndroidNotificationDetails chatChannel = AndroidNotificationDetails(
+  //     CHAT_CHANNEL,
+  //     '',
+  //     channelDescription: '',
+  //     importance: Importance.high,
+  //     priority: Priority.high,
+  //     playSound: true,
+  //     enableVibration: true,
+  //   );
+  //
+  //   //
+  //   final AndroidNotificationDetails systemChannel = AndroidNotificationDetails(
+  //     SYSTEM_CHANNEL,
+  //     '',
+  //     channelDescription: '',
+  //     importance: Importance.defaultImportance,
+  //     priority: Priority.defaultPriority,
+  //     playSound: true,
+  //     enableVibration: false,
+  //   );
+  //
+  //   //
+  //   final AndroidNotificationDetails alertChannel = AndroidNotificationDetails(
+  //     ALERT_CHANNEL,
+  //     '',
+  //     channelDescription: '',
+  //     importance: Importance.max,
+  //     priority: Priority.high,
+  //     playSound: true,
+  //     enableVibration: true,
+  //   );
+  //
+  //   await flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
+  //       AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(
+  //       AndroidNotificationChannel(
+  //         CHAT_CHANNEL,
+  //         '',
+  //         importance: Importance.high,
+  //       ));
+  //
+  //   print('');
+  // }
+
+
+  // 1. تعليق أو تعديل _createNotificationChannels()
   Future<void> _createNotificationChannels() async {
-    // 
-    final AndroidNotificationDetails chatChannel = AndroidNotificationDetails(
-      CHAT_CHANNEL,
-      '',
-      channelDescription: '',
-      importance: Importance.high,
-      priority: Priority.high,
-      playSound: true,
-      enableVibration: true,
-    );
+    print('ℹ️ تفادي إنشاء القنوات - تم إنشاؤها مسبقاً في notification_service');
+    return; // لا تفعل شيئاً
+  }
 
-    // 
-    final AndroidNotificationDetails systemChannel = AndroidNotificationDetails(
-      SYSTEM_CHANNEL,
-      '',
-      channelDescription: '',
-      importance: Importance.defaultImportance,
-      priority: Priority.defaultPriority,
-      playSound: true,
-      enableVibration: false,
-    );
+/// في complete_notification_service.dart
+  Future<void> initializeCompleteNotifications() async {
+    print('🔄 تهيئة خدمة الشات فقط...');
 
-    // 
-    final AndroidNotificationDetails alertChannel = AndroidNotificationDetails(
-      ALERT_CHANNEL,
-      '',
-      channelDescription: '',
-      importance: Importance.max,
-      priority: Priority.high,
-      playSound: true,
-      enableVibration: true,
-    );
+    // فقط معالجة الشات
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      final data = message.data;
+      final type = data['type'] ?? '';
 
-    await flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(
-        AndroidNotificationChannel(
-          CHAT_CHANNEL,
-          '',
-          importance: Importance.high,
-        ));
+      // فقط معالجة إشعارات الشات
+      if (type == 'chat' || data.containsKey('chatRoomId')) {
+        print('💬 Chat notification received');
+        // معالجة الشات هنا
+      }
+    });
 
-    print('');
+    print('✅ خدمة الشات جاهزة');
   }
 
   // 
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
     print('');
 
-    // 
-    // if (_isAppInForeground) {
-    //   await _showInAppNotification(message);
-    // } else {
-      await _showSystemNotification(message);
-    // }
+    // //
+    if (_isAppInForeground) {
+     await _showInAppNotification(message);
+   } else {
+     await _showSystemNotification(message);
+   }
   }
 
   // 

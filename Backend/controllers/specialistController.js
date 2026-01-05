@@ -7,6 +7,8 @@ const Institution = require('../model/Institution');
 const SessionType = require('../model/SessionType');
 const Diagnosis = require('../model/Diagnosis');
 const Notification = require('../model/Notification');
+const NotificationService = require('../services/notificationService');
+const UserDeviceToken = require('../model/UserDeviceToken');
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/db');
 const ZoomMeeting = require('../model/ZoomMeeting');
@@ -156,6 +158,116 @@ const generateTimeSlots = (startTime, endTime) => {
   return slots;
 };
 
+
+// ============== Helper Function ==============
+async function updateCompletionTableOnSessionAdd(childId, specialistId, institutionId) {
+  try {
+    const ChildSpecialistCompletion = require('../model/ChildSpecialistCompletion');
+    const Child = require('../model/Child');
+    
+    // 1. البحث عن سجل موجود
+    const existingRecord = await ChildSpecialistCompletion.findOne({
+      where: {
+        child_id: childId,
+        specialist_id: specialistId,
+        institution_id: institutionId
+      }
+    });
+    
+    // 2. تحديث أو إنشاء السجل
+    if (existingRecord) {
+      await existingRecord.update({
+        has_no_active_sessions: false, // أصبحت فيه جلسة نشطة
+        status: 'pending',
+        updated_at: new Date()
+      });
+    } else {
+      await ChildSpecialistCompletion.create({
+        child_id: childId,
+        specialist_id: specialistId,
+        institution_id: institutionId,
+        has_no_active_sessions: false,
+        has_final_evaluation: false,
+        has_no_pending_requests: true,
+        specialist_confirmed: false,
+        status: 'pending'
+      });
+    }
+    
+    // 3. التحقق إذا الطفل كان مكمل وإعادته لحالة Active
+    const child = await Child.findOne({ where: { child_id: childId } });
+    if (child && child.registration_status === 'Completed') {
+      await child.update({
+        registration_status: 'Approved',
+        current_institution_id: institutionId,
+        updated_at: new Date()
+      });
+    }
+    
+    return true;
+  } catch (error) {
+    console.warn('⚠️ Warning in updateCompletionTableOnSessionAdd:', error.message);
+    return false;
+  }
+}
+
+// ============== Main Function ==============
+// const addSession = async (req, res) => {
+//   try {
+//     const specialistId = req.user.user_id;
+//     const { child_id, institution_id, date, time, duration = 60, price = 0, session_type = 'Onsite' } = req.body;
+
+//     if (!child_id || !date || !time) {
+//       return res.status(400).json({ message: 'Missing required fields' });
+//     }
+
+//     if (duration <= 0) return res.status(400).json({ message: 'Duration must be positive' });
+//     if (price < 0) return res.status(500).json({ message: 'Price cannot be negative' });
+
+//     const sessionDateTime = new Date(`${date}T${time}`);
+//     if (sessionDateTime < new Date()) return res.status(400).json({ message: 'Cannot schedule session in the past' });
+
+//     if (session_type === 'Onsite' && !institution_id) {
+//       return res.status(400).json({ message: 'Institution is required for onsite sessions' });
+//     }
+
+//     const conflictSession = await Session.findOne({
+//       where: {
+//         specialist_id: specialistId,
+//         date,
+//         time,
+//         status: 'Scheduled'
+//       }
+//     });
+//     if (conflictSession) return res.status(400).json({ message: 'You already have a session scheduled at this time' });
+
+//     const session = await Session.create({
+//       child_id,
+//       specialist_id: specialistId,
+//       institution_id: institution_id || null,
+//       date,
+//       time,
+//       duration,
+//       price,
+//       session_type,
+//       status: 'Scheduled'
+//     });
+
+//     // ============================================
+//     // ⭐⭐ Call the helper function ⭐⭐
+//     // ============================================
+//     await updateCompletionTableOnSessionAdd(
+//       child_id, 
+//       specialistId, 
+//       institution_id || null
+//     );
+
+//     res.status(201).json({ message: 'Session created successfully', session });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// };
 
 const addSession = async (req, res) => {
   try {
@@ -595,187 +707,6 @@ const getAvailableSessionTypes = async (req, res) => {
   }
 };
 
-// const addSessionsForChildren = async (req, res) => {
-//   try {
-//     const specialistId = req.user.user_id;
-//     const { 
-//       child_ids, 
-//       session_type_id,
-//       date, 
-//       time, 
-//       session_type = 'Onsite',
-//       notes 
-//     } = req.body;
-
-//     if (!child_ids || !Array.isArray(child_ids) || child_ids.length === 0) {
-//       return res.status(400).json({ 
-//         success: false,
-//         message: 'يجب تحديد طفل واحد على الأقل' 
-//       });
-//     }
-
-//     if (!session_type_id || !date || !time) {
-//       return res.status(400).json({ 
-//         success: false,
-//         message: 'الحقول المطلوبة: session_type_id, date, time' 
-//       });
-//     }
-
-//     const specialist = await Specialist.findOne({
-//       where: { specialist_id: specialistId }
-//     });
-
-//     if (!specialist || !specialist.institution_id) {
-//       return res.status(404).json({ 
-//         success: false,
-//         message: 'المختص أو المؤسسة غير موجودة' 
-//       });
-//     }
-
-//     const sessionType = await SessionType.findOne({
-//       where: {
-//         session_type_id,
-//         institution_id: specialist.institution_id,
-//         approval_status: 'Approved'
-//       }
-//     });
-
-//     if (!sessionType) {
-//       return res.status(404).json({ 
-//         success: false,
-//         message: 'نوع الجلسة غير موجود أو غير موافق عليه' 
-//       });
-//     }
-
-//     const children = await Child.findAll({
-//       where: {
-//         child_id: { [Op.in]: child_ids },
-//         current_institution_id: specialist.institution_id,
-//         registration_status: 'Approved',
-//         deleted_at: null
-//       },
-//       include: [
-//         {
-//           model: Parent,
-//           attributes: ['parent_id']
-//         }
-//       ]
-//     });
-
-//     if (children.length !== child_ids.length) {
-//       return res.status(400).json({ 
-//         success: false,
-//         message: 'بعض الأطفال غير موجودين أو غير مسجلين في المؤسسة' 
-//       });
-//     }
-
-//     const sessionDateTime = new Date(`${date}T${time}`);
-//     if (sessionDateTime < new Date()) {
-//       return res.status(400).json({ 
-//         success: false,
-//         message: 'لا يمكن جدولة جلسة في الماضي' 
-//       });
-//     }
-
-//     const dayOfWeek = sessionDateTime.toLocaleDateString('en-US', { weekday: 'long' });
-//     const SpecialistSchedule = require('../model/SpecialistSchedule');
-    
-//     const specialistSchedule = await SpecialistSchedule.findOne({
-//       where: {
-//         specialist_id: specialistId,
-//         day_of_week: dayOfWeek
-//       }
-//     });
-
-//     if (!specialistSchedule) {
-//       return res.status(400).json({ 
-//         success: false,
-//         message: 'لا يوجد جدول عمل للمختص في هذا اليوم' 
-//       });
-//     }
-
-//     const sessionTime = time.substring(0, 5); 
-//     const scheduleStart = specialistSchedule.start_time.substring(0, 5);
-//     const scheduleEnd = specialistSchedule.end_time.substring(0, 5);
-
-//     if (sessionTime < scheduleStart || sessionTime >= scheduleEnd) {
-//       return res.status(400).json({ 
-//         success: false,
-//         message: `الوقت المحدد خارج ساعات العمل (${scheduleStart} - ${scheduleEnd})` 
-//       });
-//     }
-
-//     const conflictSessions = await Session.findAll({
-//       where: {
-//         specialist_id: specialistId,
-//         date,
-//         time: { [Op.like]: `${sessionTime}%` }, 
-//         status: { 
-//           [Op.notIn]: ['Cancelled', 'Rejected', 'Completed', 'Pending Approval'] 
-//         }
-//       }
-//     });
-
-//     if (conflictSessions.length > 0) {
-//       return res.status(400).json({ 
-//         success: false,
-//         message: 'هذا الوقت محجوز مسبقاً' 
-//       });
-//     }
-
-//     const createdSessions = [];
-//     const notifications = [];
-
-//     for (const child of children) {
-//       const session = await Session.create({
-//         child_id: child.child_id,
-//         specialist_id: specialistId,
-//         institution_id: specialist.institution_id,
-//         session_type_id,
-//         date,
-//         time: `${sessionTime}:00`, 
-//         session_type,
-//         status: 'Pending Approval', 
-//         parent_approved: null, 
-//         is_pending: true,
-//         parent_notes: notes || null
-//       });
-
-//       createdSessions.push(session);
-
-//       if (child.Parent && child.Parent.parent_id) {
-//         const notification = await Notification.create({
-//           user_id: child.Parent.parent_id,
-//           title: 'طلب موافقة على جلسة جديدة',
-//           message: `تم إنشاء جلسة جديدة لطفلك ${child.full_name} في ${date} الساعة ${sessionTime}. يرجى الموافقة أو الرفض.`,
-//           type: 'session_update',
-//           related_id: session.session_id,
-//           is_read: false
-//         });
-//         notifications.push(notification);
-//       }
-//     }
-
-//     res.status(201).json({
-//       success: true,
-//       message: `تم إنشاء ${createdSessions.length} جلسة بنجاح وتم إرسال طلبات الموافقة للأهل`,
-//       data: {
-//         sessions: createdSessions,
-//         count: createdSessions.length
-//       }
-//     });
-
-//   } catch (err) {
-//     console.error('Error in addSessionsForChildren:', err);
-//     res.status(500).json({ 
-//       success: false,
-//       message: 'خطأ في إنشاء الجلسات', 
-//       error: err.message 
-//     });
-//   }
-// };
-
-
 const addSessionsForChildren = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
@@ -904,8 +835,10 @@ const addSessionsForChildren = async (req, res) => {
       });
     }
 
-    const createdSessions = [];
+   const createdSessions = [];
     const notifications = [];
+
+    console.log('🔔 Preparing to send notifications to parents...');
 
     for (const child of children) {
       const session = await Session.create({
@@ -918,58 +851,111 @@ const addSessionsForChildren = async (req, res) => {
         session_type,
         status: 'Pending Approval', 
         parent_approved: null, 
-    is_pending: true,
-    parent_notes: notes || null,
-    // 🔴 أضف هذه الأسطر لحل المشكلة:
-    original_price: sessionType.price, // سعر الجلسة الأصلي
-    final_price: sessionType.price,    // سعر نهائي مؤقت (سيتم تحديثه بعد المساعدة المالية)
-    applied_discount_percentage: 0,    // نسبة خصم مؤقتة
-    financial_assistance_applied: false // لم يتم تطبيق المساعدة بعد
-  });
-
-      // 🔴 **إضافة المساعدة المالية التلقائية بعد إنشاء الجلسة مباشرة**
+        is_pending: true,
+        parent_notes: notes || null,
+        original_price: sessionType.price,
+        final_price: sessionType.price,
+        applied_discount_percentage: 0,
+        financial_assistance_applied: false
+      });
+      
+      await updateCompletionTableOnSessionAdd(
+        child.child_id,
+        specialistId,
+        specialist.institution_id
+      );
+      
       let financialAidResult = null;
       try {
         const AutoFinancialAidService = require('../services/autoFinancialAidService');
         financialAidResult = await AutoFinancialAidService.autoApplyFinancialAid(session.session_id);
         
-        console.log(`✅ المساعدة المالية التلقائية للجلسة ${session.session_id}:`, 
+        console.log(`✅ Auto financial aid for session ${session.session_id}:`, 
           financialAidResult.auto_applied ? 
-          `خصم ${financialAidResult.discount_percentage}% - السعر النهائي: ${financialAidResult.final_price}` : 
-          'بدون خصم');
+          `Discount ${financialAidResult.discount_percentage}% - Final price: ${financialAidResult.final_price}` : 
+          'No discount');
         
       } catch (aidError) {
-        console.error(`❌ خطأ في المساعدة المالية للجلسة ${session.session_id}:`, aidError);
-        // نستمر في العملية حتى لو فشلت المساعدة المالية
+        console.error(`❌ Error in financial aid for session ${session.session_id}:`, aidError);
       }
 
-      // تحديث الإشعار للأهل بناءً على نتيجة المساعدة المالية
+      // ==================== 🔥 NOTIFICATION SECTION ====================
       if (child.Parent && child.Parent.parent_id) {
-        let notificationMessage = `تم إنشاء جلسة جديدة لطفلك ${child.full_name} في ${date} الساعة ${sessionTime}. `;
+        let notificationMessage = `A new session has been created for your child ${child.full_name} on ${date} at ${sessionTime}. `;
         
         if (financialAidResult && financialAidResult.auto_applied) {
           if (financialAidResult.final_price === 0) {
-            notificationMessage += `🎉 **المميز: الجلسة مجانية بالكامل!**`;
+            notificationMessage += `🎉 Good news: the session is free of charge!`;
           } else if (financialAidResult.discount_percentage > 0) {
-            notificationMessage += `💰 **المميز: تم تطبيق خصم تلقائي ${financialAidResult.discount_percentage}%، السعر النهائي: ${financialAidResult.final_price} دينار**`;
+            notificationMessage += `💰 Good news: an automatic discount of ${financialAidResult.discount_percentage}% was applied. Final price: ${financialAidResult.final_price}.`;
           }
         } else {
-          notificationMessage += `السعر: ${sessionType.price} دينار.`;
+          notificationMessage += `Price: ${sessionType.price}.`;
         }
         
-        notificationMessage += `\nيرجى الموافقة أو الرفض في أقرب وقت.`;
+        notificationMessage += `\nPlease approve or reject as soon as possible.`;
 
-        const notification = await Notification.create({
-          user_id: child.Parent.parent_id,
-          title: 'طلب موافقة على جلسة جديدة',
-          message: notificationMessage,
-          type: financialAidResult && financialAidResult.auto_applied ? 'auto_financial_aid' : 'session_update',
-          related_id: session.session_id,
-          is_read: false,
-          metadata: financialAidResult || {}
-        });
-        notifications.push(notification);
+        // 🔥 Send FCM push notifications
+        try {
+          const tokens = await UserDeviceToken.findAll({
+            where: { user_id: child.Parent.parent_id, is_active: true },
+            attributes: ['token']
+          });
+          const uniqueTokens = [...new Set(tokens.map(t => t.token))];
+
+          // 1. FCM Notification (simple)
+          const fcmMessage = `New session created for ${child.full_name} on ${date} at ${sessionTime}`;
+          
+          for (const fcmToken of uniqueTokens) {
+            if (fcmToken && fcmToken.trim() !== '') {
+              await NotificationService.sendToToken(
+                fcmToken,
+                '📅 New Session Created',
+                fcmMessage,
+                {
+                  type: 'session_created',
+                  childId: child.child_id.toString(),
+                  childName: child.full_name,
+                  sessionId: session.session_id.toString(),
+                  date: date,
+                  time: sessionTime,
+                  action: 'view_session',
+                  channel: 'default_channel'
+                }
+              );
+              console.log(`✅ FCM sent to parent for ${child.full_name}`);
+            }
+          }
+          
+          // 2. In-app notification (with financial details)
+          const notification = await Notification.create({
+            user_id: child.Parent.parent_id,
+            title: 'New Session Approval Request',
+            message: notificationMessage,
+            type: financialAidResult && financialAidResult.auto_applied ? 'auto_financial_aid' : 'session_update',
+            related_id: session.session_id,
+            is_read: false,
+            metadata: financialAidResult || {}
+          });
+          notifications.push(notification);
+          
+        } catch (pushErr) {
+          console.error('❌ Error sending push to parent:', pushErr);
+          
+          // Fallback: create in-app notification only
+          const notification = await Notification.create({
+            user_id: child.Parent.parent_id,
+            title: 'New Session Approval Request',
+            message: notificationMessage,
+            type: financialAidResult && financialAidResult.auto_applied ? 'auto_financial_aid' : 'session_update',
+            related_id: session.session_id,
+            is_read: false,
+            metadata: financialAidResult || {}
+          });
+          notifications.push(notification);
+        }
       }
+      // ==================== END NOTIFICATION SECTION ====================
 
       createdSessions.push({
         ...session.toJSON(),
@@ -979,19 +965,25 @@ const addSessionsForChildren = async (req, res) => {
       });
     }
 
-    // إضافة إشعار للمختص أيضاً
+    // Notification for specialist
     await Notification.create({
       user_id: specialistId,
-      title: 'تم إنشاء جلسات جديدة',
-      message: `تم إنشاء ${createdSessions.length} جلسة في ${date} الساعة ${sessionTime}. ${createdSessions.filter(s => s.financial_aid_applied).length} جلسة حصلت على مساعدة مالية تلقائية.`,
+      title: 'New sessions created',
+      message: `Created ${createdSessions.length} session(s) on ${date} at ${sessionTime}. ${createdSessions.filter(s => s.financial_aid_applied).length} sessions received automatic financial aid.`,
       type: 'sessions_created',
       related_id: null,
       is_read: false
     });
 
+    // Log notification summary
+    console.log('📊 Notification Summary:');
+    console.log(`   - Sessions created: ${createdSessions.length}`);
+    console.log(`   - Parents notified: ${notifications.length}`);
+    console.log(`   - Financial aid applied: ${createdSessions.filter(s => s.financial_aid_applied).length}`);
+
     res.status(201).json({
       success: true,
-      message: `تم إنشاء ${createdSessions.length} جلسة بنجاح`,
+      message: `Successfully created ${createdSessions.length} sessions`,
       data: {
         sessions: createdSessions,
         summary: {
@@ -1014,6 +1006,7 @@ const addSessionsForChildren = async (req, res) => {
     });
   }
 };
+
 
 const addSessionType = async (req, res) => {
   try {
@@ -1095,5 +1088,7 @@ module.exports = {
   getAvailableSessionTypes,
   addSessionsForChildren,
   addSessionType,
-  getAvailableSlots 
+  getAvailableSlots ,
+  updateCompletionTableOnSessionAdd 
+
 };

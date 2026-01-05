@@ -652,47 +652,56 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
   }
 
   static Future<Map<String, dynamic>> sendResetCode(String email) async {
-    final response = await http.post(
-      Uri.parse('http://10.0.2.2:5000/api/password/send-reset-code'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email}),
-    );
-    return jsonDecode(response.body);
-  }
+  final url = _buildUrl('password/send-reset-code');
 
-  static Future<Map<String, dynamic>> verifyResetCode(
-      String email, String code) async {
-    final response = await http.post(
-      Uri.parse('http://10.0.2.2:5000/api/password/verify-code'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email, 'code': code}),
-    );
-    return jsonDecode(response.body);
-  }
+  final response = await http.post(
+    Uri.parse(url),
+    headers: {'Content-Type': 'application/json'},
+    body: jsonEncode({'email': email}),
+  );
 
-  static Future<Map<String, dynamic>> resetPassword(
-      String email, String code, String newPassword) async {
-    final url = Uri.parse(
-        'http://10.0.2.2:5000/api/password/reset-password'); // الرابط الصحيح
-    final response = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'email': email,
-        'code': code,
-        'newPassword': newPassword,
-      }),
-    );
-    print('Reset password raw response: ${response.body}');
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      return {
-        'success': false,
-        'message': 'Server returned status code ${response.statusCode}'
-      };
-    }
+  return jsonDecode(response.body);
+}
+
+static Future<Map<String, dynamic>> verifyResetCode(
+    String email, String code) async {
+  final url = _buildUrl('password/verify-code');
+
+  final response = await http.post(
+    Uri.parse(url),
+    headers: {'Content-Type': 'application/json'},
+    body: jsonEncode({'email': email, 'code': code}),
+  );
+
+  return jsonDecode(response.body);
+}
+
+static Future<Map<String, dynamic>> resetPassword(
+    String email, String code, String newPassword) async {
+  final url = _buildUrl('password/reset-password');
+
+  final response = await http.post(
+    Uri.parse(url),
+    headers: {'Content-Type': 'application/json'},
+    body: jsonEncode({
+      'email': email,
+      'code': code,
+      'newPassword': newPassword,
+    }),
+  );
+
+  print('Reset password raw response: ${response.body}');
+
+  if (response.statusCode == 200) {
+    return jsonDecode(response.body);
+  } else {
+    return {
+      'success': false,
+      'message': 'Server returned status code ${response.statusCode}'
+    };
   }
+}
+
 
   static Map<String, dynamic> _handleResponse(http.Response response) {
     try {
@@ -707,30 +716,31 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
 
   // ================= Parent Dashboard =================
   static Future<Map<String, dynamic>> getParentDashboard(String token) async {
-    try {
-      final response = await http.get(
-        Uri.parse('http://10.0.2.2:5000/api/parent/dashboard'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token'
-        },
-      ).timeout(const Duration(seconds: 8)); // ⚠️ تقليل timeout
+  try {
+    final url = _buildUrl('parent/dashboard');
 
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        print('❌ Dashboard API error: ${response.statusCode}');
-        throw Exception(
-            'Failed to load dashboard data: ${response.statusCode}');
-      }
-    } on TimeoutException catch (_) {
-      print('⚠️ Dashboard API timeout after 8 seconds');
-      throw TimeoutException('Request timeout - Server is slow or unreachable');
-    } catch (e) {
-      print('❌ Dashboard API error: $e');
-      rethrow;
+    final response = await http
+        .get(
+          Uri.parse(url),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+          },
+        )
+        .timeout(const Duration(seconds: 8));
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      final data = jsonDecode(response.body);
+      throw Exception(data['message'] ?? 'Failed to load dashboard data');
     }
+  } on TimeoutException {
+    throw TimeoutException('Request timeout - Server is slow or unreachable');
+  } catch (e) {
+    throw Exception('Network error: $e');
   }
+}
 
   static Future<List<Session>> getUpcomingSessions(String token) async {
     try {
@@ -761,92 +771,105 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
   }
 
   static Future<Child> addChild(String token, Child child) async {
-    final response = await http.post(
-      Uri.parse('http://10.0.2.2:5000/api/children'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode(child.toJson()),
-    );
-    if (response.statusCode == 201) {
-      return Child.fromJson(jsonDecode(response.body));
-    } else {
-      throw Exception('Failed to add child: ${response.body}');
-    }
-  }
+  final url = _buildUrl('children');
 
-  static Future<Child> updateChild(String token, int id, Child child) async {
-    final response = await http.put(
-      Uri.parse('http://10.0.2.2:5000/api/children/$id'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode(child.toJson()),
-    );
-    if (response.statusCode == 200) {
-      return Child.fromJson(jsonDecode(response.body));
-    } else {
-      throw Exception('Failed to update child: ${response.body}');
-    }
-  }
+  final response = await http.post(
+    Uri.parse(url),
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    },
+    body: jsonEncode(child.toJson()),
+  );
 
-  static Future<void> deleteChild(String token, int id) async {
-    final response = await http.delete(
-      Uri.parse('http://10.0.2.2:5000/api/children/$id'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
-    if (response.statusCode != 200) {
-      throw Exception('Failed to delete child: ${response.body}');
-    }
+  if (response.statusCode == 201) {
+    return Child.fromJson(jsonDecode(response.body));
+  } else {
+    throw Exception('Failed to add child: ${response.body}');
   }
+}
+
+static Future<Child> updateChild(String token, int id, Child child) async {
+  final url = _buildUrl('children/$id');
+
+  final response = await http.put(
+    Uri.parse(url),
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    },
+    body: jsonEncode(child.toJson()),
+  );
+
+  if (response.statusCode == 200) {
+    return Child.fromJson(jsonDecode(response.body));
+  } else {
+    throw Exception('Failed to update child: ${response.body}');
+  }
+}
+
+static Future<void> deleteChild(String token, int id) async {
+  final url = _buildUrl('children/$id');
+
+  final response = await http.delete(
+    Uri.parse(url),
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    },
+  );
+
+  if (response.statusCode != 200) {
+    throw Exception('Failed to delete child: ${response.body}');
+  }
+}
 
   static Future<Map<String, dynamic>> getDailyAITip(String token) async {
-    try {
-      final response = await http.get(
-        Uri.parse('http://10.0.2.2:5000/api/parent/daily-tip'), // ⬅️ صحح الرابط
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 8)); // ⚠️ تقليل timeout
+  try {
+    final url = _buildUrl('parent/daily-tip');
 
-      print('📥 Daily Tip Response: ${response.statusCode}');
+    final response = await http
+        .get(
+          Uri.parse(url),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+          },
+        )
+        .timeout(const Duration(seconds: 8));
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        print('✅ Daily Tip Success: ${data['success']}');
-        print('🤖 AI Generated: ${data['aiGenerated']}');
-        print('💡 Tip: ${data['tip']}');
-        return data;
-      } else {
-        print('❌ Daily Tip API Error: ${response.statusCode}');
-        throw Exception('Failed to load daily tip: ${response.statusCode}');
-      }
-    } on TimeoutException catch (_) {
-      print('⚠️ Daily Tip timeout - using fallback');
-      return {
-        'success': true,
-        'tip':
-            'Spend quality time with your child today—every moment together builds a stronger future.',
-        'aiGenerated': false,
-        'isGeneric': true
-      };
-    } catch (e) {
-      print('❌ Error fetching daily tip: $e');
-      return {
-        'success': true,
-        'tip':
-            'Spend quality time with your child today—every moment together builds a stronger future.',
-        'aiGenerated': false,
-        'isGeneric': true
-      };
+    print('📥 Daily Tip Response: ${response.statusCode}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+
+      print('✅ Daily Tip Success: ${data['success']}');
+      print('🤖 AI Generated: ${data['aiGenerated']}');
+      print('💡 Tip: ${data['tip']}');
+
+      return data;
+    } else {
+      final data = jsonDecode(response.body);
+      throw Exception(data['message'] ?? 'Failed to load daily tip');
     }
+  } on TimeoutException {
+    print('⚠️ Daily Tip timeout - using fallback');
+    return _dailyTipFallback();
+  } catch (e) {
+    print('❌ Error fetching daily tip: $e');
+    return _dailyTipFallback();
   }
+}
+static Map<String, dynamic> _dailyTipFallback() {
+  return {
+    'success': true,
+    'tip':
+        'Spend quality time with your child today—every moment together builds a stronger future.',
+    'aiGenerated': false,
+    'isGeneric': true,
+  };
+}
+
 
   static Future<Map<String, dynamic>> getWeeklyTips(String token) async {
     try {
@@ -912,103 +935,111 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
   // }
 
   static Future<List<Map<String, dynamic>>> getDiagnoses(String token) async {
-    try {
-      final response = await http.get(
-        Uri.parse('http://10.0.2.2:5000/api/diagnoses'), // ⭐ هذا صحيح
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+  try {
+    final url = _buildUrl('diagnoses'); // استخدم baseUrl
 
-      print('📡 Diagnoses response: ${response.statusCode}');
-      print('📡 Response body: ${response.body}'); // ⭐ أضف هذا للتصحيح
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
 
-      if (response.statusCode == 200) {
-        final List data = jsonDecode(response.body);
-        print('✅ Loaded ${data.length} diagnoses from API');
-        return List<Map<String, dynamic>>.from(data);
-      } else {
-        print('❌ Failed to fetch diagnoses: ${response.statusCode}');
-        return _getDefaultDiagnoses();
-      }
-    } catch (e) {
-      print('❌ Error loading diagnoses: $e');
+    print('📡 Diagnoses response: ${response.statusCode}');
+    print('📡 Response body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      final List data = jsonDecode(response.body);
+      print('✅ Loaded ${data.length} diagnoses from API');
+      return List<Map<String, dynamic>>.from(data);
+    } else {
+      print('❌ Failed to fetch diagnoses: ${response.statusCode}');
       return _getDefaultDiagnoses();
     }
+  } catch (e) {
+    print('❌ Error loading diagnoses: $e');
+    return _getDefaultDiagnoses();
   }
+}
 
-  static List<Map<String, dynamic>> _getDefaultDiagnoses() {
-    return [
-      {'diagnosis_id': 1, 'name': 'Autism Spectrum Disorder'},
-      {
-        'diagnosis_id': 2,
-        'name': 'Attention Deficit Hyperactivity Disorder (ADHD)'
-      },
-      {'diagnosis_id': 3, 'name': 'Down Syndrome'},
-      {'diagnosis_id': 4, 'name': 'Speech and Language Delay'},
-      {'diagnosis_id': 5, 'name': 'Learning Disabilities'},
-      {'diagnosis_id': 6, 'name': 'Intellectual Disability'},
-      {'diagnosis_id': 7, 'name': 'Developmental Delay'},
-      {'diagnosis_id': 8, 'name': 'Behavioral Disorders'},
-      {'diagnosis_id': 9, 'name': 'Social Communication Disorder'},
-      {'diagnosis_id': 10, 'name': 'Global Developmental Delay'},
-    ];
-  }
+static List<Map<String, dynamic>> _getDefaultDiagnoses() {
+  return [
+    {'diagnosis_id': 1, 'name': 'Autism Spectrum Disorder'},
+    {'diagnosis_id': 2, 'name': 'Attention Deficit Hyperactivity Disorder (ADHD)'},
+    {'diagnosis_id': 3, 'name': 'Down Syndrome'},
+    {'diagnosis_id': 4, 'name': 'Speech and Language Delay'},
+    {'diagnosis_id': 5, 'name': 'Learning Disabilities'},
+    {'diagnosis_id': 6, 'name': 'Intellectual Disability'},
+    {'diagnosis_id': 7, 'name': 'Developmental Delay'},
+    {'diagnosis_id': 8, 'name': 'Behavioral Disorders'},
+    {'diagnosis_id': 9, 'name': 'Social Communication Disorder'},
+    {'diagnosis_id': 10, 'name': 'Global Developmental Delay'},
+  ];
+}
 
   // ================= Get Child Statistics =================
-  static Future<Map<String, dynamic>> getChildStatistics(String token) async {
-    final response = await http.get(
-      Uri.parse('http://10.0.2.2:5000/api/children/stats'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception(
-          'Failed to fetch child statistics: ${response.statusCode}');
-    }
-  }
+  // ================= Get Child Statistics =================
+static Future<Map<String, dynamic>> getChildStatistics(String token) async {
+  final url = _buildUrl('children/stats'); // استخدم baseUrl
 
-  // ================= Get Single Child =================
-  static Future<Child> getChild(String token, int childId) async {
-    final response = await http.get(
-      Uri.parse('http://10.0.2.2:5000/api/children/$childId'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
-    if (response.statusCode == 200) {
-      return Child.fromJson(jsonDecode(response.body));
-    } else {
-      throw Exception('Failed to fetch child: ${response.statusCode}');
-    }
+  final response = await http.get(
+    Uri.parse(url),
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    },
+  );
+
+  if (response.statusCode == 200) {
+    return jsonDecode(response.body);
+  } else {
+    throw Exception('Failed to fetch child statistics: ${response.statusCode}');
   }
+}
+
+// ================= Get Single Child =================
+static Future<Child> getChild(String token, int childId) async {
+  final url = _buildUrl('children/$childId'); // استخدم baseUrl
+
+  final response = await http.get(
+    Uri.parse(url),
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    },
+  );
+
+  if (response.statusCode == 200) {
+    return Child.fromJson(jsonDecode(response.body));
+  } else {
+    throw Exception('Failed to fetch child: ${response.statusCode}');
+  }
+}
+
 
   static Future<bool> confirmSession(String token, String sessionId) async {
-    try {
-      final response = await http.patch(
-        Uri.parse(
-            'http://10.0.2.2:5000/api/parent/sessions/$sessionId/confirm'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
+  try {
+    final url = _buildUrl('parent/sessions/$sessionId/confirm');
 
-      if (response.statusCode == 200) {
-        return true;
-      } else {
-        throw Exception('Failed to confirm session');
-      }
-    } catch (e) {
-      throw Exception('Network error: $e');
+    final response = await http.patch(
+      Uri.parse(url),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return true;
+    } else {
+      final data = jsonDecode(response.body);
+      throw Exception(data['message'] ?? 'Failed to confirm session');
     }
+  } catch (e) {
+    throw Exception('Network error: $e');
   }
+}
 
   /// Request (or renew) financial assistance for a specific child and institution
   /// This unified method is used both by the full financial assistance form
@@ -1122,11 +1153,13 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
   }
 
   static Future<List<dynamic>> getParentResources(String token) async {
-    final url = Uri.parse('http://10.0.2.2:5000/api/parent/resources');
+  try {
+    final url = _buildUrl('parent/resources');
+
     final response = await http.get(
-      url,
+      Uri.parse(url),
       headers: {
-        'Authorization': 'Bearer $token', // إذا انت مستخدم JWT
+        'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
     );
@@ -1134,26 +1167,33 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     } else {
-      throw Exception('Failed to fetch resources');
+      final data = jsonDecode(response.body);
+      throw Exception(data['message'] ?? 'Failed to fetch resources');
     }
+  } catch (e) {
+    throw Exception('Network error: $e');
   }
+}
 
-  static Future<List<Map<String, dynamic>>> getInstitutions(
-      String token) async {
-    final response = await http.get(
-      Uri.parse('http://10.0.2.2:5000/api/institutions'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
-    if (response.statusCode == 200) {
-      final List data = jsonDecode(response.body);
-      return List<Map<String, dynamic>>.from(data);
-    } else {
-      throw Exception('Failed to fetch institutions: ${response.statusCode}');
-    }
+
+  static Future<List<Map<String, dynamic>>> getInstitutions(String token) async {
+  final url = _buildUrl('institutions'); // استخدام baseUrl
+
+  final response = await http.get(
+    Uri.parse(url),
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    },
+  );
+
+  if (response.statusCode == 200) {
+    final List data = jsonDecode(response.body);
+    return List<Map<String, dynamic>>.from(data);
+  } else {
+    throw Exception('Failed to fetch institutions: ${response.statusCode}');
   }
+}
 
   // ================= Donations =================
 
@@ -1222,78 +1262,85 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
 
 
   static Future<Map<String, dynamic>> getChildren({
-    required String token,
-    String? search,
-    String? gender,
-    String? diagnosis,
-    String? registrationStatus,
-    String? sort,
-    String? order,
-    int? page,
-    int? limit,
-  }) async {
-    final uri = Uri.parse('http://10.0.2.2:5000/api/children').replace(
-      queryParameters: {
-        if (search != null && search.isNotEmpty) 'search': search,
-        if (gender != null && gender.isNotEmpty && gender != 'All')
-          'gender': gender,
-        if (diagnosis != null && diagnosis.isNotEmpty && diagnosis != 'All')
-          'diagnosis': diagnosis,
-        if (registrationStatus != null &&
-            registrationStatus.isNotEmpty &&
-            registrationStatus != 'All')
-          'registration_status': registrationStatus,
-        if (sort != null) 'sort': sort,
-        if (order != null) 'order': order,
-        if (page != null) 'page': page.toString(),
-        if (limit != null) 'limit': limit.toString(),
-      },
-    );
+  required String token,
+  String? search,
+  String? gender,
+  String? diagnosis,
+  String? registrationStatus,
+  String? sort,
+  String? order,
+  int? page,
+  int? limit,
+}) async {
+  final uri = Uri.parse(
+    _buildUrl('children'), // استخدام baseUrl
+  ).replace(
+    queryParameters: {
+      if (search != null && search.isNotEmpty) 'search': search,
+      if (gender != null && gender.isNotEmpty && gender != 'All') 'gender': gender,
+      if (diagnosis != null && diagnosis.isNotEmpty && diagnosis != 'All') 'diagnosis': diagnosis,
+      if (registrationStatus != null &&
+          registrationStatus.isNotEmpty &&
+          registrationStatus != 'All')
+        'registration_status': registrationStatus,
+      if (sort != null) 'sort': sort,
+      if (order != null) 'order': order,
+      if (page != null) 'page': page.toString(),
+      if (limit != null) 'limit': limit.toString(),
+    },
+  );
 
-    print('🌐 API Call: $uri'); // ⬅️ أضف هذا
+  print('🌐 API Call: $uri');
+  final response = await http.get(
+    uri,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    },
+  );
 
-    final response = await http.get(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
+  print('📡 Response status: ${response.statusCode}');
+  print('📦 Raw response body: ${response.body}');
 
-    print('📡 Response status: ${response.statusCode}'); // ⬅️ وهذا
-    print('📦 Raw response body: ${response.body}'); // ⬅️ وهذا
-
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> data = jsonDecode(response.body);
-      return data;
-    } else {
-      throw Exception(
-          'Failed to fetch children: ${response.statusCode} - ${response.body}');
-    }
+  if (response.statusCode == 200) {
+    final Map<String, dynamic> data = jsonDecode(response.body);
+    return data;
+  } else {
+    throw Exception(
+        'Failed to fetch children: ${response.statusCode} - ${response.body}');
   }
+}
+
 
   static Future<List<Session>> getSessions(String token) async {
-    try {
-      final response = await http.get(
-        Uri.parse('http://10.0.2.2:5000/api/parent/sessions'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
+  try {
+    final url = _buildUrl('parent/sessions');
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final sessions = data['sessions'] as List;
-        return sessions.map((session) => Session.fromJson(session)).toList();
-      } else {
-        throw Exception('Failed to load sessions: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Error fetching sessions: $e');
-      throw Exception('Network error: $e');
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      final sessions = data['sessions'] as List;
+      return sessions
+          .map<Session>((session) => Session.fromJson(session))
+          .toList();
+    } else {
+      final data = json.decode(response.body);
+      throw Exception(
+        data['message'] ?? 'Failed to load sessions: ${response.statusCode}',
+      );
     }
+  } catch (e) {
+    print('❌ Error fetching sessions: $e');
+    throw Exception('Network error: $e');
   }
+}
 
   static Future<List<Session>> getCompletedSessions(String token) async {
     try {
@@ -1445,55 +1492,60 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
   }
 
   static Future<bool> rescheduleSession(
-    String token,
-    int sessionId,
-    DateTime newDate,
-    String newTime,
-  ) async {
-    try {
-      print('🔄 Rescheduling session $sessionId to $newDate at $newTime');
+  String token,
+  int sessionId,
+  DateTime newDate,
+  String newTime,
+) async {
+  try {
+    print('🔄 Rescheduling session $sessionId to $newDate at $newTime');
 
-      final formattedDate =
-          "${newDate.year}-${newDate.month.toString().padLeft(2, '0')}-${newDate.day.toString().padLeft(2, '0')}";
+    final formattedDate =
+        "${newDate.year}-${newDate.month.toString().padLeft(2, '0')}-${newDate.day.toString().padLeft(2, '0')}";
 
-      final response = await http.patch(
-        Uri.parse(
-            'http://10.0.2.2:5000/api/parent/sessions/$sessionId/reschedule'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'new_date': formattedDate,
-          'new_time': newTime,
-        }),
-      );
+    final url = _buildUrl('parent/sessions/$sessionId/reschedule');
 
-      print('📡 Reschedule response status: ${response.statusCode}');
-      print('📦 Reschedule response body: ${response.body}');
+    final response = await http.patch(
+      Uri.parse(url),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'new_date': formattedDate,
+        'new_time': newTime,
+      }),
+    );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          print('✅ Session rescheduled successfully');
-          return true;
-        } else {
-          throw Exception(data['message'] ?? 'Failed to reschedule session');
-        }
-      } else if (response.statusCode == 404) {
-        throw Exception('Session not found or you do not have permission');
-      } else if (response.statusCode == 400) {
-        throw Exception('Cannot reschedule this session in its current status');
-      } else if (response.statusCode == 409) {
-        throw Exception('Specialist is not available at the requested time');
-      } else {
-        throw Exception('Failed to reschedule session: ${response.statusCode}');
+    print('📡 Reschedule response status: ${response.statusCode}');
+    print('📦 Reschedule response body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['success'] == true) {
+        print('✅ Session rescheduled successfully');
+        return true;
       }
-    } catch (e) {
-      print('❌ Reschedule API Error: $e');
-      rethrow;
+      throw Exception(data['message'] ?? 'Failed to reschedule session');
     }
+
+    if (response.statusCode == 404) {
+      throw Exception('Session not found or you do not have permission');
+    }
+    if (response.statusCode == 400) {
+      throw Exception('Cannot reschedule this session in its current status');
+    }
+    if (response.statusCode == 409) {
+      throw Exception('Specialist is not available at the requested time');
+    }
+
+    throw Exception('Failed to reschedule session: ${response.statusCode}');
+  } catch (e) {
+    print('❌ Reschedule API Error: $e');
+    rethrow;
   }
+}
+
 
 // ==================== Questionnaire APIs ====================
 
@@ -1519,14 +1571,17 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
         queryParams['stage'] = stage;
       }
 
-      final response = await http.get(
-        Uri.parse('http://10.0.2.2:5000/api/questionnaire/questions')
-            .replace(queryParameters: queryParams),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      ).timeout(Duration(seconds: 15));
+      final url = Uri.parse(_buildUrl('questionnaire/questions'))
+    .replace(queryParameters: queryParams);
+
+final response = await http.get(
+  url,
+  headers: {
+    'Authorization': 'Bearer $token',
+    'Content-Type': 'application/json',
+  },
+).
+timeout(Duration(seconds: 15));
 
       print('📡 استجابة الأسئلة: ${response.statusCode}');
 
@@ -1591,15 +1646,16 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
         requestBody['questionnaire_id'] = questionnaireId;
 
       final response = await http
-          .post(
-            Uri.parse('http://10.0.2.2:5000/api/questionnaire/responses'),
-            headers: {
-              'Authorization': 'Bearer $token',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode(requestBody),
-          )
-          .timeout(Duration(seconds: 30));
+    .post(
+      Uri.parse(_buildUrl('questionnaire/responses')),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(requestBody),
+    )
+    .timeout(Duration(seconds: 30));
+
 
       print('📡 استجابة حفظ الإجابات: ${response.statusCode}');
       print('📦 النتيجة: ${response.body}');
@@ -1634,17 +1690,17 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
       print('📜 جلب تاريخ الاستبيانات - الصفحة: $page');
 
       final response = await http.get(
-        Uri.parse('http://10.0.2.2:5000/api/questionnaire/history')
-            .replace(queryParameters: {
-          'page': page.toString(),
-          'limit': limit.toString(),
-          'language': language,
-        }),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      ).timeout(Duration(seconds: 10));
+  Uri.parse(_buildUrl('questionnaire/history')).replace(queryParameters: {
+    'page': page.toString(),
+    'limit': limit.toString(),
+    'language': language,
+  }),
+  headers: {
+    'Authorization': 'Bearer $token',
+    'Content-Type': 'application/json',
+  },
+).timeout(Duration(seconds: 10));
+
 
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
@@ -1672,12 +1728,13 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
       print('🔍 جلب تفاصيل الاستبيان: $questionnaireId');
 
       final response = await http.get(
-        Uri.parse('http://10.0.2.2:5000/api/questionnaire/$questionnaireId'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      ).timeout(Duration(seconds: 10));
+  Uri.parse(_buildUrl('questionnaire/$questionnaireId')),
+  headers: {
+    'Authorization': 'Bearer $token',
+    'Content-Type': 'application/json',
+  },
+).timeout(Duration(seconds: 10));
+
 
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
@@ -1848,7 +1905,7 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
       print('🚀 Sending child data to API: $childData');
 
       final response = await http.post(
-        Uri.parse('http://10.0.2.2:5000/api/children'),
+        Uri.parse(_buildUrl('children')),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -1894,7 +1951,7 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
       print('🔍 Analyzing symptoms: $symptomsDescription');
 
       final response = await http.post(
-        Uri.parse('http://10.0.2.2:5000/api/children/symptoms-search'),
+         Uri.parse(_buildUrl('children/symptoms-search')),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -1922,57 +1979,77 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
   }
 
   static Future<Map<String, dynamic>?> getChildEvaluationsForParent(
-      String token) async {
-    try {
-      print(
-          '🌐 Calling API: http://10.0.2.2:5000/api/parent/child-evaluations');
-      print('🔑 Token length: ${token.length}');
+  String token,
+) async {
+  try {
+    final url = _buildUrl('parent/child-evaluations');
 
-      final response = await http.get(
-        Uri.parse('http://10.0.2.2:5000/api/parent/child-evaluations'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json'
-        },
-      ).timeout(Duration(seconds: 10));
+    print('🌐 Calling API: $url');
+    print('🔑 Token length: ${token.length}');
 
-      print('🔍 API Response Status: ${response.statusCode}');
-      print('📦 API Response Body: ${response.body}');
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    ).timeout(const Duration(seconds: 10));
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        print('✅ API Response Data: $data');
+    print('🔍 API Response Status: ${response.statusCode}');
+    print('📦 API Response Body: ${response.body}');
 
-        if (data['success'] == true) {
-          return data;
-        } else if (data['evaluations'] != null) {
-          return {'success': true, 'data': data['evaluations']};
-        } else {
-          return {
-            'success': false,
-            'error': 'Unexpected response structure',
-            'data': []
-          };
-        }
-      } else {
-        print('❌ API Error: ${response.statusCode} - ${response.body}');
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      print('✅ API Response Data: $data');
+
+      if (data['success'] == true) {
+        return data;
+      }
+
+      // fallback لو رجع evaluations مباشرة
+      if (data['evaluations'] != null) {
         return {
-          'success': false,
-          'error': 'HTTP ${response.statusCode}',
-          'data': []
+          'success': true,
+          'data': data['evaluations'],
         };
       }
-    } on SocketException catch (e) {
-      print('❌ Network Error - SocketException: $e');
-      return {'success': false, 'error': 'Network unavailable', 'data': []};
-    } on TimeoutException catch (e) {
-      print('❌ Network Error - Timeout: $e');
-      return {'success': false, 'error': 'Request timeout', 'data': []};
-    } catch (e) {
-      print('❌ Unexpected Error: $e');
-      return {'success': false, 'error': 'Unexpected error: $e', 'data': []};
+
+      return {
+        'success': false,
+        'error': 'Unexpected response structure',
+        'data': [],
+      };
     }
+
+    print('❌ API Error: ${response.statusCode} - ${response.body}');
+    return {
+      'success': false,
+      'error': 'HTTP ${response.statusCode}',
+      'data': [],
+    };
+  } on SocketException catch (e) {
+    print('❌ Network Error - SocketException: $e');
+    return {
+      'success': false,
+      'error': 'Network unavailable',
+      'data': [],
+    };
+  } on TimeoutException catch (e) {
+    print('❌ Network Error - Timeout: $e');
+    return {
+      'success': false,
+      'error': 'Request timeout',
+      'data': [],
+    };
+  } catch (e) {
+    print('❌ Unexpected Error: $e');
+    return {
+      'success': false,
+      'error': 'Unexpected error: $e',
+      'data': [],
+    };
   }
+}
 
   static Future<Map<String, dynamic>> getNearbyInstitutions({
     required String token,
@@ -1984,7 +2061,7 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
   }) async {
     try {
       final response = await http.get(
-        Uri.parse('http://10.0.2.2:5000/api/institutions/nearby').replace(
+        Uri.parse(_buildUrl('institutions/nearby')).replace(
           queryParameters: {
             'lat': lat.toString(),
             'lng': lng.toString(),
@@ -2033,8 +2110,8 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
       }
 
       final response = await http.get(
-        Uri.parse('http://10.0.2.2:5000/api/specialists/nearby')
-            .replace(queryParameters: queryParams),
+        Uri.parse(_buildUrl('specialists/nearby')).replace(queryParameters: queryParams),
+            
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -2068,7 +2145,7 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
       print('🚀 Saving child basic info: $childData');
 
       final response = await http.post(
-        Uri.parse('http://10.0.2.2:5000/api/children/basic-info'),
+        Uri.parse(_buildUrl('children/basic-info')),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -2114,8 +2191,7 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
 
       final response = await http
           .post(
-            Uri.parse(
-                'http://10.0.2.2:5000/api/children/$childId/medical-analysis'),
+            Uri.parse(_buildUrl('children/$childId/medical-analysis')),
             headers: {
               'Content-Type': 'application/json',
               'Authorization': 'Bearer $token',
@@ -2210,9 +2286,9 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
       if (maxPrice != null) queryParams['max_price'] = maxPrice.toString();
 
       final response = await http.get(
-        Uri.parse(
-                'http://10.0.2.2:5000/api/children/$childId/recommended-institutions')
-            .replace(queryParameters: queryParams),
+        Uri.parse(_buildUrl('children/$childId/recommended-institutions'))
+    .replace(queryParameters: queryParams),
+
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -2259,7 +2335,7 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
 
       final response = await http.post(
         Uri.parse(
-            'http://10.0.2.2:5000/api/children/$childId/request-registration'),
+            _buildUrl('children/$childId/request-registration')),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -2307,12 +2383,12 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
   ) async {
     try {
       final response = await http.get(
-        Uri.parse(
-            'http://10.0.2.2:5000/api/children/$childId/registration-status'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
+        Uri.parse(_buildUrl('children/$childId/registration-status')),
+headers: {
+  'Content-Type': 'application/json',
+  'Authorization': 'Bearer $token',
+},
+
       );
 
       if (response.statusCode == 200) {
@@ -2756,7 +2832,7 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
       String token) async {
     try {
       final response = await http.get(
-        Uri.parse('http://10.0.2.2:5000/api/admin/dashboard'),
+        Uri.parse(_buildUrl('admin/dashboard')),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -2800,7 +2876,7 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
       }
 
       final response = await http.get(
-        Uri.parse('http://10.0.2.2:5000/api/admin/institutions')
+        Uri.parse(_buildUrl('admin/institutions'))
             .replace(queryParameters: queryParams),
         headers: {
           'Authorization': 'Bearer $token',
@@ -2824,7 +2900,7 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
     try {
       final response = await http.post(
         Uri.parse(
-            'http://10.0.2.2:5000/api/admin/institutions/$institutionId/approve'),
+            _buildUrl('admin/institutions/$institutionId/approve')),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -2849,7 +2925,7 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
     try {
       final response = await http.post(
         Uri.parse(
-            'http://10.0.2.2:5000/api/admin/institutions/$institutionId/reject'),
+            _buildUrl('admin/institutions/$institutionId/reject')),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -2936,7 +3012,7 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
   static Future<Map<String, dynamic>> initiateFinancialAssessment(
       String token, int childId, int institutionId) async {
     final url =
-        Uri.parse('http://10.0.2.2:5000/api/financial/assessment/initiate');
+        Uri.parse(_buildUrl('financial/assessment/initiate'));
 
     final response = await http.post(
       url,
@@ -2959,14 +3035,24 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
 
   // 2. Submit Financial Assessment
   static Future<Map<String, dynamic>> submitFinancialAssessment(
-    String token,
-    int childId,
-    int institutionId,
-    Map<String, dynamic> responses,
-    bool skipDocuments,
-  ) async {
-    final url =
-        Uri.parse('http://10.0.2.2:5000/api/financial/assessment/submit');
+  String token,
+  int childId,
+  int institutionId,
+  Map<String, dynamic> responses,
+  bool skipDocuments,
+) async {
+  try {
+    final url = Uri.parse(_buildUrl('financial/assessment/submit'));
+    print('🌐 Submitting financial assessment to: $url');
+
+    final requestBody = {
+      'child_id': childId,
+      'institution_id': institutionId,
+      'responses': responses,
+      'skip_documents': skipDocuments,
+    };
+
+    print('📝 Request body: $requestBody');
 
     final response = await http.post(
       url,
@@ -2974,20 +3060,25 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({
-        'child_id': childId,
-        'institution_id': institutionId,
-        'responses': responses,
-        'skip_documents': skipDocuments,
-      }),
+      body: jsonEncode(requestBody),
     );
+
+    print('📡 Response status: ${response.statusCode}');
+    print('📦 Response body: ${response.body}');
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     } else {
-      throw Exception('Failed to submit financial assessment');
+      throw Exception(
+        'Failed to submit financial assessment: ${response.statusCode} - ${response.body}',
+      );
     }
+  } catch (e) {
+    print('❌ Error in submitFinancialAssessment: $e');
+    throw Exception('Network error while submitting financial assessment: $e');
   }
+}
+
 
   String _encodeBase64(File file) {
   final bytes = file.readAsBytesSync();
@@ -2995,11 +3086,12 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
 }
   // 4. Get Financial Assistance Status
   static Future<Map<String, dynamic>> getFinancialAssistanceStatus(
-    String token,
-    int requestId,
-  ) async {
-    final url = Uri.parse(
-        'http://10.0.2.2:5000/api/financial/assistance/$requestId/status');
+  String token,
+  int requestId,
+) async {
+  try {
+    final url = Uri.parse(_buildUrl('financial/assistance/$requestId/status'));
+    print('🌐 Fetching financial assistance status from: $url');
 
     final response = await http.get(
       url,
@@ -3009,21 +3101,32 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
       },
     );
 
+    print('📊 Response status: ${response.statusCode}');
+    print('📦 Response body: ${response.body}');
+
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     } else {
-      throw Exception('Failed to get financial assistance status');
+      throw Exception(
+          'Failed to get financial assistance status: ${response.statusCode} - ${response.body}');
     }
+  } catch (e) {
+    print('❌ Error in getFinancialAssistanceStatus: $e');
+    throw Exception('Network error while fetching status: $e');
   }
+}
+
 
   // 5. Upload Financial Documents
   static Future<Map<String, dynamic>> uploadFinancialDocuments(
-    String token,
-    int requestId,
-    List<Map<String, dynamic>> documents,
-  ) async {
-    final url = Uri.parse(
-        'http://10.0.2.2:5000/api/financial/assistance/$requestId/documents');
+  String token,
+  int requestId,
+  List<Map<String, dynamic>> documents,
+) async {
+  try {
+    final url = Uri.parse(_buildUrl('financial/assistance/$requestId/documents'));
+    print('🌐 Uploading financial documents to: $url');
+    print('📄 Number of documents: ${documents.length}');
 
     final response = await http.post(
       url,
@@ -3031,60 +3134,70 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({
-        'documents': documents,
-      }),
+      body: jsonEncode({'documents': documents}),
     );
+
+    print('📊 Response status: ${response.statusCode}');
+    print('📦 Response body: ${response.body}');
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     } else {
-      throw Exception('Failed to upload financial documents');
+      throw Exception(
+          'Failed to upload financial documents: ${response.statusCode} - ${response.body}');
     }
+  } catch (e) {
+    print('❌ Error in uploadFinancialDocuments: $e');
+    throw Exception('Network error while uploading financial documents: $e');
   }
+}
 
   // 6. Get Parent Financial Profile
   // في api_service.dart - تحديث دالة getParentFinancialProfile
-  static Future<Map<String, dynamic>> getParentFinancialProfile(
-      String token) async {
-    try {
-      final url = Uri.parse('http://10.0.2.2:5000/api/financial/profile');
+  static Future<Map<String, dynamic>> getParentFinancialProfile(String token) async {
+  try {
+    final url = Uri.parse(_buildUrl('financial/profile'));
+    print('🌐 Fetching parent financial profile from: $url');
 
-      final response = await http.get(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
+    final response = await http.get(
+      url,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
 
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else if (response.statusCode == 404) {
-        // إذا لم يكن هناك ملف مالي، نعود لاستخدام بيانات افتراضية
-        return {
-          'success': true,
-          'data': _createDefaultFinancialProfile(),
-          'message': 'Using default financial profile'
-        };
-      } else {
-        // لجميع الحالات الأخرى، نستخدم البيانات الافتراضية
-        return {
-          'success': true,
-          'data': _createDefaultFinancialProfile(),
-          'message': 'Using default financial data'
-        };
-      }
-    } catch (e) {
-      print('❌ Error in getParentFinancialProfile: $e');
-      // في حالة الخطأ، نستخدم البيانات الافتراضية
+    print('📊 Response status: ${response.statusCode}');
+    print('📦 Response body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else if (response.statusCode == 404) {
+      // إذا لم يكن هناك ملف مالي، نعود لاستخدام بيانات افتراضية
       return {
         'success': true,
         'data': _createDefaultFinancialProfile(),
-        'message': 'Using default due to error'
+        'message': 'Using default financial profile',
+      };
+    } else {
+      // لجميع الحالات الأخرى، نستخدم البيانات الافتراضية
+      return {
+        'success': true,
+        'data': _createDefaultFinancialProfile(),
+        'message': 'Using default financial data',
       };
     }
+  } catch (e) {
+    print('❌ Error in getParentFinancialProfile: $e');
+    // في حالة الخطأ، نستخدم البيانات الافتراضية
+    return {
+      'success': true,
+      'data': _createDefaultFinancialProfile(),
+      'message': 'Using default due to error',
+    };
   }
+}
+
 
 // دالة لإنشاء ملف مالي افتراضي
   static Map<String, dynamic> _createDefaultFinancialProfile() {
@@ -3118,45 +3231,50 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
 
 // 1. دالة لجلب الطلبات المالية
   static Future<Map<String, dynamic>> getFinancialAssistanceRequests(
-    String token, {
-    String status = 'all',
-    int page = 1,
-    int limit = 10,
-    String sortBy = 'created_at',
-    String sortOrder = 'DESC',
-  }) async {
-    try {
-      final url = Uri.parse('http://10.0.2.2:5000/api/financial/requests?'
-          'status=$status&'
-          'page=$page&'
-          'limit=$limit&'
-          'sort_by=$sortBy&'
-          'sort_order=$sortOrder');
+  String token, {
+  String status = 'all',
+  int page = 1,
+  int limit = 10,
+  String sortBy = 'created_at',
+  String sortOrder = 'DESC',
+}) async {
+  try {
+    final url = Uri.parse(_buildUrl('financial/requests')).replace(
+      queryParameters: {
+        'status': status,
+        'page': page.toString(),
+        'limit': limit.toString(),
+        'sort_by': sortBy,
+        'sort_order': sortOrder,
+      },
+    );
 
-      print('🌐 Fetching financial assistance requests...');
+    print('🌐 Fetching financial assistance requests...');
+    print('🔗 URL: $url');
 
-      final response = await http.get(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
+    final response = await http.get(
+      url,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
 
-      print('📊 Response status: ${response.statusCode}');
+    print('📊 Response status: ${response.statusCode}');
+    print('📦 Response body: ${response.body}');
 
-      if (response.statusCode == 200) {
-        final result = jsonDecode(response.body);
-        return result;
-      } else {
-        // إذا فشل الـ API، نعيد بيانات افتراضية
-        return _getDefaultFinancialRequestsResponse();
-      }
-    } catch (e) {
-      print('❌ Error in getFinancialAssistanceRequests: $e');
+    if (response.statusCode == 200) {
+      final result = jsonDecode(response.body);
+      return result;
+    } else {
+      print('⚠️ Failed to fetch requests, returning default response');
       return _getDefaultFinancialRequestsResponse();
     }
+  } catch (e) {
+    print('❌ Error in getFinancialAssistanceRequests: $e');
+    return _getDefaultFinancialRequestsResponse();
   }
+}
 
 // 2. دالة افتراضية للطلبات المالية
   static Map<String, dynamic> _getDefaultFinancialRequestsResponse() {
@@ -3199,11 +3317,10 @@ static Future<Map<String, dynamic>> initiateGeneralFinancialAssessment(
   String token,
 ) async {
   try {
-    final url = Uri.parse(
-      'http://10.0.2.2:5000/api/financial/assessment/general/initiate'
-    );
+    final url = Uri.parse(_buildUrl('financial/assessment/general/initiate'));
 
     print('🌐 Initiating general financial assessment...');
+    print('🔗 URL: $url');
 
     final response = await http.post(
       url,
@@ -3214,11 +3331,13 @@ static Future<Map<String, dynamic>> initiateGeneralFinancialAssessment(
     );
 
     print('📥 Response status: ${response.statusCode}');
+    print('📦 Response body: ${response.body}');
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     } else {
-      throw Exception('Failed to initiate general financial assessment: ${response.statusCode}');
+      throw Exception(
+          'Failed to initiate general financial assessment: ${response.statusCode}');
     }
   } catch (e) {
     print('❌ Error in initiateGeneralFinancialAssessment: $e');
@@ -3232,12 +3351,11 @@ static Future<Map<String, dynamic>> submitGeneralFinancialAssessment(
   Map<String, dynamic> responses,
 ) async {
   try {
-    final url = Uri.parse(
-      'http://10.0.2.2:5000/api/financial/assessment/general/submit'
-    );
+    final url = Uri.parse(_buildUrl('financial/assessment/general/submit'));
 
     print('🌐 Submitting general financial assessment...');
-    print('📝 Responses: ${responses.keys.toList()}');
+    print('📝 Responses keys: ${responses.keys.toList()}');
+    print('🔗 URL: $url');
 
     final response = await http.post(
       url,
@@ -3245,23 +3363,24 @@ static Future<Map<String, dynamic>> submitGeneralFinancialAssessment(
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({
-        'responses': responses,
-      }),
+      body: jsonEncode({'responses': responses}),
     );
 
     print('📥 Response status: ${response.statusCode}');
+    print('📦 Response body: ${response.body}');
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     } else {
-      throw Exception('Failed to submit general financial assessment: ${response.statusCode}');
+      throw Exception(
+          'Failed to submit general financial assessment: ${response.statusCode}');
     }
   } catch (e) {
     print('❌ Error in submitGeneralFinancialAssessment: $e');
     throw e;
   }
 }
+
 
 // 3. تطبيق التقييم على طفل محدد
 static Future<Map<String, dynamic>> applyFinancialAssessmentToChild(
@@ -3271,13 +3390,12 @@ static Future<Map<String, dynamic>> applyFinancialAssessmentToChild(
   bool useExistingAssessment = true,
 }) async {
   try {
-    final url = Uri.parse(
-      'http://10.0.2.2:5000/api/financial/assessment/apply-to-child'
-    );
+    final url = Uri.parse(_buildUrl('financial/assessment/apply-to-child'));
 
     print('🌐 Applying financial assessment to child...');
     print('   Child ID: $childId');
     print('   Institution ID: $institutionId');
+    print('   URL: $url');
 
     final response = await http.post(
       url,
@@ -3293,6 +3411,7 @@ static Future<Map<String, dynamic>> applyFinancialAssessmentToChild(
     );
 
     print('📥 Response status: ${response.statusCode}');
+    print('📦 Response body: ${response.body}');
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -3304,6 +3423,7 @@ static Future<Map<String, dynamic>> applyFinancialAssessmentToChild(
     throw e;
   }
 }
+
 
 // ==============================================
 // 📊 دوال مساعدة للشاشات الجديدة
@@ -3359,13 +3479,16 @@ static Future<Map<String, dynamic>> getRecommendedInstitutionsByTier(
 ) async {
   try {
     final url = Uri.parse(
-      'http://10.0.2.2:5000/api/financial/institutions/recommended?'
-      'tier=$financialTier&discount=$discountPercentage'
-    );
+      _buildUrl('financial/institutions/recommended')
+    ).replace(queryParameters: {
+      'tier': financialTier,
+      'discount': discountPercentage.toString(),
+    });
 
     print('🌐 Getting recommended institutions by tier...');
     print('   Tier: $financialTier');
     print('   Discount: $discountPercentage%');
+    print('   URL: $url');
 
     final response = await http.get(
       url,
@@ -3376,11 +3499,11 @@ static Future<Map<String, dynamic>> getRecommendedInstitutionsByTier(
     );
 
     print('📥 Response status: ${response.statusCode}');
+    print('📦 Response body: ${response.body}');
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     } else {
-      // في حالة فشل، نعيد بيانات افتراضية
       return _getDefaultRecommendedInstitutions();
     }
   } catch (e) {
@@ -3388,6 +3511,7 @@ static Future<Map<String, dynamic>> getRecommendedInstitutionsByTier(
     return _getDefaultRecommendedInstitutions();
   }
 }
+
 // بيانات افتراضية للمؤسسات الموصى بها
 static Map<String, dynamic> _getDefaultRecommendedInstitutions() {
   return {
@@ -3440,28 +3564,38 @@ static Future<Map<String, dynamic>> getChildrenByInstitution(
   int institutionId,
 ) async {
   try {
-    final url = Uri.parse(
-      'http://10.0.2.2:5000/api/children/by-institution/$institutionId'
-    );
+    final url = _buildUrl('children/by-institution/$institutionId');
 
     final response = await http.get(
-      url,
+      Uri.parse(url),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
     );
 
+    print('📡 Response status: ${response.statusCode}');
+    print('📦 Response body: ${response.body}');
+
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     } else {
-      return {'success': false, 'message': 'Failed to load children', 'data': []};
+      return {
+        'success': false,
+        'message': 'Failed to load children',
+        'data': [],
+      };
     }
   } catch (e) {
     print('❌ Error in getChildrenByInstitution: $e');
-    return {'success': false, 'message': 'Error: $e', 'data': []};
+    return {
+      'success': false,
+      'message': 'Error: $e',
+      'data': [],
+    };
   }
 }
+
 
 
 
@@ -3502,15 +3636,13 @@ static Future<Map<String, dynamic>> checkAutoFinancialAssistance(
   String sessionId,
 ) async {
   try {
-    final url = Uri.parse(
-      'http://10.0.2.2:5000/api/parent/$sessionId/check-auto-assistance',
-    );
+    final url = _buildUrl('parent/$sessionId/check-auto-assistance');
 
     print('🌐 Checking auto financial assistance...');
     print('   Session ID: $sessionId');
 
     final response = await http.get(
-      url,
+      Uri.parse(url),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -3518,9 +3650,11 @@ static Future<Map<String, dynamic>> checkAutoFinancialAssistance(
     );
 
     print('📥 Response status: ${response.statusCode}');
+    print('📦 Response body: ${response.body}');
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      final data = jsonDecode(response.body);
+      return data;
     } else {
       return {
         'success': false,
@@ -3544,26 +3678,26 @@ static Future<Map<String, dynamic>> applyAutoDiscount(
   String sessionId,
 ) async {
   try {
-    final url = Uri.parse(
-      'http://10.0.2.2:5000/api/parent/$sessionId/apply-auto-discount',
-    );
+    final url = _buildUrl('parent/$sessionId/apply-auto-discount');
 
     print('🌐 Applying auto discount...');
     print('   Session ID: $sessionId');
 
     final response = await http.post(
-      url,
+      Uri.parse(url),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({}),
+      body: jsonEncode({}), // حتى لو body فارغ
     );
 
     print('📥 Response status: ${response.statusCode}');
+    print('📦 Response body: ${response.body}');
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      final data = jsonDecode(response.body);
+      return data;
     } else {
       return {
         'success': false,
@@ -3580,7 +3714,6 @@ static Future<Map<String, dynamic>> applyAutoDiscount(
     };
   }
 }
-
   static String _adminUrl(String path) {
     final host = kIsWeb ? 'http://localhost:5000' : 'http://10.0.2.2:5000';
     return '$host$path';
@@ -4356,10 +4489,8 @@ static Future<Map<String, dynamic>> uploadMedicalDocument(
     }
 
     // إنشاء الطلب
-    var request = http.MultipartRequest(
-      'POST',
-      Uri.parse('http://10.0.2.2:5000/api/children/$childId/upload-document'),
-    );
+    final url = _buildUrl('children/$childId/upload-document');
+    var request = http.MultipartRequest('POST', Uri.parse(url));
 
     // إضافة الـ headers
     request.headers['Authorization'] = 'Bearer $token';
@@ -4419,33 +4550,41 @@ static Future<Map<String, dynamic>> uploadMedicalDocument(
 }
   /// حذف مستند طبي
   static Future<Map<String, dynamic>> deleteMedicalDocument(
-    String token,
-    String childId,
-    String fileId,
-  ) async {
-    try {
-      final response = await http.delete(
-        Uri.parse('http://10.0.2.2:5000/api/children/$childId/documents/$fileId'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
+  String token,
+  String childId,
+  String fileId,
+) async {
+  try {
+    final url = _buildUrl('children/$childId/documents/$fileId');
 
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        return {
-          'success': false,
-          'message': 'Failed to delete document',
-        };
-      }
-    } catch (e) {
+    print('🗑️ Deleting document: $fileId for child: $childId');
+    final response = await http.delete(
+      Uri.parse(url),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    print('📡 Response status: ${response.statusCode}');
+    print('📦 Response body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
       return {
         'success': false,
-        'message': 'Network error: $e',
+        'message': 'Failed to delete document: ${response.statusCode}',
       };
     }
+  } catch (e) {
+    print('❌ Error deleting document: $e');
+    return {
+      'success': false,
+      'message': 'Network error: $e',
+    };
   }
+}
+
 
 }

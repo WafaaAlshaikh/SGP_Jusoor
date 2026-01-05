@@ -15,4 +15,6 @@ router.post('/child-added', notificationController.sendChildNotification);
 // 3. إرسال إشعار حجز حصة للأخصائي
 router.post('/session-booked', notificationController.sendSessionNotification);
 
+router.post('/simple-test', notificationController.sendSimpleTest);
+
 module.exports = router;

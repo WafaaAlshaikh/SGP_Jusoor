@@ -1,12 +1,21 @@
-// services/notification_service.dart
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
 FlutterLocalNotificationsPlugin();
 
-// تهيئة الإشعارات
+// متغير لتتبع ما إذا تم إنشاء القنوات
+bool _channelsCreated = false;
+
+/// ===============================
+/// INITIALIZE NOTIFICATIONS
+/// ===============================
+
+
 Future<void> initializeNotifications() async {
+  print('📱 تهيئة الإشعارات الأساسية...');
+
+  // فقط تهيئة الأساسيات
   const AndroidInitializationSettings initializationSettingsAndroid =
   AndroidInitializationSettings('@mipmap/ic_launcher');
 
@@ -15,10 +24,173 @@ Future<void> initializeNotifications() async {
 
   await flutterLocalNotificationsPlugin.initialize(initializationSettings);
 
-  print('✅ Notifications initialized');
+  print('✅ الإشعارات الأساسية جاهزة');
 }
 
-// 🔔 NEW: Chat notification function (simplified)
+/// ===============================
+/// إنشاء القنوات بدون crash
+/// ===============================
+Future<void> _createNotificationChannelsSafely() async {
+  try {
+    print('🔄 Creating notification channels...');
+
+    final androidPlugin =
+    flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+
+    if (androidPlugin == null) {
+      print('⚠️ Android plugin not available');
+      return;
+    }
+
+    // الانتظار قليلاً لضمان استقرار النظام
+    await Future.delayed(Duration(milliseconds: 500));
+
+    // تعريف القنوات المطلوبة
+    final channels = [
+      AndroidNotificationChannel(
+        'default_channel',
+        'General Notifications',
+        description: 'All general notifications',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+      ),
+      AndroidNotificationChannel(
+        'chat_channel',
+        'Chat Messages',
+        description: 'Notifications for new chat messages',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+      ),
+      AndroidNotificationChannel(
+        'persistent_shade_channel',
+        'Persistent Notifications',
+        description: 'Notifications that stay until manually dismissed',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+      ),
+    ];
+
+    // محاولة إنشاء كل قناة مع معالجة الأخطاء
+    for (var channel in channels) {
+      try {
+        await androidPlugin.createNotificationChannel(channel);
+        print('✅ Created notification channel: ${channel.id}');
+        await Future.delayed(Duration(milliseconds: 100)); // تأخير بين القنوات
+      } catch (channelError) {
+        print('⚠️ Error creating channel ${channel.id}: $channelError');
+
+        // إذا كانت المشكلة أن القناة موجودة بالفعل، فهذا ليس خطأ
+        if (channelError.toString().contains('already exists') ||
+            channelError.toString().contains('EXISTS')) {
+          print('ℹ️ Channel ${channel.id} already exists');
+        }
+      }
+    }
+
+    print('✅ Notification channels created safely');
+  } catch (e) {
+    print('❌ Error in _createNotificationChannelsSafely: $e');
+    // محاولة إنشاء قناة أساسية فقط
+    await _createBasicChannel();
+  }
+}
+
+/// ===============================
+/// إنشاء قناة أساسية كبديل
+/// ===============================
+Future<void> _createBasicChannel() async {
+  try {
+    final androidPlugin =
+    flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+
+    if (androidPlugin != null) {
+      final basicChannel = AndroidNotificationChannel(
+        'default_channel',
+        'General Notifications',
+        description: 'All notifications',
+        importance: Importance.high,
+      );
+
+      await androidPlugin.createNotificationChannel(basicChannel);
+      print('✅ Created basic notification channel');
+    }
+  } catch (e) {
+    print('❌ Failed to create even basic channel: $e');
+  }
+}
+
+/// ===============================
+/// تهيئة بديلة
+/// ===============================
+Future<void> _initializeWithFallback() async {
+  try {
+    print('🔄 Trying fallback initialization...');
+
+    const AndroidInitializationSettings initializationSettingsAndroid =
+    AndroidInitializationSettings('@mipmap/ic_launcher');
+
+    const InitializationSettings initializationSettings =
+    InitializationSettings(android: initializationSettingsAndroid);
+
+    await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+
+    print('✅ Fallback initialization successful');
+  } catch (e) {
+    print('❌ Fallback initialization also failed: $e');
+  }
+}
+
+/// ===============================
+/// التحقق مما إذا تم تهيئة الإشعارات
+/// ===============================
+bool areNotificationsInitialized() {
+  return _channelsCreated;
+}
+
+/// ===============================
+/// إعادة تعيين حالة القنوات (للاستخدام في حالة الخطأ)
+/// ===============================
+void resetNotificationChannels() {
+  _channelsCreated = false;
+  print('🔄 Notification channels state reset');
+}
+
+/// ===============================
+/// SHOW SIMPLE NOTIFICATION
+/// ===============================
+Future<void> showSimpleNotification({
+  required String title,
+  required String body,
+  int id = 0,
+}) async {
+  try {
+    final androidDetails = AndroidNotificationDetails(
+      'default_channel',
+      'General Notifications',
+      channelDescription: 'All notifications',
+      importance: Importance.high,
+      priority: Priority.high,
+      playSound: true,
+      enableVibration: true,
+    );
+
+    final platformDetails = NotificationDetails(android: androidDetails);
+
+    await flutterLocalNotificationsPlugin.show(id, title, body, platformDetails);
+    print('✅ Notification shown: $title');
+  } catch (e) {
+    print('❌ Error showing simple notification: $e');
+  }
+}
+
+/// ===============================
+/// SHOW CHAT NOTIFICATION
+/// ===============================
 Future<void> showChatNotification({
   required String senderName,
   required String message,
@@ -47,7 +219,6 @@ Future<void> showChatNotification({
     print('💬 Chat notification sent: $senderName - $message');
   } catch (e) {
     print('❌ Error in showChatNotification: $e');
-    // Fallback
     await showSimpleNotification(
       title: 'New message from $senderName',
       body: message,
@@ -56,42 +227,18 @@ Future<void> showChatNotification({
   }
 }
 
-// دالة للإشعارات العادية
-Future<void> showSimpleNotification({
-  required String title,
-  required String body,
-  int id = 0
-}) async {
-  try {
-    final androidDetails = AndroidNotificationDetails(
-      'default_channel',
-      'General Notifications',
-      channelDescription: 'All notifications',
-      importance: Importance.high,
-      priority: Priority.high,
-      playSound: true,
-      enableVibration: true,
-    );
-
-    final platformDetails = NotificationDetails(android: androidDetails);
-
-    await flutterLocalNotificationsPlugin.show(id, title, body, platformDetails);
-    print('✅ Notification shown: $title');
-  } catch (e) {
-    print('❌ Error showing simple notification: $e');
-  }
-}
-
-// دالة للإشعارات المستمرة في الشاد
+/// ===============================
+/// SHOW PERSISTENT NOTIFICATION
+/// ===============================
 Future<void> showPersistentShadeNotification({
   required int id,
   required String title,
-  required String body
+  required String body,
 }) async {
   try {
     final androidDetails = AndroidNotificationDetails(
       'persistent_shade_channel',
-      'Persistent Shade Notifications',
+      'Persistent Notifications',
       channelDescription: 'Notifications that stay in shade until manually dismissed',
       importance: Importance.high,
       priority: Priority.high,
@@ -109,92 +256,4 @@ Future<void> showPersistentShadeNotification({
     print('❌ Error showing persistent notification: $e');
     await showSimpleNotification(title: title, body: body, id: id);
   }
-}
-
-// 🔔 NEW: Setup Firebase messaging
-Future<void> setupFirebaseMessaging() async {
-  try {
-    // طلب الإذن للإشعارات (لـ iOS)
-    NotificationSettings settings = await FirebaseMessaging.instance.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-
-    print('🔔 User granted permission: ${settings.authorizationStatus}');
-
-    // التعامل مع الإشعارات عندما التطبيق في المقدمة
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print('📱 Got a message whilst in the foreground!');
-      print('Message data: ${message.data}');
-
-      if (message.notification != null) {
-        print('Message also contained a notification: ${message.notification}');
-      }
-    });
-
-    // التعامل مع الإشعارات عندما يضغط المستخدم عليها
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      print('📱 A notification message was clicked!');
-      print('Message data: ${message.data}');
-    });
-
-    print('✅ Firebase Messaging setup completed');
-  } catch (e) {
-    print('❌ Error setting up Firebase Messaging: $e');
-  }
-}
-
-// دالة لجدولة الإشعار اليومي
-Future<void> scheduleDailyMoodNotification() async {
-  final now = DateTime.now();
-  var targetTime = DateTime(now.year, now.month, now.day, 20, 0);
-
-  if (targetTime.isBefore(now)) {
-    targetTime = targetTime.add(const Duration(days: 1));
-  }
-
-  final durationUntil8PM = targetTime.difference(now);
-
-  print('⏰ Daily notification scheduled in: ${durationUntil8PM.inHours}h ${durationUntil8PM.inMinutes.remainder(60)}m');
-
-  Future.delayed(durationUntil8PM, () async {
-    await showPersistentShadeNotification(
-      id: 0,
-      title: 'PureMood - تسجيل المزاج 🎯',
-      body: 'هل سجلت مزاجك اليوم؟ اضغط لتسجيل مزاجك الآن!',
-    );
-
-    // جدول ليوم الغد
-    scheduleDailyMoodNotification();
-  });
-}
-
-// دالة لجدولة إشعار تجريبي
-Future<void> scheduleTestNotification() async {
-  print('⏰ Scheduling test notification in 1 minute...');
-
-  Future.delayed(const Duration(minutes: 1), () async {
-    await showPersistentShadeNotification(
-      id: 999,
-      title: 'PureMood - Test Notification',
-      body: 'This is a test notification! 🎯',
-    );
-  });
-}
-
-// دالة لإعادة جدولة الإشعارات
-Future<void> rescheduleNotificationsOnAppStart() async {
-  await flutterLocalNotificationsPlugin.cancelAll();
-  await scheduleDailyMoodNotification();
-  await scheduleTestNotification();
-  print('🔄 All notifications rescheduled');
-}
-
-// دالة لإلغاء الإشعارات المستمرة
-Future<void> cancelPersistentNotifications() async {
-  await flutterLocalNotificationsPlugin.cancel(0);
-  await flutterLocalNotificationsPlugin.cancel(998);
-  await flutterLocalNotificationsPlugin.cancel(999);
-  print('❌ All persistent notifications cancelled');
 }

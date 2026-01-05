@@ -6,8 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 class NotificationSharedService {
   static const String _baseUrl = 'http://10.0.2.2:5000/api';
 
+  /// إرسال إشعار
   static Future<Map<String, dynamic>> sendNotification({
-    required String token,
+    required String fcmToken,
     required String title,
     required String body,
     Map<String, String>? data,
@@ -17,22 +18,23 @@ class NotificationSharedService {
       final authToken = prefs.getString('token');
 
       if (authToken == null) {
-        throw Exception('No authentication token found');
+        throw Exception('❌ No authentication token found in SharedPreferences');
       }
 
       print('📤 Sending notification via API...');
       print('Title: $title');
       print('Body: $body');
-      print('Token: ${token.substring(0, 20)}...');
+      print('Token: ${fcmToken.substring(0, 20)}...');
       print('Data: $data');
 
       final response = await http.post(
         Uri.parse('$_baseUrl/notifications/test'),
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': 'Bearer $authToken', // ✅ Added auth header
         },
         body: json.encode({
-          'token': token,
+          'token': fcmToken,
           'title': title,
           'body': body,
           ...(data ?? {}),
@@ -42,8 +44,8 @@ class NotificationSharedService {
       print('📥 Notification response: ${response.statusCode} - ${response.body}');
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return data;
+        final respData = json.decode(response.body);
+        return respData;
       } else {
         final errorData = json.decode(response.body);
         throw Exception(errorData['message'] ?? 'Failed to send notification');
@@ -54,7 +56,7 @@ class NotificationSharedService {
     }
   }
 
-  // دالة لإشعار إضافة طفل (إذا تحتاجها)
+  /// إشعار إضافة طفل
   static Future<void> sendChildAddedNotification({
     required String parentToken,
     required String childName,
@@ -62,9 +64,8 @@ class NotificationSharedService {
   }) async {
     try {
       print('👶 Sending child added notification...');
-
       await sendNotification(
-        token: parentToken,
+        fcmToken: parentToken,
         title: '🎓 New Child Registered',
         body: '$childName has been registered in the system',
         data: {
@@ -74,14 +75,13 @@ class NotificationSharedService {
           'action': 'view_child',
         },
       );
-
       print('✅ Child notification sent successfully');
     } catch (e) {
-      print('⚠️ Failed to send child notification (continuing anyway): $e');
+      print('⚠️ Failed to send child notification: $e');
     }
   }
 
-  // دالة لإشعار حجز جلسة
+  /// إشعار حجز جلسة
   static Future<void> sendSessionBookedNotification({
     required String specialistToken,
     required String childName,
@@ -91,9 +91,8 @@ class NotificationSharedService {
   }) async {
     try {
       print('📅 Sending session booked notification...');
-
       await sendNotification(
-        token: specialistToken,
+        fcmToken: specialistToken,
         title: '📅 New Session Booked',
         body: 'Session on $date $time for child $childName',
         data: {
@@ -105,14 +104,13 @@ class NotificationSharedService {
           'action': 'view_schedule',
         },
       );
-
       print('✅ Session notification sent successfully');
     } catch (e) {
-      print('⚠️ Failed to send session notification (continuing anyway): $e');
+      print('⚠️ Failed to send session notification: $e');
     }
   }
 
-  // دالة لإشعارات الجداول
+  /// إشعارات الجداول
   static Future<void> sendScheduleNotification({
     required String specialistToken,
     required String action,
@@ -123,7 +121,6 @@ class NotificationSharedService {
   }) async {
     try {
       print('📅 Sending schedule notification...');
-
       String title;
       String body;
       Map<String, String> data = {
@@ -140,32 +137,28 @@ class NotificationSharedService {
           data['start_time'] = startTime!;
           data['end_time'] = endTime!;
           break;
-
         case 'updated':
           title = '🔄 Schedule Updated';
           body = 'Schedule for $dayOfWeek has been updated';
           if (startTime != null) data['start_time'] = startTime;
           if (endTime != null) data['end_time'] = endTime;
           break;
-
         case 'deleted':
           title = '🗑️ Schedule Deleted';
           body = 'Schedule for $dayOfWeek has been deleted';
           break;
-
         case 'bulk_added':
           title = '📋 Multiple Schedules Added';
           body = '$numberOfSchedules schedules have been added';
           data['count'] = numberOfSchedules.toString();
           break;
-
         default:
           title = '📅 Schedule Modified';
           body = 'Your schedule has been modified';
       }
 
       await sendNotification(
-        token: specialistToken,
+        fcmToken: specialistToken,
         title: title,
         body: body,
         data: data,

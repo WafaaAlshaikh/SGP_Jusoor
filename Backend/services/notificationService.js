@@ -18,36 +18,84 @@ try {
 // 2. Notification Service
 const NotificationService = {
   // Basic function: Send notification to a single token
-  async sendToToken(token, title, body, data = {}) {
-    try {
-      if (!token || token.trim() === '') {
-        console.log('⚠️ Empty token provided');
-        return { success: false, error: 'Empty token' };
-      }
+  // في notificationService.js، عدل دالة sendToToken:
 
-      const message = {
-        token: token.trim(),
-        notification: {
-          title: title,
-          body: body
-        },
-        data: {
-          ...data,
-          type: data.type || 'general',
-          timestamp: new Date().toISOString()
-        }
-      };
-
-      console.log(`📤 Sending notification: "${title}"`);
-      const response = await admin.messaging().send(message);
-      console.log('✅ Notification sent successfully');
-      return { success: true, response: response };
-
-    } catch (error) {
-      console.error('❌ Error sending notification:', error.message);
-      return { success: false, error: error.message };
+// في notificationService.js، عدل كائن message:
+async sendToToken(token, title, body, data = {}) {
+  try {
+    if (!token || token.trim() === '') {
+      console.log('⚠️ Empty token provided');
+      return { success: false, error: 'Empty token' };
     }
-  },
+
+    // 🔥 تحويل جميع قيم data إلى strings
+    const stringData = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined && value !== null) {
+        stringData[key] = String(value);
+      } else {
+        stringData[key] = '';
+      }
+    }
+
+    const message = {
+      token: token.trim(),
+      notification: {
+        title: title,
+        body: body,
+      },
+      android: {
+        priority: 'high',
+        notification: {
+          channel_id: data.channel || 'default_channel',
+          icon: '@mipmap/ic_launcher',
+          color: '#2196F3',
+          tag: data.type || 'general',
+          sound: 'default',
+          visibility: 'public',
+        }
+      },
+      apns: {
+        payload: {
+          aps: {
+            alert: {
+              title: title,
+              body: body
+            },
+            sound: 'default',
+            badge: 1
+          }
+        }
+      },
+      data: {
+        ...stringData,  // 🔥 استخدام البيانات المحولة إلى strings
+        type: data.type || 'general',
+        timestamp: new Date().toISOString(),
+        title: title,
+        body: body,
+        click_action: 'FLUTTER_NOTIFICATION_CLICK',
+        channelId: data.channel || 'default_channel',
+        priority: 'high',
+        notificationType: 'session_created'
+      }
+    };
+
+    console.log(`📤 Sending session notification: "${title}"`);
+    console.log(`📱 Token: ${token.substring(0, 20)}...`);
+    console.log(`📋 Channel: ${data.channel || 'default_channel'}`);
+    console.log(`👶 Child: ${data.childName || 'Unknown'}`);
+    console.log(`📅 Date/Time: ${data.date || ''} ${data.time || ''}`);
+    
+    const response = await admin.messaging().send(message);
+    console.log('✅ Session notification sent successfully');
+    return { success: true, response: response };
+
+  } catch (error) {
+    console.error('❌ Error sending session notification:', error.message);
+    console.error('🔍 Error details:', error);
+    return { success: false, error: error.message };
+  }
+},
 
   // Notification for child registration to parents
   async sendChildAdded(parentToken, childName, childId) {
@@ -81,9 +129,95 @@ const NotificationService = {
         action: 'view_schedule'
       }
     );
-  }
+  },
 
+  async sendSimpleTest(token, title, body) {
+    try {
+      console.log('🔥 TESTING: Sending simplest possible notification');
+      console.log('Token:', token.substring(0, 20) + '...');
+      
+      const message = {
+        token: token.trim(),
+        notification: {
+          title: title,
+          body: body,
+        },
+        android: {
+          priority: 'high',
+        },
+        apns: {
+          payload: {
+            aps: {
+              alert: {
+                title: title,
+                body: body,
+              },
+              sound: 'default',
+            },
+          },
+        },
+        data: {
+          test: 'true',
+          timestamp: new Date().toISOString(),
+        },
+      };
+
+      console.log('📤 Message to send:', JSON.stringify(message, null, 2));
+      
+      const response = await admin.messaging().send(message);
+      console.log('✅ Firebase response:', response);
+      return { success: true, response: response };
+
+    } catch (error) {
+      console.error('❌ Firebase error:', error.message);
+      console.error('Full error:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+
+  // Notification for session update to parents
+async sendSessionUpdated(parentToken, childName, originalDate, originalTime, newDate, newTime, sessionId, action) {
+  let title, body;
   
+  switch(action) {
+    case 'updated':
+      title = '🔄 Session Rescheduled';
+      body = `Session for ${childName} has been rescheduled from ${originalDate} ${originalTime} to ${newDate} ${newTime}`;
+      break;
+    case 'cancelled':
+      title = '❌ Session Cancelled';
+      body = `Session for ${childName} on ${originalDate} at ${originalTime} has been cancelled`;
+      break;
+    case 'completed':
+      title = '✅ Session Completed';
+      body = `Session for ${childName} on ${originalDate} at ${originalTime} has been completed`;
+      break;
+    default:
+      title = '📅 Session Updated';
+      body = `Session for ${childName} has been updated`;
+  }
+  
+  return await this.sendToToken(
+    parentToken,
+    title,
+    body,
+    {
+      type: 'session_' + action,
+      childId: sessionId.toString(),
+      childName: childName,
+      originalDate: originalDate,
+      originalTime: originalTime,
+      newDate: newDate || '',
+      newTime: newTime || '',
+      sessionId: sessionId,
+      action: 'view_session',
+      channel: 'session_channel'
+    }
+  );
+},
 };
+
+
 
 module.exports = NotificationService;

@@ -1,10 +1,17 @@
 // lib/services/rating_service.dart
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class RatingService {
-  static const String baseUrl = 'http://10.0.2.2:5000';
+  static String get baseUrl {
+  if (kIsWeb) {
+    return 'http://localhost:5000';
+  } else {
+    return 'http://10.0.2.2:5000';
+  }
+}
 
   // ==================== تقييمات الجلسات ====================
   static Future<Map<String, dynamic>> rateSession({

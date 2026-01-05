@@ -40,6 +40,56 @@ exports.sendTestNotification = async (req, res) => {
   }
 };
 
+exports.sendSimpleTest = async (req, res) => {
+  try {
+    const { token, title, body } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token is required'
+      });
+    }
+
+    console.log('🔥 SIMPLE TEST REQUEST RECEIVED');
+    console.log('Token:', token.substring(0, 20) + '...');
+    console.log('Title:', title || 'Default Test');
+    console.log('Body:', body || 'Test body');
+
+    // استدعاء الدالة المبسطة
+    const result = await NotificationService.sendSimpleTest(
+      token,
+      title || 'Simple Test',
+      body || 'This is a simple test notification'
+    );
+
+    if (result.success) {
+      res.status(200).json({
+        success: true,
+        message: 'Simple test notification sent',
+        data: {
+          messageId: result.response,
+          sentTime: new Date().toISOString()
+        }
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to send test notification',
+        error: result.error
+      });
+    }
+
+  } catch (error) {
+    console.error('Error in sendSimpleTest:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
 exports.sendChildNotification = async (req, res) => {
   try {
     const { parent_token, child_name, child_id } = req.body;

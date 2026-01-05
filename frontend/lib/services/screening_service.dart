@@ -1,9 +1,19 @@
 // services/screening_service.dart
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+  import 'package:flutter/foundation.dart' show kIsWeb;
+
 
 class ScreeningService {
-  static const String baseUrl = 'http://10.0.2.2:5000/api/screening';
+
+static String get baseUrl {
+  if (kIsWeb) {
+    return 'http://localhost:5000/api/screening';
+  } else {
+    return 'http://10.0.2.2:5000/api/screening';
+  }
+}
+
 
   static Future<Map<String, dynamic>> startScreening({
     required int childAgeMonths,

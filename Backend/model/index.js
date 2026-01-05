@@ -82,7 +82,7 @@ const EquipmentAllocation = require('./EquipmentAllocation');
 const EquipmentItemHistory = require('./EquipmentItemHistory');
 const EquipmentDonationCampaign = require('./EquipmentDonationCampaign');
 
-// ==================== Main Relations ====================
+const ChildSpecialistCompletion = require('./ChildSpecialistCompletion');// ==================== Main Relations ====================
 
 Institution.hasMany(Donation, {
   foreignKey: 'institution_id'
@@ -308,6 +308,7 @@ module.exports = {
   ChildEquipmentNeed,
   EquipmentAllocation,
   EquipmentItemHistory,
-  EquipmentDonationCampaign
+  EquipmentDonationCampaign,
+  ChildSpecialistCompletion
 };
 

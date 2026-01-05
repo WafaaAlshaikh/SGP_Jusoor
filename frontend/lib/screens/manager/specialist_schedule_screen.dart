@@ -36,111 +36,17 @@ class _SpecialistScheduleScreenState extends State<SpecialistScheduleScreen> {
   Map<String, List<Map<String, dynamic>>> _dailySchedules = {};
   Map<String, dynamic> _selectedSpecialist = {};
   bool _showAllSpecialists = true;
-  String? _fcmToken;
+
   String _selectedDay = 'Monday';
   List<String> _days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 
-  Future<void> _getFCMToken() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('fcm_token');
-
-      if (token != null) {
-        setState(() {
-          _fcmToken = token;
-        });
-        print('📱 FCM Token loaded for schedule notifications');
-      }
-    } catch (e) {
-      print('⚠️ Error loading FCM token: $e');
-    }
-  }
-
-  // 🔥 دالة إرسال إشعارات الجداول
-  Future<void> _sendScheduleNotification({
-    required String action,
-    required String dayOfWeek,
-    String? startTime,
-    String? endTime,
-    int? numberOfSchedules,
-  }) async {
-    try {
-      if (_fcmToken == null) {
-        print('⚠️ No FCM token for schedule notification');
-        return;
-      }
-
-      print('📅 Sending schedule $action notification...');
-
-      // إعداد البيانات حسب نوع الإجراء
-      String title;
-      String body;
-      Map<String, dynamic> data = {
-        'type': 'schedule_change',
-        'action': action,
-        'day_of_week': dayOfWeek,
-        'timestamp': DateTime.now().toIso8601String(),
-      };
-
-      switch (action) {
-        case 'added':
-          title = '📅 New Schedule Added';
-          body = 'New schedule added for $dayOfWeek: $startTime - $endTime';
-          data['start_time'] = startTime;
-          data['end_time'] = endTime;
-          break;
-
-        case 'updated':
-          title = '🔄 Schedule Updated';
-          body = 'Schedule for $dayOfWeek has been updated';
-          if (startTime != null) data['start_time'] = startTime;
-          if (endTime != null) data['end_time'] = endTime;
-          break;
-
-        case 'deleted':
-          title = '🗑️ Schedule Deleted';
-          body = 'Schedule for $dayOfWeek has been deleted';
-          break;
-
-        case 'bulk_added':
-          title = '📋 Schedules Added';
-          body = '$numberOfSchedules schedules have been added';
-          data['count'] = numberOfSchedules.toString();
-          break;
-
-        default:
-          title = '📅 Schedule Modified';
-          body = 'Your schedule has been modified';
-      }
-
-      // إرسال الإشعار عبر API
-      final response = await http.post(
-        Uri.parse('http://10.0.2.2:5000/api/notifications/test'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'token': _fcmToken!,
-          'title': title,
-          'body': body,
-          ...data,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        print('✅ Schedule notification sent successfully');
-      } else {
-        print('⚠️ Failed to send schedule notification: ${response.body}');
-      }
-    } catch (e) {
-      print('❌ Error sending schedule notification: $e');
-    }
-  }
 
   @override
   void initState() {
     super.initState();
     _loadData();
-    _getFCMToken();
+
   }
 
   @override
@@ -559,6 +465,8 @@ class _SpecialistScheduleScreenState extends State<SpecialistScheduleScreen> {
       ),
     );
   }
+
+
 
   List<Map<String, dynamic>> _getSpecialistSchedulesForDay(int specialistId, String day) {
     final allSchedules = _dailySchedules[day] ?? [];
@@ -1324,7 +1232,7 @@ class _SpecialistScheduleScreenState extends State<SpecialistScheduleScreen> {
         await ManagerSpecialistService.addMultipleSchedules(
           specialistId: specialistId,
           schedules: schedulesToAdd,
-          specialistFcmToken: _fcmToken, // 👈 أضف هذا
+
         );
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1334,16 +1242,7 @@ class _SpecialistScheduleScreenState extends State<SpecialistScheduleScreen> {
           ),
         );
 
-        // 🔥 إرسال الإشعار
-        if (_fcmToken != null && schedulesToAdd.isNotEmpty) {
-          _sendScheduleNotification(
-            action: 'bulk_added',
-            dayOfWeek: schedulesToAdd.first['day_of_week'],
-            numberOfSchedules: schedulesToAdd.length,
-          ).catchError((e) {
-            print('⚠️ Schedule notification failed, but schedule was added');
-          });
-        }
+
 
         // إعادة تحميل البيانات
         await _loadData();
@@ -1524,7 +1423,7 @@ class _SpecialistScheduleScreenState extends State<SpecialistScheduleScreen> {
           scheduleId: schedule['schedule_id'],
           startTime: result['start'],
           endTime: result['end'],
-          specialistFcmToken: _fcmToken, // 👈 أضف هذا
+
         );
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1544,17 +1443,6 @@ class _SpecialistScheduleScreenState extends State<SpecialistScheduleScreen> {
           ),
         );
 
-        // 🔥 إرسال الإشعار
-        if (_fcmToken != null) {
-          _sendScheduleNotification(
-            action: 'updated',
-            dayOfWeek: schedule['day_of_week'],
-            startTime: result['start'],
-            endTime: result['end'],
-          ).catchError((e) {
-            print('⚠️ Schedule update notification failed');
-          });
-        }
 
         // تحديث البيانات
         await _loadData();
@@ -1669,7 +1557,7 @@ class _SpecialistScheduleScreenState extends State<SpecialistScheduleScreen> {
         // 👇 عدل استدعاء الـ service لإضافة التوكن
         await ManagerSpecialistService.deleteSchedule(
           scheduleId: scheduleId,
-          specialistFcmToken: _fcmToken, // 👈 أضف هذا
+
         );
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1689,15 +1577,7 @@ class _SpecialistScheduleScreenState extends State<SpecialistScheduleScreen> {
           ),
         );
 
-        // 🔥 إرسال الإشعار
-        if (_fcmToken != null && scheduleDay.isNotEmpty) {
-          _sendScheduleNotification(
-            action: 'deleted',
-            dayOfWeek: scheduleDay,
-          ).catchError((e) {
-            print('⚠️ Schedule delete notification failed');
-          });
-        }
+
 
         // تحديث البيانات
         await _loadData();
@@ -1751,6 +1631,7 @@ class _SpecialistScheduleScreenState extends State<SpecialistScheduleScreen> {
             icon: Icon(Icons.refresh_rounded, color: AppColors.primary),
             onPressed: _loadData,
           ),
+
         ],
       ),
       body: _isLoading

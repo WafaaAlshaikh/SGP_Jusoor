@@ -27,6 +27,13 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
   bool isLoading = true;
   String errorMessage = '';
 
+  // NEW: Variables for completion status
+  bool _isLoadingCompletionStatus = false;
+  bool _isConfirming = false;
+  Map<String, dynamic>? _completionStatus;
+  String _completionError = '';
+  bool _showCompletionCard = true;
+
   // Progress Analysis State
   Map<String, dynamic>? _progressAnalysis;
   bool _isAnalyzing = false;
@@ -36,7 +43,905 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
   void initState() {
     super.initState();
     _loadChildDetails();
+    _loadCompletionStatus();
   }
+
+  // NEW: Function to load completion status
+  Future<void> _loadCompletionStatus() async {
+    try {
+      setState(() {
+        _isLoadingCompletionStatus = true;
+        _completionError = '';
+      });
+
+      final response = await SpecialistChildrenService.getChildCompletionStatus(widget.childId);
+
+      if (response['success'] == true) {
+        setState(() {
+          _completionStatus = response;
+        });
+      } else {
+        setState(() {
+          _completionError = response['message'] ?? 'Failed to load completion status';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _completionError = e.toString().replaceAll('Exception: ', '');
+      });
+    } finally {
+      setState(() {
+        _isLoadingCompletionStatus = false;
+      });
+    }
+  }
+
+  // NEW: Function to confirm completion
+  Future<void> _confirmCompletion() async {
+    try {
+      setState(() {
+        _isConfirming = true;
+      });
+
+      final response = await SpecialistChildrenService.confirmChildCompletion(
+        childId: widget.childId,
+        notes: 'Treatment completed successfully',
+      );
+
+      if (response['success'] == true) {
+        if (childData != null && childData!['child'] != null) {
+          setState(() {
+            childData!['child']['registration_status'] = response['data']['child_status'] ?? 'Completed';
+          });
+        }
+
+        await _loadCompletionStatus();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Treatment completion confirmed successfully',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              backgroundColor: AppColors.success,
+              duration: Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          );
+        }
+      } else {
+        throw Exception(response['message'] ?? 'Failed to confirm completion');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e.toString().replaceAll('Exception: ', ''),
+              textAlign: TextAlign.center,
+            ),
+            backgroundColor: AppColors.error,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isConfirming = false;
+        });
+      }
+    }
+  }
+
+
+  // NEW: Function to build completion card as expandable card at bottom
+  Widget _buildCompletionConfirmationCard() {
+    // State variable for expanded/collapsed
+    bool _isExpanded = false;
+
+    if (_isLoadingCompletionStatus) {
+      return Container(
+        margin: EdgeInsets.all(16),
+        padding: EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 4,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2),
+            SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                'Checking completion status...',
+                style: TextStyle(
+                  color: AppColors.textDark,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_completionError.isNotEmpty) {
+      return Container(
+        margin: EdgeInsets.all(16),
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.warning.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.warning),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.warning, color: AppColors.warning, size: 20),
+                SizedBox(width: 8),
+                Text(
+                  'Error loading completion status',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.warning,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 8),
+            Text(
+              _completionError,
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.textGray,
+              ),
+            ),
+            SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _showCompletionCard = false;
+                    });
+                  },
+                  child: Text('Hide'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.textLight,
+                  ),
+                ),
+                SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: _loadCompletionStatus,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.warning,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  ),
+                  child: Text('Retry'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    final child = _completionStatus?['child'];
+    final confirmations = _completionStatus?['confirmations'] as List<dynamic>?;
+    final allSpecialists = _completionStatus?['all_specialists'] as List<dynamic>?;
+    final allConfirmed = _completionStatus?['all_confirmed'] ?? false;
+
+    final String childName = child?['name'] ?? widget.childName;
+    final String childStatus = child?['status'] ?? 'N/A';
+    final bool isCompleted = childStatus == 'Completed';
+
+    // Get conditions from first confirmation (assuming all have same conditions)
+    final Map<String, dynamic>? conditions = confirmations?.isNotEmpty == true
+        ? confirmations!.first['conditions']
+        : null;
+
+    final bool hasNoActiveSessions = conditions?['has_no_active_sessions'] ?? false;
+    final bool hasFinalEvaluation = conditions?['has_final_evaluation'] ?? false;
+    final bool hasNoPendingRequests = conditions?['has_no_pending_requests'] ?? false;
+
+    // Check if all conditions are met for confirmation
+    final bool allConditionsMet = hasNoActiveSessions &&
+        hasFinalEvaluation &&
+        hasNoPendingRequests;
+
+    final confirmedCount = confirmations?.where((c) => c['confirmed'] == true).length ?? 0;
+    final totalSpecialists = allSpecialists?.length ?? 0;
+
+    // Check if current specialist can confirm (simplified logic)
+    bool canCurrentSpecialistConfirm = confirmations?.any((c) => c['confirmed'] == false) ?? false;
+
+    return StatefulBuilder(
+      builder: (context, setState) {
+        return Container(
+          margin: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+            border: Border.all(
+              color: isCompleted
+                  ? AppColors.success.withOpacity(0.3)
+                  : allConditionsMet
+                  ? AppColors.success.withOpacity(0.3)
+                  : AppColors.primary.withOpacity(0.3),
+              width: 2,
+            ),
+          ),
+          child: Column(
+            children: [
+              // Collapsed Header
+              ListTile(
+                leading: Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isCompleted
+                        ? AppColors.success.withOpacity(0.1)
+                        : allConditionsMet
+                        ? AppColors.success.withOpacity(0.1)
+                        : AppColors.primary.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    isCompleted ? Icons.verified : Icons.check_circle_outline,
+                    color: isCompleted
+                        ? AppColors.success
+                        : allConditionsMet
+                        ? AppColors.success
+                        : AppColors.primary,
+                    size: 24,
+                  ),
+                ),
+                title: Text(
+                  isCompleted
+                      ? 'Treatment Completed'
+                      : allConditionsMet
+                      ? 'Ready for Completion'
+                      : 'Completion Requirements',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textDark,
+                  ),
+                ),
+                subtitle: Text(
+                  isCompleted
+                      ? 'All requirements met and confirmed'
+                      : allConditionsMet
+                      ? 'All conditions met - Ready to confirm'
+                      : 'Check completion requirements',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textGray,
+                  ),
+                ),
+                trailing: IconButton(
+                  icon: Icon(
+                    _isExpanded ? Icons.expand_less : Icons.expand_more,
+                    color: AppColors.primary,
+                    size: 24,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _isExpanded = !_isExpanded;
+                    });
+                  },
+                ),
+              ),
+
+              // Expanded Content
+              if (_isExpanded)
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Divider(color: AppColors.accent2),
+                      SizedBox(height: 12),
+
+                      // Child Info
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.child_care,
+                            color: AppColors.primary,
+                            size: 18,
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              childName,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textDark,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: isCompleted
+                                  ? AppColors.success.withOpacity(0.1)
+                                  : allConditionsMet
+                                  ? AppColors.success.withOpacity(0.1)
+                                  : AppColors.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              isCompleted ? 'Completed' : 'Active',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: isCompleted
+                                    ? AppColors.success
+                                    : allConditionsMet
+                                    ? AppColors.success
+                                    : AppColors.primary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      SizedBox(height: 16),
+
+                      // Conditions Section
+                      if (!isCompleted)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Completion Requirements',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textDark,
+                                fontSize: 14,
+                              ),
+                            ),
+                            SizedBox(height: 12),
+
+                            // Condition 1
+                            _buildConditionRowExpanded(
+                              'No Active Sessions',
+                              hasNoActiveSessions,
+                              'No ongoing therapy sessions',
+                              'There are active sessions in progress',
+                            ),
+
+                            SizedBox(height: 8),
+
+                            // Condition 2
+                            _buildConditionRowExpanded(
+                              'Final Evaluation Completed',
+                              hasFinalEvaluation,
+                              'Final assessment has been conducted',
+                              'Final evaluation is pending',
+                            ),
+
+                            SizedBox(height: 8),
+
+                            // Condition 3
+                            _buildConditionRowExpanded(
+                              'No Pending Requests',
+                              hasNoPendingRequests,
+                              'No pending transfer or other requests',
+                              'There are pending requests to resolve',
+                            ),
+
+                            SizedBox(height: 12),
+
+                            // Summary
+                            Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: allConditionsMet
+                                    ? AppColors.success.withOpacity(0.08)
+                                    : AppColors.warning.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    allConditionsMet ? Icons.check_circle : Icons.info_outline,
+                                    color: allConditionsMet ? AppColors.success : AppColors.warning,
+                                    size: 16,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      allConditionsMet
+                                          ? 'All requirements are met. You can confirm treatment completion.'
+                                          : '${3 - [hasNoActiveSessions, hasFinalEvaluation, hasNoPendingRequests].where((c) => c).length} of 3 requirements remaining',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: allConditionsMet ? AppColors.success : AppColors.warning,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            SizedBox(height: 16),
+                          ],
+                        ),
+
+                      // Specialists Confirmation
+                      if (!isCompleted && totalSpecialists > 0)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Specialist Confirmations',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textDark,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                Text(
+                                  '$confirmedCount / $totalSpecialists',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.primary,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 8),
+                            LinearProgressIndicator(
+                              value: totalSpecialists > 0 ? confirmedCount / totalSpecialists : 0,
+                              backgroundColor: AppColors.accent2,
+                              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                              minHeight: 6,
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              allConfirmed
+                                  ? 'All specialists confirmed completion'
+                                  : 'Needs confirmation from ${totalSpecialists - confirmedCount} specialist${totalSpecialists - confirmedCount > 1 ? 's' : ''}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textGray,
+                              ),
+                            ),
+                            SizedBox(height: 12),
+                          ],
+                        ),
+
+                      // Action Buttons
+                      if (!isCompleted)
+                        Column(
+                          children: [
+                            if (allConditionsMet && canCurrentSpecialistConfirm)
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: _isConfirming ? null : _confirmCompletion,
+                                  icon: _isConfirming
+                                      ? SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                      : Icon(Icons.check_circle, size: 20),
+                                  label: Text(
+                                    _isConfirming ? 'Confirming...' : 'Confirm Treatment Completion',
+                                    style: TextStyle(fontWeight: FontWeight.w600),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.success,
+                                    foregroundColor: Colors.white,
+                                    padding: EdgeInsets.symmetric(vertical: 12),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    elevation: 2,
+                                  ),
+                                ),
+                              )
+                            else if (!allConditionsMet)
+                              Container(
+                                width: double.infinity,
+                                padding: EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.accent1,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    'Complete all requirements to enable confirmation',
+                                    style: TextStyle(
+                                      color: AppColors.textGray,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ),
+
+                            SizedBox(height: 8),
+
+                            OutlinedButton.icon(
+                              onPressed: _showCompletionDetails,
+                              icon: Icon(Icons.info_outline, size: 16),
+                              label: Text('View Details'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.primary,
+                                side: BorderSide(color: AppColors.primary),
+                                padding: EdgeInsets.symmetric(vertical: 10),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      else
+                      // Completed State
+                        Container(
+                          width: double.infinity,
+                          padding: EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.success.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.verified_user, color: AppColors.success, size: 16),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Treatment completed on: ${_formatCompletionDate()}',
+                                  style: TextStyle(
+                                    color: AppColors.textGray,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                      SizedBox(height: 8),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+// Helper function to build condition row for expanded view
+  Widget _buildConditionRowExpanded(String title, bool isMet, String metMessage, String notMetMessage) {
+    return Container(
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isMet ? AppColors.success.withOpacity(0.05) : AppColors.warning.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isMet ? AppColors.success.withOpacity(0.2) : AppColors.warning.withOpacity(0.2),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: isMet ? AppColors.success : AppColors.warning,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isMet ? Icons.check : Icons.close,
+              size: 12,
+              color: Colors.white,
+            ),
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textDark,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  isMet ? metMessage : notMetMessage,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textGray,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatCompletionDate() {
+    if (_completionStatus == null) return 'Not specified';
+
+    try {
+      final confirmations = _completionStatus?['confirmations'] as List<dynamic>?;
+      if (confirmations != null && confirmations.isNotEmpty) {
+        final lastConfirmation = confirmations.firstWhere(
+              (c) => c['confirmed_at'] != null,
+          orElse: () => null,
+        );
+
+        if (lastConfirmation != null && lastConfirmation['confirmed_at'] != null) {
+          final date = DateTime.parse(lastConfirmation['confirmed_at']);
+          return '${date.day}/${date.month}/${date.year}';
+        }
+      }
+    } catch (e) {
+      print('Error formatting completion date: $e');
+    }
+
+    return 'Not specified';
+  }
+
+  void _showCompletionDetails() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return _buildCompletionDetailsSheet();
+      },
+    );
+  }
+
+  Widget _buildCompletionDetailsSheet() {
+    final confirmations = _completionStatus?['confirmations'] as List<dynamic>?;
+    final allSpecialists = _completionStatus?['all_specialists'] as List<dynamic>?;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
+      ),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            margin: EdgeInsets.symmetric(vertical: 8),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.textLight.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+
+          Padding(
+            padding: EdgeInsets.all(20),
+            child: Row(
+              children: [
+                Icon(Icons.group, color: AppColors.primary, size: 24),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Specialist Confirmations Details',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: Icon(Icons.close, color: AppColors.textLight),
+                ),
+              ],
+            ),
+          ),
+
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              children: [
+                if (allSpecialists != null && allSpecialists.isNotEmpty)
+                  ...allSpecialists.map((specialist) {
+                    final specialistId = specialist['id'];
+                    final specialistName = specialist['name'] ?? 'Unknown';
+
+                    final confirmation = confirmations?.firstWhere(
+                          (c) => c['specialist_id'] == specialistId,
+                      orElse: () => null,
+                    );
+
+                    final isConfirmed = confirmation?['confirmed'] ?? false;
+                    final confirmedAt = confirmation?['confirmed_at'];
+                    final notes = confirmation?['notes'];
+
+                    return Container(
+                      margin: EdgeInsets.only(bottom: 12),
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.card,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isConfirmed
+                              ? AppColors.success.withOpacity(0.3)
+                              : AppColors.warning.withOpacity(0.3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              CircleAvatar(
+                                backgroundColor: isConfirmed
+                                    ? AppColors.success.withOpacity(0.1)
+                                    : AppColors.warning.withOpacity(0.1),
+                                radius: 20,
+                                child: Icon(
+                                  isConfirmed ? Icons.check_circle : Icons.pending,
+                                  color: isConfirmed ? AppColors.success : AppColors.warning,
+                                  size: 20,
+                                ),
+                              ),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      specialistName,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textDark,
+                                      ),
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      isConfirmed ? 'Confirmed' : 'Pending',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: isConfirmed ? AppColors.success : AppColors.warning,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          if (isConfirmed && confirmedAt != null)
+                            Padding(
+                              padding: EdgeInsets.only(top: 12),
+                              child: Text(
+                                'Confirmed at: ${_formatDate(confirmedAt)}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textLight,
+                                ),
+                              ),
+                            ),
+
+                          if (notes != null && notes.isNotEmpty)
+                            Padding(
+                              padding: EdgeInsets.only(top: 8),
+                              child: Container(
+                                padding: EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withOpacity(0.05),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  notes,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textGray,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  }).toList()
+                else
+                  Container(
+                    padding: EdgeInsets.all(32),
+                    child: Column(
+                      children: [
+                        Icon(Icons.group_off, size: 64, color: AppColors.textLight),
+                        SizedBox(height: 16),
+                        Text(
+                          'No specialists found',
+                          style: TextStyle(
+                            color: AppColors.textGray,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          Padding(
+            padding: EdgeInsets.all(20),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text('Close'),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
 
   void _debugCheckAnalysisData() {
     if (_progressAnalysis != null) {
@@ -116,7 +1021,6 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
     }
   }
 
-  // Helper Functions
   List<dynamic> _safeList(dynamic list) => list is List ? list : [];
   Map<String, dynamic> _safeMap(dynamic map) => map is Map<String, dynamic> ? map : {};
   String _safeString(dynamic value) => value?.toString() ?? 'N/A';
@@ -202,43 +1106,104 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
     }
 
     if (_progressAnalysis == null) {
-      return Container(
-        padding: EdgeInsets.all(24),
-        child: Column(
-          children: [
-            Icon(Icons.analytics, size: 80, color: AppColors.textLight),
-            SizedBox(height: 16),
-            Text(
-              'Comprehensive Progress Analysis',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textDark),
-              textAlign: TextAlign.center,
+      return Stack(
+        children: [
+          Container(
+            padding: EdgeInsets.all(24),
+            child: Column(
+              children: [
+                Icon(Icons.analytics, size: 80, color: AppColors.textLight),
+                SizedBox(height: 16),
+                Text(
+                  'Comprehensive Progress Analysis',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textDark),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Get detailed AI-powered analysis of child progress with insights and recommendations',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14, color: AppColors.textGray, height: 1.4),
+                ),
+                SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: _loadComprehensiveAnalysis,
+                  icon: Icon(Icons.insights),
+                  label: Text('Generate AI Analysis'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 2,
+                  ),
+                ),
+              ],
             ),
-            SizedBox(height: 8),
-            Text(
-              'Get detailed AI-powered analysis of child progress with insights and recommendations',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: AppColors.textGray, height: 1.4),
-            ),
-            SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _loadComprehensiveAnalysis,
-              icon: Icon(Icons.insights),
-              label: Text('Generate AI Analysis'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 2,
+          ),
+          // Compare Button Positioned at Bottom
+          Positioned(
+            bottom: 16,
+            right: 16,
+            child: FloatingActionButton.extended(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ComparisonAnalysisScreen(
+                      childId: widget.childId,
+                      childName: widget.childName,
+                    ),
+                  ),
+                );
+              },
+              icon: Icon(Icons.compare_arrows, size: 20),
+              label: Text(
+                'Compare',
+                style: TextStyle(fontWeight: FontWeight.w600),
               ),
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              elevation: 4,
             ),
-          ],
-        ),
+          ),
+        ],
       );
     }
 
-    return _buildAnalysisResults(_progressAnalysis!);
+    return Stack(
+      children: [
+        _buildAnalysisResults(_progressAnalysis!),
+        // Compare Button Positioned at Bottom
+        Positioned(
+          bottom: 16,
+          right: 16,
+          child: FloatingActionButton.extended(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ComparisonAnalysisScreen(
+                    childId: widget.childId,
+                    childName: widget.childName,
+                  ),
+                ),
+              );
+            },
+            icon: Icon(Icons.compare_arrows, size: 20),
+            label: Text(
+              'Compare',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            elevation: 4,
+          ),
+        ),
+      ],
+    );
   }
+
 
   Widget _buildAnalysisResults(Map<String, dynamic> analysis) {
     return SingleChildScrollView(
@@ -280,6 +1245,8 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
               ],
             ),
           _buildMetadata(analysis['metadata']),
+          // Add extra space at bottom for FAB
+          SizedBox(height: 80),
         ],
       ),
     );
@@ -1900,7 +2867,6 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
       ),
     );
   }
-
   Widget _buildParentInstructions(Map<String, dynamic> instructions) {
     return Container(
       padding: EdgeInsets.all(20),
@@ -2311,6 +3277,7 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
     );
   }
 
+
   Widget _buildEvaluationCard(Map<String, dynamic> eval) {
     return Container(
       margin: EdgeInsets.only(bottom: 12),
@@ -2579,6 +3546,8 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
       padding: EdgeInsets.all(8),
       child: Column(
         children: [
+          // _buildCompletionConfirmationCard(),
+
           _buildInfoCard('Full Name', _safeString(child['full_name']), Icons.person),
           _buildInfoCard('Date of Birth', _formatDate(_safeString(child['date_of_birth'])), Icons.cake),
           _buildInfoCard('Gender', _safeString(child['gender']), Icons.people),
@@ -2589,6 +3558,7 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
           _buildInfoCard('Phone', _safeString(parent['phone']), Icons.phone),
           if (_safeString(child['medical_history']).isNotEmpty && _safeString(child['medical_history']) != 'N/A')
             _buildInfoCard('Medical History', _safeString(child['medical_history']), Icons.medical_information),
+          _buildCompletionConfirmationCard(),
         ],
       ),
     );
@@ -2635,6 +3605,7 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
     return _buildAnalysisSection();
   }
 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -2652,45 +3623,8 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.white),
         centerTitle: true,
-        // actions: [
-        //   IconButton(
-        //     tooltip: 'Care Passport',
-        //     icon: Icon(Icons.badge_outlined, color: Colors.white),
-        //     onPressed: () {
-        //       Navigator.push(
-        //         context,
-        //         MaterialPageRoute(
-        //           builder: (context) => DigitalCarePassportScreen(
-        //             childId: widget.childId,
-        //             childName: widget.childName,
-        //           ),
-        //         ),
-        //       );
-        //     },
-        //   ),
-        // ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ComparisonAnalysisScreen(
-                childId: widget.childId,
-                childName: widget.childName,
-              ),
-            ),
-          );
-        },
-        icon: Icon(Icons.compare_arrows, size: 20),
-        label: Text(
-          'Compare',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 4,
-      ),
+      // تم إزالة floatingActionButton من هنا
       body: isLoading
           ? Center(
         child: Column(
@@ -2834,4 +3768,5 @@ class _ChildDetailsScreenState extends State<ChildDetailsScreen> {
       ),
     );
   }
+
 }

@@ -301,6 +301,8 @@ app.use('/api/auth/api/equipment-management', equipmentManagementRoutes);
 const publicEquipmentRoutes = require('./routes/publicEquipmentRoutes');
 app.use('/api/auth/api/public/equipment', publicEquipmentRoutes);
 
+app.use('/api/specialist/completion', require('./routes/childCompletionRoutes'));
+
 // Static uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   maxAge: '1d', // caching

@@ -1,10 +1,17 @@
 // lib/services/manager_dashboard_service.dart
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ManagerDashboardService {
-  static const String _baseUrl = 'http://10.0.2.2:5000/api'; // أو الـ URL الخاص بالسيرفر
+  static String get _baseUrl {
+  if (kIsWeb) {
+    return 'http://localhost:5000/api';
+  } else {
+    return 'http://10.0.2.2:5000/api';
+  }
+} // أو الـ URL الخاص بالسيرفر
 
   // دالة للحصول على التوكن
   static Future<String?> _getToken() async {

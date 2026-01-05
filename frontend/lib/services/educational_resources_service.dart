@@ -1,8 +1,17 @@
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class EducationalResourcesService {
+
+   static String get _baseUrl {
+    if (kIsWeb) {
+      return 'http://localhost:5000/api';
+    } else {
+      return 'http://10.0.2.2:5000/api';
+    }
+  }
   
   // 🌐 Trusted sources for educational resources
   static const Map<String, List<Map<String, String>>> trustedSources = {
@@ -84,7 +93,7 @@ class EducationalResourcesService {
       }
 
       final response = await http.get(
-        Uri.parse('http://10.0.2.2:5000/api/children'),
+         Uri.parse('$_baseUrl/children'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -122,7 +131,7 @@ class EducationalResourcesService {
 
       // Use backend AI service (Groq)
       final response = await http.post(
-        Uri.parse('http://10.0.2.2:5000/api/ai/educational-resources'),
+        Uri.parse('$_baseUrl/ai/educational-resources'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',

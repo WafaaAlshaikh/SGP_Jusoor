@@ -1,9 +1,16 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ManagerSessionTypeService {
-  static const String _baseUrl = 'http://10.0.2.2:5000/api';
+  static String get _baseUrl {
+  if (kIsWeb) {
+    return 'http://localhost:5000/api';
+  } else {
+    return 'http://10.0.2.2:5000/api';
+  }
+}
 
   static Future<String?> _getToken() async {
     final prefs = await SharedPreferences.getInstance();

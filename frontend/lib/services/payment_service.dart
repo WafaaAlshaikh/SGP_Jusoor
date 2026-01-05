@@ -1,9 +1,16 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/payment_models.dart';
 
 class PaymentService {
-  static const String baseUrl = 'http://10.0.2.2:5000/api';
+  static String get baseUrl {
+  if (kIsWeb) {
+    return 'http://localhost:5000/api';
+  } else {
+    return 'http://10.0.2.2:5000/api';
+  }
+}
 
   // جلب فواتير ولي الأمر
   static Future<List<Invoice>> getParentInvoices(String token) async {

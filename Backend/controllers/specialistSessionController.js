@@ -1,4 +1,4 @@
-  const Session = require('../model/Session');
+const Session = require('../model/Session');
   const User = require('../model/User');
   const Child = require('../model/Child');
   const Institution = require('../model/Institution');
@@ -8,8 +8,9 @@
   const ZoomMeeting = require('../model/ZoomMeeting');
   const { createZoomMeeting } = require('../services/zoomService');
   const { createInvoiceForSession } = require('./sessionBookingController');
-
-
+  const NotificationService = require('../services/notificationService');
+  
+  
   exports.getAllSessionsForSpecialist = async (req, res) => {
     try {
       const specialistId = req.user.user_id;
@@ -63,57 +64,93 @@
 
 
   exports.requestDeleteSession = async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { reason } = req.body;
-      const specialistId = req.user.user_id;
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const specialistId = req.user.user_id;
 
-      const session = await Session.findOne({ 
-        where: { session_id: id, specialist_id: specialistId },
-        include: [
-          { 
-            model: Child, 
-            as: 'child',
-            attributes: ['child_id', 'full_name', 'parent_id'] 
-          }
-        ]
-      });
-      
-      if (!session) {
-        return res.status(404).json({ message: 'Session not found' });
-      }
-
-      await Session.update(
-        {
-          status: 'Cancelled',
-          is_visible: false, 
-          reason: reason || 'Cancelled by specialist'
-        },
-        {
-          where: { session_id: id, specialist_id: specialistId }
+    const session = await Session.findOne({ 
+      where: { session_id: id, specialist_id: specialistId },
+      include: [
+        { 
+          model: Child, 
+          as: 'child',
+          attributes: ['child_id', 'full_name', 'parent_id'] 
         }
-      );
-
-      if (session.child && session.child.parent_id) {
-        await Notification.create({
-          user_id: session.child.parent_id,
-          title: 'Session Cancelled',
-          message: `The session for ${session.child.full_name} scheduled on ${session.date} at ${session.time} has been cancelled. ${reason ? `Reason: ${reason}` : ''}`,
-          type: 'session_cancelled',
-          related_id: session.session_id,
-          is_read: false
-        });
-      }
-
-      res.status(200).json({ 
-        message: 'Session cancelled successfully and parent notified',
-        reason: reason || 'No reason provided'
-      });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: 'Server error cancelling session' });
+      ]
+    });
+    
+    if (!session) {
+      return res.status(404).json({ message: 'Session not found' });
     }
-  };
+
+    await Session.update(
+      {
+        status: 'Cancelled',
+        is_visible: false, 
+        reason: reason || 'Cancelled by specialist'
+      },
+      {
+        where: { session_id: id, specialist_id: specialistId }
+      }
+    );
+
+    // 🔥 أضف هذا الجزء: إرسال إشعار FCM للأهل
+    if (session.child && session.child.parent_id) {
+      // 1. إضافة إشعار في قاعدة البيانات
+      await Notification.create({
+        user_id: session.child.parent_id,
+        title: 'Session Cancelled',
+        message: `The session for ${session.child.full_name} scheduled on ${session.date} at ${session.time} has been cancelled. ${reason ? `Reason: ${reason}` : ''}`,
+        type: 'session_cancelled',
+        related_id: session.session_id,
+        is_read: false
+      });
+
+      // 2. إرسال إشعار FCM
+      try {
+        // جلب FCM tokens للأهل
+        const UserDeviceToken = require('../model/UserDeviceToken');
+        const parentTokens = await UserDeviceToken.findAll({
+          where: { 
+            user_id: session.child.parent_id, 
+            is_active: true 
+          },
+          attributes: ['token']
+        });
+
+        // إرسال إشعار لكل token
+        for (const tokenData of parentTokens) {
+          const fcmToken = tokenData.token;
+          if (fcmToken && fcmToken.trim() !== '') {
+            await NotificationService.sendSessionUpdated(
+              fcmToken,
+              session.child.full_name,
+              session.date,
+              session.time,
+              null, // no new date
+              null, // no new time
+              session.session_id,
+              'cancelled'
+            );
+            console.log(`✅ FCM cancellation notification sent to parent for child ${session.child.full_name}`);
+          }
+        }
+      } catch (fcmError) {
+        console.error(`❌ Error sending FCM cancellation notification: ${fcmError.message}`);
+        // نستمر حتى لو فشل إرسال FCM
+      }
+    }
+
+    res.status(200).json({ 
+      message: 'Session cancelled successfully and parent notified',
+      reason: reason || 'No reason provided'
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error cancelling session' });
+  }
+};
 
 
 exports.requestSessionUpdate = async (req, res) => {
@@ -129,38 +166,9 @@ exports.requestSessionUpdate = async (req, res) => {
           model: Child,
           as: 'child',
           attributes: ['child_id', 'full_name', 'parent_id']
-// =======
-//   exports.requestSessionUpdate = async (req, res) => {
-//     try {
-//       const { id } = req.params;
-//       const { date, time, status, session_type, reason } = req.body; 
-//       const specialistId = req.user.user_id;
-
-//       const session = await Session.findOne({ 
-//         where: { session_id: id, specialist_id: specialistId },
-//         include: [
-//           { 
-//             model: Child, 
-//             as: 'child',
-//             attributes: ['child_id', 'full_name', 'parent_id'] 
-//           }
-//         ]
-//       });
-
-//       if (!session) return res.status(404).json({ message: 'Session not found' });
-
-//       await Session.update(
-//         {
-//           status: 'Pending Approval',
-//           is_pending: true,
-//           reason: reason || null 
-//         },
-//         {
-//           where: { session_id: id, specialist_id: specialistId }
-// >>>>>>> 5a28052 (add donations and financial reports features for manager)
         }
       ]
-  });
+    });
 
     if (!session) return res.status(404).json({ message: 'Session not found' });
 
@@ -174,7 +182,6 @@ exports.requestSessionUpdate = async (req, res) => {
           status: status,
           is_pending: false,
           reason: reason || null,
-          // إذا كانت الحالة مكتملة، نضيف تاريخ الانتهاء
           ...(status === 'Completed' && { completed_at: new Date() })
         },
         {
@@ -182,16 +189,37 @@ exports.requestSessionUpdate = async (req, res) => {
         }
       );
 
-      // إرسال إشعار للأهل بالتغيير المباشر
+      // 🔥 إرسال إشعار FCM للأهل بالتغيير المباشر
       if (session.child && session.child.parent_id) {
-        await Notification.create({
-          user_id: session.child.parent_id,
-          title: `Session ${status.toLowerCase()}`,
-          message: `The specialist has marked ${session.child.full_name}'s session as ${status}. ${reason ? `Reason: ${reason}` : ''}`,
-          type: 'session_update',
-          related_id: session.session_id,
-          is_read: false
-        });
+        try {
+          const UserDeviceToken = require('../model/UserDeviceToken');
+          const parentTokens = await UserDeviceToken.findAll({
+            where: { 
+              user_id: session.child.parent_id, 
+              is_active: true 
+            },
+            attributes: ['token']
+          });
+
+          for (const tokenData of parentTokens) {
+            const fcmToken = tokenData.token;
+            if (fcmToken && fcmToken.trim() !== '') {
+              await NotificationService.sendSessionUpdated(
+                fcmToken,
+                session.child.full_name,
+                session.date,
+                session.time,
+                null, // no new date
+                null, // no new time
+                session.session_id,
+                status.toLowerCase()
+              );
+              console.log(`✅ FCM ${status} notification sent to parent for child ${session.child.full_name}`);
+            }
+          }
+        } catch (fcmError) {
+          console.error(`❌ Error sending FCM ${status} notification: ${fcmError.message}`);
+        }
       }
 
       return res.status(200).json({
@@ -201,7 +229,7 @@ exports.requestSessionUpdate = async (req, res) => {
       });
     }
 
-    // ⭐ إذا لم تكن الحالة "Completed" أو "Absent" → طلب تعديل عادي (Rescheduled)
+    // ⭐ إذا كانت تعديل (Rescheduled) → طلب موافقة
     await Session.update(
       {
         status: 'Pending Approval',
@@ -225,57 +253,54 @@ exports.requestSessionUpdate = async (req, res) => {
       is_pending: true,
       is_visible: false,
       original_session_id: session.session_id,
-      reason: reason || 'Rescheduled from original session'
+      reason: reason || 'Rescheduled from original session',
+      final_price: session.final_price
     });
 
+    // 🔥 إرسال إشعار FCM للأهل بطلب التعديل
     if (session.child && session.child.parent_id) {
-      await Notification.create({
-        user_id: session.child.parent_id,
-        title: 'Session rescheduling requested',
-        message: `The specialist has requested to reschedule ${session.child.full_name}'s session from ${session.date} ${session.time} to ${date} ${time}. ${reason ? `Reason: ${reason}` : ''}`,
-        type: 'session_update',
-        related_id: session.session_id,
-        is_read: false
-// =======
-//       const newSession = await Session.create({
-//         child_id: session.child_id,
-//         specialist_id: session.specialist_id,
-//         institution_id: session.institution_id,
-//         session_type_id: session.session_type_id,
-//         date: date || session.date,
-//         time: time || session.time,
-//         status: 'Rescheduled',
-//         session_type: session_type || session.session_type,
-//         is_pending: true,
-//         is_visible: false,
-//         original_session_id: session.session_id,
-//         reason: reason || 'Rescheduled from original session' 
-// >>>>>>> 5a28052 (add donations and financial reports features for manager)
-      });
-    }
-
-      if (session.child && session.child.parent_id) {
-        await Notification.create({
-          user_id: session.child.parent_id,
-          title: 'Session rescheduling requested',
-          message: `The specialist has requested to reschedule ${session.child.full_name}'s session from ${session.date} ${session.time} to ${date} ${time}. ${reason ? `Reason: ${reason}` : ''}`,
-          type: 'session_update',
-          related_id: session.session_id,
-          is_read: false
+      try {
+        const UserDeviceToken = require('../model/UserDeviceToken');
+        const parentTokens = await UserDeviceToken.findAll({
+          where: { 
+            user_id: session.child.parent_id, 
+            is_active: true 
+          },
+          attributes: ['token']
         });
+
+        for (const tokenData of parentTokens) {
+          const fcmToken = tokenData.token;
+          if (fcmToken && fcmToken.trim() !== '') {
+            await NotificationService.sendSessionUpdated(
+              fcmToken,
+              session.child.full_name,
+              session.date,
+              session.time,
+              date || session.date,
+              time || session.time,
+              session.session_id,
+              'updated'
+            );
+            console.log(`✅ FCM update request sent to parent for child ${session.child.full_name}`);
+          }
+        }
+      } catch (fcmError) {
+        console.error(`❌ Error sending FCM update notification: ${fcmError.message}`);
       }
-
-      res.status(200).json({
-        message: 'Session rescheduling requested. Waiting for parent approval.',
-        reason: reason || 'No reason provided',
-        originalSessionUpdated: true
-      });
-
-    } catch (err) {
-      console.error('Request session update error:', err);
-      res.status(500).json({ message: 'Server error requesting session update' });
     }
-  };
+
+    res.status(200).json({
+      message: 'Session rescheduling requested. Waiting for parent approval.',
+      reason: reason || 'No reason provided',
+      originalSessionUpdated: true
+    });
+
+  } catch (err) {
+    console.error('Request session update error:', err);
+    res.status(500).json({ message: 'Server error requesting session update' });
+  }
+};
 
 
   exports.approvePendingSession = async (req, res) => {
@@ -347,65 +372,98 @@ exports.requestSessionUpdate = async (req, res) => {
 
 
   exports.completeTodaySessions = async (req, res) => {
-    try {
-      const specialistId = req.user.user_id;
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+  try {
+    const specialistId = req.user.user_id;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-      const todaySessions = await Session.findAll({
+    const todaySessions = await Session.findAll({
+      where: {
+        specialist_id: specialistId,
+        date: today,
+        status: {
+          [Op.in]: ['Scheduled', 'Confirmed', 'Pending Approval']
+        }
+      },
+      include: [
+        { 
+          model: Child, 
+          as: 'child',
+          attributes: ['child_id', 'full_name', 'parent_id']
+        }
+      ]
+    });
+
+    const result = await Session.update(
+      { status: 'Completed' },
+      {
         where: {
           specialist_id: specialistId,
           date: today,
           status: {
             [Op.in]: ['Scheduled', 'Confirmed', 'Pending Approval']
           }
-        },
-        include: [
-          { 
-            model: Child, 
-            as: 'child',
-            attributes: ['child_id', 'full_name', 'parent_id']
-          }
-        ]
-      });
-
-      const result = await Session.update(
-        { status: 'Completed' },
-        {
-          where: {
-            specialist_id: specialistId,
-            date: today,
-            status: {
-              [Op.in]: ['Scheduled', 'Confirmed', 'Pending Approval']
-            }
-          }
-        }
-      );
-
-      const updatedCount = result[0];
-
-      for (const session of todaySessions) {
-        if (session.child && session.child.parent_id) {
-          await Notification.create({
-            user_id: session.child.parent_id,
-            title: 'Session complete',
-            message: `${session.child.full_name} session has been completed successfully.`,
-            type: 'session_completed',
-            related_id: session.session_id,
-            is_read: false
-          });
         }
       }
+    );
 
-      res.status(200).json({
-        message: `Completed ${updatedCount} sessions for today`,
-        updatedCount: updatedCount
-      });
-    } catch (err) {
-      console.error('Complete today sessions error:', err);
-      res.status(500).json({ message: 'Server error completing today sessions' });
+    const updatedCount = result[0];
+
+    // 🔥 إرسال إشعارات FCM للأهل
+    for (const session of todaySessions) {
+      if (session.child && session.child.parent_id) {
+        // 1. إضافة إشعار في قاعدة البيانات
+        await Notification.create({
+          user_id: session.child.parent_id,
+          title: 'Session Completed',
+          message: `${session.child.full_name} session has been completed successfully.`,
+          type: 'session_completed',
+          related_id: session.session_id,
+          is_read: false
+        });
+
+        // 2. إرسال إشعار FCM
+        try {
+          const UserDeviceToken = require('../model/UserDeviceToken');
+          const parentTokens = await UserDeviceToken.findAll({
+            where: { 
+              user_id: session.child.parent_id, 
+              is_active: true 
+            },
+            attributes: ['token']
+          });
+
+          for (const tokenData of parentTokens) {
+            const fcmToken = tokenData.token;
+            if (fcmToken && fcmToken.trim() !== '') {
+              await NotificationService.sendSessionUpdated(
+                fcmToken,
+                session.child.full_name,
+                session.date,
+                session.time,
+                null, // no new date
+                null, // no new time
+                session.session_id,
+                'completed'
+              );
+              console.log(`✅ FCM completion notification sent to parent for child ${session.child.full_name}`);
+            }
+          }
+        } catch (fcmError) {
+          console.error(`❌ Error sending FCM completion notification: ${fcmError.message}`);
+        }
+      }
     }
-  };
+
+    res.status(200).json({
+      message: `Completed ${updatedCount} sessions for today`,
+      updatedCount: updatedCount
+    });
+  } catch (err) {
+    console.error('Complete today sessions error:', err);
+    res.status(500).json({ message: 'Server error completing today sessions' });
+  }
+};
 
 
   exports.getUpcomingSessions = async (req, res) => {
@@ -680,111 +738,169 @@ exports.requestSessionUpdate = async (req, res) => {
 
 
   exports.approveNewSession = async (req, res) => {
-    try {
-      const parentId = req.user.user_id;
-      const { session_id } = req.params;
-      const { approve } = req.body; 
+  try {
+    const parentId = req.user.user_id;
+    const { session_id } = req.params;
+    const { approve } = req.body;
 
-      const session = await Session.findOne({
-        where: {
-          session_id,
-          status: 'Pending Approval',
-          parent_approved: null
+    const session = await Session.findOne({
+      where: {
+        session_id,
+        status: 'Pending Approval',
+        parent_approved: null
+      },
+      include: [
+        {
+          model: Child,
+          as: 'child',
+          attributes: ['child_id', 'full_name', 'parent_id'],
+          where: { parent_id: parentId }
         },
-        include: [
-          {
-            model: Child,
-            as: 'child',
-            attributes: ['child_id', 'full_name', 'parent_id'],
-            where: { parent_id: parentId }
-          },
-          {
-            model: User,
-            as: 'specialist',
-            attributes: ['user_id', 'full_name']
-          }
-        ]
-      });
-
-      if (!session) {
-        return res.status(404).json({
-          success: false,
-          message: 'الجلسة غير موجودة أو تمت معالجتها مسبقاً'
-        });
-      }
-
-      if (approve) {
-        await session.update({
-          status: 'Scheduled',
-          parent_approved: true,
-          is_pending: false,
-          is_paid: false,
-          payment_status: 'Pending'
-        });
-
-        let invoiceId = null;
-        try {
-          const child = session.child;
-          const invoice = await createInvoiceForSession(session, child);
-          invoiceId = invoice.invoice_id;
-        } catch (invoiceError) {
-          console.error('⚠️ Failed to create invoice for specialist-created session:', invoiceError);
+        {
+          model: User,
+          as: 'specialist',
+          attributes: ['user_id', 'full_name']
         }
+      ]
+    });
 
-        await Notification.create({
-          user_id: session.specialist_id,
-          title: 'تمت الموافقة على الجلسة',
-          message: `تمت موافقة الأهل على الجلسة لطفل ${session.child.full_name} في ${session.date} الساعة ${session.time}.`,
-          type: 'session_update',
-          related_id: session.session_id,
-          is_read: false
-        });
-
-        res.status(200).json({
-          success: true,
-          message: 'تمت الموافقة على الجلسة بنجاح',
-          data: {
-            session_id: session.session_id,
-            status: 'Scheduled',
-            invoice_id: invoiceId
-          }
-        });
-      } else {
-        await session.update({
-          status: 'Rejected',
-          parent_approved: false,
-          is_pending: false,
-          is_visible: false
-        });
-
-        await Notification.create({
-          user_id: session.specialist_id,
-          title: 'تم رفض الجلسة',
-          message: `تم رفض الجلسة لطفل ${session.child.full_name} في ${session.date} الساعة ${session.time} من قبل الأهل.`,
-          type: 'session_update',
-          related_id: session.session_id,
-          is_read: false
-        });
-
-        res.status(200).json({
-          success: true,
-          message: 'تم رفض الجلسة بنجاح',
-          data: {
-            session_id: session.session_id,
-            status: 'Rejected'
-          }
-        });
-      }
-
-    } catch (err) {
-      console.error('Error in approveNewSession:', err);
-      res.status(500).json({
+    if (!session) {
+      return res.status(404).json({
         success: false,
-        message: 'خطأ في معالجة الموافقة',
-        error: err.message
+        message: 'Session not found or already processed'
       });
     }
-  };
+
+    if (approve) {
+      await session.update({
+        status: 'Scheduled',
+        parent_approved: true,
+        is_pending: false,
+        is_paid: false,
+        payment_status: 'Pending'
+      });
+
+      let invoiceId = null;
+      try {
+        const child = session.child;
+        const invoice = await createInvoiceForSession(session, child);
+        invoiceId = invoice.invoice_id;
+      } catch (invoiceError) {
+        console.error('⚠️ Failed to create invoice for specialist-created session:', invoiceError);
+      }
+
+      // 🔥 إرسال إشعار FCM للأخصائي بموافقة الأهل
+      if (session.specialist_id) {
+        try {
+          const UserDeviceToken = require('../model/UserDeviceToken');
+          const specialistTokens = await UserDeviceToken.findAll({
+            where: { 
+              user_id: session.specialist_id, 
+              is_active: true 
+            },
+            attributes: ['token']
+          });
+
+          for (const tokenData of specialistTokens) {
+            const fcmToken = tokenData.token;
+            if (fcmToken && fcmToken.trim() !== '') {
+              await NotificationService.sendToToken(
+                fcmToken,
+                '✅ Session Approved',
+                `Parent approved session for ${session.child.full_name} on ${session.date} at ${session.time}`,
+                {
+                  type: 'session_approved',
+                  childId: session.child_id.toString(),
+                  childName: session.child.full_name,
+                  sessionId: session.session_id.toString(),
+                  date: session.date,
+                  time: session.time,
+                  action: 'view_session',
+                  channel: 'session_channel'
+                }
+              );
+              console.log(`✅ FCM approval notification sent to specialist for child ${session.child.full_name}`);
+            }
+          }
+        } catch (fcmError) {
+          console.error(`❌ Error sending FCM approval notification to specialist: ${fcmError.message}`);
+        }
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Session approved successfully',
+        data: {
+          session_id: session.session_id,
+          status: 'Scheduled',
+          invoice_id: invoiceId
+        }
+      });
+    } else {
+      await session.update({
+        status: 'Rejected',
+        parent_approved: false,
+        is_pending: false,
+        is_visible: false
+      });
+
+      // 🔥 إرسال إشعار FCM للأخصائي برفض الأهل
+      if (session.specialist_id) {
+        try {
+          const UserDeviceToken = require('../model/UserDeviceToken');
+          const specialistTokens = await UserDeviceToken.findAll({
+            where: { 
+              user_id: session.specialist_id, 
+              is_active: true 
+            },
+            attributes: ['token']
+          });
+
+          for (const tokenData of specialistTokens) {
+            const fcmToken = tokenData.token;
+            if (fcmToken && fcmToken.trim() !== '') {
+              await NotificationService.sendToToken(
+                fcmToken,
+                '❌ Session Rejected',
+                `Parent rejected session for ${session.child.full_name} on ${session.date} at ${session.time}`,
+                {
+                  type: 'session_rejected',
+                  childId: session.child_id.toString(),
+                  childName: session.child.full_name,
+                  sessionId: session.session_id.toString(),
+                  date: session.date,
+                  time: session.time,
+                  action: 'view_session',
+                  channel: 'session_channel'
+                }
+              );
+              console.log(`✅ FCM rejection notification sent to specialist for child ${session.child.full_name}`);
+            }
+          }
+        } catch (fcmError) {
+          console.error(`❌ Error sending FCM rejection notification to specialist: ${fcmError.message}`);
+        }
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Session rejected successfully',
+        data: {
+          session_id: session.session_id,
+          status: 'Rejected'
+        }
+      });
+    }
+
+  } catch (err) {
+    console.error('Error in approveNewSession:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Error processing approval',
+      error: err.message
+    });
+  }
+};
 
 
   exports.getQuickStats = async (req, res) => {

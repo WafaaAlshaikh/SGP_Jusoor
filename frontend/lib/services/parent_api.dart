@@ -4,13 +4,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ParentService {
-  static String get baseUrl {
-    if (kIsWeb) {
-      return 'http://localhost:5000/api/parent';
-    } else {
-      return 'http://10.0.2.2:5000/api/parent';
-    }
+  static String _buildUrl(String endpoint) {
+  if (kIsWeb) {
+    return 'http://localhost:5000/api/$endpoint';
+  } else {
+    return 'http://10.0.2.2:5000/api/$endpoint';
   }
+}
+
 
   static Future<String?> _getToken() async {
     try {
@@ -30,7 +31,8 @@ class ParentService {
 
       // استخدام route الصحيح - موجود في specialistSessionRoutes لكن للـ parent
       final response = await http.get(
-        Uri.parse('http://10.0.2.2:5000/api/specialist/pending-new-sessions'),
+        Uri.parse(_buildUrl('specialist/pending-new-sessions')),
+
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -59,7 +61,8 @@ class ParentService {
 
       // استخدام route الصحيح - موجود في specialistSessionRoutes لكن للـ parent
       final response = await http.post(
-        Uri.parse('http://10.0.2.2:5000/api/specialist/sessions/$sessionId/approve-new'),
+        Uri.parse(_buildUrl('specialist/sessions/$sessionId/approve-new')),
+
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
