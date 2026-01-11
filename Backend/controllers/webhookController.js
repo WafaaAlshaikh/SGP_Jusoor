@@ -1,5 +1,5 @@
 // controllers/webhookController.js
-const { Donation, Institution, DonationCampaign, User, DonationInvite } = require('../model');
+const { Donation, Institution, DonationCampaign, User, DonationInvite, Payment, Invoice, Session } = require('../model');
 const Stripe = require('stripe');
 require('dotenv').config();
 
@@ -84,7 +84,7 @@ async function handleCheckoutSessionCompleted(session) {
     });
 
     if (!donation) {
-      console.error(' Donation not found for session:', session.id);
+      await handleInvoiceCheckoutSessionCompleted(session);
       return;
     }
 
@@ -170,10 +170,90 @@ async function handleCheckoutSessionCompleted(session) {
   }
 }
 
+async function handleInvoiceCheckoutSessionCompleted(session) {
+  try {
+    const paymentType = (session.metadata?.payment_type ?? '').toString().trim().toLowerCase();
+
+    if (paymentType && paymentType !== 'invoice') {
+      console.log(' Non-invoice checkout session ignored:', session.id, 'type:', paymentType);
+      return;
+    }
+
+    const invoiceId = session.metadata?.invoice_id ? parseInt(session.metadata.invoice_id, 10) : null;
+    const sessionId = session.metadata?.session_id ? parseInt(session.metadata.session_id, 10) : null;
+
+    const payment = await Payment.findOne({ where: { transaction_id: session.id } });
+    if (!payment) {
+      console.error(' Payment not found for Stripe session:', session.id);
+      return;
+    }
+
+    if (session.payment_status !== 'paid') {
+      console.warn(' Invoice checkout not paid:', session.id, session.payment_status);
+      return;
+    }
+
+    if (payment.status === 'Completed') {
+      console.log(' Payment already completed for session:', session.id);
+      return;
+    }
+
+    await payment.update({
+      status: 'Completed',
+      payment_gateway: payment.payment_gateway || 'Stripe',
+      gateway_response: JSON.stringify({
+        ...(payment.gateway_response ? { prior_gateway_response: payment.gateway_response } : {}),
+        stripe_checkout_session_id: session.id,
+        stripe_payment_intent_id: session.payment_intent || null,
+        stripe_customer_id: session.customer || null,
+        payment_status: session.payment_status,
+      }),
+      payment_date: new Date(),
+    });
+
+    const resolvedInvoiceId = invoiceId || payment.invoice_id;
+    if (resolvedInvoiceId) {
+      await Invoice.update(
+        {
+          status: 'Paid',
+          paid_date: new Date(),
+        },
+        { where: { invoice_id: resolvedInvoiceId } }
+      );
+    }
+
+    const resolvedSessionId = sessionId || (resolvedInvoiceId
+      ? (await Invoice.findByPk(resolvedInvoiceId, { attributes: ['session_id'], raw: true }))?.session_id
+      : null);
+
+    if (resolvedSessionId) {
+      await Session.update(
+        {
+          is_paid: true,
+          payment_status: 'Paid',
+          payment_date: new Date(),
+          status: 'Confirmed',
+        },
+        { where: { session_id: resolvedSessionId } }
+      );
+    }
+
+    console.log(' Invoice payment completed successfully:', {
+      stripe_session_id: session.id,
+      invoice_id: resolvedInvoiceId,
+      payment_id: payment.payment_id,
+      session_id: resolvedSessionId,
+    });
+  } catch (error) {
+    console.error(' Error in handleInvoiceCheckoutSessionCompleted:', error);
+    throw error;
+  }
+}
+
 // ==================== معالج نجاح الاشتراك الشهري ====================
 async function handleInvoicePaymentSucceeded(invoice) {
   try {
-    console.log('💰 Processing invoice.payment_succeeded');
+    console.log(' Processing invoice.payment_succeeded');
     
     const subscriptionId = invoice.subscription;
     

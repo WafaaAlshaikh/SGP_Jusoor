@@ -148,6 +148,10 @@ router.post('/add', authMiddleware, async (req, res) => {
           
           // حفظ الجلسات المجدولة فقط
           for (const sessionData of scheduledSessions) {
+            sessionData.original_price = sessionData.original_price ?? 0;
+sessionData.final_price = sessionData.final_price ?? sessionData.original_price ?? 0;
+sessionData.applied_discount_percentage = sessionData.applied_discount_percentage ?? 0;
+
             await Session.create(sessionData);
           }
         }

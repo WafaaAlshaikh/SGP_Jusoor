@@ -36,5 +36,6 @@ router.post('/flexible/checkout', donationController.createDonationCheckout);
 
 // ==================== Routes للمدراء ====================
 // router.get('/manager/stats', managerAuthMiddleware, donationController.getManagerDonationStats);
-
+// أضف هذا المسار
+router.post('/confirm-payment', donationController.confirmDonationPayment);
 module.exports = router;

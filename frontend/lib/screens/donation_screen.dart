@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show Platform, SocketException;
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +14,7 @@ import '../services/api_service.dart';
 import '../theme/app_colors.dart';
 import 'stripe_checkout_screen.dart';
 import 'donation_campaign_details_screen.dart';
+import 'stripe_payment_screen.dart';
 
 class DonationScreen extends StatefulWidget {
   final int? institutionId;
@@ -929,171 +933,480 @@ class _DonationScreenState extends State<DonationScreen> {
   }
 
   Future<void> _startDonationCheckout(
-    Map<String, dynamic> institution,
-    double amount,
-  ) async {
-    try {
-      // Show loading
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const AlertDialog(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Preparing payment...'),
-            ],
+  Map<String, dynamic> institution,
+  double amount,
+) async {
+  try {
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(
+              color: AppColors.primary,
+            ),
+            const SizedBox(height: 16),
+            const Text('Preparing payment...'),
+            const SizedBox(height: 8),
+            Text(
+              '${amount.toStringAsFixed(2)} JOD',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    // ✅ الحصول على token
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token') ?? '';
+
+    // ✅ تحديد المنصة (Mobile أو Web)
+    final isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+
+    print('🔍 Starting donation checkout:');
+    print('   Platform: ${isMobile ? "Mobile 📱" : "Web 💻"}');
+    print('   Amount: $amount JOD');
+    print('   Mode: $_donationMode');
+    print('   Anonymous: $_isAnonymous');
+    print('   Token: ${token.isNotEmpty ? "✅" : "❌"}');
+
+    // ==================== للـ MOBILE: استخدام Payment Intent ====================
+    if (isMobile) {
+      print('📱 Using Mobile Payment Flow (Stripe SDK)');
+
+      Navigator.pop(context); // Remove loading dialog
+
+      final result = await Navigator.push<Map<String, dynamic>>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => StripePaymentScreen(
+            institutionId: institution['institution_id'] as int,
+            institutionName: institution['name'] ?? 'Institution',
+            amount: amount,
+            campaignId: _selectedCampaignId,
+            donationMode: _donationMode,
+            isAnonymous: _isAnonymous,
+            donorName: _donorNameController.text.isEmpty 
+                ? null 
+                : _donorNameController.text,
+            donorEmail: _donorEmailController.text.isEmpty 
+                ? null 
+                : _donorEmailController.text,
+            inviteCode: _inviteCodeController.text.isEmpty 
+                ? null 
+                : _inviteCodeController.text,
           ),
         ),
       );
 
-      // ✅ التعديل هنا: التحقق من إذا كان المستخدم مسجل دخول أم لا
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token') ?? '';
-
-      // ✅ إعداد البيانات بناءً على حالة المستخدم
-      Map<String, dynamic> requestBody = {
-        'institution_id': institution['institution_id'],
-        'amount': amount,
-        'mode': _donationMode == 'monthly' ? 'monthly' : 'one_time',
-        'campaign_id': _selectedCampaignId,
-        'anonymous': _isAnonymous, // ✅ إضافة هذا الحقل
-        'invite_code': _inviteCodeController.text.trim().isEmpty ? null : _inviteCodeController.text.trim(),
-      };
-
-      // ✅ إذا كان متبرع مجهول وأدخل بيانات، نرسلها
-      if (_isAnonymous && (_donorNameController.text.isNotEmpty || _donorEmailController.text.isNotEmpty)) {
-        if (_donorNameController.text.isNotEmpty) {
-          requestBody['donor_name'] = _donorNameController.text;
+      // ✅ معالجة النتيجة المحسّنة
+      if (result != null && result['success'] == true && mounted) {
+        print('✅ Mobile payment completed successfully');
+        print('   Result: $result');
+        
+        // ✅ تحويل donation_id
+        final donationId = result['donation_id'];
+        int? donationIdInt;
+        
+        if (donationId is int) {
+          donationIdInt = donationId;
+        } else if (donationId is String) {
+          donationIdInt = int.tryParse(donationId);
         }
-        if (_donorEmailController.text.isNotEmpty) {
-          requestBody['donor_email'] = _donorEmailController.text;
-        }
-      }
-
-      Map<String, dynamic> result;
-
-      // ✅ تحديد أي API نستخدم بناءً على حالة المصادقة
-      if (token.isEmpty) {
-        // ⭐ مستخدم غير مسجل - نستخدم مسار التبرع المرن
-        print('🟡 Using flexible checkout (unauthenticated)');
-
-        // يمكننا استخدام نفس API ولكن بدون token
-        final response = await http.post(
-          Uri.parse('${ApiService.baseUrl}/api/donations/flexible/checkout'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(requestBody),
-        );
-
-        if (response.statusCode == 200) {
-          result = jsonDecode(response.body);
-        } else {
-          throw Exception('Failed to create checkout');
-        }
-      } else {
-        // ✅ مستخدم مسجل - نستخدم API مع المصادقة
-        result = await ApiService.createDonationCheckout(
-          token,
-          institutionId: institution['institution_id'] as int,
-          amount: amount,
-          mode: _donationMode == 'monthly' ? 'monthly' : 'one_time',
-          campaignId: _selectedCampaignId,
-          inviteCode: _inviteCodeController.text.trim().isEmpty ? null : _inviteCodeController.text.trim(),
-          anonymous: _isAnonymous, // ✅ إضافة هذه المعلمة
-          donorName: _donorNameController.text.isNotEmpty
-              ? _donorNameController.text
-              : null,
-          donorEmail: _donorEmailController.text.isNotEmpty
-              ? _donorEmailController.text
-              : null,
-        );
-      }
-
-      Navigator.pop(context); // Remove loading
-
-      final url = (result['url'] ?? result['checkout_url'])?.toString();
-
-      if (url == null || url.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not get checkout URL from server'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-
-      // فتح WebView
-      final paymentCompleted = await Navigator.push<bool>(
-        context,
-        MaterialPageRoute(
-          builder: (context) => StripeCheckoutScreen(
-            checkoutUrl: url,
-            sessionId: (result['sessionId'] ?? result['session_id'])?.toString(),
-            institutionId: institution['institution_id'] as int,
-            institutionName: institution['name'] ?? 'Institution',
-            amount: amount,
-          ),
-        ),
-      ) ?? false;
-
-      if (paymentCompleted && context.mounted) {
-        // الانتقال لصفحة النجاح
+        
+        print('   Donation ID (converted): $donationIdInt');
+        
+        // ✅ الانتقال لصفحة النجاح
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
             builder: (context) => DonationSuccessScreen(
-              sessionId: (result['sessionId'] ?? result['session_id'])?.toString(),
+              donationId: donationIdInt,  // ✅ donation_id
+              sessionId: null,             // ✅ null للـ Mobile
               institutionId: institution['institution_id'] as int,
-              isAnonymous: _isAnonymous, // ✅ تمرير حالة التبرع المجهول
+              isAnonymous: _isAnonymous,
+              amount: amount,
+            ),
+          ),
+        );
+      } else if (result != null && result['cancelled'] == true) {
+        print('⚠️ Payment cancelled by user');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Payment cancelled'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
             ),
           ),
         );
       }
-    } catch (e) {
-      print('Payment error: $e');
 
-      if (context.mounted) {
-        Navigator.pop(context);
+      return;
+    }
 
-        String errorMessage = 'Failed to process payment';
-        if (e.toString().contains('401') || e.toString().contains('Unauthorized')) {
-          // ⭐ تغيير الرسالة للمستخدم غير المسجل
-          errorMessage = 'You can still donate anonymously without login';
-        } else if (e.toString().contains('Network')) {
-          errorMessage = 'Network error. Please check your connection';
+    // ==================== للـ WEB: استخدام Checkout Session ====================
+    print('💻 Using Web Payment Flow (Checkout Session)');
+
+    // إعداد البيانات
+    Map<String, dynamic> requestBody = {
+      'institution_id': institution['institution_id'],
+      'amount': amount,
+      'mode': _donationMode == 'monthly' ? 'monthly' : 'one_time',
+      'currency': 'jod',
+      'anonymous': _isAnonymous,
+      'platform': 'web', // ✅ مهم للـ Backend
+    };
+
+    // إضافة campaign_id إذا كان موجوداً
+    if (_selectedCampaignId != null) {
+      requestBody['campaign_id'] = _selectedCampaignId;
+    }
+
+    // إضافة invite_code إذا كان موجوداً
+    final inviteCode = _inviteCodeController.text.trim();
+    if (inviteCode.isNotEmpty) {
+      requestBody['invite_code'] = inviteCode;
+    }
+
+    // ✅ إضافة بيانات المتبرع إذا كانت متوفرة
+    if (_donorNameController.text.isNotEmpty) {
+      requestBody['donor_name'] = _donorNameController.text.trim();
+    }
+    if (_donorEmailController.text.isNotEmpty) {
+      requestBody['donor_email'] = _donorEmailController.text.trim();
+    }
+
+    Map<String, dynamic> result;
+
+    // ✅ اختيار API بناءً على حالة المصادقة
+    if (token.isEmpty) {
+      // ⭐ مستخدم غير مسجل - استخدام API المرن
+      print('🟡 Using flexible checkout (unauthenticated)');
+
+      final response = await http.post(
+        Uri.parse('${ApiService.baseUrl}/donations/flexible/checkout'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(requestBody),
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        result = jsonDecode(response.body);
+        
+        if (result['success'] != true) {
+          throw Exception(result['message'] ?? 'Failed to create checkout');
         }
+      } else {
+        final error = jsonDecode(response.body);
+        throw Exception(error['message'] ?? 'Failed to create checkout');
+      }
+    } else {
+      // ✅ مستخدم مسجل - استخدام API مع المصادقة
+      print('🟢 Using authenticated checkout');
 
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Payment Failed'),
-            content: Text(errorMessage),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('OK'),
+      result = await ApiService.createDonationCheckout(
+        token,
+        institutionId: institution['institution_id'] as int,
+        amount: amount,
+        mode: _donationMode == 'monthly' ? 'monthly' : 'one_time',
+        campaignId: _selectedCampaignId,
+        inviteCode: inviteCode.isEmpty ? null : inviteCode,
+        anonymous: _isAnonymous,
+        donorName: _donorNameController.text.isEmpty 
+            ? null 
+            : _donorNameController.text.trim(),
+        donorEmail: _donorEmailController.text.isEmpty 
+            ? null 
+            : _donorEmailController.text.trim(),
+      );
+    }
+
+    // إزالة شاشة التحميل
+    if (mounted) {
+      Navigator.pop(context);
+    }
+
+    // ✅ التحقق من النتيجة
+    print('📦 Checkout result: $result');
+
+    final url = (result['url'] ?? result['checkout_url'])?.toString();
+    final sessionId = (result['sessionId'] ?? result['session_id'])?.toString();
+
+    if (url == null || url.isEmpty) {
+      throw Exception('No checkout URL received from server');
+    }
+
+    print('🔗 Checkout URL: $url');
+
+    // ✅ فتح WebView للـ Web
+    final paymentCompleted = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => StripeCheckoutScreen(
+          checkoutUrl: url,
+          sessionId: sessionId,
+          institutionId: institution['institution_id'] as int,
+          institutionName: institution['name'] ?? 'Institution',
+          amount: amount,
+        ),
+      ),
+    );
+
+    // معالجة النتيجة
+    if (paymentCompleted == true && mounted) {
+      print('✅ Payment completed successfully');
+      
+      // الانتقال لصفحة النجاح
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DonationSuccessScreen(
+            sessionId: sessionId,
+            institutionId: institution['institution_id'] as int,
+            isAnonymous: _isAnonymous,
+          ),
+        ),
+      );
+    } else if (paymentCompleted == false && mounted) {
+      print('⚠️ Payment not completed');
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text('Payment was not completed. Please try again.'),
               ),
-              // ⭐ إضافة زر للتبرع المجهول إذا فشل بسبب المصادقة
-              if (e.toString().contains('401'))
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    setState(() {
-                      _isAnonymous = true;
-                    });
-                    _startDonationCheckout(institution, amount);
-                  },
-                  child: const Text('Donate Anonymously'),
-                ),
             ],
           ),
-        );
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 4),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      );
+    }
+
+  } on TimeoutException {
+    print('❌ Timeout error');
+    
+    if (mounted) {
+      Navigator.pop(context); // Remove loading
+      
+      _showErrorDialog(
+        'Connection Timeout',
+        'The request took too long. Please check your internet connection and try again.',
+        showRetry: true,
+        onRetry: () => _startDonationCheckout(institution, amount),
+      );
+    }
+  } on SocketException {
+    print('❌ Network error');
+    
+    if (mounted) {
+      Navigator.pop(context); // Remove loading
+      
+      _showErrorDialog(
+        'No Internet Connection',
+        'Please check your internet connection and try again.',
+        showRetry: true,
+        onRetry: () => _startDonationCheckout(institution, amount),
+      );
+    }
+  } catch (e) {
+    print('❌ Payment error: $e');
+
+    if (mounted) {
+      // إزالة شاشة التحميل إذا كانت موجودة
+      try {
+        Navigator.pop(context);
+      } catch (_) {}
+
+      // تحديد نوع الخطأ
+      String title = 'Payment Failed';
+      String message = 'Failed to process payment. Please try again.';
+      bool showAnonymousOption = false;
+
+      if (e.toString().contains('401') || e.toString().contains('Unauthorized')) {
+        title = 'Authentication Required';
+        message = 'You need to be logged in to complete this donation. '
+                 'Alternatively, you can donate anonymously.';
+        showAnonymousOption = true;
+      } else if (e.toString().contains('Network') || e.toString().contains('Connection')) {
+        title = 'Network Error';
+        message = 'Please check your internet connection and try again.';
+      } else if (e.toString().contains('timeout')) {
+        title = 'Request Timeout';
+        message = 'The request took too long. Please try again.';
+      } else if (e.toString().contains('Invalid')) {
+        title = 'Invalid Data';
+        message = e.toString().replaceAll('Exception:', '').trim();
       }
+
+      _showErrorDialog(
+        title,
+        message,
+        showRetry: true,
+        showAnonymousOption: showAnonymousOption,
+        onRetry: () => _startDonationCheckout(institution, amount),
+        onAnonymous: showAnonymousOption
+            ? () {
+                setState(() {
+                  _isAnonymous = true;
+                });
+                _startDonationCheckout(institution, amount);
+              }
+            : null,
+      );
     }
   }
+}
+
+// ==================== دالة مساعدة لعرض رسائل الخطأ ====================
+void _showErrorDialog(
+  String title,
+  String message, {
+  bool showRetry = false,
+  bool showAnonymousOption = false,
+  VoidCallback? onRetry,
+  VoidCallback? onAnonymous,
+}) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.error_outline,
+              color: Colors.red,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            message,
+            style: const TextStyle(
+              fontSize: 14,
+              height: 1.5,
+            ),
+          ),
+          if (showAnonymousOption) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: AppColors.primary.withOpacity(0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'You can donate without creating an account',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        // Cancel button
+        OutlinedButton(
+          onPressed: () => Navigator.pop(context),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.grey[700],
+            side: BorderSide(color: Colors.grey[300]!),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          ),
+          child: const Text('Cancel'),
+        ),
+        
+        // Anonymous donation button (if applicable)
+        if (showAnonymousOption && onAnonymous != null)
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              onAnonymous();
+            },
+            icon: const Icon(Icons.volunteer_activism, size: 18),
+            label: const Text('Donate Anonymously'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
+          ),
+        
+        // Retry button (if applicable)
+        if (showRetry && onRetry != null && !showAnonymousOption)
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              onRetry();
+            },
+            icon: const Icon(Icons.refresh, size: 18),
+            label: const Text('Try Again'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
+          ),
+      ],
+    ),
+  );
+}
 
   /// Open Stripe checkout URL
   static Future<void> launchStripeCheckout(String url) async {

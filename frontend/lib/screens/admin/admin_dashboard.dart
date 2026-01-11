@@ -23,6 +23,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
   late Future<List<Institution>> _institutions;
   late Future<Map<String, dynamic>> _analytics;
   String? _adminName;
+  
+  // Chart Control Variables
+  Map<String, int> _selectedChartIndices = {
+    'roles': 0,
+    'status': 0,
+    'growth': 0,
+  };
+  final List<String> _chartTypes = ['Bar', 'Line', 'Pie'];
 
   @override
   void initState() {
@@ -34,6 +42,788 @@ class _AdminDashboardState extends State<AdminDashboard> {
     _analytics = _loadAnalyticsOverview();
   }
 
+  double _safeToDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is num) return value.toDouble();
+    if (value is String) {
+      try {
+        final cleanString = value.replaceAll(RegExp(r'[^0-9\.\-]'), '');
+        return double.parse(cleanString);
+      } catch (e) {
+        return 0.0;
+      }
+    }
+    return 0.0;
+  }
+
+  Color _getChartColor(int index) {
+    final colors = [
+      AppColors.primary,
+      AppColors.green,
+      AppColors.ment,
+      AppColors.blue,
+      AppColors.red,
+      AppColors.warning,
+      AppColors.darkGreen,
+      AppColors.accent4,
+    ];
+    return colors[index % colors.length];
+  }
+
+  Widget _buildEmptyChart(String title) {
+    return Container(
+      height: 180,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.accent2, width: 1),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.bar_chart, size: 48, color: AppColors.textLight),
+            SizedBox(height: 12),
+            Text(
+              'No data available',
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.textGray,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBarChart(String title, Map<String, dynamic> data, String chartKey) {
+    final entries = data.entries
+        .map((e) => MapEntry(e.key, _safeToDouble(e.value)))
+        .where((e) => e.value > 0)
+        .toList();
+
+    if (entries.isEmpty) {
+      return _buildEmptyChart(title);
+    }
+
+    final maxValue = entries.map((e) => e.value).reduce((a, b) => a > b ? a : b);
+    final xLabels = entries.map((e) => e.key).toList();
+
+    final List<BarChartGroupData> barGroups = List.generate(
+      entries.length,
+      (index) => BarChartGroupData(
+        x: index,
+        barRods: [
+          BarChartRodData(
+            toY: entries[index].value,
+            gradient: LinearGradient(
+              colors: [_getChartColor(index), _getChartColor(index).withOpacity(0.8)],
+              begin: Alignment.bottomCenter,
+              end: Alignment.topCenter,
+            ),
+            width: 24,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(6),
+              topRight: Radius.circular(6),
+            ),
+            backDrawRodData: BackgroundBarChartRodData(
+              show: true,
+              toY: maxValue,
+              color: AppColors.background.withOpacity(0.3),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return Container(
+      height: 220,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.accent2, width: 1),
+      ),
+      padding: EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textDark,
+                ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.accent1,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(
+                  children: [
+                    Icon(Icons.bar_chart, size: 12, color: AppColors.primary),
+                    SizedBox(width: 4),
+                    Text(
+                      'Bar',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          Expanded(
+            child: BarChart(
+              BarChartData(
+                barGroups: barGroups,
+                borderData: FlBorderData(
+                  show: true,
+                  border: Border.all(color: AppColors.accent3, width: 1),
+                ),
+                gridData: FlGridData(
+                  show: true,
+                  drawHorizontalLine: true,
+                  drawVerticalLine: false,
+                  getDrawingHorizontalLine: (value) => FlLine(
+                    color: AppColors.accent1,
+                    strokeWidth: 0.5,
+                  ),
+                ),
+                titlesData: FlTitlesData(
+                  show: true,
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (value, meta) {
+                        if (value.toInt() < xLabels.length) {
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 6.0),
+                            child: Transform.rotate(
+                              angle: -0.3,
+                              child: Text(
+                                xLabels[value.toInt()],
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  color: AppColors.textGray,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                        return Text('');
+                      },
+                      reservedSize: 28,
+                    ),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (value, meta) {
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 6.0),
+                          child: Text(
+                            value.toInt().toString(),
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: AppColors.textGray,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        );
+                      },
+                      reservedSize: 30,
+                    ),
+                  ),
+                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                ),
+                barTouchData: BarTouchData(
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipColor: (bar) => AppColors.primary.withOpacity(0.9),
+                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                      return BarTooltipItem(
+                        '${xLabels[group.x.toInt()]}\n',
+                        TextStyle(color: AppColors.textWhite, fontSize: 11),
+                        children: [
+                          TextSpan(
+                            text: '${rod.toY.toStringAsFixed(1)}',
+                            style: TextStyle(
+                              color: AppColors.textWhite,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLineChart(String title, List<dynamic> data, String chartKey) {
+    if (data.isEmpty) {
+      return _buildEmptyChart(title);
+    }
+    
+    final List<FlSpot> spots = List.generate(
+      data.length,
+      (index) {
+        final row = (data[index] as Map).cast<String, dynamic>();
+        return FlSpot(
+          index.toDouble(),
+          _safeToDouble(row['count']),
+        );
+      },
+    );
+
+    final maxValue = spots.map((e) => e.y).reduce((a, b) => a > b ? a : b);
+    
+    return Container(
+      height: 220,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.accent2, width: 1),
+      ),
+      padding: EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textDark,
+                ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.accent1,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(
+                  children: [
+                    Icon(Icons.show_chart, size: 12, color: AppColors.green),
+                    SizedBox(width: 4),
+                    Text(
+                      'Line',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.green,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          Expanded(
+            child: LineChart(
+              LineChartData(
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: spots,
+                    isCurved: true,
+                    color: AppColors.green,
+                    barWidth: 3,
+                    belowBarData: BarAreaData(
+                      show: true,
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.green.withOpacity(0.3),
+                          AppColors.green.withOpacity(0.1),
+                        ],
+                      ),
+                    ),
+                    dotData: FlDotData(
+                      show: true,
+                      getDotPainter: (spot, percent, barData, index) {
+                        return FlDotCirclePainter(
+                          radius: 3,
+                          color: AppColors.textWhite,
+                          strokeWidth: 1.5,
+                          strokeColor: AppColors.green,
+                        );
+                      },
+                    ),
+                    gradient: LinearGradient(
+                      colors: [AppColors.ment, AppColors.green],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    ),
+                  ),
+                ],
+                borderData: FlBorderData(
+                  show: true,
+                  border: Border.all(color: AppColors.accent3, width: 1),
+                ),
+                gridData: FlGridData(
+                  show: true,
+                  drawHorizontalLine: true,
+                  drawVerticalLine: true,
+                  getDrawingHorizontalLine: (value) => FlLine(
+                    color: AppColors.accent1,
+                    strokeWidth: 0.5,
+                  ),
+                  getDrawingVerticalLine: (value) => FlLine(
+                    color: AppColors.accent1,
+                    strokeWidth: 0.5,
+                  ),
+                ),
+                titlesData: FlTitlesData(
+                  show: true,
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 20,
+                    ),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (value, meta) {
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 6.0),
+                          child: Text(
+                            value.toInt().toString(),
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: AppColors.textGray,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        );
+                      },
+                      reservedSize: 30,
+                    ),
+                  ),
+                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                ),
+                minY: 0,
+                maxY: maxValue * 1.1,
+                lineTouchData: LineTouchData(
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipColor: (bar) => AppColors.green.withOpacity(0.9),
+                    getTooltipItems: (List<LineBarSpot> touchedBarSpots) {
+                      return touchedBarSpots.map((barSpot) {
+                        return LineTooltipItem(
+                          'Day ${barSpot.x.toInt() + 1}\n',
+                          TextStyle(color: AppColors.textWhite, fontSize: 11),
+                          children: [
+                            TextSpan(
+                              text: '${barSpot.y.toStringAsFixed(1)}',
+                              style: TextStyle(
+                                color: AppColors.textWhite,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        );
+                      }).toList();
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPieChart(String title, Map<String, dynamic> data, String chartKey) {
+    final entries = data.entries
+        .map((e) => MapEntry(e.key, _safeToDouble(e.value)))
+        .where((e) => e.value > 0)
+        .toList();
+
+    if (entries.isEmpty) {
+      return _buildEmptyChart(title);
+    }
+    
+    final total = entries.fold<double>(0, (sum, e) => sum + e.value);
+    
+    final List<PieChartSectionData> sections = List.generate(
+      entries.length,
+      (index) {
+        final value = entries[index].value;
+        final percentage = ((value / total) * 100).toStringAsFixed(1);
+        final color = _getChartColor(index);
+        
+        return PieChartSectionData(
+          color: color,
+          value: value,
+          title: value >= (total * 0.05) ? '$percentage%' : '',
+          radius: 60,
+          titleStyle: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textWhite,
+            shadows: [Shadow(color: Colors.black38, blurRadius: 1)],
+          ),
+        );
+      },
+    );
+
+    return Container(
+      height: 220,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.accent2, width: 1),
+      ),
+      padding: EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textDark,
+                ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.accent1,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(
+                  children: [
+                    Icon(Icons.pie_chart, size: 12, color: AppColors.primaryDark),
+                    SizedBox(width: 4),
+                    Text(
+                      'Pie',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primaryDark,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          Expanded(
+            child: Row(
+              children: [
+                Expanded(
+                  child: PieChart(
+                    PieChartData(
+                      sections: sections,
+                      centerSpaceRadius: 30,
+                      sectionsSpace: 1,
+                    ),
+                  ),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (var i = 0; i < min(entries.length, 5); i++)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: _getChartColor(i),
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                              SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  '${entries[i].key}',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: AppColors.textGray,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnalyticsSection() {
+  return FutureBuilder<Map<String, dynamic>>(
+    future: _analytics,
+    builder: (context, snapshot) {
+      final data = snapshot.data;
+      final ok = data != null && data['success'] == true;
+      final roles = ok ? (data['data']?['user_roles'] as Map?)?.cast<String, dynamic>() : null;
+      final statuses = ok ? (data['data']?['institution_statuses'] as Map?)?.cast<String, dynamic>() : null;
+      final growthUsers = ok ? (data['data']?['growth']?['users'] as List?) : null;
+
+      final width = MediaQuery.of(context).size.width;
+      final isWide = width >= 980;
+
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Analytics',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            if (snapshot.connectionState == ConnectionState.waiting)
+              const SizedBox(
+                height: 220,
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (!ok)
+              const SizedBox(
+                height: 120,
+                child: Center(child: Text('Analytics unavailable')),
+              )
+            else
+              Column(
+                children: [
+                  // Chart Type Selector for Roles
+                  Row(
+                    children: [
+                      Icon(Icons.person, color: AppColors.blue, size: 20),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Users by Role',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textDark,
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      _buildCompactChartSelector('roles'),
+                    ],
+                  ),
+                  SizedBox(height: 12),
+                  // Dynamic Chart based on selection
+                  _selectedChartIndices['roles'] == 0
+                    ? _buildBarChart('Users by Role', roles ?? {}, 'roles')
+                    : _selectedChartIndices['roles'] == 1
+                      ? _buildLineChart('Users Growth', growthUsers ?? [], 'growth')
+                      : _buildPieChart('Users Distribution', roles ?? {}, 'roles'),
+                  
+                  SizedBox(height: 24),
+                  
+                  // Chart Type Selector for Institution Status
+                  Row(
+                    children: [
+                      Icon(Icons.business, color: AppColors.ment, size: 20),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Institutions Status',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textDark,
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      _buildCompactChartSelector('status'),
+                    ],
+                  ),
+                  SizedBox(height: 12),
+                  // Dynamic Chart based on selection
+                  _selectedChartIndices['status'] == 0
+                    ? _buildBarChart('Institutions Status', statuses ?? {}, 'status')
+                    : _selectedChartIndices['status'] == 1
+                      ? Container(height: 200, child: Center(child: Text('No historical data available')))
+                      : _buildPieChart('Status Distribution', statuses ?? {}, 'status'),
+                  
+                  SizedBox(height: 24),
+                  
+                  // Chart Type Selector for Growth
+                  if (growthUsers != null && growthUsers.isNotEmpty) ...[
+                    Row(
+                      children: [
+                        Icon(Icons.trending_up, color: AppColors.green, size: 20),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'User Growth (Last 30 Days)',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textDark,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        _buildCompactChartSelector('growth'),
+                      ],
+                    ),
+                    SizedBox(height: 12),
+                    // Dynamic Chart based on selection
+                    _selectedChartIndices['growth'] == 0
+                      ? _buildBarChart('Daily User Growth', _prepareGrowthData(growthUsers), 'growth')
+                      : _selectedChartIndices['growth'] == 1
+                        ? _buildLineChart('User Growth Trend', growthUsers, 'growth')
+                        : _buildPieChart('Growth Distribution', _prepareGrowthData(growthUsers), 'growth'),
+                  ],
+                ],
+              ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+// دالة مساعدة لبناء أداة اختيار المخطط المضغوطة
+Widget _buildCompactChartSelector(String type) {
+  return Container(
+    decoration: BoxDecoration(
+      color: AppColors.primary,
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: Colors.grey[300]!, width: 1),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: _chartTypes.asMap().entries.map((entry) {
+        final isSelected = _selectedChartIndices[type] == entry.key;
+        return Container(
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.blue : Colors.transparent,
+            borderRadius: _getBorderRadius(entry.key, _chartTypes.length),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  _selectedChartIndices[type] = entry.key;
+                });
+              },
+              borderRadius: _getBorderRadius(entry.key, _chartTypes.length),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                child: Tooltip(
+                  message: entry.value,
+                  child: Icon(
+                    entry.key == 0 
+                      ? Icons.bar_chart 
+                      : entry.key == 1 
+                        ? Icons.show_chart 
+                        : Icons.pie_chart,
+                    size: 18,
+                    color: isSelected ? Colors.white : AppColors.textDark,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    ),
+  );
+}
+
+// دالة مساعدة لتحديد border radius لكل زر
+BorderRadius _getBorderRadius(int index, int totalItems) {
+  if (totalItems == 1) {
+    return BorderRadius.circular(8);
+  }
+  
+  if (index == 0) {
+    return BorderRadius.only(
+      topLeft: Radius.circular(8),
+      bottomLeft: Radius.circular(8),
+    );
+  } else if (index == totalItems - 1) {
+    return BorderRadius.only(
+      topRight: Radius.circular(8),
+      bottomRight: Radius.circular(8),
+    );
+  } else {
+    return BorderRadius.zero;
+  }
+}
+
+// دالة مساعدة لإعداد بيانات النمو
+Map<String, dynamic> _prepareGrowthData(List<dynamic> growthUsers) {
+  final Map<String, dynamic> result = {};
+  
+  if (growthUsers != null && growthUsers.isNotEmpty) {
+    // تحويل البيانات إلى التنسيق المناسب
+    for (var item in growthUsers) {
+      if (item is Map && item.containsKey('date') && item.containsKey('count')) {
+        result[item['date'].toString()] = item['count'];
+      }
+    }
+  }
+  
+  return result;
+}
+
+  // باقي الدوال الموجودة سابقاً تبقى كما هي...
   Future<Map<String, dynamic>> _loadAnalyticsOverview() async {
     try {
       return await AdminApiService.getAnalyticsOverview(rangeDays: 30);
@@ -79,7 +869,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
         final list = (data['data']?['institutions'] as List?) ?? [];
         print('Found ${list.length} institutions');
         
-        // أضف try-catch لكل institution
         final institutions = <Institution>[];
         for (var item in list) {
           try {
@@ -250,7 +1039,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           crossAxisCount: 3,
           mainAxisSpacing: 10,
           crossAxisSpacing: 10,
-          childAspectRatio: 1.1, // تم تغييره من 1.25 إلى 1.1
+          childAspectRatio: 1.1,
           children: [
             _buildQuickActionButton(
               icon: Icons.business,
@@ -303,17 +1092,17 @@ class _AdminDashboardState extends State<AdminDashboard> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(8), // تم تخفيض الحجم من 10 إلى 8
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: color.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: color, size: 20), // تم تخفيض حجم الأيقونة
+              child: Icon(icon, color: color, size: 20),
             ),
-            const SizedBox(height: 6), // تم تخفيضه من 10 إلى 6
+            const SizedBox(height: 6),
             Text(
               label,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12), // تم إضافة fontSize
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
               textAlign: TextAlign.center,
             ),
           ],
@@ -364,313 +1153,22 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  Widget _buildAnalyticsSection() {
-    return FutureBuilder<Map<String, dynamic>>(
-      future: _analytics,
-      builder: (context, snapshot) {
-        final data = snapshot.data;
-        final ok = data != null && data['success'] == true;
-        final roles = ok ? (data['data']?['user_roles'] as Map?)?.cast<String, dynamic>() : null;
-        final statuses = ok ? (data['data']?['institution_statuses'] as Map?)?.cast<String, dynamic>() : null;
-        final growthUsers = ok ? (data['data']?['growth']?['users'] as List?) : null;
-
-        final width = MediaQuery.of(context).size.width;
-        final isWide = width >= 980;
-
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 5),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Analytics',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              if (snapshot.connectionState == ConnectionState.waiting)
-                const SizedBox(
-                  height: 220,
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else if (!ok)
-                const SizedBox(
-                  height: 120,
-                  child: Center(child: Text('Analytics unavailable')),
-                )
-              else
-                (isWide)
-                    ? Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(child: _buildRolesDonutChart(roles ?? const {})),
-                          const SizedBox(width: 12),
-                          Expanded(child: _buildInstitutionStatusBar(statuses ?? const {})),
-                          const SizedBox(width: 12),
-                          Expanded(child: _buildUsersGrowthLine(growthUsers ?? const [])),
-                        ],
-                      )
-                    : Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _buildRolesDonutChart(roles ?? const {}),
-                          const SizedBox(height: 12),
-                          _buildInstitutionStatusBar(statuses ?? const {}),
-                          const SizedBox(height: 12),
-                          _buildUsersGrowthLine(growthUsers ?? const []),
-                        ],
-                      ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildRolesDonutChart(Map<String, dynamic> roleCounts) {
-    final entries = roleCounts.entries
-        .map((e) => MapEntry(e.key, int.tryParse(e.value.toString()) ?? 0))
-        .where((e) => e.value > 0)
-        .toList();
-
-    const palette = <Color>[
-      Colors.blue,
-      Colors.green,
-      Colors.orange,
-      Colors.purple,
-      Colors.teal,
-      Colors.red,
-    ];
-
-    final total = entries.fold<int>(0, (sum, e) => sum + e.value);
-    final sections = <PieChartSectionData>[];
-    for (var i = 0; i < entries.length; i++) {
-      final e = entries[i];
-      final color = palette[i % palette.length];
-      final percent = total == 0 ? 0.0 : (e.value / total) * 100.0;
-      sections.add(
-        PieChartSectionData(
-          value: e.value.toDouble(),
-          color: color,
-          radius: 48,
-          title: percent >= 8 ? '${percent.toStringAsFixed(0)}%' : '',
-          titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-        ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Text('Users by role', style: TextStyle(fontWeight: FontWeight.w600)),
-        const SizedBox(height: 8),
-        SizedBox(
-          height: 180,
-          child: Row(
-            children: [
-              Expanded(
-                child: PieChart(
-                  PieChartData(
-                    sectionsSpace: 2,
-                    centerSpaceRadius: 34,
-                    sections: sections.isEmpty
-                        ? [
-                            PieChartSectionData(
-                              value: 1,
-                              color: Colors.grey.shade300,
-                              radius: 48,
-                              title: '',
-                            )
-                          ]
-                        : sections,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    for (var i = 0; i < entries.length; i++)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 3),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 10,
-                              height: 10,
-                              decoration: BoxDecoration(
-                                color: palette[i % palette.length],
-                                borderRadius: BorderRadius.circular(3),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                '${entries[i].key} (${entries[i].value})',
-                                style: TextStyle(color: AppColors.textGray, fontSize: 12),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInstitutionStatusBar(Map<String, dynamic> statusCounts) {
-    final entries = statusCounts.entries
-        .map((e) => MapEntry(e.key, int.tryParse(e.value.toString()) ?? 0))
-        .where((e) => e.value >= 0)
-        .toList();
-
-    final labels = entries.map((e) => e.key).toList();
-    final maxY = max<double>(1, entries.fold<int>(0, (m, e) => max(m, e.value)).toDouble());
-
-    Color colorFor(String status) {
-      final s = status.toLowerCase();
-      if (s.contains('approved')) return Colors.green;
-      if (s.contains('pending')) return Colors.orange;
-      if (s.contains('rejected')) return Colors.red;
-      return Colors.blueGrey;
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Text('Institutions status', style: TextStyle(fontWeight: FontWeight.w600)),
-        const SizedBox(height: 8),
-        SizedBox(
-          height: 180,
-          child: BarChart(
-            BarChartData(
-              maxY: maxY * 1.2,
-              gridData: const FlGridData(show: false),
-              borderData: FlBorderData(show: false),
-              titlesData: FlTitlesData(
-                leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 30,
-                    getTitlesWidget: (value, meta) {
-                      final idx = value.toInt();
-                      if (idx < 0 || idx >= labels.length) return const SizedBox.shrink();
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(
-                          labels[idx],
-                          style: TextStyle(color: AppColors.textGray, fontSize: 10),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-              barGroups: [
-                for (var i = 0; i < entries.length; i++)
-                  BarChartGroupData(
-                    x: i,
-                    barRods: [
-                      BarChartRodData(
-                        toY: entries[i].value.toDouble(),
-                        width: 18,
-                        borderRadius: BorderRadius.circular(6),
-                        color: colorFor(entries[i].key),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildUsersGrowthLine(List growthRows) {
-    final points = <FlSpot>[];
-    for (var i = 0; i < growthRows.length; i++) {
-      final row = (growthRows[i] as Map).cast<String, dynamic>();
-      final c = int.tryParse(row['count']?.toString() ?? '') ?? 0;
-      points.add(FlSpot(i.toDouble(), c.toDouble()));
-    }
-
-    final maxY = points.isEmpty ? 1.0 : points.map((e) => e.y).reduce(max);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Text('New users (last 30d)', style: TextStyle(fontWeight: FontWeight.w600)),
-        const SizedBox(height: 8),
-        SizedBox(
-          height: 180,
-          child: LineChart(
-            LineChartData(
-              minY: 0,
-              maxY: maxY * 1.2,
-              gridData: const FlGridData(show: false),
-              borderData: FlBorderData(show: false),
-              titlesData: const FlTitlesData(
-                leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              ),
-              lineBarsData: [
-                LineChartBarData(
-                  spots: points.isEmpty ? const [FlSpot(0, 0)] : points,
-                  isCurved: true,
-                  barWidth: 3,
-                  color: AppColors.primary,
-                  dotData: const FlDotData(show: false),
-                  belowBarData: BarAreaData(
-                    show: true,
-                    color: AppColors.primary.withOpacity(0.12),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildActivityItem(String label, String value, IconData icon) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: AppColors.primary, size: 20), // حجم الأيقونة
+        Container(
+          padding: EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: AppColors.primary, size: 18),
+        ),
         const SizedBox(height: 6),
-        Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)), // حجم الخط
+        Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
         const SizedBox(height: 4),
-        Text(label, style: TextStyle(color: AppColors.textGray, fontSize: 11)), // حجم الخط
+        Text(label, style: TextStyle(color: AppColors.textGray, fontSize: 11)),
       ],
     );
   }
@@ -709,19 +1207,27 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   Widget _buildStatusItem(String label, String status, Color color) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4), // تم تخفيضه من 6 إلى 4
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
           Expanded(
             child: Text(
               label,
-              style: TextStyle(fontSize: 13, color: AppColors.textGray), // حجم الخط
+              style: TextStyle(fontSize: 13, color: AppColors.textGray),
             ),
           ),
           const SizedBox(width: 8),
-          Text(
-            status,
-            style: TextStyle(fontSize: 13, color: color, fontWeight: FontWeight.w600), // حجم الخط
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: color.withOpacity(0.3)),
+            ),
+            child: Text(
+              status,
+              style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
@@ -729,144 +1235,120 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Widget _buildInstitutionsMapSection() {
-  return FutureBuilder<List<Institution>>(
-    future: _institutions,
-    builder: (context, snapshot) {
-      final institutions = snapshot.data ?? const <Institution>[];
-      final withCoords = institutions
-          .where((i) => i.locationLat != null && i.locationLng != null)
-          .toList();
-      
-      print('🗺️ GoogleMap Debug:');
-      print('   Total institutions: ${institutions.length}');
-      print('   With coordinates: ${withCoords.length}');
-      
-      // تحقق من صحة الإحداثيات
-      for (var i = 0; i < min(3, withCoords.length); i++) {
-        final inst = withCoords[i];
-        print('   Institution ${i+1}: ${inst.name}');
-        print('     Lat: ${inst.locationLat} (type: ${inst.locationLat?.runtimeType})');
-        print('     Lng: ${inst.locationLng} (type: ${inst.locationLng?.runtimeType})');
+    return FutureBuilder<List<Institution>>(
+      future: _institutions,
+      builder: (context, snapshot) {
+        final institutions = snapshot.data ?? const <Institution>[];
+        final withCoords = institutions
+            .where((i) => i.locationLat != null && i.locationLng != null)
+            .toList();
         
-        // تحقق إذا الإحداثيات ضمن المدى الطبيعي
-        if (inst.locationLat! < -90 || inst.locationLat! > 90) {
-          print('     ⚠️ WARNING: Latitude out of range!');
-        }
-        if (inst.locationLng! < -180 || inst.locationLng! > 180) {
-          print('     ⚠️ WARNING: Longitude out of range!');
-        }
-      }
-
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.map, color: AppColors.primary),
-                const SizedBox(width: 8),
-                const Expanded(
-                  child: Text(
-                    'Institutions Distribution',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                Text(
-                  '${withCoords.length}/${institutions.length}',
-                  style: TextStyle(color: AppColors.textGray, fontSize: 13),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (snapshot.connectionState == ConnectionState.waiting)
-              Container(
-                height: 200,
-                alignment: Alignment.center,
-                child: CircularProgressIndicator(),
-              )
-            else if (institutions.isEmpty)
-              Container(
-                height: 200,
-                alignment: Alignment.center,
-                child: Text('No institutions available'),
-              )
-            else if (withCoords.isEmpty)
-              Container(
-                height: 200,
-                alignment: Alignment.center,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.location_off, size: 50, color: Colors.grey),
-                    SizedBox(height: 10),
-                    Text('No location data available'),
-                    Text('Add coordinates to institutions', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                  ],
-                ),
-              )
-            else
-              Container(
-                height: 200,
-                width: double.infinity,
-                child: GoogleMap(
-                  initialCameraPosition: CameraPosition(
-                    // استخدم إحداثيات أول مؤسسة كمكان بداية
-                    target: LatLng(
-                      withCoords.first.locationLat!,
-                      withCoords.first.locationLng!,
-                    ),
-                    zoom: 10,
-                  ),
-                  markers: withCoords
-                      .map(
-                        (i) => Marker(
-                          markerId: MarkerId('inst_${i.institutionId}'),
-                          position: LatLng(i.locationLat!, i.locationLng!),
-                          infoWindow: InfoWindow(
-                            title: i.name,
-                            snippet: i.approvalStatus ?? 'No status',
-                          ),
-                          icon: BitmapDescriptor.defaultMarkerWithHue(
-                            i.approvalStatus == 'Approved' 
-                              ? BitmapDescriptor.hueGreen
-                              : i.approvalStatus == 'Pending'
-                                ? BitmapDescriptor.hueOrange
-                                : BitmapDescriptor.hueRed,
-                          ),
-                        ),
-                      )
-                      .toSet(),
-                  mapType: MapType.normal,
-                  myLocationEnabled: false,
-                  zoomControlsEnabled: true,
-                  onMapCreated: (GoogleMapController controller) {
-                    print('🗺️ GoogleMap created successfully!');
-                    print('   Markers count: ${withCoords.length}');
-                  },
-                ),
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
               ),
-          ],
-        ),
-      );
-    },
-  );
-}
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.map, color: AppColors.primary),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Institutions Distribution',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '${withCoords.length}/${institutions.length}',
+                    style: TextStyle(color: AppColors.textGray, fontSize: 13),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (snapshot.connectionState == ConnectionState.waiting)
+                Container(
+                  height: 200,
+                  alignment: Alignment.center,
+                  child: CircularProgressIndicator(),
+                )
+              else if (institutions.isEmpty)
+                Container(
+                  height: 200,
+                  alignment: Alignment.center,
+                  child: Text('No institutions available'),
+                )
+              else if (withCoords.isEmpty)
+                Container(
+                  height: 200,
+                  alignment: Alignment.center,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.location_off, size: 50, color: Colors.grey),
+                      SizedBox(height: 10),
+                      Text('No location data available'),
+                      Text('Add coordinates to institutions', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    ],
+                  ),
+                )
+              else
+                Container(
+                  height: 200,
+                  width: double.infinity,
+                  child: GoogleMap(
+                    initialCameraPosition: CameraPosition(
+                      target: LatLng(
+                        withCoords.first.locationLat!,
+                        withCoords.first.locationLng!,
+                      ),
+                      zoom: 10,
+                    ),
+                    markers: withCoords
+                        .map(
+                          (i) => Marker(
+                            markerId: MarkerId('inst_${i.institutionId}'),
+                            position: LatLng(i.locationLat!, i.locationLng!),
+                            infoWindow: InfoWindow(
+                              title: i.name,
+                              snippet: i.approvalStatus ?? 'No status',
+                            ),
+                            icon: BitmapDescriptor.defaultMarkerWithHue(
+                              i.approvalStatus == 'Approved' 
+                                ? BitmapDescriptor.hueGreen
+                                : i.approvalStatus == 'Pending'
+                                  ? BitmapDescriptor.hueOrange
+                                  : BitmapDescriptor.hueRed,
+                            ),
+                          ),
+                        )
+                        .toSet(),
+                    mapType: MapType.normal,
+                    myLocationEnabled: false,
+                    zoomControlsEnabled: true,
+                    onMapCreated: (GoogleMapController controller) {},
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   Widget _buildDrawer() {
     return Drawer(
@@ -882,20 +1364,20 @@ class _AdminDashboardState extends State<AdminDashboard> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 CircleAvatar(
-                  radius: 25, // تم تخفيضه من 30 إلى 25
+                  radius: 25,
                   backgroundColor: Colors.white,
                   child: Icon(
                     Icons.admin_panel_settings,
-                    size: 32, // تم تخفيضه من 40 إلى 32
+                    size: 32,
                     color: AppColors.primary,
                   ),
                 ),
-                SizedBox(height: 8), // تم تخفيضه من 10 إلى 8
+                SizedBox(height: 8),
                 Text(
                   _adminName ?? 'Administration',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 16, // تم تخفيضه من 18 إلى 16
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -903,7 +1385,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   'System Administrator',
                   style: TextStyle(
                     color: Colors.white70,
-                    fontSize: 12, // تم إضافة حجم الخط
+                    fontSize: 12,
                   ),
                 ),
               ],
@@ -941,15 +1423,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
               Navigator.pushNamed(context, '/reportManagement');
             },
           ),
-          // في _buildDrawer() في admin_dashboard.dart
-ListTile(
-  leading: Icon(Icons.article, color: AppColors.primary, size: 20),
-  title: Text('App Content Management', style: TextStyle(fontSize: 14)),
-  onTap: () {
-    Navigator.pop(context);
-    Navigator.pushNamed(context, '/appContentManagement');
-  },
-),  
+          ListTile(
+            leading: Icon(Icons.article, color: AppColors.primary, size: 20),
+            title: Text('App Content Management', style: TextStyle(fontSize: 14)),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushNamed(context, '/appContentManagement');
+            },
+          ),  
           ListTile(
             leading: Icon(Icons.settings, color: AppColors.primary, size: 20),
             title: Text('System Settings', style: TextStyle(fontSize: 14)),
@@ -974,14 +1455,6 @@ ListTile(
               Navigator.pushNamed(context, '/detailedStatistics');
             },
           ),
-          // ListTile(
-          //   leading: Icon(Icons.flag, color: AppColors.primary, size: 20),
-          //   title: Text('Content Moderation', style: TextStyle(fontSize: 14)),
-          //   onTap: () {
-          //     Navigator.pop(context);
-          //     Navigator.pushNamed(context, '/contentModeration');
-          //   },
-          // ),
           ListTile(
             leading: Icon(Icons.person, color: AppColors.primary, size: 20),
             title: Text('Profile', style: TextStyle(fontSize: 14)),
@@ -1014,7 +1487,7 @@ ListTile(
           'Admin Dashboard',
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            fontSize: 18, // تم تخفيضه من 20 إلى 18
+            fontSize: 18,
           ),
         ),
         backgroundColor: AppColors.primary,
@@ -1049,16 +1522,16 @@ ListTile(
           physics: AlwaysScrollableScrollPhysics(),
           child: SafeArea(
             child: Padding(
-              padding: EdgeInsets.all(12), // تم تخفيضه من 16 إلى 12
+              padding: EdgeInsets.all(12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Welcome Card
                   _buildWelcomeCard(),
-                  SizedBox(height: 16), // تم تخفيضه من 20 إلى 16
+                  SizedBox(height: 16),
                   // Quick Actions Grid
                   _buildQuickActions(),
-                  SizedBox(height: 16), // تم تخفيضه من 20 إلى 16
+                  SizedBox(height: 16),
                   // Statistics Cards
                   FutureBuilder(
                     future: _dashboardData,
@@ -1074,9 +1547,9 @@ ListTile(
                         shrinkWrap: true,
                         physics: NeverScrollableScrollPhysics(),
                         crossAxisCount: 2,
-                        crossAxisSpacing: 10, // تم تخفيضه من 12 إلى 10
-                        mainAxisSpacing: 10, // تم تخفيضه من 12 إلى 10
-                        childAspectRatio: 1.1, // تم تخفيضه من 1.2 إلى 1.1
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                        childAspectRatio: 1.1,
                         children: [
                           _buildStatCard(
                             title: 'Institutions',
@@ -1110,19 +1583,16 @@ ListTile(
                       );
                     },
                   ),
-                  SizedBox(height: 16), // تم تخفيضه من 20 إلى 16
+                  SizedBox(height: 16),
                   // Analytics
                   _buildAnalyticsSection(),
-                  SizedBox(height: 16), // تم تخفيضه من 20 إلى 16
+                  SizedBox(height: 16),
                   // Recent Activity
                   _buildRecentActivity(),
-                  SizedBox(height: 16), // تم تخفيضه من 20 إلى 16
+                  SizedBox(height: 16),
                   // Institutions Map
                   _buildInstitutionsMapSection(),
-                  SizedBox(height: 16), // تم تخفيضه من 20 إلى 16
-                  // System Status
-                  // _buildSystemStatus(),
-                  // SizedBox(height: 20),
+                  SizedBox(height: 16),
                 ],
               ),
             ),
@@ -1135,7 +1605,7 @@ ListTile(
         },
         child: Icon(Icons.add, size: 20),
         backgroundColor: AppColors.primary,
-        mini: true, // لجعل الزر أصغر
+        mini: true,
       ),
     );
   }
@@ -1153,7 +1623,7 @@ ListTile(
               title: Text('Add New Institution', style: TextStyle(fontSize: 14)),
               onTap: () {
                 Navigator.pop(context);
-                // Navigate to add institution page
+                Navigator.pushNamed(context, '/institutionManagement');
               },
             ),
             ListTile(
@@ -1161,7 +1631,7 @@ ListTile(
               title: Text('Add New User', style: TextStyle(fontSize: 14)),
               onTap: () {
                 Navigator.pop(context);
-                // Navigate to add user page
+                Navigator.pushNamed(context, '/userManagement');
               },
             ),
             ListTile(

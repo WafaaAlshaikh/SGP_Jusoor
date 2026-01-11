@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_stripe/flutter_stripe.dart' hide PaymentMethod;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/payment_models.dart';
 import '../models/session.dart';
+import '../screens/stripe_checkout_screen.dart';
 import '../services/payment_service.dart';
 import '../theme/app_colors.dart';
 
@@ -71,6 +74,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
         _isLoadingMethods = false;
       });
     }
+  }
+
+  String _extractPaymentIntentId(String clientSecret) {
+    return clientSecret.split('_secret_').first;
   }
 
   Widget _buildPaymentMethodsList() {
@@ -202,44 +209,32 @@ class _PaymentScreenState extends State<PaymentScreen> {
                           ),
                           const SizedBox(height: 8),
                           if (method.processingFee > 0 || method.verificationTime != null)
-                            Wrap(
-                              spacing: 12,
-                              runSpacing: 6,
-                              children: [
-                                if (method.processingFee > 0)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.warning.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      'Fee: ${(method.processingFee * 100).toStringAsFixed(1)}%',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: AppColors.warning,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                if (method.verificationTime != null)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.info.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      'Verification: ${method.verificationTime}',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: AppColors.info,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
+                            LayoutBuilder(
+  builder: (context, constraints) {
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: constraints.maxWidth,
+      ),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 6,
+        children: [
+          if (method.processingFee > 0)
+            _buildTag(
+              'Fee: ${(method.processingFee * 100).toStringAsFixed(1)}%',
+              AppColors.warning,
+            ),
+          if (method.verificationTime != null)
+            _buildTag(
+              'Verification: ${method.verificationTime}',
+              AppColors.info,
+            ),
+        ],
+      ),
+    );
+  },
+),
+
                         ],
                       ),
                     ),
@@ -292,6 +287,27 @@ class _PaymentScreenState extends State<PaymentScreen> {
       }).toList(),
     );
   }
+
+  Widget _buildTag(String text, Color color) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    decoration: BoxDecoration(
+      color: color.withOpacity(0.1),
+      borderRadius: BorderRadius.circular(6),
+    ),
+    child: Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 11,
+        color: color,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+  );
+}
+
 
   Widget _buildPaymentContent() {
     return CustomScrollView(
@@ -729,7 +745,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
 
     final selectedMethod = _availablePaymentMethods.firstWhere(
-          (method) => method.id == _selectedPaymentMethod,
+      (method) => method.id == _selectedPaymentMethod,
+      orElse: () => _availablePaymentMethods.first,
     );
 
     return Container(
@@ -769,40 +786,40 @@ class _PaymentScreenState extends State<PaymentScreen> {
               Center(
                 child: _isProcessing
                     ? SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.textWhite,
-                  ),
-                )
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.textWhite,
+                        ),
+                      )
                     : Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Pay \$${selectedMethod.estimatedTotal.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textWhite,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Pay \$${selectedMethod.estimatedTotal.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textWhite,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: AppColors.textWhite.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.arrow_forward_rounded,
+                              size: 18,
+                              color: AppColors.textWhite,
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: AppColors.textWhite.withOpacity(0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.arrow_forward_rounded,
-                        size: 18,
-                        color: AppColors.textWhite,
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ],
           ),
@@ -812,11 +829,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   Future<void> _processPayment() async {
-    if (_selectedPaymentMethod == 'credit_card' && _cardToken == null) {
-      _showCardTokenDialog();
-      return;
-    }
-
     setState(() {
       _isProcessing = true;
     });
@@ -833,6 +845,93 @@ class _PaymentScreenState extends State<PaymentScreen> {
       );
 
       if (paymentResponse.success) {
+        if (!kIsWeb &&
+            _selectedPaymentMethod == 'credit_card' &&
+            paymentResponse.paymentIntentClientSecret != null &&
+            paymentResponse.paymentIntentClientSecret!.isNotEmpty) {
+          try {
+            await Stripe.instance.initPaymentSheet(
+              paymentSheetParameters: SetupPaymentSheetParameters(
+                paymentIntentClientSecret: paymentResponse.paymentIntentClientSecret!,
+                merchantDisplayName: widget.session.institutionName,
+                style: ThemeMode.light,
+              ),
+            );
+
+            await Stripe.instance.presentPaymentSheet();
+
+            final paymentIntentId = paymentResponse.paymentIntentId ??
+                _extractPaymentIntentId(paymentResponse.paymentIntentClientSecret!);
+
+            await PaymentService.confirmStripePayment(
+              token: token,
+              paymentIntentId: paymentIntentId,
+              invoiceId: widget.invoice.invoiceId,
+            );
+
+            if (!mounted) return;
+
+            Navigator.pop(context, {
+              'success': true,
+              'payment_flow': 'stripe_mobile',
+              'payment_intent_id': paymentIntentId,
+              'payment_id': paymentResponse.paymentId,
+              'transaction_id': paymentIntentId,
+              'session_status': 'Confirmed',
+            });
+            return;
+          } on StripeException catch (e) {
+            if (e.error.code == FailureCode.Canceled) {
+              return;
+            }
+            throw Exception(e.error.localizedMessage ?? 'Stripe payment failed');
+          }
+        }
+
+        if (_selectedPaymentMethod == 'credit_card' && paymentResponse.checkoutUrl != null) {
+          final completed = await Navigator.push<bool>(
+            context,
+            MaterialPageRoute(
+              builder: (_) => StripeCheckoutScreen(
+                checkoutUrl: paymentResponse.checkoutUrl!,
+                sessionId: paymentResponse.checkoutSessionId,
+                institutionName: widget.session.institutionName,
+                amount: widget.invoice.totalAmount,
+              ),
+            ),
+          );
+
+          if (!mounted) return;
+
+          if (completed == true) {
+            Navigator.pop(context, {
+              'success': true,
+              'payment_flow': 'stripe',
+              'checkout_session_id': paymentResponse.checkoutSessionId,
+            });
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    Icon(Icons.info_rounded, color: AppColors.textWhite),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text('Payment not completed yet')),
+                  ],
+                ),
+                backgroundColor: AppColors.warning,
+                duration: const Duration(seconds: 3),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            );
+          }
+
+          return;
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(

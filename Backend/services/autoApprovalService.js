@@ -1,4 +1,4 @@
-// services/autoApprovalService.js (نسخة كاملة مع إضافة)
+// services/autoApprovalService.js (Complete version with additions)
 const { 
   Child, 
   ChildRegistrationRequest, 
@@ -12,26 +12,25 @@ const {
   User,
   Manager,
   Diagnosis,
-  AutoFinancialAidLog,
-  sequelize 
+  AutoFinancialAidLog, 
 } = require('../model');
 const { Op, Sequelize } = require('sequelize');
-
+const sequelize = require('../config/db'); 
 class AutoApprovalService {
   
   /**
-   * التحقق من طلبات التسجيل الجديدة واتخاذ القرار تلقائياً
+   * Check new registration requests and make automatic decisions
    */
   static async processPendingRegistrationRequests() {
-    console.log('🔄 بدء معالجة طلبات التسجيل المعلقة تلقائياً...');
+    console.log('🔄 Starting automatic processing of pending registration requests...');
     
     try {
-      // جلب فقط 3 طلبات في كل مرة لمنع التحميل الزائد
+      // Fetch only 3 requests at a time to prevent overload
       const pendingRequests = await ChildRegistrationRequest.findAll({
         where: { 
           status: 'Pending',
           requested_at: {
-            [Op.lt]: new Date(Date.now() - 5 * 60 * 1000) // فقط الطلبات الأقدم من 5 دقائق
+            [Op.lt]: new Date(Date.now() - 5 * 60 * 1000) // Only requests older than 5 minutes
           }
         },
         include: [
@@ -47,10 +46,10 @@ class AutoApprovalService {
           }
         ],
         order: [['requested_at', 'ASC']],
-        limit: 3 // معالجة 3 طلبات فقط في المرة الواحدة
+        limit: 3 // Process only 3 requests at a time
       });
 
-      console.log(`📋 عدد الطلبات المعلقة للفحص: ${pendingRequests.length}`);
+      console.log(`📋 Number of pending requests to examine: ${pendingRequests.length}`);
 
       const results = {
         approved: [],
@@ -58,19 +57,19 @@ class AutoApprovalService {
         pending_manager_review: []
       };
 
-      // معالجة كل طلب بشكل منفصل مع معالجة الأخطاء
+      // Process each request separately with error handling
       for (const request of pendingRequests) {
         try {
-          console.log(`⚡ معالجة الطلب ${request.request_id}...`);
+          console.log(`⚡ Processing request ${request.request_id}...`);
 
-          // 🚫 إذا كان الطلب مرتبطاً بطلب مساعدة مالية، لا نقوم بالموافقة التلقائية
-          // بل نتركه للمراجعة اليدوية من المدير
+          // 🚫 If the request is linked to a financial aid request, do not auto-approve
+          // Instead, leave it for manual review by the manager
           if (request.financial_assistance_request_id) {
-            console.log(`💰 الطلب ${request.request_id} مرتبط بطلب مساعدة مالية (${request.financial_assistance_request_id})، سيتم تحويله لمراجعة المدير فقط.`);
+            console.log(`💰 Request ${request.request_id} is linked to a financial aid request (${request.financial_assistance_request_id}), will be forwarded to manager review only.`);
             results.pending_manager_review.push({
               request_id: request.request_id,
               child_name: request.Child.full_name,
-              reason: 'مرتبط بطلب مساعدة مالية - يحتاج مراجعة مدير'
+              reason: 'Linked to a financial aid request - needs manager review'
             });
             continue;
           }
@@ -100,20 +99,20 @@ class AutoApprovalService {
               results.pending_manager_review.push({
                 request_id: request.request_id,
                 child_name: request.Child.full_name,
-                reason: 'بحاجة لمراجعة يدوية من المدير'
+                reason: 'Needs manual review by manager'
               });
           }
           
-          console.log(`✅ اكتملت معالجة الطلب ${request.request_id}`);
+          console.log(`✅ Completed processing request ${request.request_id}`);
           
         } catch (requestError) {
-          console.error(`❌ خطأ في معالجة الطلب ${request.request_id}:`, requestError.message);
-          // تابع مع الطلب التالي
+          console.error(`❌ Error processing request ${request.request_id}:`, requestError.message);
+          // Continue with the next request
           continue;
         }
       }
 
-      console.log('✅ نتائج المعالجة التلقائية:', {
+      console.log('✅ Auto-processing results:', {
         approved: results.approved.length,
         rejected: results.rejected.length,
         needs_manager: results.pending_manager_review.length
@@ -122,13 +121,13 @@ class AutoApprovalService {
       return results;
 
     } catch (error) {
-      console.error('❌ خطأ رئيسي في معالجة الطلبات تلقائياً:', error);
+      console.error('❌ Main error in automatic request processing:', error);
       throw error;
     }
   }
 
   /**
-   * تقييم طلب التسجيل بناءً على قواعد محددة
+   * Evaluate registration request based on specific rules
    */
   static async evaluateRegistrationRequest(request) {
     const evaluation = {
@@ -139,76 +138,76 @@ class AutoApprovalService {
       financial_factors: {}
     };
 
-    // 🔍 التحقق 1: اكتمال بيانات الطفل
+    // 🔍 Check 1: Child data completeness
     evaluation.checks.childDataComplete = this.checkChildDataCompleteness(request.Child);
     evaluation.score += evaluation.checks.childDataComplete ? 20 : 0;
 
-    // 🔍 التحقق 2: توفر تشخيص أو تحليل أعراض
+    // 🔍 Check 2: Availability of diagnosis or symptom analysis
     evaluation.checks.hasDiagnosisOrSymptoms = this.checkMedicalInformation(request.Child);
     evaluation.score += evaluation.checks.hasDiagnosisOrSymptoms ? 15 : 0;
 
-    // 🔍 التحقق 3: تحليل المخاطر
+    // 🔍 Check 3: Risk analysis
     evaluation.checks.riskLevel = await this.assessRiskLevel(request.Child);
     evaluation.score += evaluation.checks.riskLevel === 'Low' ? 25 : 
                         evaluation.checks.riskLevel === 'Medium' ? 15 : 5;
 
-    // 🔍 التحقق 4: توفر مواعيد في المؤسسة
+    // 🔍 Check 4: Availability of slots at the institution
     evaluation.checks.hasAvailableSlots = await this.checkInstitutionAvailability(
       request.institution_id,
       request.Child
     );
     evaluation.score += evaluation.checks.hasAvailableSlots ? 30 : 0;
 
-    // 🔍 التحقق 5: تاريخ الأهل مع المؤسسة (إذا كانوا عملاء سابقين)
+    // 🔍 Check 5: Parent history with the institution (if they were previous clients)
     evaluation.checks.parentHistory = await this.checkParentHistory(
       request.requested_by_parent_id,
       request.institution_id
     );
     evaluation.score += evaluation.checks.parentHistory.goodHistory ? 10 : 0;
 
-    // 🔍 التحقق 6: السعة الاستيعابية للمؤسسة
+    // 🔍 Check 6: Institution capacity
     evaluation.checks.institutionCapacity = await this.checkInstitutionCapacity(request.institution_id);
     evaluation.score += evaluation.checks.institutionCapacity ? 10 : -10;
 
     
 
-    // 📊 اتخاذ القرار بناءً على النتيجة
+    // 📊 Make decision based on score
     if (evaluation.score >= 70) {
       evaluation.status = 'Approved';
-      evaluation.reason = 'الطلب يستوفي جميع معايير الموافقة التلقائية';
+      evaluation.reason = 'Request meets all auto-approval criteria';
     } else if (evaluation.score <= 30) {
       evaluation.status = 'Rejected';
-      evaluation.reason = 'الطلب لا يستوفي الحد الأدنى من المتطلبات';
+      evaluation.reason = 'Request does not meet minimum requirements';
     } else {
       evaluation.status = 'Pending';
-      evaluation.reason = 'الطلب بحاجة لمراجعة من المدير';
+      evaluation.reason = 'Request needs manager review';
     }
 
-    console.log(`📊 تقييم طلب ${request.request_id}: ${evaluation.score}/100 - ${evaluation.status}`);
+    console.log(`📊 Evaluation of request ${request.request_id}: ${evaluation.score}/100 - ${evaluation.status}`);
     return evaluation;
   }
 
   /**
-   * الموافقة التلقائية والحجز الذكي مع المساعدة المالية
+   * Automatic approval and smart scheduling with financial aid
    */
   static async approveAndScheduleAutomatically(request, decision) {
-    console.log(`⏱️ بدء الموافقة التلقائية للطلب ${request.request_id}`);
+    console.log(`⏱️ Starting automatic approval for request ${request.request_id}`);
     
-    // 🔥 تصحيح: استخدام Sequelize مباشرة
+    // 🔥 Correction: Use Sequelize directly
     const transaction = await sequelize.transaction({
       isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED,
       timeout: 30000
     });
 
     try {
-      console.log(`✅ الموافقة التلقائية على طلب ${request.request_id}`);
+      console.log(`✅ Automatic approval for request ${request.request_id}`);
 
-      // 1️⃣ تحديث حالة الطلب
+      // 1️⃣ Update request status
       await ChildRegistrationRequest.update(
         {
           status: 'Approved',
           reviewed_at: new Date(),
-          notes: `تمت الموافقة تلقائياً: ${decision.reason}`
+          notes: `Auto-approved: ${decision.reason}`
         },
         {
           where: { request_id: request.request_id },
@@ -216,7 +215,7 @@ class AutoApprovalService {
         }
       );
 
-      // 2️⃣ تحديث حالة الطفل
+      // 2️⃣ Update child status
       await Child.update(
         {
           registration_status: 'Approved',
@@ -228,18 +227,18 @@ class AutoApprovalService {
         }
       );
 
-      // 3️⃣ البحث عن أخصائي General متاح
+      // 3️⃣ Find available General specialist
       const generalSpecialist = await this.findAvailableGeneralSpecialist(
         request.institution_id,
         request.Child
       );
 
       if (!generalSpecialist) {
-        console.log('⚠️ لا يوجد أخصائي General متاح، سيتم إخطار المدير');
+        console.log('⚠️ No available General specialist, manager will be notified');
         await Notification.create({
           user_id: await this.getInstitutionManagerId(request.institution_id),
-          title: 'تحذير: لا يوجد أخصائي متاح',
-          message: `تمت الموافقة على طلب ${request.Child.full_name} ولكن لا يوجد أخصائي General متاح. يرجى تعيين أخصائي يدوياً.`,
+          title: 'Warning: No available specialist',
+          message: `Request for ${request.Child.full_name} was approved but no General specialist is available. Please assign a specialist manually.`,
           type: 'specialist_needed',
           related_id: request.request_id,
           is_read: false
@@ -249,20 +248,20 @@ class AutoApprovalService {
         return;
       }
 
-      console.log(`✅ وجد أخصائي: ${generalSpecialist.User.full_name}`);
+      console.log(`✅ Found specialist: ${generalSpecialist.User.full_name}`);
       
-      // 4️⃣ البحث عن موعد متاح
+      // 4️⃣ Find available slot
       const availableSlot = await this.findNextAvailableSlot(
         generalSpecialist.specialist_id,
-        60 // مدة الجلسة
+        60 // Session duration
       );
 
       if (!availableSlot) {
-        console.log('⚠️ لا يوجد مواعيد متاحة، سيتم إخطار المدير');
+        console.log('⚠️ No available slots, manager will be notified');
         await Notification.create({
           user_id: await this.getInstitutionManagerId(request.institution_id),
-          title: 'تحذير: لا يوجد مواعيد متاحة',
-          message: `تمت الموافقة على طلب ${request.Child.full_name} ولكن لا يوجد مواعيد متاحة للأخصائي. يرجى التدخل يدوياً.`,
+          title: 'Warning: No available slots',
+          message: `Request for ${request.Child.full_name} was approved but no slots are available for the specialist. Please intervene manually.`,
           type: 'scheduling_needed',
           related_id: request.request_id,
           is_read: false
@@ -272,7 +271,7 @@ class AutoApprovalService {
         return;
       }
 
-      // 5️⃣ إنشاء جلسة Initial Assessment
+      // 5️⃣ Create Initial Assessment session
       const initialAssessmentSession = await this.createInitialAssessmentSession(
         request.child_id,
         generalSpecialist.specialist_id,
@@ -281,7 +280,7 @@ class AutoApprovalService {
         transaction
       );
 
-      // 6️⃣ إرسال إشعارات الموافقة الأساسية
+      // 6️⃣ Send basic approval notifications
       await this.sendApprovalNotifications(
         request,
         generalSpecialist,
@@ -289,24 +288,31 @@ class AutoApprovalService {
         transaction
       );
 
-      console.log(`✅ تم حجز جلسة التقييم الأولي: ${availableSlot.date} ${availableSlot.startTime}`);
+      await this.sendManagerApprovalNotification(
+      request,
+      generalSpecialist,
+      initialAssessmentSession,
+      transaction
+    );
 
-      // 🔴 جديد: تطبيق المساعدة المالية التلقائية
+      console.log(`✅ Initial assessment session booked: ${availableSlot.date} ${availableSlot.startTime}`);
+
+      // 🔴 NEW: Apply automatic financial aid
       setTimeout(async () => {
         try {
           const AutoFinancialAidService = require('./autoFinancialAidService');
           const aidResult = await AutoFinancialAidService.autoApplyFinancialAid(initialAssessmentSession.session_id);
           
-          console.log(`💰 نتيجة المساعدة المالية التلقائية:`, aidResult);
+          console.log(`💰 Auto financial aid result:`, aidResult);
           
-          // تحديث إشعار الأهل بإضافة معلومات المساعدة المالية
-          if (aidResult.auto_applied) {
-            let updatedMessage = `✅ تمت الموافقة على تسجيل ${request.Child.full_name} في ${request.Institution.name}.\n`;
+          // Update parent notification with financial aid information
+          if (aidResult && aidResult.auto_applied) {
+            let updatedMessage = `✅ Registration for ${request.Child.full_name} at ${request.Institution.name} has been approved.\n`;
             
             if (aidResult.final_price === 0) {
-              updatedMessage += `🎉 تم تمويل جلسة التقييم الأولي بالكامل من خلال المساعدة المالية التلقائية!`;
+              updatedMessage += `🎉 Initial assessment session fully funded through automatic financial aid!`;
             } else if (aidResult.discount_amount > 0) {
-              updatedMessage += `💰 تم تطبيق خصم تلقائي بنسبة ${aidResult.discount_percentage.toFixed(2)}% على الجلسة.`;
+              updatedMessage += `💰 Automatic discount of ${aidResult.discount_percentage.toFixed(2)}% applied to the session.`;
             }
             
             await Notification.update({
@@ -320,22 +326,22 @@ class AutoApprovalService {
             });
           }
         } catch (aidError) {
-          console.error('❌ خطأ في تطبيق المساعدة المالية التلقائية:', aidError);
+          console.error('❌ Error applying automatic financial aid:', aidError);
         }
-      }, 1000); // تأخير ثانية واحدة
+      }, 1000); // Delay for one second
 
       await transaction.commit();
-      console.log(`✅ اكتملت عملية الموافقة والحجز للطلب ${request.request_id}`);
+      console.log(`✅ Completed approval and booking process for request ${request.request_id}`);
 
     } catch (error) {
-      console.error(`❌ خطأ في الموافقة التلقائية للطلب ${request.request_id}:`, error);
+      console.error(`❌ Error in automatic approval for request ${request.request_id}:`, error);
       
-      // محاولة rollback بأمان
+      // Attempt safe rollback
       try {
         await transaction.rollback();
-        console.log(`🔄 تم التراجع عن التداول للطلب ${request.request_id}`);
+        console.log(`🔄 Transaction rolled back for request ${request.request_id}`);
       } catch (rollbackError) {
-        console.error(`❌ خطأ في التراجع عن التداول:`, rollbackError);
+        console.error(`❌ Error rolling back transaction:`, rollbackError);
       }
       
       throw error;
@@ -343,10 +349,10 @@ class AutoApprovalService {
   }
 
   /**
-   * إنشاء جلسة Initial Assessment
+   * Create Initial Assessment session
    */
   static async createInitialAssessmentSession(childId, specialistId, institutionId, slot, transaction = null) {
-    console.log(`🔍 البحث عن نوع الجلسة للمؤسسة ${institutionId}`);
+    console.log(`🔍 Looking for session type for institution ${institutionId}`);
     
     const options = transaction ? { transaction } : {};
     
@@ -365,7 +371,7 @@ class AutoApprovalService {
     const originalPrice = initialAssessmentType ? parseFloat(initialAssessmentType.price) || 0 : 0;
     const finalPrice = originalPrice;
 
-    console.log(`📝 إنشاء جلسة جديدة: ${slot.date} ${slot.startTime}`);
+    console.log(`📝 Creating new session: ${slot.date} ${slot.startTime}`);
     
     const createOptions = {
       child_id: childId,
@@ -379,7 +385,7 @@ class AutoApprovalService {
       status: 'Pending Approval',
       is_first_booking: true,
       is_initial_assessment: true,
-      parent_notes: 'جلسة التقييم الأولي - تم الحجز تلقائياً بعد الموافقة على التسجيل',
+      parent_notes: 'Initial assessment session - auto-booked after registration approval',
       original_price: originalPrice,
       final_price: finalPrice,
       applied_discount_percentage: 0,
@@ -396,66 +402,142 @@ class AutoApprovalService {
     }
   }
 
-  /**
-   * إرسال إشعارات الموافقة
-   */
-  static async sendApprovalNotifications(request, specialist, session, transaction = null) {
-    const options = transaction ? { transaction } : {};
-    
-    console.log(`📨 إرسال إشعارات للطلب ${request.request_id}`);
-    
-    // 1. إشعار الأهل
-    await Notification.create({
-      user_id: request.requested_by_parent_id,
-      title: 'تمت الموافقة على التسجيل وحجز الجلسة الأولى',
-      message: `✅ تمت الموافقة تلقائياً على تسجيل ${request.Child.full_name} في ${request.Institution.name}. 
-                سيتم حجز جلسة التقييم الأولي مع ${specialist.User.full_name} في ${session.date} الساعة ${session.time}. 
-                يتم الآن التحقق من إمكانية المساعدة المالية التلقائية...`,
-      type: 'registration_approved',
-      related_id: request.request_id,
-      is_read: false
-    }, options);
-
-    // 2. إشعار الأخصائي
-    await Notification.create({
-      user_id: specialist.specialist_id,
-      title: 'جلسة تقييم أولي جديدة',
-      message: `👶 لديك جلسة تقييم أولي مع ${request.Child.full_name} في ${session.date} الساعة ${session.time}. 
-                الطفل: ${request.Child.age} سنوات، ${request.Child.gender}. 
-                سيتم التحقق من المساعدة المالية التلقائية للأهل.`,
-      type: 'new_session',
-      related_id: session.session_id,
-      is_read: false
-    }, options);
-
-    // 3. إشعار المدير
+  static async sendManagerApprovalNotification(request, specialist, session, transaction = null) {
+  const options = transaction ? { transaction } : {};
+  const NotificationService = require('../services/notificationService');
+  
+  try {
+    // Get manager ID
     const managerId = await this.getInstitutionManagerId(request.institution_id);
-    if (managerId) {
-      await Notification.create({
-        user_id: managerId,
-        title: 'تمت الموافقة التلقائية على تسجيل جديد',
-        message: `✅ تمت الموافقة تلقائياً على تسجيل ${request.Child.full_name}. 
-                  تم حجز جلسة مع ${specialist.User.full_name} في ${session.date}. 
-                  سيتم تطبيق المساعدة المالية التلقائية إذا كان الأهل مؤهلين.`,
-        type: 'auto_approval_notification',
-        related_id: request.request_id,
-        is_read: false
-      }, options);
+    
+    if (!managerId) {
+      console.log('⚠️ No manager to send notification to');
+      return;
     }
+
+    const notificationData = {
+      type: 'child_auto_approved',
+      child_name: request.Child.full_name,
+      institution_name: request.Institution.name,
+      child_id: request.child_id.toString(),
+      specialist_name: specialist.User.full_name,
+      session_date: session.date,
+      session_time: session.time,
+      session_id: session.session_id?.toString(),
+      approval_type: 'auto',
+      timestamp: new Date().toISOString()
+    };
+
+    // console.log(`📨 Sending notification to manager ${managerId} about auto-approval');
+
+    // Use notification service to send to manager
+    const result = await NotificationService.sendToManager(
+      managerId,
+      '✅ Automatic approval of child registration',
+      `Auto-approved ${request.Child.full_name} and booked session with ${specialist.User.full_name}`,
+      notificationData
+    );
+
+    // Also save notification in database
+    await Notification.create({
+      user_id: managerId,
+      title: 'Automatic approval of child registration',
+      message: `Auto-approved ${request.Child.full_name} at ${request.Institution.name}. 
+                Initial assessment session booked with ${specialist.User.full_name} on ${session.date} at ${session.time}.`,
+      type: 'auto_approval_notification',
+      related_id: request.request_id,
+      metadata: JSON.stringify(notificationData),
+      is_read: false
+    }, options);
+
+    console.log(`✅ Sent approval notification to manager ${managerId}`);
+
+  } catch (error) {
+    console.error('❌ Error sending notification to manager:', error);
+    // Don't stop process if notification fails
   }
+}
+
+// 🔥 **NEW: Update sendApprovalNotifications function**
+static async sendApprovalNotifications(request, specialist, session, transaction = null) {
+  const options = transaction ? { transaction } : {};
+  
+  console.log(`📨 Sending notifications for request ${request.request_id}`);
+  
+  // 1. Parent notification
+  await Notification.create({
+    user_id: request.requested_by_parent_id,
+    title: 'Registration approved and first session booked',
+    message: `✅ Auto-approved registration for ${request.Child.full_name} at ${request.Institution.name}. 
+              Initial assessment session booked with ${specialist.User.full_name} on ${session.date} at ${session.time}.`,
+    type: 'registration_approved',
+    related_id: request.request_id,
+    is_read: false
+  }, options);
+
+  // 2. Specialist notification
+  await Notification.create({
+    user_id: specialist.specialist_id,
+    title: 'New initial assessment session',
+    message: `👶 You have an initial assessment session with ${request.Child.full_name} on ${session.date} at ${session.time}. 
+              Child: ${request.Child.age} years, ${request.Child.gender}.`,
+    type: 'new_session',
+    related_id: session.session_id,
+    is_read: false
+  }, options);
+
+  // 3. 🔥 **NEW: Send push notifications to parent and specialist**
+  const NotificationService = require('../services/notificationService');
+  
+  // Push notification to parent
+  setTimeout(async () => {
+    try {
+      await NotificationService.sendToUser(
+        request.requested_by_parent_id,
+        '✅ Registration approved',
+        `Registration for ${request.Child.full_name} at ${request.Institution.name} has been approved`,
+        {
+          type: 'registration_approved',
+          child_id: request.child_id.toString(),
+          institution_id: request.institution_id.toString()
+        }
+      );
+    } catch (error) {
+      console.error('❌ Error sending push to parent:', error);
+    }
+  }, 1000);
+
+  // Push notification to specialist
+  setTimeout(async () => {
+    try {
+      await NotificationService.sendToUser(
+        specialist.specialist_id,
+        '📅 New initial assessment session',
+        `You have a session with ${request.Child.full_name} on ${session.date}`,
+        {
+          type: 'new_session',
+          session_id: session.session_id?.toString(),
+          child_id: request.child_id.toString()
+        }
+      );
+    } catch (error) {
+      console.error('❌ Error sending push to specialist:', error);
+    }
+  }, 1500);
+}
 
   /**
-   * الرفض التلقائي
+   * Automatic rejection
    */
   static async rejectAutomatically(request, decision) {
     try {
-      console.log(`❌ الرفض التلقائي لطلب ${request.request_id}`);
+      console.log(`❌ Automatic rejection for request ${request.request_id}`);
 
       await ChildRegistrationRequest.update(
         {
           status: 'Rejected',
           reviewed_at: new Date(),
-          notes: `تم الرفض تلقائياً: ${decision.reason}`
+          notes: `Auto-rejected: ${decision.reason}`
         },
         { where: { request_id: request.request_id } }
       );
@@ -465,24 +547,24 @@ class AutoApprovalService {
         { where: { child_id: request.child_id } }
       );
 
-      // إشعار الأهل
+      // Parent notification
       await Notification.create({
         user_id: request.requested_by_parent_id,
-        title: 'تم رفض طلب التسجيل',
-        message: `عذراً، تم رفض طلب تسجيل ${request.Child.full_name} في ${request.Institution.name}. 
-                  السبب: ${decision.reason}`,
+        title: 'Registration request rejected',
+        message: `Sorry, registration request for ${request.Child.full_name} at ${request.Institution.name} has been rejected. 
+                  Reason: ${decision.reason}`,
         type: 'registration_rejected',
         related_id: request.request_id,
         is_read: false
       });
 
     } catch (error) {
-      console.error('❌ خطأ في الرفض التلقائي:', error);
+      console.error('❌ Error in automatic rejection:', error);
       throw error;
     }
   }
 
-  // ==================== دوال مساعدة ====================
+  // ==================== Helper functions ====================
 
   static checkChildDataCompleteness(child) {
     const requiredFields = ['full_name', 'date_of_birth', 'gender'];
@@ -508,7 +590,7 @@ class AutoApprovalService {
       return child.risk_level;
     }
     
-    // تحليل بسيط بناءً على الأعراض
+    // Simple analysis based on symptoms
     if (child.symptoms_description) {
       const highRiskKeywords = ['emergency', 'urgent', 'severe', 'critical', 'danger'];
       const text = child.symptoms_description.toLowerCase();
@@ -523,7 +605,7 @@ class AutoApprovalService {
 
   static async checkInstitutionAvailability(institutionId, child) {
     try {
-      // البحث عن أخصائي General متاح في المؤسسة
+      // Find available General specialist at the institution
       const generalSpecialist = await Specialist.findOne({
         where: {
           institution_id: institutionId,
@@ -533,32 +615,32 @@ class AutoApprovalService {
       });
 
       if (!generalSpecialist) {
-        console.log('⚠️ لا يوجد أخصائي General في المؤسسة');
+        console.log('⚠️ No General specialist at institution');
         return false;
       }
 
-      // التحقق من وجود جدول للمختص
+      // Check if specialist has a schedule
       const hasSchedule = await SpecialistSchedule.findOne({
         where: { specialist_id: generalSpecialist.specialist_id }
       });
 
       if (!hasSchedule) {
-        console.log('⚠️ الأخصائي ليس لديه جدول عمل');
+        console.log('⚠️ Specialist does not have a work schedule');
         return false;
       }
 
-      // البحث عن موعد متاح خلال الأسبوعين القادمين
+      // Look for available slot in the next two weeks
       const availableSlot = await this.findNextAvailableSlot(generalSpecialist.specialist_id, 60);
       return !!availableSlot;
 
     } catch (error) {
-      console.error('❌ خطأ في التحقق من توفر المؤسسة:', error);
+      console.error('❌ Error checking institution availability:', error);
       return false;
     }
   }
 
   static async findAvailableGeneralSpecialist(institutionId, child) {
-    console.log(`🔍 البحث عن أخصائي General للمؤسسة ${institutionId}`);
+    console.log(`🔍 Looking for General specialist for institution ${institutionId}`);
 
     try {
       const generalSpecialists = await Specialist.findAll({
@@ -578,14 +660,14 @@ class AutoApprovalService {
         limit: 5
       });
 
-      console.log(`📊 وجد ${generalSpecialists.length} أخصائي General`);
+      console.log(`📊 Found ${generalSpecialists.length} General specialists`);
 
       if (generalSpecialists.length === 0) {
-        console.log('⚠️ لا يوجد أخصائي General في المؤسسة');
+        console.log('⚠️ No General specialist at institution');
         return null;
       }
 
-      // نبدأ بأول أخصائي ونحاول إيجاد من لديه جدول عمل
+      // Start with first specialist and try to find one with work schedule
       for (const specialist of generalSpecialists) {
         const hasSchedule = await SpecialistSchedule.findOne({
           where: { specialist_id: specialist.specialist_id },
@@ -593,36 +675,36 @@ class AutoApprovalService {
         });
 
         if (!hasSchedule) {
-          console.log(`⚠️ الأخصائي ${specialist.User.full_name} ليس لديه جدول`);
+          console.log(`⚠️ Specialist ${specialist.User.full_name} has no schedule`);
           continue;
         }
 
-        // محاولة العثور على موعد سريع (اليوم وغد فقط)
+        // Try to find quick slot (today and tomorrow only)
         const quickSlot = await this.findQuickAvailableSlot(specialist.specialist_id, 60);
 
         if (quickSlot) {
-          console.log(`✅ وجد موعد سريع للأخصائي ${specialist.User.full_name}: ${quickSlot.date}`);
+          console.log(`✅ Found quick slot for specialist ${specialist.User.full_name}: ${quickSlot.date}`);
           return specialist;
         }
 
-        // حتى لو لم يوجد quickSlot، نرجّع هذا الأخصائي
-        // ليتم لاحقاً البحث عن أقرب موعد متاح عبر findNextAvailableSlot
-        console.log(`⚠️ لا يوجد موعد سريع للأخصائي ${specialist.User.full_name}، سيتم البحث عن أقرب موعد متاح لاحقاً`);
+        // Even if no quickSlot, return this specialist
+        // Later we'll search for next available slot via findNextAvailableSlot
+        console.log(`⚠️ No quick slot for specialist ${specialist.User.full_name}, will search for next available slot later`);
         return specialist;
       }
 
-      // إذا لم يكن لأي من المختصين جدول عمل، نرجع null
-      console.log('⚠️ لا يوجد أي أخصائي General لديه جدول عمل فعّال');
+      // If none of the specialists have work schedules, return null
+      console.log('⚠️ No General specialist has an active work schedule');
       return null;
 
     } catch (error) {
-      console.error('❌ خطأ في البحث عن أخصائي:', error);
+      console.error('❌ Error searching for specialist:', error);
       return null;
     }
   }
 
   static async findQuickAvailableSlot(specialistId, durationMinutes) {
-    // البحث في اليوم وغد فقط عن أقرب موعد متاح
+    // Search in today and tomorrow only for nearest available slot
     for (let i = 1; i <= 2; i++) {
       const targetDate = new Date();
       targetDate.setDate(targetDate.getDate() + i);
@@ -638,7 +720,7 @@ class AutoApprovalService {
 
       if (!schedule) continue;
 
-      // جلب الجلسات فقط لهذا اليوم المحدد
+      // Get sessions only for this specific day
       const existingSessions = await Session.findAll({
         where: {
           specialist_id: specialistId,
@@ -678,7 +760,7 @@ class AutoApprovalService {
   }
 
   static async findNextAvailableSlot(specialistId, durationMinutes) {
-    const daysToCheck = 14; // البحث خلال أسبوعين
+    const daysToCheck = 14; // Search within two weeks
     
     for (let i = 1; i <= daysToCheck; i++) {
       const targetDate = new Date();
@@ -686,7 +768,7 @@ class AutoApprovalService {
       const dateString = targetDate.toISOString().split('T')[0];
       const dayOfWeek = this.getDayName(targetDate.getDay());
       
-      // 1. التحقق من وجود جدول في هذا اليوم
+      // 1. Check if there's a schedule on this day
       const schedule = await SpecialistSchedule.findOne({
         where: {
           specialist_id: specialistId,
@@ -696,7 +778,7 @@ class AutoApprovalService {
 
       if (!schedule) continue;
 
-      // 2. الحصول على الجلسات المجدولة لهذا اليوم
+      // 2. Get scheduled sessions for this day
       const existingSessions = await Session.findAll({
         where: {
           specialist_id: specialistId,
@@ -715,7 +797,7 @@ class AutoApprovalService {
         ]
       });
 
-      // 3. البحث عن وقت متاح
+      // 3. Find available time
       const availableTime = this.findAvailableTimeInSchedule(
         schedule.start_time,
         schedule.end_time,
@@ -740,7 +822,7 @@ class AutoApprovalService {
     const endMinutes = this.timeToMinutes(endTime);
     const durationMinutesInt = parseInt(durationMinutes);
     
-    // تحويل الجلسات الحالية إلى فترات مشغولة
+    // Convert existing sessions to busy slots
     const busySlots = [];
     existingSessions.forEach(session => {
       const sessionStart = this.timeToMinutes(session.time);
@@ -749,12 +831,12 @@ class AutoApprovalService {
       busySlots.push({ start: sessionStart, end: sessionEnd });
     });
 
-    // البحث عن فتحة متاحة كل 30 دقيقة
+    // Search for available slot every 30 minutes
     for (let time = startMinutes; time <= endMinutes - durationMinutesInt; time += 30) {
       const slotEnd = time + durationMinutesInt;
       let isAvailable = true;
       
-      // التحقق من التداخل مع الجلسات المشغولة
+      // Check overlap with busy sessions
       for (const busy of busySlots) {
         if (time < busy.end && slotEnd > busy.start) {
           isAvailable = false;
@@ -772,7 +854,7 @@ class AutoApprovalService {
 
   static async processSingleRequest(requestId) {
     try {
-      console.log(`🎯 معالجة طلب واحد: ${requestId}`);
+      console.log(`🎯 Processing single request: ${requestId}`);
       
       const request = await ChildRegistrationRequest.findOne({
         where: { request_id: requestId, status: 'Pending' },
@@ -799,18 +881,18 @@ class AutoApprovalService {
       });
 
       if (!request) {
-        console.log(`❌ الطلب ${requestId} غير موجود أو تمت معالجته مسبقاً`);
+        console.log(`❌ Request ${requestId} not found or already processed`);
         return { success: false, message: 'Request not found or already processed' };
       }
 
-      // 🚫 إذا كان الطلب مرتبطاً بطلب مساعدة مالية، لا تتم معالجته تلقائياً
+      // 🚫 If the request is linked to a financial aid request, do not process automatically
       if (request.financial_assistance_request_id) {
-        console.log(`💰 الطلب ${requestId} مرتبط بطلب مساعدة مالية (${request.financial_assistance_request_id})، لن يتم تنفيذ الموافقة التلقائية.`);
+        console.log(`💰 Request ${requestId} is linked to a financial aid request (${request.financial_assistance_request_id}), auto-approval will not be performed.`);
         return {
           success: true,
           status: 'Pending',
           request_id: request.request_id,
-          reason: 'مرتبط بطلب مساعدة مالية - يحتاج مراجعة مدير'
+          reason: 'Linked to a financial aid request - needs manager review'
         };
       }
 
@@ -825,7 +907,7 @@ class AutoApprovalService {
             status: 'Approved',
             request_id: request.request_id,
             reason: decision.reason,
-            note: 'تمت الموافقة وحجز جلسة التقييم الأولي مع تطبيق المساعدة المالية التلقائية'
+            note: 'Approved and initial assessment session booked with automatic financial aid applied'
           };
           break;
           
@@ -848,11 +930,11 @@ class AutoApprovalService {
           };
       }
 
-      console.log(`✅ اكتملت معالجة الطلب ${requestId}: ${result.status}`);
+      console.log(`✅ Completed processing request ${requestId}: ${result.status}`);
       return result;
 
     } catch (error) {
-      console.error(`❌ خطأ في معالجة الطلب ${requestId}:`, error);
+      console.error(`❌ Error processing request ${requestId}:`, error);
       return { 
         success: false, 
         request_id: requestId,
@@ -862,7 +944,7 @@ class AutoApprovalService {
   }
 
   static async checkParentHistory(parentId, institutionId) {
-    // التحقق من تاريخ الأهل مع المؤسسة
+    // Check parent history with institution
     const previousChildren = await Child.count({
       where: {
         parent_id: parentId,
@@ -887,7 +969,7 @@ class AutoApprovalService {
   }
 
   static async checkInstitutionCapacity(institutionId) {
-    // حساب عدد الأطفال المسجلين حالياً
+    // Count current registered children
     const currentChildren = await Child.count({
       where: {
         current_institution_id: institutionId,
@@ -895,12 +977,12 @@ class AutoApprovalService {
       }
     });
 
-    // يمكن إضافة منطق أكثر تعقيداً هنا
-    // مثلاً: التحقق من سعة المؤسسة من جدول المؤسسات
+    // Can add more complex logic here
+    // For example: Check institution capacity from institutions table
     const institution = await Institution.findByPk(institutionId);
-    const maxCapacity = institution.capacity || 100; // قيمة افتراضية
+    const maxCapacity = institution.capacity || 100; // Default value
     
-    return currentChildren < maxCapacity * 0.9; // 90% من السعة
+    return currentChildren < maxCapacity * 0.9; // 90% of capacity
   }
 
   static async getDefaultSessionTypeId(institutionId) {
@@ -923,7 +1005,7 @@ class AutoApprovalService {
     return manager ? manager.manager_id : null;
   }
 
-  // ==================== دوال تحويل الوقت ====================
+  // ==================== Time conversion functions ====================
 
   static timeToMinutes(timeStr) {
     if (!timeStr) return 0;

@@ -1,4 +1,6 @@
 const admin = require('firebase-admin');
+const sequelize = require('../config/db');
+const { Op } = require('sequelize');
 
 // 1. Initialize Firebase
 try {
@@ -76,7 +78,7 @@ async sendToToken(token, title, body, data = {}) {
         click_action: 'FLUTTER_NOTIFICATION_CLICK',
         channelId: data.channel || 'default_channel',
         priority: 'high',
-        notificationType: 'session_created'
+        notificationType: data.notificationType || data.type || 'general'
       }
     };
 
@@ -216,6 +218,152 @@ async sendSessionUpdated(parentToken, childName, originalDate, originalTime, new
     }
   );
 },
+
+// notificationService.js - add this function
+async sendToUser(userId, title, body, data = {}) {
+  try {
+    // Get the latest active device token from database
+    const [tokenResult] = await sequelize.query(`
+      SELECT token 
+      FROM UserDeviceTokens 
+      WHERE user_id = ? 
+        AND is_active = 1
+      ORDER BY updated_at DESC 
+      LIMIT 1
+    `, { replacements: [userId] });
+
+    if (!tokenResult.length || !tokenResult[0].token) {
+      console.log(`⚠️ No device token found for user ${userId}`);
+      return { success: false, error: 'No token found for user' };
+    }
+
+    const token = tokenResult[0].token.trim();
+    
+    // 🔥 Convert all data values to strings (FCM requirement)
+    const stringData = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined && value !== null) {
+        stringData[key] = String(value);
+      } else {
+        stringData[key] = '';
+      }
+    }
+
+    const message = {
+      token: token,
+      notification: {
+        title: title,
+        body: body,
+      },
+      android: {
+        priority: 'high',
+        notification: {
+          channel_id: data.channel || 'default_channel',
+          icon: '@mipmap/ic_launcher',
+          color: '#2196F3',
+          tag: data.type || 'general',
+          sound: 'default',
+          visibility: 'public',
+        }
+      },
+      apns: {
+        payload: {
+          aps: {
+            alert: {
+              title: title,
+              body: body
+            },
+            sound: 'default',
+            badge: 1
+          }
+        }
+      },
+      data: {
+        ...stringData,
+        type: data.type || 'general',
+        timestamp: new Date().toISOString(),
+        title: title,
+        body: body,
+        click_action: 'FLUTTER_NOTIFICATION_CLICK',
+        channelId: data.channel || 'default_channel',
+        priority: 'high',
+        notificationType: data.notificationType || data.type || 'general'
+      }
+    };
+
+    console.log(`📤 Sending notification to user ${userId}: "${title}"`);
+    console.log(`📱 Token: ${token.substring(0, 20)}...`);
+    
+    const response = await admin.messaging().send(message);
+    console.log('✅ Notification sent successfully to user');
+    return { success: true, response: response };
+
+  } catch (error) {
+    console.error('❌ Error sending notification to user:', error.message);
+    return { success: false, error: error.message };
+  }
+},
+
+// Helper function to send notification to manager
+async sendToManager(managerId, title, body, data = {}) {
+  return await this.sendToUser(managerId, title, body, {
+    ...data,
+    type: 'manager_notification',
+    channel: 'manager_channel'
+  });
+},
+
+// Send child approval notification
+async sendChildApprovalNotifications(
+  managerId,
+  childName,
+  institutionName,
+  childId,
+  sessionDetails = null
+) {
+  let title, body, notificationData = {};
+  
+  if (sessionDetails) {
+    title = '✅ Child Approved & Session Scheduled';
+    body = `Auto-approval completed for ${childName} at ${institutionName}. Session scheduled with ${sessionDetails.specialistName}`;
+    
+    notificationData = {
+      type: 'child_auto_approved_with_session',
+      child_name: childName,
+      institution_name: institutionName,
+      child_id: childId.toString(),
+      session_id: sessionDetails.sessionId?.toString(),
+      specialist_name: sessionDetails.specialistName,
+      session_date: sessionDetails.date,
+      session_time: sessionDetails.time,
+      action: 'view_child_schedule'
+    };
+  } else {
+    title = '✅ Child Registration Approved';
+    body = `Auto-approval completed for ${childName} at ${institutionName}`;
+    
+    notificationData = {
+      type: 'child_auto_approved',
+      child_name: childName,
+      institution_name: institutionName,
+      child_id: childId.toString(),
+      action: 'view_pending_registrations'
+    };
+  }
+
+  // Send notification to manager
+  const managerResult = await this.sendToManager(
+    managerId,
+    title,
+    body,
+    notificationData
+  );
+
+  return {
+    manager_notification: managerResult
+  };
+}
+
 };
 
 

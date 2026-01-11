@@ -11,6 +11,7 @@ import 'map_screen.dart';
 import 'institution_reviews_screen.dart';
 import 'public_institution_profile_screen.dart';
 import 'public_institution_home_screen.dart';
+import 'employment_application_dialog.dart';
 
 class BrowseCentersScreen extends StatefulWidget {
   const BrowseCentersScreen({Key? key}) : super(key: key);
@@ -391,6 +392,12 @@ class _BrowseCentersScreenState extends State<BrowseCentersScreen> {
                   tooltip: 'AI Recommendations',
                   onPressed: _getAIRecommendations,
                 ),
+                // في AppBar actions (بعد زر AI Recommendations)
+IconButton(
+  icon: Icon(Icons.work_outline, color: Colors.white),
+  tooltip: 'Apply for Employment',
+  onPressed: () => _showEmploymentDialog(),
+),
           IconButton(
             icon: Icon(_showAdvancedFilters ? Icons.filter_alt : Icons.filter_alt_outlined, color: Colors.white),
             onPressed: () => setState(() => _showAdvancedFilters = !_showAdvancedFilters),
@@ -410,6 +417,17 @@ class _BrowseCentersScreenState extends State<BrowseCentersScreen> {
             ),
     );
   }
+
+  void _showEmploymentDialog() {
+  showDialog(
+    context: context,
+    builder: (context) => EmploymentApplicationDialog(
+      institutions: _allInstitutions,
+    ),
+  );
+}
+
+
 
   Widget _buildSearchAndSort() {
     return Container(

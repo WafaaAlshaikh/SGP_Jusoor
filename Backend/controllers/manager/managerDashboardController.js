@@ -1,5 +1,5 @@
 // controllers/managerDashboardController.js
-const { Session, SessionType, Child, Specialist, ChildRegistrationRequest, Institution, Manager, Donation, DonationAllocation,EquipmentDonation,EquipmentCategory,User } = require('../../model/index');
+const { Session, SessionType, Child, Specialist, ChildRegistrationRequest, Institution, Manager, Donation, DonationAllocation,EquipmentDonation,EquipmentCategory,User, InstitutionEquipmentInventory, ChildEquipmentNeed, EquipmentAllocation, EquipmentItemHistory, EquipmentDonationCampaign } = require('../../model/index');
 const { Op, Sequelize } = require('sequelize');
 const Invoice = require('../../model/Invoice')
 
@@ -1269,7 +1269,141 @@ exports.updateEquipmentDonationStatus = async (req, res) => {
       updateData.actual_delivery_date = new Date(actual_delivery_date);
     }
 
+    const oldStatus = donation.status;
     await donation.update(updateData);
+
+    if (oldStatus !== 'delivered' && updateData.status === 'delivered') {
+      const existingInventoryItem = await InstitutionEquipmentInventory.findOne({
+        where: {
+          institution_id: institutionId,
+          source_donation_id: donation.equipment_donation_id,
+        }
+      });
+
+      const inventoryItem = existingInventoryItem || await InstitutionEquipmentInventory.create({
+        institution_id: institutionId,
+        category_id: donation.category_id || null,
+        equipment_name: donation.equipment_name,
+        equipment_type: null,
+        condition: donation.condition,
+        quantity_available: 1,
+        quantity_reserved: 0,
+        usage_type: 'available',
+        internal_department: null,
+        source_donation_id: donation.equipment_donation_id,
+        notes: donation.description || null,
+        created_at: new Date(),
+        updated_at: new Date()
+      });
+
+      if (!existingInventoryItem) {
+        await EquipmentItemHistory.create({
+          institution_id: institutionId,
+          inventory_item_id: inventoryItem.inventory_item_id,
+          event_type: 'inventory_added_from_donation',
+          related_id: donation.equipment_donation_id,
+          actor_user_id: managerId,
+          details: {
+            equipment_name: donation.equipment_name,
+            donation_id: donation.equipment_donation_id
+          },
+          created_at: new Date()
+        });
+      }
+
+      const normalizedDonationName = (donation.equipment_name || '').trim();
+      const needBaseWhere = {
+        institution_id: institutionId,
+        status: 'open'
+      };
+      if (donation.category_id) {
+        needBaseWhere.category_id = donation.category_id;
+      }
+
+      // Prefer needs that match the equipment name/type (fallback to category only)
+      let need = null;
+      if (normalizedDonationName.length > 0) {
+        need = await ChildEquipmentNeed.findOne({
+          where: {
+            ...needBaseWhere,
+            [Op.or]: [
+              { equipment_name: { [Op.like]: `%${normalizedDonationName}%` } },
+              { equipment_type: { [Op.like]: `%${normalizedDonationName}%` } },
+            ]
+          },
+          order: [['priority_score', 'DESC'], ['created_at', 'ASC']]
+        });
+      }
+
+      if (!need) {
+        need = await ChildEquipmentNeed.findOne({
+          where: needBaseWhere,
+          order: [['priority_score', 'DESC'], ['created_at', 'ASC']]
+        });
+      }
+
+      if (need) {
+        if ((need.priority_score || 0) >= 70 && inventoryItem.quantity_available > 0) {
+          await inventoryItem.update({
+            quantity_available: Math.max(0, inventoryItem.quantity_available - 1),
+            quantity_reserved: (inventoryItem.quantity_reserved || 0) + 1,
+            usage_type: 'reserved',
+            updated_at: new Date()
+          });
+
+          const allocation = await EquipmentAllocation.create({
+            institution_id: institutionId,
+            inventory_item_id: inventoryItem.inventory_item_id,
+            need_id: need.need_id,
+            child_id: need.child_id,
+            allocation_mode: 'auto',
+            allocated_by_user_id: null,
+            usage_type: 'child',
+            status: 'pending_receipt',
+            created_at: new Date(),
+            updated_at: new Date()
+          });
+
+          await need.update({ status: 'allocated', updated_at: new Date() });
+
+          const campaign = await EquipmentDonationCampaign.findOne({ where: { need_id: need.need_id } });
+          if (campaign && !['fulfilled', 'closed'].includes(campaign.status)) {
+            const nextFulfilled = Math.min(
+              campaign.quantity_needed || 1,
+              (campaign.quantity_fulfilled || 0) + 1
+            );
+            const nextStatus = nextFulfilled >= (campaign.quantity_needed || 1) ? 'fulfilled' : 'partially_fulfilled';
+            await campaign.update({
+              status: nextStatus,
+              quantity_fulfilled: nextFulfilled,
+              updated_at: new Date()
+            });
+          }
+
+          await EquipmentItemHistory.create({
+            institution_id: institutionId,
+            inventory_item_id: inventoryItem.inventory_item_id,
+            event_type: 'auto_allocated',
+            related_id: allocation.allocation_id,
+            actor_user_id: null,
+            details: { need_id: need.need_id, child_id: need.child_id, priority_score: need.priority_score },
+            created_at: new Date()
+          });
+        } else {
+          await need.update({ status: 'matched', updated_at: new Date() });
+
+          await EquipmentItemHistory.create({
+            institution_id: institutionId,
+            inventory_item_id: inventoryItem.inventory_item_id,
+            event_type: 'match_suggested',
+            related_id: need.need_id,
+            actor_user_id: managerId,
+            details: { need_id: need.need_id, priority_score: need.priority_score, child_id: need.child_id },
+            created_at: new Date()
+          });
+        }
+      }
+    }
 
     return res.status(200).json({
       success: true,

@@ -19,6 +19,42 @@ class ApiService {
     }
   }
 
+  static String get publicBaseUrl {
+    if (kIsWeb) {
+      return 'http://localhost:5000';
+    } else {
+      return 'http://10.0.2.2:5000';
+    }
+  }
+
+  static String buildFileUrl(String? path) {
+    if (path == null || path.isEmpty) return '';
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    if (path.startsWith('/')) return '$publicBaseUrl$path';
+    return '$publicBaseUrl/$path';
+  }
+
+  static Future<Map<String, dynamic>> getUserProfile(String token) async {
+    try {
+      final url = _buildUrl('users/profile');
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode == 200 && data['success'] == true) {
+        return data;
+      }
+      throw Exception(data['message'] ?? 'Failed to load user profile');
+    } catch (e) {
+      throw Exception('Network error: $e');
+    }
+  }
+
   // ================= Invite / Referral (Donations) =================
 
   static Future<Map<String, dynamic>> createDonationInvite(
@@ -32,7 +68,8 @@ class ApiService {
       final body = <String, dynamic>{
         'institution_id': institutionId,
         if (campaignId != null) 'campaign_id': campaignId,
-        if (shareMessage != null && shareMessage.trim().isNotEmpty) 'share_message': shareMessage.trim(),
+        if (shareMessage != null && shareMessage.trim().isNotEmpty)
+          'share_message': shareMessage.trim(),
       };
 
       final response = await http.post(
@@ -78,7 +115,8 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> getMyDonationInviteStats(String token) async {
+  static Future<Map<String, dynamic>> getMyDonationInviteStats(
+      String token) async {
     try {
       final url = _buildUrl('invites/donations/my/stats');
       final response = await http.get(
@@ -120,7 +158,8 @@ class ApiService {
       final url = _buildUrl('parent/sessions/$sessionId/decision');
       final body = <String, dynamic>{
         'decision': decision,
-        if (requestedPercentage != null) 'requested_percentage': requestedPercentage,
+        if (requestedPercentage != null)
+          'requested_percentage': requestedPercentage,
         if (requestedAmount != null) 'requested_amount': requestedAmount,
         if (notes != null && notes.isNotEmpty) 'notes': notes,
       };
@@ -288,242 +327,310 @@ class ApiService {
 
   // ... previous code ...
 
-static Future<Map<String, dynamic>> signupInitial(
-    Map<String, dynamic> data) async {
-  try {
-    print('🚀 [API] Sending signup data...');
-    
-    // Prepare basic data
-    Map<String, dynamic> requestData = {
-      'full_name': data['full_name']?.toString() ?? '',
-      'email': data['email']?.toString() ?? '',
-      'password': data['password']?.toString() ?? '',
-      'role': data['role']?.toString() ?? '',
-      'phone': data['phone']?.toString(),
-      
-      // Location data
-      'location_lat': data['location_lat'],
-      'location_lng': data['location_lng'],
-      'location_address': data['location_address']?.toString(),
-      'city': data['city']?.toString(),
-      'region': data['region']?.toString(),
-    };
+  static Future<Map<String, dynamic>> signupInitial(
+      Map<String, dynamic> data) async {
+    try {
+      print('🚀 [API] Sending signup data...');
 
-    // Add institution data if Manager
-    if (data['role'] == 'Manager') {
-      requestData.addAll({
-        'institution_name': data['institution_name']?.toString(),
-        'institution_contact_email': data['institution_contact_email']?.toString(),
-        'institution_contact_phone': data['institution_contact_phone']?.toString(),
-        'institution_license': data['institution_license']?.toString(),
-        'institution_established_year': data['institution_established_year'],
-        'institution_city': data['institution_city']?.toString(),
-        'institution_region': data['institution_region']?.toString(),
-      });
-    }
+      // Prepare basic data
+      Map<String, dynamic> requestData = {
+        'full_name': data['full_name']?.toString() ?? '',
+        'email': data['email']?.toString() ?? '',
+        'password': data['password']?.toString() ?? '',
+        'role': data['role']?.toString() ?? '',
+        'phone': data['phone']?.toString(),
 
-    print('📤 Final data: $requestData');
-
-    final response = await http
-        .post(
-          Uri.parse('$baseUrl/signup'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(requestData),
-        )
-        .timeout(Duration(seconds: 30));
-
-    final result = jsonDecode(response.body);
-
-    if (response.statusCode == 200) {
-      return {
-        'success': true,
-        'message': result['message'],
-        'tempToken': result['tempToken'],
+        // Location data
+        'location_lat': data['location_lat'],
+        'location_lng': data['location_lng'],
+        'location_address': data['location_address']?.toString(),
+        'city': data['city']?.toString(),
+        'region': data['region']?.toString(),
       };
-    } else {
+
+      // Add institution data if Manager
+      if (data['role'] == 'Manager') {
+        requestData.addAll({
+          'institution_name': data['institution_name']?.toString(),
+          'institution_contact_email':
+              data['institution_contact_email']?.toString(),
+          'institution_contact_phone':
+              data['institution_contact_phone']?.toString(),
+          'institution_license': data['institution_license']?.toString(),
+          'institution_established_year': data['institution_established_year'],
+          'institution_city': data['institution_city']?.toString(),
+          'institution_region': data['institution_region']?.toString(),
+        });
+      }
+
+      print('📤 Final data: $requestData');
+
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/signup'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(requestData),
+          )
+          .timeout(Duration(seconds: 30));
+
+      final result = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'message': result['message'],
+          'tempToken': result['tempToken'],
+        };
+      } else {
+        return {
+          'success': false,
+          'message': result['message'] ?? 'Signup failed',
+        };
+      }
+    } catch (e) {
+      print('❌ Error: $e');
       return {
         'success': false,
-        'message': result['message'] ?? 'Signup failed',
+        'message': 'An error occurred. Please try again.',
       };
     }
-  } catch (e) {
-    print('❌ Error: $e');
-    return {
-      'success': false,
-      'message': 'An error occurred. Please try again.',
-    };
   }
-}
 
-/// Get donation impact/statistics v2 (money + equipment)
-static Future<Map<String, dynamic>> getDonationImpactV2(String token) async {
-  try {
-    final url = _buildUrl('donations/impact/v2');
+  static Future<Map<String, dynamic>> updateChildBasicInfo(
+    String token,
+    int childId,
+    Map<String, dynamic> payload,
+  ) async {
+    final url = _buildUrl('children/$childId');
 
-    final response = await http.get(
+    final response = await http.put(
       Uri.parse(url),
       headers: {
-        'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
       },
+      body: jsonEncode(payload),
     );
 
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      if (data['success'] == true) {
-        return data;
-      }
+      return jsonDecode(response.body) as Map<String, dynamic>;
     }
 
-    throw Exception('Failed to load donation impact v2');
-  } catch (e) {
-    print('❌ Error loading donation impact v2: $e');
-    rethrow;
+    throw Exception('Failed to update child: ${response.body}');
   }
-}
 
-/// Get donor impact feed (ImpactPost)
-static Future<Map<String, dynamic>> getDonorImpactFeed(
-  String token, {
-  int page = 1,
-  int limit = 10,
-  int? campaignId,
-  int? equipmentCampaignId,
-}) async {
-  try {
-    final queryParams = <String, String>{
-      'page': page.toString(),
-      'limit': limit.toString(),
-    };
+  static Future<Map<String, dynamic>> uploadChildPhoto(
+    String token,
+    String childId,
+    File imageFile,
+  ) async {
+    try {
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse(_buildUrl('children/$childId/upload-photo')),
+      );
 
-    if (campaignId != null) {
-      queryParams['campaign_id'] = campaignId.toString();
-    }
-    if (equipmentCampaignId != null) {
-      queryParams['equipment_campaign_id'] = equipmentCampaignId.toString();
-    }
+      request.headers['Authorization'] = 'Bearer $token';
 
-    final url = Uri.parse(_buildUrl('impact/feed')).replace(queryParameters: queryParams);
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'photo',
+          imageFile.path,
+          filename: 'child_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        ),
+      );
 
-    final response = await http.get(
-      url,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      if (data['success'] == true) {
-        return data;
+      final responseData = json.decode(response.body);
+
+      if (response.statusCode == 200) {
+        return responseData;
       }
+
+      throw Exception(
+          responseData['message'] ?? 'Failed to upload child photo');
+    } catch (e) {
+      rethrow;
     }
-
-    throw Exception('Failed to load impact feed');
-  } catch (e) {
-    print('❌ Error loading impact feed: $e');
-    rethrow;
   }
-}
 
-static Future<List<Map<String, dynamic>>> getOpenEquipmentCampaigns() async {
-  try {
-    final url = Uri.parse('${_publicEquipmentBaseUrl()}/campaigns');
+  /// Get donation impact/statistics v2 (money + equipment)
+  static Future<Map<String, dynamic>> getDonationImpactV2(String token) async {
+    try {
+      final url = _buildUrl('donations/impact/v2');
 
-    final response = await http.get(
-      url,
-      headers: {'Content-Type': 'application/json'},
-    ).timeout(const Duration(seconds: 30));
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
 
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          return data;
+        }
+      }
 
-      if (data['success'] == true) {
-        final List<dynamic> campaigns = data['data'] ?? [];
-        return List<Map<String, dynamic>>.from(campaigns);
+      throw Exception('Failed to load donation impact v2');
+    } catch (e) {
+      print('❌ Error loading donation impact v2: $e');
+      rethrow;
+    }
+  }
+
+  /// Get donor impact feed (ImpactPost)
+  static Future<Map<String, dynamic>> getDonorImpactFeed(
+    String token, {
+    int page = 1,
+    int limit = 10,
+    int? campaignId,
+    int? equipmentCampaignId,
+  }) async {
+    try {
+      final queryParams = <String, String>{
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+
+      if (campaignId != null) {
+        queryParams['campaign_id'] = campaignId.toString();
+      }
+      if (equipmentCampaignId != null) {
+        queryParams['equipment_campaign_id'] = equipmentCampaignId.toString();
+      }
+
+      final url = Uri.parse(_buildUrl('impact/feed'))
+          .replace(queryParameters: queryParams);
+
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          return data;
+        }
+      }
+
+      throw Exception('Failed to load impact feed');
+    } catch (e) {
+      print('❌ Error loading impact feed: $e');
+      rethrow;
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getOpenEquipmentCampaigns() async {
+    try {
+      final url = Uri.parse('${_publicEquipmentBaseUrl()}/campaigns');
+
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+
+        if (data['success'] == true) {
+          final List<dynamic> campaigns = data['data'] ?? [];
+          return List<Map<String, dynamic>>.from(campaigns);
+        } else {
+          throw Exception('API Error: ${data['message']}');
+        }
       } else {
-        throw Exception('API Error: ${data['message']}');
+        throw Exception(
+            'Failed to load campaigns. Status: ${response.statusCode}');
       }
-    } else {
-      throw Exception('Failed to load campaigns. Status: ${response.statusCode}');
+    } catch (e) {
+      rethrow;
     }
-  } catch (e) {
-    rethrow;
   }
-}
 
-/// Get equipment donation campaigns for institution (public)
-/// Get institutions for equipment donation (PUBLIC API - No auth required)
-static Future<List<Map<String, dynamic>>> getEquipmentDonationInstitutions() async {
-  return getEquipmentInstitutions();
-}
+  /// Get equipment donation campaigns for institution (public)
+  /// Get institutions for equipment donation (PUBLIC API - No auth required)
+  static Future<List<Map<String, dynamic>>>
+      getEquipmentDonationInstitutions() async {
+    return getEquipmentInstitutions();
+  }
 
-/// Get institution equipment campaigns (PUBLIC API)
-static Future<List<Map<String, dynamic>>> getInstitutionEquipmentCampaigns(
-  int institutionId,
-) async {
-  try {
-    final url = Uri.parse('${_publicEquipmentBaseUrl()}/institutions/$institutionId/campaigns');
-    
-    print('🌐 Fetching campaigns for institution: $institutionId');
-    
-    final response = await http.get(
-      url,
-      headers: {'Content-Type': 'application/json'},
-    ).timeout(const Duration(seconds: 30));
-    
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> data = jsonDecode(response.body);
-      
-      if (data['success'] == true) {
-        final List<dynamic> campaigns = data['data'] ?? [];
-        print('✅ Successfully loaded ${campaigns.length} campaigns');
-        return List<Map<String, dynamic>>.from(campaigns);
+  /// Get institution equipment campaigns (PUBLIC API)
+  static Future<List<Map<String, dynamic>>> getInstitutionEquipmentCampaigns(
+    int institutionId,
+  ) async {
+    try {
+      final url = Uri.parse(
+          '${_publicEquipmentBaseUrl()}/institutions/$institutionId/campaigns');
+
+      print('🌐 Fetching campaigns for institution: $institutionId');
+
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+
+        if (data['success'] == true) {
+          final List<dynamic> campaigns = data['data'] ?? [];
+          print('✅ Successfully loaded ${campaigns.length} campaigns');
+          return List<Map<String, dynamic>>.from(campaigns);
+        } else {
+          throw Exception('API Error: ${data['message']}');
+        }
       } else {
-        throw Exception('API Error: ${data['message']}');
+        throw Exception(
+            'Failed to load campaigns. Status: ${response.statusCode}');
       }
-    } else {
-      throw Exception('Failed to load campaigns. Status: ${response.statusCode}');
+    } catch (e) {
+      print('❌ Error in getInstitutionEquipmentCampaigns: $e');
+      rethrow;
     }
-  } catch (e) {
-    print('❌ Error in getInstitutionEquipmentCampaigns: $e');
-    rethrow;
   }
-}
 
-/// Get equipment campaign details (PUBLIC API)
-static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
-  int campaignId,
-) async {
-  try {
-    final url = Uri.parse('${_publicEquipmentBaseUrl()}/campaigns/$campaignId');
-    
-    print('🌐 Fetching campaign details: $campaignId');
-    
-    final response = await http.get(
-      url,
-      headers: {'Content-Type': 'application/json'},
-    ).timeout(const Duration(seconds: 30));
-    
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> data = jsonDecode(response.body);
-      
-      if (data['success'] == true) {
-        print('✅ Successfully loaded campaign details');
-        return Map<String, dynamic>.from(data['data'] ?? {});
+  /// Get equipment campaign details (PUBLIC API)
+  static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
+    int campaignId,
+  ) async {
+    try {
+      final url =
+          Uri.parse('${_publicEquipmentBaseUrl()}/campaigns/$campaignId');
+
+      print('🌐 Fetching campaign details: $campaignId');
+
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+
+        if (data['success'] == true) {
+          print('✅ Successfully loaded campaign details');
+          return Map<String, dynamic>.from(data['data'] ?? {});
+        } else {
+          throw Exception('API Error: ${data['message']}');
+        }
       } else {
-        throw Exception('API Error: ${data['message']}');
+        throw Exception(
+            'Failed to load campaign details. Status: ${response.statusCode}');
       }
-    } else {
-      throw Exception('Failed to load campaign details. Status: ${response.statusCode}');
+    } catch (e) {
+      print('❌ Error in getEquipmentCampaignDetails: $e');
+      rethrow;
     }
-  } catch (e) {
-    print('❌ Error in getEquipmentCampaignDetails: $e');
-    rethrow;
   }
-}
-
 
   static Future<Map<String, dynamic>> verifySignup(
       String tempToken, String otp) async {
@@ -652,56 +759,55 @@ static Future<Map<String, dynamic>> getEquipmentCampaignDetails(
   }
 
   static Future<Map<String, dynamic>> sendResetCode(String email) async {
-  final url = _buildUrl('password/send-reset-code');
+    final url = _buildUrl('password/send-reset-code');
 
-  final response = await http.post(
-    Uri.parse(url),
-    headers: {'Content-Type': 'application/json'},
-    body: jsonEncode({'email': email}),
-  );
+    final response = await http.post(
+      Uri.parse(url),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email}),
+    );
 
-  return jsonDecode(response.body);
-}
-
-static Future<Map<String, dynamic>> verifyResetCode(
-    String email, String code) async {
-  final url = _buildUrl('password/verify-code');
-
-  final response = await http.post(
-    Uri.parse(url),
-    headers: {'Content-Type': 'application/json'},
-    body: jsonEncode({'email': email, 'code': code}),
-  );
-
-  return jsonDecode(response.body);
-}
-
-static Future<Map<String, dynamic>> resetPassword(
-    String email, String code, String newPassword) async {
-  final url = _buildUrl('password/reset-password');
-
-  final response = await http.post(
-    Uri.parse(url),
-    headers: {'Content-Type': 'application/json'},
-    body: jsonEncode({
-      'email': email,
-      'code': code,
-      'newPassword': newPassword,
-    }),
-  );
-
-  print('Reset password raw response: ${response.body}');
-
-  if (response.statusCode == 200) {
     return jsonDecode(response.body);
-  } else {
-    return {
-      'success': false,
-      'message': 'Server returned status code ${response.statusCode}'
-    };
   }
-}
 
+  static Future<Map<String, dynamic>> verifyResetCode(
+      String email, String code) async {
+    final url = _buildUrl('password/verify-code');
+
+    final response = await http.post(
+      Uri.parse(url),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'code': code}),
+    );
+
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> resetPassword(
+      String email, String code, String newPassword) async {
+    final url = _buildUrl('password/reset-password');
+
+    final response = await http.post(
+      Uri.parse(url),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email,
+        'code': code,
+        'newPassword': newPassword,
+      }),
+    );
+
+    print('Reset password raw response: ${response.body}');
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      return {
+        'success': false,
+        'message': 'Server returned status code ${response.statusCode}'
+      };
+    }
+  }
 
   static Map<String, dynamic> _handleResponse(http.Response response) {
     try {
@@ -716,31 +822,29 @@ static Future<Map<String, dynamic>> resetPassword(
 
   // ================= Parent Dashboard =================
   static Future<Map<String, dynamic>> getParentDashboard(String token) async {
-  try {
-    final url = _buildUrl('parent/dashboard');
+    try {
+      final url = _buildUrl('parent/dashboard');
 
-    final response = await http
-        .get(
-          Uri.parse(url),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-          },
-        )
-        .timeout(const Duration(seconds: 8));
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 8));
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      final data = jsonDecode(response.body);
-      throw Exception(data['message'] ?? 'Failed to load dashboard data');
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        final data = jsonDecode(response.body);
+        throw Exception(data['message'] ?? 'Failed to load dashboard data');
+      }
+    } on TimeoutException {
+      throw TimeoutException('Request timeout - Server is slow or unreachable');
+    } catch (e) {
+      throw Exception('Network error: $e');
     }
-  } on TimeoutException {
-    throw TimeoutException('Request timeout - Server is slow or unreachable');
-  } catch (e) {
-    throw Exception('Network error: $e');
   }
-}
 
   static Future<List<Session>> getUpcomingSessions(String token) async {
     try {
@@ -771,105 +875,119 @@ static Future<Map<String, dynamic>> resetPassword(
   }
 
   static Future<Child> addChild(String token, Child child) async {
-  final url = _buildUrl('children');
+    final url = _buildUrl('children');
 
-  final response = await http.post(
-    Uri.parse(url),
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
-    },
-    body: jsonEncode(child.toJson()),
-  );
+    final response = await http.post(
+      Uri.parse(url),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(child.toJson()),
+    );
 
-  if (response.statusCode == 201) {
-    return Child.fromJson(jsonDecode(response.body));
-  } else {
-    throw Exception('Failed to add child: ${response.body}');
+    if (response.statusCode == 201) {
+      return Child.fromJson(jsonDecode(response.body));
+    } else {
+      throw Exception('Failed to add child: ${response.body}');
+    }
   }
-}
 
-static Future<Child> updateChild(String token, int id, Child child) async {
-  final url = _buildUrl('children/$id');
+  static Future<Child> updateChild(String token, int id, Child child) async {
+    final url = _buildUrl('children/$id');
 
-  final response = await http.put(
-    Uri.parse(url),
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
-    },
-    body: jsonEncode(child.toJson()),
-  );
-
-  if (response.statusCode == 200) {
-    return Child.fromJson(jsonDecode(response.body));
-  } else {
-    throw Exception('Failed to update child: ${response.body}');
-  }
-}
-
-static Future<void> deleteChild(String token, int id) async {
-  final url = _buildUrl('children/$id');
-
-  final response = await http.delete(
-    Uri.parse(url),
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
-    },
-  );
-
-  if (response.statusCode != 200) {
-    throw Exception('Failed to delete child: ${response.body}');
-  }
-}
-
-  static Future<Map<String, dynamic>> getDailyAITip(String token) async {
-  try {
-    final url = _buildUrl('parent/daily-tip');
-
-    final response = await http
-        .get(
-          Uri.parse(url),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-          },
-        )
-        .timeout(const Duration(seconds: 8));
-
-    print('📥 Daily Tip Response: ${response.statusCode}');
+    final response = await http.put(
+      Uri.parse(url),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(child.toJson()),
+    );
 
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-
-      print('✅ Daily Tip Success: ${data['success']}');
-      print('🤖 AI Generated: ${data['aiGenerated']}');
-      print('💡 Tip: ${data['tip']}');
-
-      return data;
+      return Child.fromJson(jsonDecode(response.body));
     } else {
-      final data = jsonDecode(response.body);
-      throw Exception(data['message'] ?? 'Failed to load daily tip');
+      throw Exception('Failed to update child: ${response.body}');
     }
-  } on TimeoutException {
-    print('⚠️ Daily Tip timeout - using fallback');
-    return _dailyTipFallback();
-  } catch (e) {
-    print('❌ Error fetching daily tip: $e');
-    return _dailyTipFallback();
   }
-}
-static Map<String, dynamic> _dailyTipFallback() {
-  return {
-    'success': true,
-    'tip':
-        'Spend quality time with your child today—every moment together builds a stronger future.',
-    'aiGenerated': false,
-    'isGeneric': true,
-  };
-}
 
+  static Future<void> deleteChild(String token, int id) async {
+    final url = _buildUrl('children/$id');
+
+    final response = await http.delete(
+      Uri.parse(url),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to delete child: ${response.body}');
+    }
+  }
+
+  static Future<void> unhideChild(String token, int id) async {
+    final url = _buildUrl('children/$id/unhide');
+
+    final response = await http.put(
+      Uri.parse(url),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to unhide child: ${response.body}');
+    }
+  }
+
+  static Future<Map<String, dynamic>> getDailyAITip(String token) async {
+    try {
+      final url = _buildUrl('parent/daily-tip');
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 8));
+
+      print('📥 Daily Tip Response: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        print('✅ Daily Tip Success: ${data['success']}');
+        print('🤖 AI Generated: ${data['aiGenerated']}');
+        print('💡 Tip: ${data['tip']}');
+
+        return data;
+      } else {
+        final data = jsonDecode(response.body);
+        throw Exception(data['message'] ?? 'Failed to load daily tip');
+      }
+    } on TimeoutException {
+      print('⚠️ Daily Tip timeout - using fallback');
+      return _dailyTipFallback();
+    } catch (e) {
+      print('❌ Error fetching daily tip: $e');
+      return _dailyTipFallback();
+    }
+  }
+
+  static Map<String, dynamic> _dailyTipFallback() {
+    return {
+      'success': true,
+      'tip':
+          'Spend quality time with your child today—every moment together builds a stronger future.',
+      'aiGenerated': false,
+      'isGeneric': true,
+    };
+  }
 
   static Future<Map<String, dynamic>> getWeeklyTips(String token) async {
     try {
@@ -935,8 +1053,56 @@ static Map<String, dynamic> _dailyTipFallback() {
   // }
 
   static Future<List<Map<String, dynamic>>> getDiagnoses(String token) async {
-  try {
-    final url = _buildUrl('diagnoses'); // استخدم baseUrl
+    try {
+      final url = _buildUrl('diagnoses'); // استخدم baseUrl
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('📡 Diagnoses response: ${response.statusCode}');
+      print('📡 Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final List data = jsonDecode(response.body);
+        print('✅ Loaded ${data.length} diagnoses from API');
+        return List<Map<String, dynamic>>.from(data);
+      } else {
+        print('❌ Failed to fetch diagnoses: ${response.statusCode}');
+        return _getDefaultDiagnoses();
+      }
+    } catch (e) {
+      print('❌ Error loading diagnoses: $e');
+      return _getDefaultDiagnoses();
+    }
+  }
+
+  static List<Map<String, dynamic>> _getDefaultDiagnoses() {
+    return [
+      {'diagnosis_id': 1, 'name': 'Autism Spectrum Disorder'},
+      {
+        'diagnosis_id': 2,
+        'name': 'Attention Deficit Hyperactivity Disorder (ADHD)'
+      },
+      {'diagnosis_id': 3, 'name': 'Down Syndrome'},
+      {'diagnosis_id': 4, 'name': 'Speech and Language Delay'},
+      // {'diagnosis_id': 5, 'name': 'Learning Disabilities'},
+      // {'diagnosis_id': 6, 'name': 'Intellectual Disability'},
+      // {'diagnosis_id': 7, 'name': 'Developmental Delay'},
+      // {'diagnosis_id': 8, 'name': 'Behavioral Disorders'},
+      // {'diagnosis_id': 9, 'name': 'Social Communication Disorder'},
+      // {'diagnosis_id': 10, 'name': 'Global Developmental Delay'},
+    ];
+  }
+
+  // ================= Get Child Statistics =================
+  // ================= Get Child Statistics =================
+  static Future<Map<String, dynamic>> getChildStatistics(String token) async {
+    final url = _buildUrl('children/stats'); // استخدم baseUrl
 
     final response = await http.get(
       Uri.parse(url),
@@ -946,112 +1112,67 @@ static Map<String, dynamic> _dailyTipFallback() {
       },
     );
 
-    print('📡 Diagnoses response: ${response.statusCode}');
-    print('📡 Response body: ${response.body}');
-
     if (response.statusCode == 200) {
-      final List data = jsonDecode(response.body);
-      print('✅ Loaded ${data.length} diagnoses from API');
-      return List<Map<String, dynamic>>.from(data);
+      return jsonDecode(response.body);
     } else {
-      print('❌ Failed to fetch diagnoses: ${response.statusCode}');
-      return _getDefaultDiagnoses();
+      throw Exception(
+          'Failed to fetch child statistics: ${response.statusCode}');
     }
-  } catch (e) {
-    print('❌ Error loading diagnoses: $e');
-    return _getDefaultDiagnoses();
   }
-}
-
-static List<Map<String, dynamic>> _getDefaultDiagnoses() {
-  return [
-    {'diagnosis_id': 1, 'name': 'Autism Spectrum Disorder'},
-    {'diagnosis_id': 2, 'name': 'Attention Deficit Hyperactivity Disorder (ADHD)'},
-    {'diagnosis_id': 3, 'name': 'Down Syndrome'},
-    {'diagnosis_id': 4, 'name': 'Speech and Language Delay'},
-    {'diagnosis_id': 5, 'name': 'Learning Disabilities'},
-    {'diagnosis_id': 6, 'name': 'Intellectual Disability'},
-    {'diagnosis_id': 7, 'name': 'Developmental Delay'},
-    {'diagnosis_id': 8, 'name': 'Behavioral Disorders'},
-    {'diagnosis_id': 9, 'name': 'Social Communication Disorder'},
-    {'diagnosis_id': 10, 'name': 'Global Developmental Delay'},
-  ];
-}
-
-  // ================= Get Child Statistics =================
-  // ================= Get Child Statistics =================
-static Future<Map<String, dynamic>> getChildStatistics(String token) async {
-  final url = _buildUrl('children/stats'); // استخدم baseUrl
-
-  final response = await http.get(
-    Uri.parse(url),
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
-    },
-  );
-
-  if (response.statusCode == 200) {
-    return jsonDecode(response.body);
-  } else {
-    throw Exception('Failed to fetch child statistics: ${response.statusCode}');
-  }
-}
 
 // ================= Get Single Child =================
-static Future<Child> getChild(String token, int childId) async {
-  final url = _buildUrl('children/$childId'); // استخدم baseUrl
+  static Future<Child> getChild(String token, int childId) async {
+    final url = _buildUrl('children/$childId'); // استخدم baseUrl
 
-  final response = await http.get(
-    Uri.parse(url),
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
-    },
-  );
-
-  if (response.statusCode == 200) {
-    return Child.fromJson(jsonDecode(response.body));
-  } else {
-    throw Exception('Failed to fetch child: ${response.statusCode}');
-  }
-}
-
-
-  static Future<bool> confirmSession(String token, String sessionId) async {
-  try {
-    final url = _buildUrl('parent/sessions/$sessionId/confirm');
-
-    final response = await http.patch(
+    final response = await http.get(
       Uri.parse(url),
       headers: {
-        'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
       },
     );
 
     if (response.statusCode == 200) {
-      return true;
+      return Child.fromJson(jsonDecode(response.body));
     } else {
-      final data = jsonDecode(response.body);
-      throw Exception(data['message'] ?? 'Failed to confirm session');
+      throw Exception('Failed to fetch child: ${response.statusCode}');
     }
-  } catch (e) {
-    throw Exception('Network error: $e');
   }
-}
+
+  static Future<bool> confirmSession(String token, String sessionId) async {
+    try {
+      final url = _buildUrl('parent/sessions/$sessionId/confirm');
+
+      final response = await http.patch(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return true;
+      } else {
+        final data = jsonDecode(response.body);
+        throw Exception(data['message'] ?? 'Failed to confirm session');
+      }
+    } catch (e) {
+      throw Exception('Network error: $e');
+    }
+  }
 
   /// Request (or renew) financial assistance for a specific child and institution
   /// This unified method is used both by the full financial assistance form
   /// and by the auto-session confirmation flow when support is exhausted.
   static Future<Map<String, dynamic>> requestFinancialAssistance(
-      String token, {
-        required int childId,
-        required int institutionId,
-        int? requestedSessionsCount,
-        String? urgencyReason,
-        List<Map<String, dynamic>>? documents,
-      }) async {
+    String token, {
+    required int childId,
+    required int institutionId,
+    int? requestedSessionsCount,
+    String? urgencyReason,
+    List<Map<String, dynamic>>? documents,
+  }) async {
     try {
       final url = _buildUrl('financial/assistance/request');
       final body = <String, dynamic>{
@@ -1061,8 +1182,7 @@ static Future<Child> getChild(String token, int childId) async {
           'requested_sessions_count': requestedSessionsCount,
         if (urgencyReason != null && urgencyReason.isNotEmpty)
           'urgency_reason': urgencyReason,
-        if (documents != null && documents.isNotEmpty)
-          'documents': documents,
+        if (documents != null && documents.isNotEmpty) 'documents': documents,
       };
 
       final response = await http.post(
@@ -1079,7 +1199,8 @@ static Future<Child> getChild(String token, int childId) async {
       if (response.statusCode == 201 || response.statusCode == 200) {
         return data;
       } else {
-        throw Exception(data['message'] ?? 'Failed to request financial assistance');
+        throw Exception(
+            data['message'] ?? 'Failed to request financial assistance');
       }
     } catch (e) {
       throw Exception('Network error: $e');
@@ -1153,47 +1274,47 @@ static Future<Child> getChild(String token, int childId) async {
   }
 
   static Future<List<dynamic>> getParentResources(String token) async {
-  try {
-    final url = _buildUrl('parent/resources');
+    try {
+      final url = _buildUrl('parent/resources');
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        final data = jsonDecode(response.body);
+        throw Exception(data['message'] ?? 'Failed to fetch resources');
+      }
+    } catch (e) {
+      throw Exception('Network error: $e');
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getInstitutions(
+      String token) async {
+    final url = _buildUrl('institutions'); // استخدام baseUrl
 
     final response = await http.get(
       Uri.parse(url),
       headers: {
-        'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
       },
     );
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      final List data = jsonDecode(response.body);
+      return List<Map<String, dynamic>>.from(data);
     } else {
-      final data = jsonDecode(response.body);
-      throw Exception(data['message'] ?? 'Failed to fetch resources');
+      throw Exception('Failed to fetch institutions: ${response.statusCode}');
     }
-  } catch (e) {
-    throw Exception('Network error: $e');
   }
-}
-
-
-  static Future<List<Map<String, dynamic>>> getInstitutions(String token) async {
-  final url = _buildUrl('institutions'); // استخدام baseUrl
-
-  final response = await http.get(
-    Uri.parse(url),
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
-    },
-  );
-
-  if (response.statusCode == 200) {
-    final List data = jsonDecode(response.body);
-    return List<Map<String, dynamic>>.from(data);
-  } else {
-    throw Exception('Failed to fetch institutions: ${response.statusCode}');
-  }
-}
 
   // ================= Donations =================
 
@@ -1259,26 +1380,25 @@ static Future<Child> getChild(String token, int childId) async {
     }
   }
 
-
-
+// في api_service.dart - تحديث دالة getChildren
+// تأكد أن getChildren تقبل named parameters
   static Future<Map<String, dynamic>> getChildren({
-  required String token,
-  String? search,
-  String? gender,
-  String? diagnosis,
-  String? registrationStatus,
-  String? sort,
-  String? order,
-  int? page,
-  int? limit,
-}) async {
-  final uri = Uri.parse(
-    _buildUrl('children'), // استخدام baseUrl
-  ).replace(
-    queryParameters: {
+    required String token,
+    String? search,
+    String? gender,
+    String? diagnosis,
+    String? registrationStatus,
+    String? sort,
+    String? order,
+    int? page,
+    int? limit,
+  }) async {
+    final params = {
       if (search != null && search.isNotEmpty) 'search': search,
-      if (gender != null && gender.isNotEmpty && gender != 'All') 'gender': gender,
-      if (diagnosis != null && diagnosis.isNotEmpty && diagnosis != 'All') 'diagnosis': diagnosis,
+      if (gender != null && gender.isNotEmpty && gender != 'All')
+        'gender': gender,
+      if (diagnosis != null && diagnosis.isNotEmpty && diagnosis != 'All')
+        'diagnosis': diagnosis,
       if (registrationStatus != null &&
           registrationStatus.isNotEmpty &&
           registrationStatus != 'All')
@@ -1287,60 +1407,109 @@ static Future<Child> getChild(String token, int childId) async {
       if (order != null) 'order': order,
       if (page != null) 'page': page.toString(),
       if (limit != null) 'limit': limit.toString(),
-    },
-  );
+    };
 
-  print('🌐 API Call: $uri');
-  final response = await http.get(
-    uri,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
-    },
-  );
+    final uri = Uri.parse(_buildUrl('children')).replace(
+      queryParameters: params.isNotEmpty ? params : null,
+    );
 
-  print('📡 Response status: ${response.statusCode}');
-  print('📦 Raw response body: ${response.body}');
-
-  if (response.statusCode == 200) {
-    final Map<String, dynamic> data = jsonDecode(response.body);
-    return data;
-  } else {
-    throw Exception(
-        'Failed to fetch children: ${response.statusCode} - ${response.body}');
-  }
-}
-
-
-  static Future<List<Session>> getSessions(String token) async {
-  try {
-    final url = _buildUrl('parent/sessions');
+    print('🌐 API Call: $uri');
 
     final response = await http.get(
-      Uri.parse(url),
+      uri,
       headers: {
-        'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
       },
     );
 
+    print('📡 Response status: ${response.statusCode}');
+
     if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      final sessions = data['sessions'] as List;
-      return sessions
-          .map<Session>((session) => Session.fromJson(session))
-          .toList();
+      return jsonDecode(response.body);
     } else {
-      final data = json.decode(response.body);
-      throw Exception(
-        data['message'] ?? 'Failed to load sessions: ${response.statusCode}',
-      );
+      throw Exception('Failed to fetch children: ${response.statusCode}');
     }
-  } catch (e) {
-    print('❌ Error fetching sessions: $e');
-    throw Exception('Network error: $e');
   }
-}
+//   static Future<Map<String, dynamic>> getChildren({
+//   required String token,
+//   String? search,
+//   String? gender,
+//   String? diagnosis,
+//   String? registrationStatus,
+//   String? sort,
+//   String? order,
+//   int? page,
+//   int? limit,
+// }) async {
+//   final uri = Uri.parse(
+//     _buildUrl('children'), // استخدام baseUrl
+//   ).replace(
+//     queryParameters: {
+//       if (search != null && search.isNotEmpty) 'search': search,
+//       if (gender != null && gender.isNotEmpty && gender != 'All') 'gender': gender,
+//       if (diagnosis != null && diagnosis.isNotEmpty && diagnosis != 'All') 'diagnosis': diagnosis,
+//       if (registrationStatus != null &&
+//           registrationStatus.isNotEmpty &&
+//           registrationStatus != 'All')
+//         'registration_status': registrationStatus,
+//       if (sort != null) 'sort': sort,
+//       if (order != null) 'order': order,
+//       if (page != null) 'page': page.toString(),
+//       if (limit != null) 'limit': limit.toString(),
+//     },
+//   );
+
+//   print('🌐 API Call: $uri');
+//   final response = await http.get(
+//     uri,
+//     headers: {
+//       'Content-Type': 'application/json',
+//       'Authorization': 'Bearer $token',
+//     },
+//   );
+
+//   print('📡 Response status: ${response.statusCode}');
+//   print('📦 Raw response body: ${response.body}');
+
+//   if (response.statusCode == 200) {
+//     final Map<String, dynamic> data = jsonDecode(response.body);
+//     return data;
+//   } else {
+//     throw Exception(
+//         'Failed to fetch children: ${response.statusCode} - ${response.body}');
+//   }
+// }
+
+  static Future<List<Session>> getSessions(String token) async {
+    try {
+      final url = _buildUrl('parent/sessions');
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final sessions = data['sessions'] as List;
+        return sessions
+            .map<Session>((session) => Session.fromJson(session))
+            .toList();
+      } else {
+        final data = json.decode(response.body);
+        throw Exception(
+          data['message'] ?? 'Failed to load sessions: ${response.statusCode}',
+        );
+      }
+    } catch (e) {
+      print('❌ Error fetching sessions: $e');
+      throw Exception('Network error: $e');
+    }
+  }
 
   static Future<List<Session>> getCompletedSessions(String token) async {
     try {
@@ -1492,60 +1661,59 @@ static Future<Child> getChild(String token, int childId) async {
   }
 
   static Future<bool> rescheduleSession(
-  String token,
-  int sessionId,
-  DateTime newDate,
-  String newTime,
-) async {
-  try {
-    print('🔄 Rescheduling session $sessionId to $newDate at $newTime');
+    String token,
+    int sessionId,
+    DateTime newDate,
+    String newTime,
+  ) async {
+    try {
+      print('🔄 Rescheduling session $sessionId to $newDate at $newTime');
 
-    final formattedDate =
-        "${newDate.year}-${newDate.month.toString().padLeft(2, '0')}-${newDate.day.toString().padLeft(2, '0')}";
+      final formattedDate =
+          "${newDate.year}-${newDate.month.toString().padLeft(2, '0')}-${newDate.day.toString().padLeft(2, '0')}";
 
-    final url = _buildUrl('parent/sessions/$sessionId/reschedule');
+      final url = _buildUrl('parent/sessions/$sessionId/reschedule');
 
-    final response = await http.patch(
-      Uri.parse(url),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'new_date': formattedDate,
-        'new_time': newTime,
-      }),
-    );
+      final response = await http.patch(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'new_date': formattedDate,
+          'new_time': newTime,
+        }),
+      );
 
-    print('📡 Reschedule response status: ${response.statusCode}');
-    print('📦 Reschedule response body: ${response.body}');
+      print('📡 Reschedule response status: ${response.statusCode}');
+      print('📦 Reschedule response body: ${response.body}');
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      if (data['success'] == true) {
-        print('✅ Session rescheduled successfully');
-        return true;
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          print('✅ Session rescheduled successfully');
+          return true;
+        }
+        throw Exception(data['message'] ?? 'Failed to reschedule session');
       }
-      throw Exception(data['message'] ?? 'Failed to reschedule session');
-    }
 
-    if (response.statusCode == 404) {
-      throw Exception('Session not found or you do not have permission');
-    }
-    if (response.statusCode == 400) {
-      throw Exception('Cannot reschedule this session in its current status');
-    }
-    if (response.statusCode == 409) {
-      throw Exception('Specialist is not available at the requested time');
-    }
+      if (response.statusCode == 404) {
+        throw Exception('Session not found or you do not have permission');
+      }
+      if (response.statusCode == 400) {
+        throw Exception('Cannot reschedule this session in its current status');
+      }
+      if (response.statusCode == 409) {
+        throw Exception('Specialist is not available at the requested time');
+      }
 
-    throw Exception('Failed to reschedule session: ${response.statusCode}');
-  } catch (e) {
-    print('❌ Reschedule API Error: $e');
-    rethrow;
+      throw Exception('Failed to reschedule session: ${response.statusCode}');
+    } catch (e) {
+      print('❌ Reschedule API Error: $e');
+      rethrow;
+    }
   }
-}
-
 
 // ==================== Questionnaire APIs ====================
 
@@ -1572,16 +1740,15 @@ static Future<Child> getChild(String token, int childId) async {
       }
 
       final url = Uri.parse(_buildUrl('questionnaire/questions'))
-    .replace(queryParameters: queryParams);
+          .replace(queryParameters: queryParams);
 
-final response = await http.get(
-  url,
-  headers: {
-    'Authorization': 'Bearer $token',
-    'Content-Type': 'application/json',
-  },
-).
-timeout(Duration(seconds: 15));
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(Duration(seconds: 15));
 
       print('📡 استجابة الأسئلة: ${response.statusCode}');
 
@@ -1646,16 +1813,15 @@ timeout(Duration(seconds: 15));
         requestBody['questionnaire_id'] = questionnaireId;
 
       final response = await http
-    .post(
-      Uri.parse(_buildUrl('questionnaire/responses')),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode(requestBody),
-    )
-    .timeout(Duration(seconds: 30));
-
+          .post(
+            Uri.parse(_buildUrl('questionnaire/responses')),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode(requestBody),
+          )
+          .timeout(Duration(seconds: 30));
 
       print('📡 استجابة حفظ الإجابات: ${response.statusCode}');
       print('📦 النتيجة: ${response.body}');
@@ -1690,17 +1856,16 @@ timeout(Duration(seconds: 15));
       print('📜 جلب تاريخ الاستبيانات - الصفحة: $page');
 
       final response = await http.get(
-  Uri.parse(_buildUrl('questionnaire/history')).replace(queryParameters: {
-    'page': page.toString(),
-    'limit': limit.toString(),
-    'language': language,
-  }),
-  headers: {
-    'Authorization': 'Bearer $token',
-    'Content-Type': 'application/json',
-  },
-).timeout(Duration(seconds: 10));
-
+        Uri.parse(_buildUrl('questionnaire/history')).replace(queryParameters: {
+          'page': page.toString(),
+          'limit': limit.toString(),
+          'language': language,
+        }),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
@@ -1728,13 +1893,12 @@ timeout(Duration(seconds: 15));
       print('🔍 جلب تفاصيل الاستبيان: $questionnaireId');
 
       final response = await http.get(
-  Uri.parse(_buildUrl('questionnaire/$questionnaireId')),
-  headers: {
-    'Authorization': 'Bearer $token',
-    'Content-Type': 'application/json',
-  },
-).timeout(Duration(seconds: 10));
-
+        Uri.parse(_buildUrl('questionnaire/$questionnaireId')),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
@@ -1784,9 +1948,9 @@ timeout(Duration(seconds: 15));
     );
   }
 
-
   // ========== UPLOAD PARENT PROFILE PICTURE ==========
-  static Future<Map<String, dynamic>> uploadParentProfilePicture(File imageFile) async {
+  static Future<Map<String, dynamic>> uploadParentProfilePicture(
+      File imageFile) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token') ?? '';
@@ -1814,7 +1978,8 @@ timeout(Duration(seconds: 15));
         ),
       );
 
-      print('📤 Uploading parent profile picture to: ${_buildUrl('parent/upload-profile-picture')}');
+      print(
+          '📤 Uploading parent profile picture to: ${_buildUrl('parent/upload-profile-picture')}');
       print('📁 File path: ${imageFile.path}');
 
       // Send request
@@ -1838,7 +2003,8 @@ timeout(Duration(seconds: 15));
           throw Exception(responseData['message'] ?? 'Failed to upload image');
         }
       } else {
-        throw Exception('Upload failed: ${responseData['message']} (Status: ${response.statusCode})');
+        throw Exception(
+            'Upload failed: ${responseData['message']} (Status: ${response.statusCode})');
       }
     } catch (e) {
       print('❌ Error in uploadParentProfilePicture: $e');
@@ -1847,8 +2013,8 @@ timeout(Duration(seconds: 15));
   }
 
   // ========== UPDATE PARENT PROFILE (تحسينها) ==========
-  static Future<bool> updateParentProfile(Map<String, dynamic> updateData) async {
-
+  static Future<bool> updateParentProfile(
+      Map<String, dynamic> updateData) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token') ?? '';
@@ -1876,7 +2042,6 @@ timeout(Duration(seconds: 15));
         return responseData['success'] == true;
       } else {
         throw Exception('Update profile failed: ${response.statusCode}');
-
       }
     } catch (e) {
       print('❌ Error updating parent profile: $e');
@@ -1884,15 +2049,13 @@ timeout(Duration(seconds: 15));
     }
   }
 
-
-
   // ========== HELPER: VALIDATE IMAGE SIZE ==========
-  static Future<bool> validateImageSize(File imageFile, {int maxSizeMB = 5}) async {
+  static Future<bool> validateImageSize(File imageFile,
+      {int maxSizeMB = 5}) async {
     try {
       final sizeInBytes = await imageFile.length();
       final sizeInMB = sizeInBytes / (1024 * 1024);
       return sizeInMB <= maxSizeMB;
-
     } catch (e) {
       print('Error checking image size: $e');
       return false;
@@ -1951,7 +2114,7 @@ timeout(Duration(seconds: 15));
       print('🔍 Analyzing symptoms: $symptomsDescription');
 
       final response = await http.post(
-         Uri.parse(_buildUrl('children/symptoms-search')),
+        Uri.parse(_buildUrl('children/symptoms-search')),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -1979,77 +2142,77 @@ timeout(Duration(seconds: 15));
   }
 
   static Future<Map<String, dynamic>?> getChildEvaluationsForParent(
-  String token,
-) async {
-  try {
-    final url = _buildUrl('parent/child-evaluations');
+    String token,
+  ) async {
+    try {
+      final url = _buildUrl('parent/child-evaluations');
 
-    print('🌐 Calling API: $url');
-    print('🔑 Token length: ${token.length}');
+      print('🌐 Calling API: $url');
+      print('🔑 Token length: ${token.length}');
 
-    final response = await http.get(
-      Uri.parse(url),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    ).timeout(const Duration(seconds: 10));
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 10));
 
-    print('🔍 API Response Status: ${response.statusCode}');
-    print('📦 API Response Body: ${response.body}');
+      print('🔍 API Response Status: ${response.statusCode}');
+      print('📦 API Response Body: ${response.body}');
 
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      print('✅ API Response Data: $data');
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        print('✅ API Response Data: $data');
 
-      if (data['success'] == true) {
-        return data;
-      }
+        if (data['success'] == true) {
+          return data;
+        }
 
-      // fallback لو رجع evaluations مباشرة
-      if (data['evaluations'] != null) {
+        // fallback لو رجع evaluations مباشرة
+        if (data['evaluations'] != null) {
+          return {
+            'success': true,
+            'data': data['evaluations'],
+          };
+        }
+
         return {
-          'success': true,
-          'data': data['evaluations'],
+          'success': false,
+          'error': 'Unexpected response structure',
+          'data': [],
         };
       }
 
+      print('❌ API Error: ${response.statusCode} - ${response.body}');
       return {
         'success': false,
-        'error': 'Unexpected response structure',
+        'error': 'HTTP ${response.statusCode}',
+        'data': [],
+      };
+    } on SocketException catch (e) {
+      print('❌ Network Error - SocketException: $e');
+      return {
+        'success': false,
+        'error': 'Network unavailable',
+        'data': [],
+      };
+    } on TimeoutException catch (e) {
+      print('❌ Network Error - Timeout: $e');
+      return {
+        'success': false,
+        'error': 'Request timeout',
+        'data': [],
+      };
+    } catch (e) {
+      print('❌ Unexpected Error: $e');
+      return {
+        'success': false,
+        'error': 'Unexpected error: $e',
         'data': [],
       };
     }
-
-    print('❌ API Error: ${response.statusCode} - ${response.body}');
-    return {
-      'success': false,
-      'error': 'HTTP ${response.statusCode}',
-      'data': [],
-    };
-  } on SocketException catch (e) {
-    print('❌ Network Error - SocketException: $e');
-    return {
-      'success': false,
-      'error': 'Network unavailable',
-      'data': [],
-    };
-  } on TimeoutException catch (e) {
-    print('❌ Network Error - Timeout: $e');
-    return {
-      'success': false,
-      'error': 'Request timeout',
-      'data': [],
-    };
-  } catch (e) {
-    print('❌ Unexpected Error: $e');
-    return {
-      'success': false,
-      'error': 'Unexpected error: $e',
-      'data': [],
-    };
   }
-}
 
   static Future<Map<String, dynamic>> getNearbyInstitutions({
     required String token,
@@ -2110,8 +2273,8 @@ timeout(Duration(seconds: 15));
       }
 
       final response = await http.get(
-        Uri.parse(_buildUrl('specialists/nearby')).replace(queryParameters: queryParams),
-            
+        Uri.parse(_buildUrl('specialists/nearby'))
+            .replace(queryParameters: queryParams),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -2260,7 +2423,8 @@ timeout(Duration(seconds: 15));
 
   static Future<Map<String, dynamic>> getRecommendedInstitutions(
     String token,
-    String childId, double discountPercentage, {
+    String childId,
+    double discountPercentage, {
     String? sortBy,
     String? cityFilter,
     String? specializationFilter,
@@ -2287,8 +2451,7 @@ timeout(Duration(seconds: 15));
 
       final response = await http.get(
         Uri.parse(_buildUrl('children/$childId/recommended-institutions'))
-    .replace(queryParameters: queryParams),
-
+            .replace(queryParameters: queryParams),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -2334,8 +2497,7 @@ timeout(Duration(seconds: 15));
           '📝 Requesting registration for child: $childId at institution: $institutionId');
 
       final response = await http.post(
-        Uri.parse(
-            _buildUrl('children/$childId/request-registration')),
+        Uri.parse(_buildUrl('children/$childId/request-registration')),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -2384,11 +2546,10 @@ timeout(Duration(seconds: 15));
     try {
       final response = await http.get(
         Uri.parse(_buildUrl('children/$childId/registration-status')),
-headers: {
-  'Content-Type': 'application/json',
-  'Authorization': 'Bearer $token',
-},
-
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
       );
 
       if (response.statusCode == 200) {
@@ -2899,8 +3060,7 @@ headers: {
       String token, int institutionId) async {
     try {
       final response = await http.post(
-        Uri.parse(
-            _buildUrl('admin/institutions/$institutionId/approve')),
+        Uri.parse(_buildUrl('admin/institutions/$institutionId/approve')),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -2924,8 +3084,7 @@ headers: {
       String token, int institutionId, String reason) async {
     try {
       final response = await http.post(
-        Uri.parse(
-            _buildUrl('admin/institutions/$institutionId/reject')),
+        Uri.parse(_buildUrl('admin/institutions/$institutionId/reject')),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -3011,8 +3170,7 @@ headers: {
   // 1. Start Financial Assessment
   static Future<Map<String, dynamic>> initiateFinancialAssessment(
       String token, int childId, int institutionId) async {
-    final url =
-        Uri.parse(_buildUrl('financial/assessment/initiate'));
+    final url = Uri.parse(_buildUrl('financial/assessment/initiate'));
 
     final response = await http.post(
       url,
@@ -3035,169 +3193,171 @@ headers: {
 
   // 2. Submit Financial Assessment
   static Future<Map<String, dynamic>> submitFinancialAssessment(
-  String token,
-  int childId,
-  int institutionId,
-  Map<String, dynamic> responses,
-  bool skipDocuments,
-) async {
-  try {
-    final url = Uri.parse(_buildUrl('financial/assessment/submit'));
-    print('🌐 Submitting financial assessment to: $url');
+    String token,
+    int childId,
+    int institutionId,
+    Map<String, dynamic> responses,
+    bool skipDocuments,
+  ) async {
+    try {
+      final url = Uri.parse(_buildUrl('financial/assessment/submit'));
+      print('🌐 Submitting financial assessment to: $url');
 
-    final requestBody = {
-      'child_id': childId,
-      'institution_id': institutionId,
-      'responses': responses,
-      'skip_documents': skipDocuments,
-    };
+      final requestBody = {
+        'child_id': childId,
+        'institution_id': institutionId,
+        'responses': responses,
+        'skip_documents': skipDocuments,
+      };
 
-    print('📝 Request body: $requestBody');
+      print('📝 Request body: $requestBody');
 
-    final response = await http.post(
-      url,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode(requestBody),
-    );
-
-    print('📡 Response status: ${response.statusCode}');
-    print('📦 Response body: ${response.body}');
-
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception(
-        'Failed to submit financial assessment: ${response.statusCode} - ${response.body}',
+      final response = await http.post(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(requestBody),
       );
-    }
-  } catch (e) {
-    print('❌ Error in submitFinancialAssessment: $e');
-    throw Exception('Network error while submitting financial assessment: $e');
-  }
-}
 
+      print('📡 Response status: ${response.statusCode}');
+      print('📦 Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception(
+          'Failed to submit financial assessment: ${response.statusCode} - ${response.body}',
+        );
+      }
+    } catch (e) {
+      print('❌ Error in submitFinancialAssessment: $e');
+      throw Exception(
+          'Network error while submitting financial assessment: $e');
+    }
+  }
 
   String _encodeBase64(File file) {
-  final bytes = file.readAsBytesSync();
-  return base64Encode(bytes);
-}
+    final bytes = file.readAsBytesSync();
+    return base64Encode(bytes);
+  }
+
   // 4. Get Financial Assistance Status
   static Future<Map<String, dynamic>> getFinancialAssistanceStatus(
-  String token,
-  int requestId,
-) async {
-  try {
-    final url = Uri.parse(_buildUrl('financial/assistance/$requestId/status'));
-    print('🌐 Fetching financial assistance status from: $url');
+    String token,
+    int requestId,
+  ) async {
+    try {
+      final url =
+          Uri.parse(_buildUrl('financial/assistance/$requestId/status'));
+      print('🌐 Fetching financial assistance status from: $url');
 
-    final response = await http.get(
-      url,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
 
-    print('📊 Response status: ${response.statusCode}');
-    print('📦 Response body: ${response.body}');
+      print('📊 Response status: ${response.statusCode}');
+      print('📦 Response body: ${response.body}');
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception(
-          'Failed to get financial assistance status: ${response.statusCode} - ${response.body}');
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception(
+            'Failed to get financial assistance status: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print('❌ Error in getFinancialAssistanceStatus: $e');
+      throw Exception('Network error while fetching status: $e');
     }
-  } catch (e) {
-    print('❌ Error in getFinancialAssistanceStatus: $e');
-    throw Exception('Network error while fetching status: $e');
   }
-}
-
 
   // 5. Upload Financial Documents
   static Future<Map<String, dynamic>> uploadFinancialDocuments(
-  String token,
-  int requestId,
-  List<Map<String, dynamic>> documents,
-) async {
-  try {
-    final url = Uri.parse(_buildUrl('financial/assistance/$requestId/documents'));
-    print('🌐 Uploading financial documents to: $url');
-    print('📄 Number of documents: ${documents.length}');
+    String token,
+    int requestId,
+    List<Map<String, dynamic>> documents,
+  ) async {
+    try {
+      final url =
+          Uri.parse(_buildUrl('financial/assistance/$requestId/documents'));
+      print('🌐 Uploading financial documents to: $url');
+      print('📄 Number of documents: ${documents.length}');
 
-    final response = await http.post(
-      url,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({'documents': documents}),
-    );
+      final response = await http.post(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'documents': documents}),
+      );
 
-    print('📊 Response status: ${response.statusCode}');
-    print('📦 Response body: ${response.body}');
+      print('📊 Response status: ${response.statusCode}');
+      print('📦 Response body: ${response.body}');
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception(
-          'Failed to upload financial documents: ${response.statusCode} - ${response.body}');
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception(
+            'Failed to upload financial documents: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print('❌ Error in uploadFinancialDocuments: $e');
+      throw Exception('Network error while uploading financial documents: $e');
     }
-  } catch (e) {
-    print('❌ Error in uploadFinancialDocuments: $e');
-    throw Exception('Network error while uploading financial documents: $e');
   }
-}
 
   // 6. Get Parent Financial Profile
   // في api_service.dart - تحديث دالة getParentFinancialProfile
-  static Future<Map<String, dynamic>> getParentFinancialProfile(String token) async {
-  try {
-    final url = Uri.parse(_buildUrl('financial/profile'));
-    print('🌐 Fetching parent financial profile from: $url');
+  static Future<Map<String, dynamic>> getParentFinancialProfile(
+      String token) async {
+    try {
+      final url = Uri.parse(_buildUrl('financial/profile'));
+      print('🌐 Fetching parent financial profile from: $url');
 
-    final response = await http.get(
-      url,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
 
-    print('📊 Response status: ${response.statusCode}');
-    print('📦 Response body: ${response.body}');
+      print('📊 Response status: ${response.statusCode}');
+      print('📦 Response body: ${response.body}');
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else if (response.statusCode == 404) {
-      // إذا لم يكن هناك ملف مالي، نعود لاستخدام بيانات افتراضية
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else if (response.statusCode == 404) {
+        // إذا لم يكن هناك ملف مالي، نعود لاستخدام بيانات افتراضية
+        return {
+          'success': true,
+          'data': _createDefaultFinancialProfile(),
+          'message': 'Using default financial profile',
+        };
+      } else {
+        // لجميع الحالات الأخرى، نستخدم البيانات الافتراضية
+        return {
+          'success': true,
+          'data': _createDefaultFinancialProfile(),
+          'message': 'Using default financial data',
+        };
+      }
+    } catch (e) {
+      print('❌ Error in getParentFinancialProfile: $e');
+      // في حالة الخطأ، نستخدم البيانات الافتراضية
       return {
         'success': true,
         'data': _createDefaultFinancialProfile(),
-        'message': 'Using default financial profile',
-      };
-    } else {
-      // لجميع الحالات الأخرى، نستخدم البيانات الافتراضية
-      return {
-        'success': true,
-        'data': _createDefaultFinancialProfile(),
-        'message': 'Using default financial data',
+        'message': 'Using default due to error',
       };
     }
-  } catch (e) {
-    print('❌ Error in getParentFinancialProfile: $e');
-    // في حالة الخطأ، نستخدم البيانات الافتراضية
-    return {
-      'success': true,
-      'data': _createDefaultFinancialProfile(),
-      'message': 'Using default due to error',
-    };
   }
-}
-
 
 // دالة لإنشاء ملف مالي افتراضي
   static Map<String, dynamic> _createDefaultFinancialProfile() {
@@ -3231,50 +3391,50 @@ headers: {
 
 // 1. دالة لجلب الطلبات المالية
   static Future<Map<String, dynamic>> getFinancialAssistanceRequests(
-  String token, {
-  String status = 'all',
-  int page = 1,
-  int limit = 10,
-  String sortBy = 'created_at',
-  String sortOrder = 'DESC',
-}) async {
-  try {
-    final url = Uri.parse(_buildUrl('financial/requests')).replace(
-      queryParameters: {
-        'status': status,
-        'page': page.toString(),
-        'limit': limit.toString(),
-        'sort_by': sortBy,
-        'sort_order': sortOrder,
-      },
-    );
+    String token, {
+    String status = 'all',
+    int page = 1,
+    int limit = 10,
+    String sortBy = 'created_at',
+    String sortOrder = 'DESC',
+  }) async {
+    try {
+      final url = Uri.parse(_buildUrl('financial/requests')).replace(
+        queryParameters: {
+          'status': status,
+          'page': page.toString(),
+          'limit': limit.toString(),
+          'sort_by': sortBy,
+          'sort_order': sortOrder,
+        },
+      );
 
-    print('🌐 Fetching financial assistance requests...');
-    print('🔗 URL: $url');
+      print('🌐 Fetching financial assistance requests...');
+      print('🔗 URL: $url');
 
-    final response = await http.get(
-      url,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
 
-    print('📊 Response status: ${response.statusCode}');
-    print('📦 Response body: ${response.body}');
+      print('📊 Response status: ${response.statusCode}');
+      print('📦 Response body: ${response.body}');
 
-    if (response.statusCode == 200) {
-      final result = jsonDecode(response.body);
-      return result;
-    } else {
-      print('⚠️ Failed to fetch requests, returning default response');
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body);
+        return result;
+      } else {
+        print('⚠️ Failed to fetch requests, returning default response');
+        return _getDefaultFinancialRequestsResponse();
+      }
+    } catch (e) {
+      print('❌ Error in getFinancialAssistanceRequests: $e');
       return _getDefaultFinancialRequestsResponse();
     }
-  } catch (e) {
-    print('❌ Error in getFinancialAssistanceRequests: $e');
-    return _getDefaultFinancialRequestsResponse();
   }
-}
 
 // 2. دالة افتراضية للطلبات المالية
   static Map<String, dynamic> _getDefaultFinancialRequestsResponse() {
@@ -3313,412 +3473,404 @@ headers: {
 // ==============================================
 
 // 1. بدء التقييم المالي العام (بدون طفل/مؤسسة)
-static Future<Map<String, dynamic>> initiateGeneralFinancialAssessment(
-  String token,
-) async {
-  try {
-    final url = Uri.parse(_buildUrl('financial/assessment/general/initiate'));
+  static Future<Map<String, dynamic>> initiateGeneralFinancialAssessment(
+    String token,
+  ) async {
+    try {
+      final url = Uri.parse(_buildUrl('financial/assessment/general/initiate'));
 
-    print('🌐 Initiating general financial assessment...');
-    print('🔗 URL: $url');
+      print('🌐 Initiating general financial assessment...');
+      print('🔗 URL: $url');
 
-    final response = await http.post(
-      url,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
+      final response = await http.post(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
 
-    print('📥 Response status: ${response.statusCode}');
-    print('📦 Response body: ${response.body}');
+      print('📥 Response status: ${response.statusCode}');
+      print('📦 Response body: ${response.body}');
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception(
-          'Failed to initiate general financial assessment: ${response.statusCode}');
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception(
+            'Failed to initiate general financial assessment: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error in initiateGeneralFinancialAssessment: $e');
+      throw e;
     }
-  } catch (e) {
-    print('❌ Error in initiateGeneralFinancialAssessment: $e');
-    throw e;
   }
-}
 
 // 2. إرسال التقييم المالي العام
-static Future<Map<String, dynamic>> submitGeneralFinancialAssessment(
-  String token,
-  Map<String, dynamic> responses,
-) async {
-  try {
-    final url = Uri.parse(_buildUrl('financial/assessment/general/submit'));
+  static Future<Map<String, dynamic>> submitGeneralFinancialAssessment(
+    String token,
+    Map<String, dynamic> responses,
+  ) async {
+    try {
+      final url = Uri.parse(_buildUrl('financial/assessment/general/submit'));
 
-    print('🌐 Submitting general financial assessment...');
-    print('📝 Responses keys: ${responses.keys.toList()}');
-    print('🔗 URL: $url');
+      print('🌐 Submitting general financial assessment...');
+      print('📝 Responses keys: ${responses.keys.toList()}');
+      print('🔗 URL: $url');
 
-    final response = await http.post(
-      url,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({'responses': responses}),
-    );
+      final response = await http.post(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'responses': responses}),
+      );
 
-    print('📥 Response status: ${response.statusCode}');
-    print('📦 Response body: ${response.body}');
+      print('📥 Response status: ${response.statusCode}');
+      print('📦 Response body: ${response.body}');
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception(
-          'Failed to submit general financial assessment: ${response.statusCode}');
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception(
+            'Failed to submit general financial assessment: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error in submitGeneralFinancialAssessment: $e');
+      throw e;
     }
-  } catch (e) {
-    print('❌ Error in submitGeneralFinancialAssessment: $e');
-    throw e;
   }
-}
-
 
 // 3. تطبيق التقييم على طفل محدد
-static Future<Map<String, dynamic>> applyFinancialAssessmentToChild(
-  String token,
-  int childId,
-  int institutionId, {
-  bool useExistingAssessment = true,
-}) async {
-  try {
-    final url = Uri.parse(_buildUrl('financial/assessment/apply-to-child'));
+  static Future<Map<String, dynamic>> applyFinancialAssessmentToChild(
+    String token,
+    int childId,
+    int institutionId, {
+    bool useExistingAssessment = true,
+  }) async {
+    try {
+      final url = Uri.parse(_buildUrl('financial/assessment/apply-to-child'));
 
-    print('🌐 Applying financial assessment to child...');
-    print('   Child ID: $childId');
-    print('   Institution ID: $institutionId');
-    print('   URL: $url');
+      print('🌐 Applying financial assessment to child...');
+      print('   Child ID: $childId');
+      print('   Institution ID: $institutionId');
+      print('   URL: $url');
 
-    final response = await http.post(
-      url,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'child_id': childId,
-        'institution_id': institutionId,
-        'use_existing_assessment': useExistingAssessment,
-      }),
-    );
+      final response = await http.post(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'child_id': childId,
+          'institution_id': institutionId,
+          'use_existing_assessment': useExistingAssessment,
+        }),
+      );
 
-    print('📥 Response status: ${response.statusCode}');
-    print('📦 Response body: ${response.body}');
+      print('📥 Response status: ${response.statusCode}');
+      print('📦 Response body: ${response.body}');
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception('Failed to apply financial assessment: ${response.statusCode}');
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception(
+            'Failed to apply financial assessment: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error in applyFinancialAssessmentToChild: $e');
+      throw e;
     }
-  } catch (e) {
-    print('❌ Error in applyFinancialAssessmentToChild: $e');
-    throw e;
   }
-}
-
 
 // ==============================================
 // 📊 دوال مساعدة للشاشات الجديدة
 // ==============================================
 
 // جلب التقارير المالية للأطفال
-static Future<Map<String, dynamic>> getChildrenFinancialReports(
-  String token,
-) async {
-  try {
-    // يمكن تنفيذ هذا لاحقاً
-    return {
-      'success': true,
-      'data': [],
-      'message': 'Feature coming soon'
-    };
-  } catch (e) {
-    print('❌ Error in getChildrenFinancialReports: $e');
-    throw e;
+  static Future<Map<String, dynamic>> getChildrenFinancialReports(
+    String token,
+  ) async {
+    try {
+      // يمكن تنفيذ هذا لاحقاً
+      return {'success': true, 'data': [], 'message': 'Feature coming soon'};
+    } catch (e) {
+      print('❌ Error in getChildrenFinancialReports: $e');
+      throw e;
+    }
   }
-}
 
 // حساب التقدير المالي السريع
-static Future<Map<String, dynamic>> calculateQuickFinancialEstimate(
-  String token,
-  double monthlyIncome,
-  int familySize,
-  String employmentStatus,
-) async {
-  try {
-    // يمكن تنفيذ هذا لاحقاً
-    return {
-      'success': true,
-      'data': {
-        'estimated_tier': 'tier_3_medium',
-        'estimated_discount': '40-59%',
-        'confidence': 'medium',
-        'recommendation': 'Complete full assessment for accurate results'
-      },
-      'message': 'Quick estimate generated'
-    };
-  } catch (e) {
-    print('❌ Error in calculateQuickFinancialEstimate: $e');
-    throw e;
+  static Future<Map<String, dynamic>> calculateQuickFinancialEstimate(
+    String token,
+    double monthlyIncome,
+    int familySize,
+    String employmentStatus,
+  ) async {
+    try {
+      // يمكن تنفيذ هذا لاحقاً
+      return {
+        'success': true,
+        'data': {
+          'estimated_tier': 'tier_3_medium',
+          'estimated_discount': '40-59%',
+          'confidence': 'medium',
+          'recommendation': 'Complete full assessment for accurate results'
+        },
+        'message': 'Quick estimate generated'
+      };
+    } catch (e) {
+      print('❌ Error in calculateQuickFinancialEstimate: $e');
+      throw e;
+    }
   }
-}
 
+  static Future<Map<String, dynamic>> getRecommendedInstitutionsByTier(
+    String token,
+    String financialTier,
+    double discountPercentage,
+  ) async {
+    try {
+      final url = Uri.parse(_buildUrl('financial/institutions/recommended'))
+          .replace(queryParameters: {
+        'tier': financialTier,
+        'discount': discountPercentage.toString(),
+      });
 
-static Future<Map<String, dynamic>> getRecommendedInstitutionsByTier(
-  String token,
-  String financialTier,
-  double discountPercentage,
-) async {
-  try {
-    final url = Uri.parse(
-      _buildUrl('financial/institutions/recommended')
-    ).replace(queryParameters: {
-      'tier': financialTier,
-      'discount': discountPercentage.toString(),
-    });
+      print('🌐 Getting recommended institutions by tier...');
+      print('   Tier: $financialTier');
+      print('   Discount: $discountPercentage%');
+      print('   URL: $url');
 
-    print('🌐 Getting recommended institutions by tier...');
-    print('   Tier: $financialTier');
-    print('   Discount: $discountPercentage%');
-    print('   URL: $url');
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
 
-    final response = await http.get(
-      url,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
+      print('📥 Response status: ${response.statusCode}');
+      print('📦 Response body: ${response.body}');
 
-    print('📥 Response status: ${response.statusCode}');
-    print('📦 Response body: ${response.body}');
-
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        return _getDefaultRecommendedInstitutions();
+      }
+    } catch (e) {
+      print('❌ Error in getRecommendedInstitutionsByTier: $e');
       return _getDefaultRecommendedInstitutions();
     }
-  } catch (e) {
-    print('❌ Error in getRecommendedInstitutionsByTier: $e');
-    return _getDefaultRecommendedInstitutions();
   }
-}
 
 // بيانات افتراضية للمؤسسات الموصى بها
-static Map<String, dynamic> _getDefaultRecommendedInstitutions() {
-  return {
-    'success': true,
-    'data': [
-      {
-        'institution_id': 1,
-        'name': 'مركز التأهيل المتقدم',
-        'city': 'الرياض',
-        'specializations': ['علاج النطق', 'العلاج الوظيفي', 'التدخل المبكر'],
-        'financial_aid': true,
-        'average_session_price': '75.00',
-        'compatibility_score': 85,
-        'estimated_discount': {'min': 70, 'max': 90, 'average': 80},
-        'processing_time': 3,
-        'image_url': null,
-      },
-      {
-        'institution_id': 2,
-        'name': 'عيادة التطور العصبي',
-        'city': 'جدة',
-        'specializations': ['العلاج السلوكي', 'تعديل السلوك'],
-        'financial_aid': true,
-        'average_session_price': '85.00',
-        'compatibility_score': 78,
-        'estimated_discount': {'min': 60, 'max': 80, 'average': 70},
-        'processing_time': 5,
-        'image_url': null,
-      },
-      {
-        'institution_id': 3,
-        'name': 'مركز الأمل للتأهيل',
-        'city': 'الدمام',
-        'specializations': ['التربية الخاصة', 'التدريب على المهارات'],
-        'financial_aid': false,
-        'average_session_price': '65.00',
-        'compatibility_score': 65,
-        'estimated_discount': {'min': 30, 'max': 50, 'average': 40},
-        'processing_time': 7,
-        'image_url': null,
-      },
-    ],
-    'message': 'Using default recommended institutions',
-  };
-}
+  static Map<String, dynamic> _getDefaultRecommendedInstitutions() {
+    return {
+      'success': true,
+      'data': [
+        {
+          'institution_id': 1,
+          'name': 'مركز التأهيل المتقدم',
+          'city': 'الرياض',
+          'specializations': ['علاج النطق', 'العلاج الوظيفي', 'التدخل المبكر'],
+          'financial_aid': true,
+          'average_session_price': '75.00',
+          'compatibility_score': 85,
+          'estimated_discount': {'min': 70, 'max': 90, 'average': 80},
+          'processing_time': 3,
+          'image_url': null,
+        },
+        {
+          'institution_id': 2,
+          'name': 'عيادة التطور العصبي',
+          'city': 'جدة',
+          'specializations': ['العلاج السلوكي', 'تعديل السلوك'],
+          'financial_aid': true,
+          'average_session_price': '85.00',
+          'compatibility_score': 78,
+          'estimated_discount': {'min': 60, 'max': 80, 'average': 70},
+          'processing_time': 5,
+          'image_url': null,
+        },
+        {
+          'institution_id': 3,
+          'name': 'مركز الأمل للتأهيل',
+          'city': 'الدمام',
+          'specializations': ['التربية الخاصة', 'التدريب على المهارات'],
+          'financial_aid': false,
+          'average_session_price': '65.00',
+          'compatibility_score': 65,
+          'estimated_discount': {'min': 30, 'max': 50, 'average': 40},
+          'processing_time': 7,
+          'image_url': null,
+        },
+      ],
+      'message': 'Using default recommended institutions',
+    };
+  }
 
 // 9. جلب الأطفال المسجلين في مؤسسة محددة
-static Future<Map<String, dynamic>> getChildrenByInstitution(
-  String token,
-  int institutionId,
-) async {
-  try {
-    final url = _buildUrl('children/by-institution/$institutionId');
+  static Future<Map<String, dynamic>> getChildrenByInstitution(
+    String token,
+    int institutionId,
+  ) async {
+    try {
+      final url = _buildUrl('children/by-institution/$institutionId');
 
-    final response = await http.get(
-      Uri.parse(url),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
 
-    print('📡 Response status: ${response.statusCode}');
-    print('📦 Response body: ${response.body}');
+      print('📡 Response status: ${response.statusCode}');
+      print('📦 Response body: ${response.body}');
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        return {
+          'success': false,
+          'message': 'Failed to load children',
+          'data': [],
+        };
+      }
+    } catch (e) {
+      print('❌ Error in getChildrenByInstitution: $e');
       return {
         'success': false,
-        'message': 'Failed to load children',
+        'message': 'Error: $e',
         'data': [],
       };
     }
-  } catch (e) {
-    print('❌ Error in getChildrenByInstitution: $e');
-    return {
-      'success': false,
-      'message': 'Error: $e',
-      'data': [],
-    };
   }
-}
 
+  /// Get institution campaigns for donations
+  static Future<List<Map<String, dynamic>>> getInstitutionCampaignsForDonations(
+    String token,
+    int institutionId,
+  ) async {
+    try {
+      final url = _buildUrl('donations/institutions/$institutionId/campaigns');
 
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token.isNotEmpty) 'Authorization': 'Bearer $token',
+        },
+      );
 
-
-/// Get institution campaigns for donations
-static Future<List<Map<String, dynamic>>> getInstitutionCampaignsForDonations(
-  String token,
-  int institutionId,
-) async {
-  try {
-    final url = _buildUrl('donations/institutions/$institutionId/campaigns');
-    
-    final response = await http.get(
-      Uri.parse(url),
-      headers: {
-        'Content-Type': 'application/json',
-        if (token.isNotEmpty) 'Authorization': 'Bearer $token',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      if (data['success'] == true) {
-        final List campaigns = data['data'] ?? [];
-        return List<Map<String, dynamic>>.from(campaigns);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        if (data['success'] == true) {
+          final List campaigns = data['data'] ?? [];
+          return List<Map<String, dynamic>>.from(campaigns);
+        } else {
+          throw Exception(data['message'] ?? 'Failed to fetch campaigns');
+        }
       } else {
-        throw Exception(data['message'] ?? 'Failed to fetch campaigns');
+        throw Exception('Failed to fetch campaigns: ${response.statusCode}');
       }
-    } else {
-      throw Exception('Failed to fetch campaigns: ${response.statusCode}');
+    } catch (e) {
+      throw Exception('Network error while loading campaigns: $e');
     }
-  } catch (e) {
-    throw Exception('Network error while loading campaigns: $e');
   }
-}
+
 // التحقق التلقائي من المساعدة المالية
-static Future<Map<String, dynamic>> checkAutoFinancialAssistance(
-  String token,
-  String sessionId,
-) async {
-  try {
-    final url = _buildUrl('parent/$sessionId/check-auto-assistance');
+  static Future<Map<String, dynamic>> checkAutoFinancialAssistance(
+    String token,
+    String sessionId,
+  ) async {
+    try {
+      final url = _buildUrl('parent/$sessionId/check-auto-assistance');
 
-    print('🌐 Checking auto financial assistance...');
-    print('   Session ID: $sessionId');
+      print('🌐 Checking auto financial assistance...');
+      print('   Session ID: $sessionId');
 
-    final response = await http.get(
-      Uri.parse(url),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
 
-    print('📥 Response status: ${response.statusCode}');
-    print('📦 Response body: ${response.body}');
+      print('📥 Response status: ${response.statusCode}');
+      print('📦 Response body: ${response.body}');
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data;
-    } else {
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data;
+      } else {
+        return {
+          'success': false,
+          'message': 'Failed to check auto financial assistance',
+          'statusCode': response.statusCode,
+        };
+      }
+    } catch (e) {
+      print('❌ Error in checkAutoFinancialAssistance: $e');
       return {
         'success': false,
-        'message': 'Failed to check auto financial assistance',
-        'statusCode': response.statusCode,
+        'message': 'Error while checking auto financial assistance',
+        'error': e.toString(),
       };
     }
-  } catch (e) {
-    print('❌ Error in checkAutoFinancialAssistance: $e');
-    return {
-      'success': false,
-      'message': 'Error while checking auto financial assistance',
-      'error': e.toString(),
-    };
   }
-}
 
 // تطبيق الخصم التلقائي
-static Future<Map<String, dynamic>> applyAutoDiscount(
-  String token,
-  String sessionId,
-) async {
-  try {
-    final url = _buildUrl('parent/$sessionId/apply-auto-discount');
+  static Future<Map<String, dynamic>> applyAutoDiscount(
+    String token,
+    String sessionId,
+  ) async {
+    try {
+      final url = _buildUrl('parent/$sessionId/apply-auto-discount');
 
-    print('🌐 Applying auto discount...');
-    print('   Session ID: $sessionId');
+      print('🌐 Applying auto discount...');
+      print('   Session ID: $sessionId');
 
-    final response = await http.post(
-      Uri.parse(url),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({}), // حتى لو body فارغ
-    );
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({}), // حتى لو body فارغ
+      );
 
-    print('📥 Response status: ${response.statusCode}');
-    print('📦 Response body: ${response.body}');
+      print('📥 Response status: ${response.statusCode}');
+      print('📦 Response body: ${response.body}');
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data;
-    } else {
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data;
+      } else {
+        return {
+          'success': false,
+          'message': 'Failed to apply auto discount',
+          'statusCode': response.statusCode,
+        };
+      }
+    } catch (e) {
+      print('❌ Error in applyAutoDiscount: $e');
       return {
         'success': false,
-        'message': 'Failed to apply auto discount',
-        'statusCode': response.statusCode,
+        'message': 'Error while applying auto discount',
+        'error': e.toString(),
       };
     }
-  } catch (e) {
-    print('❌ Error in applyAutoDiscount: $e');
-    return {
-      'success': false,
-      'message': 'Error while applying auto discount',
-      'error': e.toString(),
-    };
   }
-}
+
   static String _adminUrl(String path) {
     final host = kIsWeb ? 'http://localhost:5000' : 'http://10.0.2.2:5000';
     return '$host$path';
   }
-  
+
   static Future<Map<String, dynamic>> getAdminUsers({
     required String token,
     int page = 1,
@@ -3744,7 +3896,8 @@ static Future<Map<String, dynamic>> applyAutoDiscount(
       }
 
       final response = await http.get(
-        Uri.parse(_adminUrl('/api/admin/users')).replace(queryParameters: queryParams),
+        Uri.parse(_adminUrl('/api/admin/users'))
+            .replace(queryParameters: queryParams),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -3818,7 +3971,8 @@ static Future<Map<String, dynamic>> applyAutoDiscount(
         'groupBy': groupBy,
       };
       if (year != null) queryParams['year'] = year.toString();
-      if (city != null && city.isNotEmpty && city != 'all') queryParams['city'] = city;
+      if (city != null && city.isNotEmpty && city != 'all')
+        queryParams['city'] = city;
 
       final response = await http.get(
         Uri.parse(_adminUrl('/api/admin/analytics/user-registrations'))
@@ -3863,7 +4017,8 @@ static Future<Map<String, dynamic>> applyAutoDiscount(
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
-        throw Exception('Failed to load institutions distribution: ${response.statusCode}');
+        throw Exception(
+            'Failed to load institutions distribution: ${response.statusCode}');
       }
     } catch (e) {
       print('❌ Error loading admin institutions by city: $e');
@@ -3880,7 +4035,8 @@ static Future<Map<String, dynamic>> applyAutoDiscount(
       final Map<String, String> queryParams = {
         'status': status,
       };
-      if (city != null && city.isNotEmpty && city != 'all') queryParams['city'] = city;
+      if (city != null && city.isNotEmpty && city != 'all')
+        queryParams['city'] = city;
 
       final response = await http.get(
         Uri.parse(_adminUrl('/api/admin/map/institutions'))
@@ -3894,7 +4050,8 @@ static Future<Map<String, dynamic>> applyAutoDiscount(
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
-        throw Exception('Failed to load institutions map points: ${response.statusCode}');
+        throw Exception(
+            'Failed to load institutions map points: ${response.statusCode}');
       }
     } catch (e) {
       print('❌ Error loading admin institutions map points: $e');
@@ -3902,10 +4059,10 @@ static Future<Map<String, dynamic>> applyAutoDiscount(
     }
   }
 
-/// Create donation checkout with support for anonymous donors
-static Future<Map<String, dynamic>> createDonationCheckout(
-  String? token, // ✅ جعل token اختياري
-  {
+  /// Create donation checkout with support for anonymous donors
+  static Future<Map<String, dynamic>> createDonationCheckout(
+    String? token, // ✅ جعل token اختياري
+    {
     required int institutionId,
     required double amount,
     String mode = 'one_time',
@@ -3916,675 +4073,1096 @@ static Future<Map<String, dynamic>> createDonationCheckout(
     String? donorEmail,
     String currency = 'jod',
   }) async {
-  try {
-    final url = _buildUrl('donations/flexible/checkout');
-    
-    final body = <String, dynamic>{
-      'institution_id': institutionId,
-      'amount': amount,
-      'mode': mode,
-      'currency': currency,
-      'anonymous': anonymous,
-    };
-    
-    if (campaignId != null) {
-      body['campaign_id'] = campaignId;
-    }
+    try {
+      final url = _buildUrl('donations/flexible/checkout');
 
-    if (inviteCode != null && inviteCode.trim().isNotEmpty) {
-      body['invite_code'] = inviteCode.trim();
-    }
-    
-    // ✅ إضافة بيانات المتبرع المجهول إذا كانت متوفرة
-    if (anonymous) {
-      if (donorName != null && donorName.isNotEmpty) {
-        body['donor_name'] = donorName;
+      final body = <String, dynamic>{
+        'institution_id': institutionId,
+        'amount': amount,
+        'mode': mode,
+        'currency': currency,
+        'anonymous': anonymous,
+      };
+
+      if (campaignId != null) {
+        body['campaign_id'] = campaignId;
       }
+
+      if (inviteCode != null && inviteCode.trim().isNotEmpty) {
+        body['invite_code'] = inviteCode.trim();
+      }
+
+      // ✅ إضافة بيانات المتبرع المجهول إذا كانت متوفرة
+      if (anonymous) {
+        if (donorName != null && donorName.isNotEmpty) {
+          body['donor_name'] = donorName;
+        }
+        if (donorEmail != null && donorEmail.isNotEmpty) {
+          body['donor_email'] = donorEmail;
+        }
+      }
+
+      print('🌐 Creating checkout (anonymous: $anonymous)');
+      print('📦 Request body: $body');
+
+      // ✅ إعداد الهيدرات بناءً على وجود token
+      Map<String, String> headers = {
+        'Content-Type': 'application/json',
+      };
+
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+
+      final response = await http
+          .post(
+            Uri.parse(url),
+            headers: headers,
+            body: jsonEncode(body),
+          )
+          .timeout(Duration(seconds: 30));
+
+      print('📡 Response status: ${response.statusCode}');
+      print('📦 Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+
+        if (data['success'] == true) {
+          final checkoutUrl =
+              (data['url'] ?? data['checkout_url'] ?? '').toString();
+          final sessionId =
+              (data['sessionId'] ?? data['session_id'] ?? '').toString();
+
+          return {
+            'success': true,
+            'url': checkoutUrl,
+            'sessionId': sessionId,
+            'donation_id': data['donation_id'],
+            'anonymous': data['anonymous'] ?? anonymous,
+            'message': data['message'] ?? 'Checkout created successfully',
+          };
+        } else {
+          throw Exception(data['message'] ?? 'Failed to create checkout');
+        }
+      } else {
+        final errorData = jsonDecode(response.body);
+        throw Exception(
+            '${errorData['message']} (Status: ${response.statusCode})');
+      }
+    } on TimeoutException {
+      throw Exception('Connection timeout. Please check your internet.');
+    } on SocketException {
+      throw Exception('No internet connection');
+    } catch (e) {
+      print('❌ Error in createDonationCheckout: $e');
+      rethrow;
+    }
+  }
+
+  /// ✅ دالة جديدة للتبرع المجهول فقط
+  static Future<Map<String, dynamic>> createAnonymousDonation({
+    required int institutionId,
+    required double amount,
+    String? donorEmail,
+    String? donorName,
+    int? campaignId,
+    String currency = 'jod',
+  }) async {
+    try {
+      final url = _buildUrl('donations/anonymous/checkout');
+
+      final body = <String, dynamic>{
+        'institution_id': institutionId,
+        'amount': amount,
+        'currency': currency,
+      };
+
       if (donorEmail != null && donorEmail.isNotEmpty) {
         body['donor_email'] = donorEmail;
       }
-    }
 
-    print('🌐 Creating checkout (anonymous: $anonymous)');
-    print('📦 Request body: $body');
-
-    // ✅ إعداد الهيدرات بناءً على وجود token
-    Map<String, String> headers = {
-      'Content-Type': 'application/json',
-    };
-    
-    if (token != null && token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
-    }
-
-    final response = await http.post(
-      Uri.parse(url),
-      headers: headers,
-      body: jsonEncode(body),
-    ).timeout(Duration(seconds: 30));
-
-    print('📡 Response status: ${response.statusCode}');
-    print('📦 Response body: ${response.body}');
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      
-      if (data['success'] == true) {
-        final checkoutUrl = (data['url'] ?? data['checkout_url'] ?? '').toString();
-        final sessionId = (data['sessionId'] ?? data['session_id'] ?? '').toString();
-        
-        return {
-          'success': true,
-          'url': checkoutUrl,
-          'sessionId': sessionId,
-          'donation_id': data['donation_id'],
-          'anonymous': data['anonymous'] ?? anonymous,
-          'message': data['message'] ?? 'Checkout created successfully',
-        };
-      } else {
-        throw Exception(data['message'] ?? 'Failed to create checkout');
+      if (donorName != null && donorName.isNotEmpty) {
+        body['donor_name'] = donorName;
       }
-    } else {
-      final errorData = jsonDecode(response.body);
-      throw Exception('${errorData['message']} (Status: ${response.statusCode})');
-    }
-  } on TimeoutException {
-    throw Exception('Connection timeout. Please check your internet.');
-  } on SocketException {
-    throw Exception('No internet connection');
-  } catch (e) {
-    print('❌ Error in createDonationCheckout: $e');
-    rethrow;
-  }
-}
 
-/// ✅ دالة جديدة للتبرع المجهول فقط
-static Future<Map<String, dynamic>> createAnonymousDonation({
-  required int institutionId,
-  required double amount,
-  String? donorEmail,
-  String? donorName,
-  int? campaignId,
-  String currency = 'jod',
-}) async {
-  try {
-    final url = _buildUrl('donations/anonymous/checkout');
-    
-    final body = <String, dynamic>{
-      'institution_id': institutionId,
-      'amount': amount,
-      'currency': currency,
-    };
-    
-    if (donorEmail != null && donorEmail.isNotEmpty) {
-      body['donor_email'] = donorEmail;
-    }
-    
-    if (donorName != null && donorName.isNotEmpty) {
-      body['donor_name'] = donorName;
-    }
-    
-    if (campaignId != null) {
-      body['campaign_id'] = campaignId;
-    }
+      if (campaignId != null) {
+        body['campaign_id'] = campaignId;
+      }
 
-    print('🎭 Creating anonymous donation');
-    print('📦 Request body: $body');
+      print('🎭 Creating anonymous donation');
+      print('📦 Request body: $body');
 
-    final response = await http.post(
-      Uri.parse(url),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(body),
-    ).timeout(Duration(seconds: 30));
+      final response = await http
+          .post(
+            Uri.parse(url),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(body),
+          )
+          .timeout(Duration(seconds: 30));
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      return data;
-    } else {
-      throw Exception('Failed to create anonymous donation');
-    }
-  } catch (e) {
-    print('❌ Error in createAnonymousDonation: $e');
-    rethrow;
-  }
-}
-/// Check donation status
-static Future<Map<String, dynamic>> checkDonationStatus(
-  String token, {
-  String? sessionId,
-  int? donationId,
-}) async {
-  try {
-    if (sessionId == null && donationId == null) {
-      throw Exception('Either sessionId or donationId is required');
-    }
-
-    final queryParams = <String, String>{};
-    if (sessionId != null) queryParams['session_id'] = sessionId;
-    if (donationId != null) queryParams['donation_id'] = donationId.toString();
-
-    final url = Uri.parse(_buildUrl('donations/status'))
-        .replace(queryParameters: queryParams);
-
-    print('🔍 Checking donation status: $url');
-
-    final response = await http.get(
-      url,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    ).timeout(Duration(seconds: 10));
-
-    print('📡 Status check response: ${response.statusCode}');
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      
-      if (data['success'] == true) {
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
         return data;
       } else {
-        throw Exception(data['message'] ?? 'Failed to check status');
+        throw Exception('Failed to create anonymous donation');
       }
-    } else {
-      throw Exception('Failed to check donation status: ${response.statusCode}');
+    } catch (e) {
+      print('❌ Error in createAnonymousDonation: $e');
+      rethrow;
     }
-  } catch (e) {
-    print('❌ Error checking donation status: $e');
-    rethrow;
   }
-}
 
-/// Confirm donation after returning from Stripe
-static Future<Map<String, dynamic>> confirmDonationFromStripe(
-  String token, {
-  required String sessionId,
-}) async {
-  try {
-    final url = _buildUrl('donations/confirm');
-    
-    final body = {'session_id': sessionId};
+  /// Check donation status
+  static Future<Map<String, dynamic>> checkDonationStatus(
+    String token, {
+    String? sessionId,
+    int? donationId,
+  }) async {
+    try {
+      if (sessionId == null && donationId == null) {
+        throw Exception('Either sessionId or donationId is required');
+      }
 
-    print('✅ Confirming donation with session: $sessionId');
+      final queryParams = <String, String>{};
+      if (sessionId != null) queryParams['session_id'] = sessionId;
+      if (donationId != null)
+        queryParams['donation_id'] = donationId.toString();
 
-    final response = await http.post(
-      Uri.parse(url),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode(body),
-    ).timeout(Duration(seconds: 15));
+      final url = Uri.parse(_buildUrl('donations/status'))
+          .replace(queryParameters: queryParams);
 
-    print('📡 Confirm response status: ${response.statusCode}');
-    print('📦 Confirm response body: ${response.body}');
+      print('🔍 Checking donation status: $url');
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      
-      if (data['success'] == true) {
-        return {
-          'success': true,
-          'message': data['message'] ?? 'Donation confirmed successfully',
-          'donation': data['donation'],
-        };
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(Duration(seconds: 10));
+
+      print('📡 Status check response: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+
+        if (data['success'] == true) {
+          return data;
+        } else {
+          throw Exception(data['message'] ?? 'Failed to check status');
+        }
       } else {
-        throw Exception(data['message'] ?? 'Failed to confirm donation');
+        throw Exception(
+            'Failed to check donation status: ${response.statusCode}');
       }
-    } else if (response.statusCode == 400) {
-      final errorData = jsonDecode(response.body);
-      throw Exception(errorData['message'] ?? 'Payment not completed');
-    } else {
-      throw Exception('Failed to confirm donation: ${response.statusCode}');
+    } catch (e) {
+      print('❌ Error checking donation status: $e');
+      rethrow;
     }
-  } on TimeoutException {
-    throw Exception('Verification timeout. Please check your donation history.');
-  } on SocketException {
-    throw Exception('No internet connection');
-  } catch (e) {
-    print('❌ Error confirming donation: $e');
-    rethrow;
   }
-}
 
-/// Get donation history
-static Future<Map<String, dynamic>> getDonationHistory(
-  String token, {
-  int page = 1,
-  int limit = 10,
-  String? status,
-  String? donationType,
-}) async {
-  try {
-    final queryParams = <String, String>{
-      'page': page.toString(),
-      'limit': limit.toString(),
-    };
-    
-    if (status != null) queryParams['status'] = status;
-    if (donationType != null) queryParams['donation_type'] = donationType;
+  /// Confirm donation after returning from Stripe
+  static Future<Map<String, dynamic>> confirmDonationFromStripe(
+    String token, {
+    required String sessionId,
+  }) async {
+    try {
+      final url = _buildUrl('donations/confirm');
 
-    final url = Uri.parse(_buildUrl('donations/history'))
-        .replace(queryParameters: queryParams);
+      final body = {'session_id': sessionId};
 
-    final response = await http.get(
-      url,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
+      print('✅ Confirming donation with session: $sessionId');
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception('Failed to load donation history');
+      final response = await http
+          .post(
+            Uri.parse(url),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode(body),
+          )
+          .timeout(Duration(seconds: 15));
+
+      print('📡 Confirm response status: ${response.statusCode}');
+      print('📦 Confirm response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+
+        if (data['success'] == true) {
+          return {
+            'success': true,
+            'message': data['message'] ?? 'Donation confirmed successfully',
+            'donation': data['donation'],
+          };
+        } else {
+          throw Exception(data['message'] ?? 'Failed to confirm donation');
+        }
+      } else if (response.statusCode == 400) {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['message'] ?? 'Payment not completed');
+      } else {
+        throw Exception('Failed to confirm donation: ${response.statusCode}');
+      }
+    } on TimeoutException {
+      throw Exception(
+          'Verification timeout. Please check your donation history.');
+    } on SocketException {
+      throw Exception('No internet connection');
+    } catch (e) {
+      print('❌ Error confirming donation: $e');
+      rethrow;
     }
-  } catch (e) {
-    print('❌ Error loading donation history: $e');
-    rethrow;
   }
-}
 
-/// Get donation impact/statistics
-static Future<Map<String, dynamic>> getDonationImpact(String token) async {
-  try {
-    final url = _buildUrl('donations/impact');
-    
-    final response = await http.get(
-      Uri.parse(url),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
+  /// Get donation history
+  static Future<Map<String, dynamic>> getDonationHistory(
+    String token, {
+    int page = 1,
+    int limit = 10,
+    String? status,
+    String? donationType,
+  }) async {
+    try {
+      final queryParams = <String, String>{
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      if (data['success'] == true) {
+      if (status != null) queryParams['status'] = status;
+      if (donationType != null) queryParams['donation_type'] = donationType;
+
+      final url = Uri.parse(_buildUrl('donations/history'))
+          .replace(queryParameters: queryParams);
+
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to load donation history');
+      }
+    } catch (e) {
+      print('❌ Error loading donation history: $e');
+      rethrow;
+    }
+  }
+
+  /// Get donation impact/statistics
+  static Future<Map<String, dynamic>> getDonationImpact(String token) async {
+    try {
+      final url = _buildUrl('donations/impact');
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          return data;
+        }
+      }
+
+      throw Exception('Failed to load donation impact');
+    } catch (e) {
+      print('❌ Error loading donation impact: $e');
+      rethrow;
+    }
+  }
+
+  /// Check donation status before confirming
+  static Future<Map<String, dynamic>> checkDonationStatusBySession(
+    String token, {
+    required String sessionId,
+  }) async {
+    try {
+      final url = Uri.parse(_buildUrl('donations/status'))
+          .replace(queryParameters: {'session_id': sessionId});
+
+      print('🔍 Checking donation status for session: $sessionId');
+
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(Duration(seconds: 10));
+
+      print('📡 Status check response: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
         return data;
+      } else {
+        throw Exception(
+            'Failed to check donation status: ${response.statusCode}');
       }
+    } catch (e) {
+      print('❌ Error checking donation status: $e');
+      rethrow;
     }
-    
-    throw Exception('Failed to load donation impact');
-  } catch (e) {
-    print('❌ Error loading donation impact: $e');
-    rethrow;
   }
-}
-
-/// Check donation status before confirming
-static Future<Map<String, dynamic>> checkDonationStatusBySession(
-  String token, {
-  required String sessionId,
-}) async {
-  try {
-    final url = Uri.parse(_buildUrl('donations/status'))
-        .replace(queryParameters: {'session_id': sessionId});
-
-    print('🔍 Checking donation status for session: $sessionId');
-
-    final response = await http.get(
-      url,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    ).timeout(Duration(seconds: 10));
-
-    print('📡 Status check response: ${response.statusCode}');
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      return data;
-    } else {
-      throw Exception('Failed to check donation status: ${response.statusCode}');
-    }
-  } catch (e) {
-    print('❌ Error checking donation status: $e');
-    rethrow;
-  }
-}
 
 // ==================== Equipment Donation APIs ====================
 
-/// Get equipment categories
-static Future<List<Map<String, dynamic>>> getEquipmentCategories() async {
-  try {
-    final url = Uri.parse('${_authEquipmentBaseUrl()}/categories');
-    final response = await http.get(url);
+  /// Get equipment categories
+  static Future<List<Map<String, dynamic>>> getEquipmentCategories() async {
+    try {
+      final url = Uri.parse('${_authEquipmentBaseUrl()}/categories');
+      final response = await http.get(url);
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      if (data['success'] == true) {
-        return List<Map<String, dynamic>>.from(data['data'] ?? []);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        if (data['success'] == true) {
+          return List<Map<String, dynamic>>.from(data['data'] ?? []);
+        }
       }
+      throw Exception('Failed to load equipment categories');
+    } catch (e) {
+      print('Error getting equipment categories: $e');
+      rethrow;
     }
-    throw Exception('Failed to load equipment categories');
-  } catch (e) {
-    print('Error getting equipment categories: $e');
-    rethrow;
   }
-}
 
-/// Get institutions for equipment donation
-static Future<List<Map<String, dynamic>>> getEquipmentInstitutions() async {
-  try {
-    final url = Uri.parse('${_publicEquipmentBaseUrl()}/institutions');
-    final response = await http.get(url);
+  /// Get institutions for equipment donation
+  static Future<List<Map<String, dynamic>>> getEquipmentInstitutions() async {
+    try {
+      final url = Uri.parse('${_publicEquipmentBaseUrl()}/institutions');
+      final response = await http.get(url);
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      if (data['success'] == true) {
-        return List<Map<String, dynamic>>.from(data['data'] ?? []);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          return List<Map<String, dynamic>>.from(data['data'] ?? []);
+        }
       }
-    }
 
-    throw Exception('Failed to load equipment institutions');
-  } catch (e) {
-    print('Error getting equipment institutions: $e');
-    rethrow;
+      throw Exception('Failed to load equipment institutions');
+    } catch (e) {
+      print('Error getting equipment institutions: $e');
+      rethrow;
+    }
   }
-}
 
-/// Create anonymous equipment donation
-static Future<Map<String, dynamic>> createAnonymousEquipmentDonation({
-  required int institutionId,
-  required String equipmentName,
-  required String contactPerson,
-  required String contactPhone,
-  String? contactEmail,
-  int? categoryId,
-  String? description,
-  String? condition,
-  String? deliveryType,
-  double? estimatedValue,
-  DateTime? preferredDate,
-}) async {
-  try {
-    final url = Uri.parse('${_publicEquipmentBaseUrl()}/donate/anonymous');
-    
-    final body = <String, dynamic>{
-      'institution_id': institutionId,
-      'equipment_name': equipmentName,
-      'contact_person': contactPerson,
-      'contact_phone': contactPhone,
-    };
-    
-    if (contactEmail != null && contactEmail.isNotEmpty) {
-      body['contact_email'] = contactEmail;
-    }
-    
-    if (categoryId != null) {
-      body['category_id'] = categoryId;
-    }
-    
-    if (description != null && description.isNotEmpty) {
-      body['description'] = description;
-    }
-    
-    if (condition != null && condition.isNotEmpty) {
-      body['condition'] = condition;
-    }
-    
-    if (deliveryType != null && deliveryType.isNotEmpty) {
-      body['delivery_type'] = deliveryType;
-    }
-    
-    if (estimatedValue != null) {
-      body['estimated_value'] = estimatedValue;
-    }
-    
-    if (preferredDate != null) {
-      body['preferred_date'] = preferredDate.toIso8601String();
-    }
-    
-    final response = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(body),
-    ).timeout(const Duration(seconds: 30));
-    
-    if (response.statusCode == 201 || response.statusCode == 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      return data;
-    } else {
-      throw Exception('Failed to submit equipment donation');
-    }
-  } catch (e) {
-    print('Error creating anonymous equipment donation: $e');
-    rethrow;
-  }
-}
+  /// Create anonymous equipment donation
+  static Future<Map<String, dynamic>> createAnonymousEquipmentDonation({
+    required int institutionId,
+    required String equipmentName,
+    required String contactPerson,
+    required String contactPhone,
+    String? contactEmail,
+    int? categoryId,
+    String? description,
+    String? condition,
+    String? deliveryType,
+    double? estimatedValue,
+    DateTime? preferredDate,
+  }) async {
+    try {
+      final url = Uri.parse('${_publicEquipmentBaseUrl()}/donate/anonymous');
 
-/// Check equipment donation status
-static Future<Map<String, dynamic>> checkEquipmentDonationStatus({
-  required int donationId,
-  required String contactPhone,
-}) async {
-  try {
-    final url = Uri.parse('${_publicEquipmentBaseUrl()}/status')
-        .replace(queryParameters: {
-      'donation_id': donationId.toString(),
-      'contact_phone': contactPhone,
-    });
-    
-    final response = await http.get(url).timeout(const Duration(seconds: 15));
-    
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      return data;
-    } else {
-      throw Exception('Failed to check donation status');
-    }
-  } catch (e) {
-    print('Error checking equipment donation status: $e');
-    rethrow;
-  }
-}
+      final body = <String, dynamic>{
+        'institution_id': institutionId,
+        'equipment_name': equipmentName,
+        'contact_person': contactPerson,
+        'contact_phone': contactPhone,
+      };
 
-/// Get user's equipment donations (authenticated)
-static Future<List<Map<String, dynamic>>> getUserEquipmentDonations(String token) async {
-  try {
-    final url = Uri.parse('${_authEquipmentBaseUrl()}/my-donations');
-    
-    final response = await http.get(
-      url,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
-    
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      if (data['success'] == true) {
-        return List<Map<String, dynamic>>.from(data['data']['donations'] ?? []);
+      if (contactEmail != null && contactEmail.isNotEmpty) {
+        body['contact_email'] = contactEmail;
       }
-    }
-    throw Exception('Failed to load your equipment donations');
-  } catch (e) {
-    print('Error getting user equipment donations: $e');
-    rethrow;
-  }
-}
 
-/// Get equipment donation details
-static Future<Map<String, dynamic>> getEquipmentDonationDetails({
-  required int donationId,
-  String? token,
-}) async {
-  try {
-    final url = Uri.parse('${_authEquipmentBaseUrl()}/$donationId');
-    
-    final headers = {'Content-Type': 'application/json'};
-    if (token != null && token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
+      if (categoryId != null) {
+        body['category_id'] = categoryId;
+      }
+
+      if (description != null && description.isNotEmpty) {
+        body['description'] = description;
+      }
+
+      if (condition != null && condition.isNotEmpty) {
+        body['condition'] = condition;
+      }
+
+      if (deliveryType != null && deliveryType.isNotEmpty) {
+        body['delivery_type'] = deliveryType;
+      }
+
+      if (estimatedValue != null) {
+        body['estimated_value'] = estimatedValue;
+      }
+
+      if (preferredDate != null) {
+        body['preferred_date'] = preferredDate.toIso8601String();
+      }
+
+      final response = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return data;
+      } else {
+        throw Exception('Failed to submit equipment donation');
+      }
+    } catch (e) {
+      print('Error creating anonymous equipment donation: $e');
+      rethrow;
     }
-    
-    final response = await http.get(
-      url,
-      headers: headers,
-    );
-    
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      return data;
-    } else {
-      throw Exception('Failed to load donation details');
-    }
-  } catch (e) {
-    print('Error getting equipment donation details: $e');
-    rethrow;
   }
-}
+
+  /// Check equipment donation status
+  static Future<Map<String, dynamic>> checkEquipmentDonationStatus({
+    required int donationId,
+    required String contactPhone,
+  }) async {
+    try {
+      final url = Uri.parse('${_publicEquipmentBaseUrl()}/status')
+          .replace(queryParameters: {
+        'donation_id': donationId.toString(),
+        'contact_phone': contactPhone,
+      });
+
+      final response = await http.get(url).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return data;
+      } else {
+        throw Exception('Failed to check donation status');
+      }
+    } catch (e) {
+      print('Error checking equipment donation status: $e');
+      rethrow;
+    }
+  }
+
+  /// Get user's equipment donations (authenticated)
+  static Future<List<Map<String, dynamic>>> getUserEquipmentDonations(
+      String token) async {
+    try {
+      final url = Uri.parse('${_authEquipmentBaseUrl()}/my-donations');
+
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        if (data['success'] == true) {
+          return List<Map<String, dynamic>>.from(
+              data['data']['donations'] ?? []);
+        }
+      }
+      throw Exception('Failed to load your equipment donations');
+    } catch (e) {
+      print('Error getting user equipment donations: $e');
+      rethrow;
+    }
+  }
+
+  /// Get equipment donation details
+  static Future<Map<String, dynamic>> getEquipmentDonationDetails({
+    required int donationId,
+    String? token,
+  }) async {
+    try {
+      final url = Uri.parse('${_authEquipmentBaseUrl()}/$donationId');
+
+      final headers = {'Content-Type': 'application/json'};
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+
+      final response = await http.get(
+        url,
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return data;
+      } else {
+        throw Exception('Failed to load donation details');
+      }
+    } catch (e) {
+      print('Error getting equipment donation details: $e');
+      rethrow;
+    }
+  }
 
 // دالة جديدة لجلب بيانات المتبرع
-static Future<Map<String, dynamic>> getDonorProfile(String token) async {
-  try {
-    final response = await http.get(
-      Uri.parse(_buildUrl('donations/donor/profile')),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
+  static Future<Map<String, dynamic>> getDonorProfile(String token) async {
+    try {
+      final response = await http.get(
+        Uri.parse(_buildUrl('donations/donor/profile')),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
 
-    if (response.statusCode == 200) {
-      return json.decode(response.body);
-    } else {
-      throw Exception('Failed to load donor profile: ${response.statusCode}');
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        throw Exception('Failed to load donor profile: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error fetching donor profile: $e');
+      rethrow;
     }
-  } catch (e) {
-    print('Error fetching donor profile: $e');
-    rethrow;
   }
-}
 
 // services/api_service.dart
 
-static Future<Map<String, dynamic>> uploadMedicalDocument(
-  String token,
-  String childId,
-  PlatformFile file,
-) async {
-  try {
-    print('📤 ========== UPLOAD DEBUG ==========');
-    print('📤 File name: ${file.name}');
-    print('📤 File path: ${file.path}');
-    print('📤 File size: ${file.size} bytes');
-    print('📤 File extension: ${file.extension}');
-    
-    // التحقق من وجود المسار
-    if (file.path == null || file.path!.isEmpty) {
-      throw Exception('File path is null or empty');
-    }
+  static Future<Map<String, dynamic>> uploadMedicalDocument(
+    String token,
+    String childId,
+    PlatformFile file,
+  ) async {
+    try {
+      print('📤 ========== UPLOAD DEBUG ==========');
+      print('📤 File name: ${file.name}');
+      print('📤 File path: ${file.path}');
+      print('📤 File size: ${file.size} bytes');
+      print('📤 File extension: ${file.extension}');
 
-    // التحقق من وجود الملف
-    final fileExists = await File(file.path!).exists();
-    print('📤 File exists: $fileExists');
-    
-    if (!fileExists) {
-      throw Exception('File does not exist at path: ${file.path}');
-    }
+      // التحقق من وجود المسار
+      if (file.path == null || file.path!.isEmpty) {
+        throw Exception('File path is null or empty');
+      }
 
-    // إنشاء الطلب
-    final url = _buildUrl('children/$childId/upload-document');
-    var request = http.MultipartRequest('POST', Uri.parse(url));
+      // التحقق من وجود الملف
+      final fileExists = await File(file.path!).exists();
+      print('📤 File exists: $fileExists');
 
-    // إضافة الـ headers
-    request.headers['Authorization'] = 'Bearer $token';
-    print('📤 Authorization token added');
+      if (!fileExists) {
+        throw Exception('File does not exist at path: ${file.path}');
+      }
 
-    // إضافة الملف
-    final multipartFile = await http.MultipartFile.fromPath(
-      'medical_document', // ⚠️ تأكد من الاسم
-      file.path!,
-      filename: file.name,
-    );
-    
-    request.files.add(multipartFile);
-    print('📤 File added to request:');
-    print('   - Field name: medical_document');
-    print('   - Filename: ${multipartFile.filename}');
-    print('   - Content type: ${multipartFile.contentType}');
-    print('   - Length: ${multipartFile.length}');
+      // إنشاء الطلب
+      final url = _buildUrl('children/$childId/upload-document');
+      var request = http.MultipartRequest('POST', Uri.parse(url));
 
-    // إرسال الطلب
-    print('📤 Sending request to: ${request.url}');
-    final streamedResponse = await request.send();
-    
-    print('📡 Response status: ${streamedResponse.statusCode}');
-    
-    // قراءة الاستجابة
-    final responseBody = await streamedResponse.stream.bytesToString();
-    print('📡 Response body: $responseBody');
-    
-    final result = jsonDecode(responseBody);
+      // إضافة الـ headers
+      request.headers['Authorization'] = 'Bearer $token';
+      print('📤 Authorization token added');
 
-    if (streamedResponse.statusCode == 200) {
-      print('✅ Upload successful!');
-      return {
-        'success': true,
-        ...result,
-      };
-    } else {
-      print('❌ Upload failed');
+      // إضافة الملف
+      final multipartFile = await http.MultipartFile.fromPath(
+        'medical_document', // ⚠️ تأكد من الاسم
+        file.path!,
+        filename: file.name,
+      );
+
+      request.files.add(multipartFile);
+      print('📤 File added to request:');
+      print('   - Field name: medical_document');
+      print('   - Filename: ${multipartFile.filename}');
+      print('   - Content type: ${multipartFile.contentType}');
+      print('   - Length: ${multipartFile.length}');
+
+      // إرسال الطلب
+      print('📤 Sending request to: ${request.url}');
+      final streamedResponse = await request.send();
+
+      print('📡 Response status: ${streamedResponse.statusCode}');
+
+      // قراءة الاستجابة
+      final responseBody = await streamedResponse.stream.bytesToString();
+      print('📡 Response body: $responseBody');
+
+      final result = jsonDecode(responseBody);
+
+      if (streamedResponse.statusCode == 200) {
+        print('✅ Upload successful!');
+        return {
+          'success': true,
+          ...result,
+        };
+      } else {
+        print('❌ Upload failed');
+        return {
+          'success': false,
+          'message': result['message'] ?? 'Upload failed',
+          'error_code': result['error_code'],
+        };
+      }
+    } catch (e, stackTrace) {
+      print('❌ ========== UPLOAD ERROR ==========');
+      print('❌ Error: $e');
+      print('❌ Stack trace: $stackTrace');
+
       return {
         'success': false,
-        'message': result['message'] ?? 'Upload failed',
-        'error_code': result['error_code'],
+        'message': 'Network error: $e',
       };
     }
-    
-  } catch (e, stackTrace) {
-    print('❌ ========== UPLOAD ERROR ==========');
-    print('❌ Error: $e');
-    print('❌ Stack trace: $stackTrace');
-    
-    return {
-      'success': false,
-      'message': 'Network error: $e',
-    };
   }
-}
+
   /// حذف مستند طبي
   static Future<Map<String, dynamic>> deleteMedicalDocument(
-  String token,
-  String childId,
-  String fileId,
-) async {
-  try {
-    final url = _buildUrl('children/$childId/documents/$fileId');
+    String token,
+    String childId,
+    String fileId,
+  ) async {
+    try {
+      final url = _buildUrl('children/$childId/documents/$fileId');
 
-    print('🗑️ Deleting document: $fileId for child: $childId');
-    final response = await http.delete(
-      Uri.parse(url),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
+      print('🗑️ Deleting document: $fileId for child: $childId');
+      final response = await http.delete(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
 
-    print('📡 Response status: ${response.statusCode}');
-    print('📦 Response body: ${response.body}');
+      print('📡 Response status: ${response.statusCode}');
+      print('📦 Response body: ${response.body}');
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        return {
+          'success': false,
+          'message': 'Failed to delete document: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      print('❌ Error deleting document: $e');
       return {
         'success': false,
-        'message': 'Failed to delete document: ${response.statusCode}',
+        'message': 'Network error: $e',
       };
     }
-  } catch (e) {
-    print('❌ Error deleting document: $e');
-    return {
-      'success': false,
-      'message': 'Network error: $e',
-    };
+  }
+
+  static Future<Map<String, dynamic>> createMobileDonationPayment({
+    required String token,
+    required int institutionId,
+    required double amount,
+    int? campaignId,
+    String mode = 'one_time',
+    bool anonymous = false,
+    String? donorName,
+    String? donorEmail,
+    String? inviteCode,
+    String currency = 'jod',
+  }) async {
+    try {
+      final url = _buildUrl('donations/checkout');
+
+      final body = {
+        'institution_id': institutionId,
+        'amount': amount,
+        'mode': mode,
+        'currency': currency,
+        'platform': 'mobile', // ✅ مهم جداً
+        'anonymous': anonymous,
+        if (campaignId != null) 'campaign_id': campaignId,
+        if (inviteCode != null && inviteCode.isNotEmpty)
+          'invite_code': inviteCode,
+        if (donorName != null && donorName.isNotEmpty) 'donor_name': donorName,
+        if (donorEmail != null && donorEmail.isNotEmpty)
+          'donor_email': donorEmail,
+      };
+
+      print('📱 Creating mobile payment:');
+      print('   URL: $url');
+      print('   Body: ${jsonEncode(body)}');
+
+      final response = await http
+          .post(
+            Uri.parse(url),
+            headers: {
+              'Content-Type': 'application/json',
+              if (token.isNotEmpty) 'Authorization': 'Bearer $token',
+              'User-Agent': 'JusoorMobile/1.0', // ✅ مهم
+              'X-Platform': 'mobile', // ✅ إضافي للتأكيد
+            },
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      print('📡 Response status: ${response.statusCode}');
+      print('📦 Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data['success'] == true) {
+          // ✅ التحقق من وجود payment_intent_client_secret
+          final clientSecret = data['payment_intent_client_secret'];
+
+          if (clientSecret == null || clientSecret.toString().isEmpty) {
+            // Backend أرجع checkout URL بدلاً من payment intent
+            print('⚠️ Backend returned checkout URL instead of payment intent');
+            print('Response data: $data');
+
+            throw Exception('Backend is not configured for mobile payments. '
+                'Received checkout URL instead of payment intent. '
+                'Please ensure platform=mobile is being processed correctly.');
+          }
+
+          return {
+            'success': true,
+            'payment_intent_client_secret': clientSecret,
+            'payment_intent_id': data['payment_intent_id'],
+            'donation_id': data['donation_id'],
+            'amount': data['amount'],
+            'currency': data['currency'],
+            'anonymous': data['anonymous'],
+          };
+        } else {
+          throw Exception(data['message'] ?? 'Payment creation failed');
+        }
+      } else {
+        final error = jsonDecode(response.body);
+        throw Exception(error['message'] ?? 'HTTP ${response.statusCode}');
+      }
+    } on TimeoutException {
+      throw Exception('Connection timeout. Please check your internet.');
+    } on SocketException {
+      throw Exception('No internet connection');
+    } catch (e) {
+      print('❌ Payment creation error: $e');
+      rethrow;
+    }
+  }
+
+  static Future<void> confirmDonationPayment({
+    required String token,
+    required String paymentIntentId,
+    int? donationId,
+  }) async {
+    try {
+      final url = _buildUrl('donations/confirm-payment');
+
+      print('🔍 Confirming payment: $paymentIntentId');
+
+      final response = await http
+          .post(
+            Uri.parse(url),
+            headers: {
+              'Content-Type': 'application/json',
+              if (token.isNotEmpty) 'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({
+              'payment_intent_id': paymentIntentId,
+              if (donationId != null) 'donation_id': donationId,
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      print('📡 Confirmation response: ${response.statusCode}');
+
+      if (response.statusCode != 200) {
+        final error = jsonDecode(response.body);
+        throw Exception(error['message'] ?? 'Confirmation failed');
+      }
+
+      print('✅ Payment confirmed successfully');
+    } catch (e) {
+      print('⚠️ Payment confirmation error: $e');
+      // لا نرمي الخطأ لأن الدفع نجح في Stripe
+    }
+  }
+
+  static Future<Map<String, dynamic>> uploadActivityDocument(
+    String token,
+    String childId, // ✅ تأكد أنه String
+    File documentFile,
+  ) async {
+    try {
+      print('📤 Uploading activity document...');
+      print('   Child ID: $childId (${childId.runtimeType})');
+      print('   File path: ${documentFile.path}');
+
+      final uri =
+          Uri.parse(_buildUrl('children/$childId/upload-activity-document'));
+      print('   API URL: $uri');
+
+      var request = http.MultipartRequest('POST', uri);
+
+      // Headers
+      request.headers.addAll({
+        'Authorization': 'Bearer $token',
+        'Accept': 'application/json',
+      });
+
+      // File
+      final fileExtension = documentFile.path.split('.').last.toLowerCase();
+      String mimeType;
+
+      switch (fileExtension) {
+        case 'pdf':
+          mimeType = 'application/pdf';
+          break;
+        case 'jpg':
+        case 'jpeg':
+          mimeType = 'image/jpeg';
+          break;
+        case 'png':
+          mimeType = 'image/png';
+          break;
+        case 'doc':
+          mimeType = 'application/msword';
+          break;
+        case 'docx':
+          mimeType =
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+          break;
+        case 'txt':
+          mimeType = 'text/plain';
+          break;
+        default:
+          mimeType = 'application/octet-stream';
+      }
+
+      print('   MIME type: $mimeType');
+
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'activity_document', // ✅ اسم الحقل كما في الباك إند
+          documentFile.path,
+          contentType: http.MediaType.parse(mimeType),
+        ),
+      );
+
+      // إرسال الطلب
+      print('   Sending request...');
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      print('📡 Upload response status: ${response.statusCode}');
+      print('📡 Upload response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception(
+            'Upload failed: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print('❌ Upload error: $e');
+      throw Exception('Failed to upload document: $e');
+    }
+  }
+
+  /// تحليل المستند وتوليد أنشطة
+  static Future<Map<String, dynamic>> analyzeForActivities(
+      String token, String childId, // ✅ String
+      {String? analysisId}) async {
+    try {
+      print('🔍 Analyzing for activities...');
+      print('   Child ID: $childId (${childId.runtimeType})');
+      print('   Analysis ID: $analysisId');
+
+      final uri =
+          Uri.parse(_buildUrl('children/$childId/analyze-for-activities'));
+      print('   API URL: $uri');
+
+      final body = <String, dynamic>{};
+      if (analysisId != null && analysisId.isNotEmpty) {
+        body['analysis_id'] = analysisId;
+      }
+
+      print('   Request body: $body');
+
+      final response = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: body.isNotEmpty ? jsonEncode(body) : null,
+      );
+
+      print('📡 Analysis response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print('✅ Analysis success: ${data['success']}');
+        return data;
+      } else {
+        print('❌ Analysis failed: ${response.body}');
+        throw Exception('Analysis failed: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Analyze error: $e');
+      throw Exception('Failed to analyze: $e');
+    }
+  }
+
+  /// تحليل سريع (بدون مستند)
+  static Future<Map<String, dynamic>> quickActivityAnalysis(
+    String token,
+    String childId, // ✅ String
+  ) async {
+    try {
+      print('⚡ Quick activity analysis...');
+      print('   Child ID: $childId (${childId.runtimeType})');
+
+      final uri =
+          Uri.parse(_buildUrl('children/$childId/quick-activity-analysis'));
+      print('   API URL: $uri');
+
+      final response = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('📡 Quick analysis response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Quick analysis failed: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Quick analysis error: $e');
+      throw Exception('Failed to perform quick analysis: $e');
+    }
+  }
+
+  /// جلب التوصيات
+  static Future<Map<String, dynamic>> getActivityRecommendations(
+    String token,
+    String childId, // ✅ String
+    {
+    String? status,
+    String? activityType,
+    int? limit = 20,
+    int? page = 1,
+  }) async {
+    try {
+      print('📥 Getting activity recommendations...');
+      print('   Child ID: $childId (${childId.runtimeType})');
+
+      final queryParams = <String, String>{};
+      if (status != null) queryParams['status'] = status;
+      if (activityType != null) queryParams['activity_type'] = activityType;
+      if (limit != null) queryParams['limit'] = limit.toString();
+      if (page != null) queryParams['page'] = page.toString();
+
+      final uri =
+          Uri.parse(_buildUrl('children/$childId/activity-recommendations'))
+              .replace(
+                  queryParameters: queryParams.isNotEmpty ? queryParams : null);
+
+      print('   API URL: $uri');
+
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('📡 Get recommendations response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        // إذا لم توجد توصيات، نرجع قائمة فارغة بدل exception
+        print('⚠️ No recommendations or error: ${response.body}');
+        return {
+          'success': true,
+          'data': [],
+        };
+      }
+    } catch (e) {
+      print('❌ Get recommendations error: $e');
+      // نرجع قائمة فارغة بدل exception
+      return {
+        'success': true,
+        'data': [],
+      };
+    }
+  }
+
+  /// تحديث حالة النشاط
+  static Future<Map<String, dynamic>> updateActivityStatus(
+    String token,
+    String childId, // ✅ String
+    String activityId, // ✅ String
+    String status, {
+    int? parentRating,
+    String? childEngagement,
+    String? notes,
+  }) async {
+    try {
+      print('🔄 Updating activity status...');
+      print('   Child ID: $childId (${childId.runtimeType})');
+      print('   Activity ID: $activityId (${activityId.runtimeType})');
+      print('   New status: $status');
+
+      final uri = Uri.parse(
+          _buildUrl('children/$childId/activities/$activityId/status'));
+
+      print('   API URL: $uri');
+
+      final body = <String, dynamic>{
+        'status': status,
+      };
+
+      if (parentRating != null) body['parent_rating'] = parentRating;
+      if (childEngagement != null) body['child_engagement'] = childEngagement;
+      if (notes != null) body['notes'] = notes;
+
+      print('   Request body: $body');
+
+      final response = await http.put(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(body),
+      );
+
+      print('📡 Update status response: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Update failed: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Update status error: $e');
+      throw Exception('Failed to update status: $e');
+    }
   }
 }
 
-
+extension on String {
+  replace({required Map<String, String> queryParameters}) {}
 }

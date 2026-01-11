@@ -1,5 +1,7 @@
 // lib/widgets/session_details_sheet.dart
 import 'package:flutter/material.dart';
+import 'package:frontend/screens/reminder_selection_screen.dart';
+import 'package:intl/intl.dart';
 import '../models/session.dart';
 import '../theme/app_colors.dart';
 
@@ -22,6 +24,35 @@ class SessionDetailsBottomSheet extends StatelessWidget {
     this.onDownloadInvoice,
     this.onRated,
   });
+
+  String _generateSessionId(Session session) {
+    final uniqueString = '${session.date}_${session.time}_${session.childName}_${session.specialistName}';
+    return uniqueString.hashCode.toString();
+  }
+
+  DateTime _parseSessionDateTime(Session session) {
+    try {
+      // Parse session date
+      final sessionDate = DateFormat('yyyy-MM-dd').parse(session.date);
+      
+      // Parse time
+      final timeParts = session.time.split(':');
+      final hour = int.parse(timeParts[0]);
+      final minute = int.parse(timeParts[1].split(' ')[0]);
+      final isPM = session.time.toLowerCase().contains('pm');
+      
+      return DateTime(
+        sessionDate.year,
+        sessionDate.month,
+        sessionDate.day,
+        isPM && hour != 12 ? hour + 12 : hour,
+        minute,
+      );
+    } catch (e) {
+      print('⚠️ Error parsing session date/time: $e');
+      return DateTime.now().add(const Duration(days: 1)); // Fallback
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -563,11 +594,22 @@ class SessionDetailsBottomSheet extends StatelessWidget {
   }
 
   Widget _buildPaymentSection() {
+    String formatAmount(double value) {
+      return '${value.toStringAsFixed(2)} JOD';
+    }
+
+    final baseAmount = session.originalPrice ?? session.price;
+    final discountAmount = session.discountAmount ?? session.autoDiscountAmount ?? 0;
+    final finalAmount = session.finalPrice ?? (baseAmount - discountAmount);
+    final invoiceTotal = session.sessionTypePrice > 0 ? (session.refundAmount == null ? null : null) : null;
+    final refundAmount = session.refundAmount ?? 0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildSectionTitle('Payment Information'),
         const SizedBox(height: 16),
+
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -584,11 +626,19 @@ class SessionDetailsBottomSheet extends StatelessWidget {
           ),
           child: Column(
             children: [
-              _buildPaymentRow('Session Fee', '\$${session.price.toStringAsFixed(2)}'),
+              _buildPaymentRow('Payment Status', session.paymentStatus.isNotEmpty ? session.paymentStatus : 'Pending'),
               const SizedBox(height: 8),
-              _buildPaymentRow('Insurance Coverage', '-\$0.00'),
+              _buildPaymentRow('Original Amount', formatAmount(baseAmount)),
               const SizedBox(height: 8),
-              _buildPaymentRow('Tax (16%)', '\$${(session.price * 0.16).toStringAsFixed(2)}'),
+              if (discountAmount > 0) ...[
+                _buildPaymentRow('Discount', '-${formatAmount(discountAmount)}'),
+                const SizedBox(height: 8),
+              ],
+              _buildPaymentRow('Final Amount', formatAmount(finalAmount < 0 ? 0 : finalAmount)),
+              if (refundAmount > 0) ...[
+                const SizedBox(height: 8),
+                _buildPaymentRow('Refunded', formatAmount(refundAmount)),
+              ],
               const SizedBox(height: 12),
               Container(
                 height: 1,
@@ -596,8 +646,8 @@ class SessionDetailsBottomSheet extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               _buildPaymentRow(
-                'Total Amount',
-                '\$${(session.price * 1.16).toStringAsFixed(2)}',
+                'Total',
+                formatAmount(finalAmount < 0 ? 0 : finalAmount),
                 isTotal: true,
               ),
             ],
@@ -821,132 +871,100 @@ class SessionDetailsBottomSheet extends StatelessWidget {
     }
   }
 
-  Widget _buildActionButtons(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: Border(
-          top: BorderSide(
-            color: AppColors.textLight.withOpacity(0.2),
-            width: 1,
+ Widget _buildActionButtons(BuildContext context) {
+  Widget? mainButton;
+  
+  // تحديد الزر المناسب بناءً على الحالة
+  switch (session.displayStatus) {
+    case 'upcoming':
+      mainButton = Expanded(
+        child: ElevatedButton.icon(
+          onPressed: () => _onSetReminder(context),
+          icon: Icon(Icons.notifications_outlined, size: 20),
+          label: Text('Set Reminder'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            elevation: 1,
           ),
         ),
-      ),
-      child: Row(
-        children: [
-          // Main Action Button based on status
-          if (session.displayStatus == 'upcoming') ...[
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: onSetReminder,
-                icon: Icon(Icons.notifications_outlined, size: 20),
-                label: Text('Set Reminder'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  elevation: 1,
-                ),
-              ),
+      );
+      break;
+      
+    case 'pending':
+      mainButton = Expanded(
+        child: ElevatedButton.icon(
+          onPressed: onReschedule,
+          icon: Icon(Icons.schedule_outlined, size: 20),
+          label: Text('Reschedule'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.accent4,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
             ),
-          ] else if (session.displayStatus == 'pending') ...[
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: onReschedule,
-                icon: Icon(Icons.schedule_outlined, size: 20),
-                label: Text('Reschedule'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.accent4,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  elevation: 1,
-                ),
+            elevation: 1,
+          ),
+        ),
+      );
+      break;
+      
+    case 'completed':
+      if (session.rating == null) {
+        mainButton = Expanded(
+          child: ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              onRateSession?.call();
+              onRated?.call();
+            },
+            icon: Icon(Icons.star_outline_rounded, size: 20),
+            label: Text('Rate Session'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryLight,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
               ),
+              elevation: 1,
             ),
-          ] else if (session.displayStatus == 'completed' && session.rating == null) ...[
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.pop(context);
-                  onRateSession?.call();
-                  onRated?.call();
-                },
-                icon: Icon(Icons.star_outline_rounded, size: 20),
-                label: Text('Rate Session'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryLight,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  elevation: 1,
-                ),
-              ),
-            ),
-          ] else ...[
-            const Spacer(),
-          ],
-
-          const SizedBox(width: 12),
-
-          // Secondary Actions
-          if (session.displayStatus != 'completed' || session.rating != null) ...[
-            Expanded(
-              flex: 2,
-              child: Row(
-                children: [
-                  // Share Button
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        onShareSession?.call();
-                      },
-                      icon: Icon(Icons.share_outlined, size: 18),
-                      label: Text('Share'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primary,
-                        side: BorderSide(color: AppColors.primary),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-
-                  // Invoice Button
-                  if (session.price > 0)
-                    OutlinedButton(
-                      onPressed: onDownloadInvoice,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primary,
-                        side: BorderSide(color: AppColors.primary),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Icon(Icons.download_outlined, size: 20),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
+          ),
+        );
+      } else {
+        mainButton = const Spacer();
+      }
+      break;
+      
+    default:
+      mainButton = const Spacer();
   }
-
+  
+  return Container(
+    padding: const EdgeInsets.all(24),
+    decoration: BoxDecoration(
+      color: AppColors.surface,
+      border: Border(
+        top: BorderSide(
+          color: AppColors.textLight.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+    ),
+    child: Row(
+      children: [
+        mainButton,
+        const SizedBox(width: 12),
+        // يمكنك إضافة Secondary Actions هنا إذا أردت
+      ],
+    ),
+  );
+}
   Widget _buildSectionTitle(String title) {
     return Text(
       title,
@@ -957,6 +975,46 @@ class SessionDetailsBottomSheet extends StatelessWidget {
       ),
     );
   }
+
+
+  Future<void> _onSetReminder(BuildContext context) async {
+  // احفظ الـ context الأصلي
+  final originalContext = context;
+  
+  // احسب sessionDateTime
+  final sessionDateTime = _parseSessionDateTime(session);
+  
+  // فتح شاشة ReminderSelectionScreen
+  final result = await Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (context) => ReminderSelectionScreen(
+        sessionId: _generateSessionId(session),
+        sessionTitle: '${session.sessionType} - ${session.childName}',
+        sessionDateTime: sessionDateTime,
+      ),
+    ),
+  );
+  
+  // بعد العودة من الشاشة الجديدة، أغلق الـ Bottom Sheet
+  Navigator.of(originalContext).pop();
+  
+  // عرض رسالة النجاح
+  if (result == true) {
+    // استخدم Future.delayed لضمان إغلاق الـ Sheet أولاً
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (originalContext.mounted) {
+        ScaffoldMessenger.of(originalContext).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Reminder set successfully!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    });
+  }
+}
+
 
   Widget _buildStatusChip(String status) {
     final color = _getStatusColor(status);

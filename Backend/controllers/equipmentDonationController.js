@@ -48,17 +48,14 @@ exports.createEquipmentDonation = async (req, res) => {
       condition,
       estimated_value,
       delivery_type,
-      preferred_date,
-      contact_person,
-      contact_phone,
-      contact_email
+      preferred_date
     } = req.body;
 
     // التحقق من المدخلات الأساسية
-    if (!institution_id || !equipment_name) {
+    if (!institution_id || !equipment_name || !preferred_date) {
       return res.status(400).json({
         success: false,
-        message: 'المؤسسة واسم الجهاز مطلوبان'
+        message: 'المؤسسة واسم الجهاز ووقت التسليم مطلوبة'
       });
     }
 
@@ -81,35 +78,37 @@ exports.createEquipmentDonation = async (req, res) => {
       });
     }
 
-    // تحديد بيانات المتبرع
-    let donorId = null;
-    let contactInfo = {};
-
-    if (req.user && req.user.user_id) {
-      donorId = req.user.user_id;
-      const user = await User.findByPk(donorId, {
-        attributes: ['full_name', 'email', 'phone']
+    // تحديد بيانات المتبرع (من المستخدم المسجل دخول فقط)
+    if (!req.user || !req.user.user_id) {
+      return res.status(401).json({
+        success: false,
+        message: 'يجب تسجيل الدخول لتقديم طلب تبرع'
       });
-      
-      contactInfo = {
-        contact_person: user?.full_name || contact_person,
-        contact_email: user?.email || contact_email,
-        contact_phone: user?.phone || contact_phone
-      };
-    } else {
-      if (!contact_person || !contact_phone) {
-        return res.status(400).json({
-          success: false,
-          message: 'معلومات الاتصال مطلوبة للمتبرع المجهول'
-        });
-      }
-      contactInfo = { contact_person, contact_email, contact_phone };
     }
+
+    const donorId = req.user.user_id;
+    const user = await User.findByPk(donorId, {
+      attributes: ['full_name', 'email', 'phone']
+    });
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'المستخدم غير موجود'
+      });
+    }
+
+    const contactInfo = {
+      contact_person: user.full_name || null,
+      contact_email: user.email || null,
+      contact_phone: user.phone || null
+    };
 
     // معالجة الصور إذا وجدت
     let images = null;
-    if (req.files && req.files.images) {
-      const imageFiles = Array.isArray(req.files.images) ? req.files.images : [req.files.images];
+    const uploadedFiles = Array.isArray(req.files) ? req.files : (req.files && req.files.images ? req.files.images : null);
+    if (uploadedFiles) {
+      const imageFiles = Array.isArray(uploadedFiles) ? uploadedFiles : [uploadedFiles];
       images = imageFiles.map(file => ({
         url: `/uploads/equipment/${file.filename}`,
         filename: file.filename,
@@ -118,32 +117,169 @@ exports.createEquipmentDonation = async (req, res) => {
       }));
     }
 
-    // إنشاء طلب التبرع
-    const equipmentDonation = await EquipmentDonation.create({
-      donor_id: donorId,
-      institution_id,
-      category_id: category_id || null,
-      equipment_name,
-      description: description || null,
-      condition: condition || 'used_good',
-      estimated_value: estimated_value ? parseFloat(estimated_value) : null,
-      delivery_type: delivery_type || 'pickup',
-      preferred_date: preferred_date ? new Date(preferred_date) : null,
-      ...contactInfo,
-      images,
-      status: 'pending'
-    });
+    const result = await sequelize.transaction(async (t) => {
+      // إنشاء التبرع (بدون إلزام delivery_type/category/estimated_value) + موافقة مباشرة
+      const equipmentDonation = await EquipmentDonation.create({
+        donor_id: donorId,
+        institution_id,
+        category_id: category_id || null,
+        equipment_name,
+        description: description || null,
+        condition: condition || 'used_good',
+        estimated_value: estimated_value ? parseFloat(estimated_value) : null,
+        delivery_type: delivery_type || 'pickup',
+        preferred_date: new Date(preferred_date),
+        ...contactInfo,
+        images,
+        status: 'approved'
+      }, { transaction: t });
 
-    // إرسال إشعار للمدير
-    await sendNotificationToManager(institution_id, equipmentDonation);
+      // إضافة للمخزون مباشرة (بدون انتظار موافقة مدير/تسليم)
+      const existingInventoryItem = await InstitutionEquipmentInventory.findOne({
+        where: {
+          institution_id,
+          source_donation_id: equipmentDonation.equipment_donation_id,
+        },
+        transaction: t
+      });
+
+      const inventoryItem = existingInventoryItem || await InstitutionEquipmentInventory.create({
+        institution_id,
+        category_id: equipmentDonation.category_id || null,
+        equipment_name: equipmentDonation.equipment_name,
+        equipment_type: null,
+        condition: equipmentDonation.condition,
+        quantity_available: 1,
+        quantity_reserved: 0,
+        usage_type: 'available',
+        internal_department: null,
+        source_donation_id: equipmentDonation.equipment_donation_id,
+        notes: equipmentDonation.description || null,
+        created_at: new Date(),
+        updated_at: new Date()
+      }, { transaction: t });
+
+      if (!existingInventoryItem) {
+        await EquipmentItemHistory.create({
+          institution_id,
+          inventory_item_id: inventoryItem.inventory_item_id,
+          event_type: 'inventory_added_from_donation',
+          related_id: equipmentDonation.equipment_donation_id,
+          actor_user_id: donorId,
+          details: {
+            equipment_name: equipmentDonation.equipment_name,
+            donation_id: equipmentDonation.equipment_donation_id
+          },
+          created_at: new Date()
+        }, { transaction: t });
+      }
+
+      // محاولة matching بسيطة مع احتياجات مفتوحة (اختياري)
+      const needWhere = {
+        institution_id,
+        status: 'open'
+      };
+      if (equipmentDonation.category_id) {
+        needWhere.category_id = equipmentDonation.category_id;
+      }
+
+      const normalizedDonationName = (equipmentDonation.equipment_name || '').trim();
+
+      let need = null;
+      if (normalizedDonationName.length > 0) {
+        need = await ChildEquipmentNeed.findOne({
+          where: {
+            ...needWhere,
+            [Op.or]: [
+              { equipment_name: { [Op.like]: `%${normalizedDonationName}%` } },
+              { equipment_type: { [Op.like]: `%${normalizedDonationName}%` } },
+            ]
+          },
+          order: [['priority_score', 'DESC'], ['created_at', 'ASC']],
+          transaction: t
+        });
+      }
+
+      if (!need) {
+        need = await ChildEquipmentNeed.findOne({
+          where: needWhere,
+          order: [['priority_score', 'DESC'], ['created_at', 'ASC']],
+          transaction: t
+        });
+      }
+
+      if (need) {
+        if ((need.priority_score || 0) >= 70 && inventoryItem.quantity_available > 0) {
+          await inventoryItem.update({
+            quantity_available: Math.max(0, inventoryItem.quantity_available - 1),
+            quantity_reserved: (inventoryItem.quantity_reserved || 0) + 1,
+            usage_type: 'reserved',
+            updated_at: new Date()
+          }, { transaction: t });
+
+          const allocation = await EquipmentAllocation.create({
+            institution_id,
+            inventory_item_id: inventoryItem.inventory_item_id,
+            need_id: need.need_id,
+            child_id: need.child_id,
+            allocation_mode: 'auto',
+            allocated_by_user_id: null,
+            usage_type: 'child',
+            status: 'pending_receipt',
+            created_at: new Date(),
+            updated_at: new Date()
+          }, { transaction: t });
+
+          await need.update({ status: 'allocated', updated_at: new Date() }, { transaction: t });
+
+          const campaign = await EquipmentDonationCampaign.findOne({ where: { need_id: need.need_id }, transaction: t });
+          if (campaign && !['fulfilled', 'closed'].includes(campaign.status)) {
+            const nextFulfilled = Math.min(
+              campaign.quantity_needed || 1,
+              (campaign.quantity_fulfilled || 0) + 1
+            );
+            const nextStatus = nextFulfilled >= (campaign.quantity_needed || 1) ? 'fulfilled' : 'partially_fulfilled';
+            await campaign.update({
+              status: nextStatus,
+              quantity_fulfilled: nextFulfilled,
+              updated_at: new Date()
+            }, { transaction: t });
+          }
+
+          await EquipmentItemHistory.create({
+            institution_id,
+            inventory_item_id: inventoryItem.inventory_item_id,
+            event_type: 'auto_allocated',
+            related_id: allocation.allocation_id,
+            actor_user_id: null,
+            details: { need_id: need.need_id, child_id: need.child_id, priority_score: need.priority_score },
+            created_at: new Date()
+          }, { transaction: t });
+        } else {
+          await need.update({ status: 'matched', updated_at: new Date() }, { transaction: t });
+
+          await EquipmentItemHistory.create({
+            institution_id,
+            inventory_item_id: inventoryItem.inventory_item_id,
+            event_type: 'match_suggested',
+            related_id: need.need_id,
+            actor_user_id: null,
+            details: { need_id: need.need_id, priority_score: need.priority_score, child_id: need.child_id },
+            created_at: new Date()
+          }, { transaction: t });
+        }
+      }
+
+      return { equipmentDonation, inventoryItem };
+    });
 
     return res.status(201).json({
       success: true,
-      message: 'تم تقديم طلب التبرع بنجاح',
+      message: 'تم تسجيل التبرع وإضافته لمخزون المؤسسة مباشرة',
       data: {
-        equipment_donation_id: equipmentDonation.equipment_donation_id,
-        status: equipmentDonation.status,
-        next_steps: 'سيتم مراجعة طلبك من قبل المؤسسة وسيتم التواصل معك قريباً'
+        equipment_donation_id: result.equipmentDonation.equipment_donation_id,
+        status: result.equipmentDonation.status,
+        next_steps: 'تم اعتماد التبرع مباشرة وسيتم التنسيق معك حسب وقت التسليم'
       }
     });
 

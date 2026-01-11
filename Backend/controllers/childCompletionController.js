@@ -11,7 +11,6 @@ const UserDeviceToken = require('../model/UserDeviceToken');
 const Notification = require('../model/Notification');
 
 /**
- * 1. GET - عرض الأطفال المؤهلين للتأكيد للأخصائي
  * /api/specialist/completion-candidates
  */
 exports.getCompletionCandidates = async (req, res) => {

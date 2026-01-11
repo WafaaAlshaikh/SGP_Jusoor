@@ -72,7 +72,35 @@ Future<void> _createNotificationChannelsSafely() async {
         playSound: true,
         enableVibration: true,
       ),
+
+      AndroidNotificationChannel(
+    'manager_channel',
+    'Manager Notifications',
+    description: 'Notifications for managers',
+    importance: Importance.high,
+    playSound: true,
+    enableVibration: true,
+  ),
+
+  AndroidNotificationChannel(
+    'payment_channel',
+    'Payment Notifications',
+    description: 'Notifications for payments',
+    importance: Importance.high,
+    playSound: true,
+    enableVibration: true,
+  ),
+  AndroidNotificationChannel(
+    'pending_sessions_channel',
+    'Pending Sessions',
+    description: 'Notifications for new session requests',
+    importance: Importance.high,
+    playSound: true,
+    enableVibration: true,
+  ),
     ];
+    
+
 
     // محاولة إنشاء كل قناة مع معالجة الأخطاء
     for (var channel in channels) {

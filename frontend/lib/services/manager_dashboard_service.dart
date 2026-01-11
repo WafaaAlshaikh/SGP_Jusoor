@@ -1,5 +1,6 @@
 // lib/services/manager_dashboard_service.dart
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,7 +12,7 @@ class ManagerDashboardService {
   } else {
     return 'http://10.0.2.2:5000/api';
   }
-} // أو الـ URL الخاص بالسيرفر
+ }
 
   // دالة للحصول على التوكن
   static Future<String?> _getToken() async {
@@ -49,6 +50,41 @@ class ManagerDashboardService {
       print('Error listing impact posts: $e');
       rethrow;
     }
+  }
+
+  static Future<Map<String, dynamic>> createImpactPostMultipart({
+    required Map<String, dynamic> fields,
+    required File mediaFile,
+  }) async {
+    final token = await _getToken();
+    if (token == null) throw Exception('Token not found');
+
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$_baseUrl/manager/impact/posts'),
+    );
+
+    request.headers['Authorization'] = 'Bearer $token';
+
+    fields.forEach((key, value) {
+      if (value == null) return;
+      request.fields[key] = value.toString();
+    });
+
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'media',
+        mediaFile.path,
+      ),
+    );
+
+    final streamed = await request.send();
+    final response = await http.Response.fromStream(streamed);
+    final Map<String, dynamic> data = json.decode(response.body);
+    if ((response.statusCode == 201 || response.statusCode == 200) && data['success'] == true) {
+      return data['data'] as Map<String, dynamic>;
+    }
+    throw Exception(data['message'] ?? 'Failed to create impact post');
   }
 
   static Future<Map<String, dynamic>> createImpactPost(Map<String, dynamic> body) async {
@@ -89,6 +125,44 @@ class ManagerDashboardService {
       print('Error updating impact post: $e');
       rethrow;
     }
+  }
+
+  static Future<Map<String, dynamic>> updateImpactPostMultipart({
+    required int postId,
+    required Map<String, dynamic> fields,
+    required File mediaFile,
+  }) async {
+    final token = await _getToken();
+    if (token == null) throw Exception('Token not found');
+
+    final request = http.MultipartRequest(
+      'PUT',
+      Uri.parse('$_baseUrl/manager/impact/posts/$postId'),
+    );
+
+    request.headers['Authorization'] = 'Bearer $token';
+
+    fields.forEach((key, value) {
+      if (value == null) return;
+      request.fields[key] = value.toString();
+    });
+
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'media',
+        mediaFile.path,
+      ),
+    );
+
+    final streamed = await request.send();
+    final response = await http.Response.fromStream(streamed);
+    final Map<String, dynamic> data = json.decode(response.body);
+    if (response.statusCode == 200 && data['success'] == true) {
+      return (data['data'] is Map<String, dynamic>)
+          ? (data['data'] as Map<String, dynamic>)
+          : <String, dynamic>{};
+    }
+    throw Exception(data['message'] ?? 'Failed to update impact post');
   }
 
   static Future<void> deleteImpactPost(int postId) async {

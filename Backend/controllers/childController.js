@@ -5,6 +5,8 @@ const Institution = require('../model/Institution');
 const ChildRegistrationRequest = require('../model/ChildRegistrationRequest');
 const SessionType = require('../model/SessionType');
 const Notification = require('../model/Notification');
+const TempActivityAnalysis = require('../model/TempActivityAnalysis');
+const ActivityRecommendation = require('../model/ActivityRecommendation');
 const crypto = require('crypto');
 const path = require('path');
 
@@ -79,9 +81,7 @@ exports.saveChildBasicInfo = async (req, res) => {
       school_info,
       photo,
       city,
-      address,
-      location_lat,    
-      location_lng   
+      address
     } = req.body;
 
     if (!full_name || !date_of_birth || !gender) {
@@ -108,15 +108,26 @@ exports.saveChildBasicInfo = async (req, res) => {
       });
     }
 
-    let childCoords = null;
-    if (location_lat && location_lng) {
-      childCoords = { lat: parseFloat(location_lat), lng: parseFloat(location_lng) };
-    } else if (address || city) {
-      childCoords = await GeocodingService.geocodeAddress(address || city);
-    }
-
     const User = require('../model/User');
     const Parent = require('../model/Parent');
+
+    const parentUser = await User.findByPk(parentId, {
+      attributes: ['location_lat', 'location_lng', 'location_address', 'city']
+    });
+
+    const parentLat = parentUser?.location_lat != null ? parseFloat(parentUser.location_lat) : null;
+    const parentLng = parentUser?.location_lng != null ? parseFloat(parentUser.location_lng) : null;
+
+    if (!parentLat || !parentLng) {
+      return res.status(400).json({
+        success: false,
+        message: 'Parent location is not set. Please update your location in your profile before adding a child.'
+      });
+    }
+
+    const childCoords = { lat: parentLat, lng: parentLng };
+    const derivedAddress = parentUser?.location_address || null;
+    const derivedCity = parentUser?.city || null;
     
     const parent = await Parent.findOne({
       where: { parent_id: parentId },
@@ -139,8 +150,8 @@ exports.saveChildBasicInfo = async (req, res) => {
       date_of_birth,
       gender,
       child_identifier: child_identifier || null,
-      address: address || null,
-      city: city || null,
+      address: derivedAddress,
+      city: derivedCity,
       parent_phone: parent.User.phone, 
       school_info: school_info || null,
       photo: photo || '',
@@ -155,8 +166,8 @@ exports.saveChildBasicInfo = async (req, res) => {
       message: 'Basic information saved successfully',
       child_id: tempChild.child_id,
       child_location: childCoords ? {
-        address: address,
-        city: city,
+        address: derivedAddress,
+        city: derivedCity,
         coordinates: childCoords
       } : null,
       next_step: 'medical_info',
@@ -1049,6 +1060,7 @@ function getTierLabel(tier) {
   };
   return labels[tier] || 'غير محدد';
 }
+
 // ================= Helper Function: Calculate Recommendations =================
 
 const normalizeToArray = (value) => {
@@ -1494,14 +1506,26 @@ exports.addChild = async (req, res) => {
       });
     }
 
-    let childCoords = null;
-    if (location_lat && location_lng) {
-      childCoords = { lat: parseFloat(location_lat), lng: parseFloat(location_lng) };
-      console.log('📍Direct coordinates were received:', childCoords);
-    } else if (address || city) {
-      childCoords = await GeocodingService.geocodeAddress(address || city);
-      console.log('📍Coordinates were obtained from Geocoding:', childCoords);
+    const User = require('../model/User');
+    const Parent = require('../model/Parent');
+
+    const parentUserForLocation = await User.findByPk(parentId, {
+      attributes: ['location_lat', 'location_lng', 'location_address', 'city']
+    });
+
+    const parentLat = parentUserForLocation?.location_lat != null ? parseFloat(parentUserForLocation.location_lat) : null;
+    const parentLng = parentUserForLocation?.location_lng != null ? parseFloat(parentUserForLocation.location_lng) : null;
+
+    if (!parentLat || !parentLng) {
+      return res.status(400).json({
+        success: false,
+        message: 'Parent location is not set. Please update your location in your profile before adding a child.'
+      });
     }
+
+    const childCoords = { lat: parentLat, lng: parentLng };
+    const derivedAddress = parentUserForLocation?.location_address || null;
+    const derivedCity = parentUserForLocation?.city || null;
 
     let aiAnalysis = null;
     let recommendedInstitutions = [];
@@ -1519,8 +1543,8 @@ exports.addChild = async (req, res) => {
         recommendedInstitutions = await exports.getRecommendedInstitutions(
           null,
           aiAnalysis.suggested_conditions.map(c => c.name),
-          city,
-          address
+          derivedCity,
+          derivedAddress
         );
       }
     }
@@ -1594,12 +1618,12 @@ exports.addChild = async (req, res) => {
       photo: photo || '',
       
       ai_suggested_diagnosis: aiAnalysis ? aiAnalysis.suggested_conditions : null,
-      ai_confidence_score: aiAnalysis ? aiAnalysis.analysis_confidence : null,
+      ai_confidence_score: aiAnalysis ? aiAnalysis.risk_level : null,
       risk_level: aiAnalysis ? aiAnalysis.risk_level : null,
 
       child_identifier: child_identifier || null,
-      city: city || null,
-      address: address || null,
+      city: derivedCity,
+      address: derivedAddress,
       parent_phone: parent_phone || null,
       school_info: school_info || null,
       previous_services: previous_services || null,
@@ -1873,15 +1897,7 @@ exports.getRegistrationStatus = async (req, res) => {
 
     console.log('Fetching registration status for child:', id);
 
-    const child = await Child.findOne({
-      where: { 
-        child_id: id, 
-        parent_id: parentId,
-        deleted_at: null 
-      },
-      attributes: ['child_id', 'full_name', 'registration_status', 'current_institution_id']
-    });
-
+    const child = await Child.findByPk(id);
     if (!child) {
       return res.status(404).json({ message: 'Child not found' });
     }
@@ -1932,20 +1948,66 @@ exports.getRegistrationStatus = async (req, res) => {
   }
 };
 
+// ================= UPLOAD CHILD PHOTO (BASIC INFO) =================
+exports.uploadChildPhoto = async (req, res) => {
+  try {
+    const childId = req.params.id;
+    const parentId = req.user.user_id;
+
+    const child = await Child.findOne({
+      where: {
+        child_id: childId,
+        parent_id: parentId
+      }
+    });
+
+    if (!child) {
+      return res.status(404).json({
+        success: false,
+        message: 'Child not found'
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded'
+      });
+    }
+
+    const relativePhotoPath = `/uploads/children/${childId}/${req.file.filename}`;
+    const protocol = req.protocol;
+    const host = req.get('host');
+    const photoUrl = `${protocol}://${host}${relativePhotoPath}`;
+    await child.update({ photo: photoUrl });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Child photo uploaded successfully',
+      photo: photoUrl
+    });
+  } catch (error) {
+    console.error('Error uploading child photo:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to upload child photo',
+      error: error.message
+    });
+  }
+};
+
 // ================= UPDATE CHILD =================
 exports.updateChild = async (req, res) => {
   try {
     const childId = req.params.id;
     const parentId = req.user.user_id;
+
     const { 
       full_name, 
       date_of_birth, 
       gender, 
-      diagnosis_id, 
-      photo, 
-      medical_history,
-      suspected_condition,
-      symptoms_description
+      child_identifier,
+      school_info
     } = req.body;
 
     const child = await Child.findOne({
@@ -1959,25 +2021,31 @@ exports.updateChild = async (req, res) => {
       return res.status(404).json({ message: 'Child not found' });
     }
 
-    await child.update({
-      full_name: full_name,
-      date_of_birth: date_of_birth,
-      gender: gender,
-      diagnosis_id: diagnosis_id,
-      photo: photo || child.photo,
-      medical_history: medical_history || child.medical_history,
-      suspected_condition: suspected_condition || child.suspected_condition,
-      symptoms_description: symptoms_description || child.symptoms_description
+    const User = require('../model/User');
+    const parentUser = await User.findByPk(parentId, {
+      attributes: ['location_lat', 'location_lng', 'location_address', 'city']
     });
 
-    let aiAnalysis = null;
-    if (symptoms_description && symptoms_description !== child.symptoms_description) {
-      aiAnalysis = await AIAnalysisService.analyzeSymptoms(symptoms_description, medical_history);
-      await child.update({
-        ai_suggested_diagnosis: aiAnalysis ? aiAnalysis.suggested_conditions : null,
-        ai_confidence_score: aiAnalysis ? aiAnalysis.risk_level : null
-      });
-    }
+    const parentLat = parentUser?.location_lat != null ? parseFloat(parentUser.location_lat) : null;
+    const parentLng = parentUser?.location_lng != null ? parseFloat(parentUser.location_lng) : null;
+    const derivedAddress = parentUser?.location_address || null;
+    const derivedCity = parentUser?.city || null;
+
+    await child.update({
+      full_name: full_name ?? child.full_name,
+      date_of_birth: date_of_birth ?? child.date_of_birth,
+      gender: gender ?? child.gender,
+      child_identifier: child_identifier ?? child.child_identifier,
+      school_info: school_info ?? child.school_info,
+      ...(parentLat != null && parentLng != null
+        ? {
+            location_lat: parentLat,
+            location_lng: parentLng,
+            address: derivedAddress,
+            city: derivedCity,
+          }
+        : {})
+    });
 
     const updatedChild = await Child.findByPk(childId, {
       include: [
@@ -2049,20 +2117,54 @@ exports.deleteChild = async (req, res) => {
     }
 
     await child.update({
-      deleted_at: new Date(),
-      registration_status: 'Archived'
+      visibility_status: 'hide'
     });
 
     res.status(200).json({ 
-      message: 'Child archived successfully',
+      message: 'Child hidden successfully',
       child_id: childId
     });
 
   } catch (error) {
-    console.error('Error archiving child:', error);
+    console.error('Error hiding child:', error);
     res.status(500).json({ 
-      message: 'Failed to archive child', 
+      message: 'Failed to hide child', 
       error: error.message 
+    });
+  }
+};
+
+// ================= UNHIDE CHILD =================
+exports.unhideChild = async (req, res) => {
+  try {
+    const childId = req.params.id;
+    const parentId = req.user.user_id;
+
+    const child = await Child.findOne({
+      where: {
+        child_id: childId,
+        parent_id: parentId,
+        deleted_at: null
+      }
+    });
+
+    if (!child) {
+      return res.status(404).json({ message: 'Child not found or already deleted' });
+    }
+
+    await child.update({
+      visibility_status: 'active'
+    });
+
+    res.status(200).json({
+      message: 'Child unhidden successfully',
+      child_id: childId
+    });
+  } catch (error) {
+    console.error('Error unhiding child:', error);
+    res.status(500).json({
+      message: 'Failed to unhide child',
+      error: error.message
     });
   }
 };
@@ -2318,6 +2420,448 @@ exports.deleteMedicalDocument = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to delete document',
+      error: error.message
+    });
+  }
+};
+
+// ================= ACTIVITY RECOMMENDATION FUNCTIONS =================
+
+/**
+ * رفع مستند لتحليل الأنشطة
+ */
+exports.uploadActivityDocument = async (req, res) => {
+  try {
+    const parentId = req.user.user_id;
+    const childId = req.params.id;
+
+    console.log('📤 طلب رفع مستند للأنشطة:', { parentId, childId });
+
+    // التحقق من وجود الطفل
+    const child = await Child.findOne({
+      where: { child_id: childId, parent_id: parentId }
+    });
+
+    if (!child) {
+      return res.status(404).json({
+        success: false,
+        message: 'Child not found or access denied'
+      });
+    }
+
+    // التحقق من وجود ملف
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded'
+      });
+    }
+
+    const uploadedFile = req.file;
+    console.log('✅ File received for activity analysis:', uploadedFile.originalname);
+
+    // تحليل المستند
+    let extractedText = '';
+    const fileExt = path.extname(uploadedFile.originalname).toLowerCase();
+    
+    if (fileExt === '.pdf') {
+      extractedText = await DocumentAnalysisService.extractTextFromPDF(uploadedFile.path);
+    } else if (['.jpg', '.jpeg', '.png'].includes(fileExt)) {
+      extractedText = await DocumentAnalysisService.extractTextFromImage(uploadedFile.path);
+    } else {
+      // للملفات النصية
+      extractedText = await fs.readFile(uploadedFile.path, 'utf8');
+    }
+
+    console.log(`📝 Extracted text length: ${extractedText.length} chars`);
+
+    // حفظ المستند مؤقتاً للتحليل
+    const documentData = {
+      file_id: `activity_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+      file_name: uploadedFile.originalname,
+      file_path: uploadedFile.path,
+      file_type: uploadedFile.mimetype,
+      file_size: uploadedFile.size,
+      uploaded_at: new Date(),
+      extracted_text_preview: extractedText.substring(0, 500)
+    };
+
+    // حفظ في قاعدة البيانات (مؤقت)
+    const tempAnalysis = await TempActivityAnalysis.create({
+      child_id: childId,
+      parent_id: parentId,
+      document_data: documentData,
+      extracted_text: extractedText,
+      status: 'uploaded'
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Document uploaded successfully for activity analysis',
+      analysis_id: tempAnalysis.analysis_id,
+      preview: extractedText.substring(0, 300),
+      next_step: 'analyze_for_activities'
+    });
+
+  } catch (error) {
+    console.error('❌ Error uploading activity document:', error);
+    
+    // حذف الملف إذا تم رفعه
+    if (req.file && req.file.path) {
+      await FileUploadService.deleteFile(req.file.path);
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to upload document for activity analysis',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * تحليل المستند وتوليد أنشطة
+ */
+exports.analyzeForActivities = async (req, res) => {
+  try {
+    const parentId = req.user.user_id;
+    const childId = req.params.id;
+    const { analysis_id } = req.body;
+
+    console.log('🎮 بدء تحليل الأنشطة:', { childId, analysis_id });
+
+    // التحقق من وجود الطفل
+    const child = await Child.findOne({
+      where: { child_id: childId, parent_id: parentId },
+      attributes: ['child_id', 'full_name', 'date_of_birth', 'gender', 'diagnosis_id', 'medical_documents']
+    });
+
+    if (!child) {
+      return res.status(404).json({
+        success: false,
+        message: 'Child not found'
+      });
+    }
+
+    // جلب النص المستخرج (إما من analysis_id أو من child documents)
+    let documentText = '';
+    
+    if (analysis_id) {
+      const tempAnalysis = await TempActivityAnalysis.findOne({
+        where: { analysis_id, child_id: childId, parent_id: parentId }
+      });
+      
+      if (tempAnalysis) {
+        documentText = tempAnalysis.extracted_text || '';
+      }
+    }
+    
+    // إذا لم يكن هناك نص، نحاول من مستندات الطفل السابقة
+    if (!documentText || documentText.length < 50) {
+      if (child.medical_documents) {
+        const docs = child.medical_documents;
+        if (Array.isArray(docs) && docs.length > 0) {
+          // أخذ أحدث مستند
+          const latestDoc = docs[docs.length - 1];
+          if (latestDoc.extracted_text_preview) {
+            documentText = latestDoc.extracted_text_preview;
+          }
+        }
+      }
+    }
+
+    // إذا لا يزال لا يوجد نص، نستخدم معلومات الطفل الأساسية
+    if (!documentText || documentText.length < 50) {
+      const diagnosis = await Diagnosis.findByPk(child.diagnosis_id);
+      documentText = `Child: ${child.full_name}, Age: ${exports.calculateAge(child.date_of_birth)} years, Gender: ${child.gender}, Condition: ${diagnosis?.name || 'Not specified'}`;
+    }
+
+    // معلومات الطفل
+    const childInfo = {
+      id: child.child_id,
+      name: child.full_name,
+      age: exports.calculateAge(child.date_of_birth),
+      gender: child.gender,
+      diagnosis: child.diagnosis_id ? (await Diagnosis.findByPk(child.diagnosis_id))?.name : null
+    };
+
+    // استدعاء خدمة تحليل الأنشطة
+    const ActivityAnalysisService = require('../services/activityAnalysisService');
+    const analysisResult = await ActivityAnalysisService.analyzeForActivities(
+      childId, 
+      documentText, 
+      childInfo
+    );
+
+    const savedActivities = [];
+    const savedIds = [];
+
+    // حفظ التوصيات في قاعدة البيانات
+    if (analysisResult.success && analysisResult.activities && analysisResult.activities.length > 0) {
+      for (const activity of analysisResult.activities) {
+        try {
+          const recommendation = await ActivityRecommendation.create({
+            child_id: parseInt(childId),
+            parent_id: parseInt(parentId),
+            activity_type: activity.activity_type || 'cognitive_skills',
+            title_ar: activity.title_ar || 'نشاط تفاعلي',
+            title_en: activity.title_en || 'Interactive Activity',
+            description_ar: activity.description_ar || 'وصف النشاط',
+            description_en: activity.description_en || 'Activity description',
+            materials_ar: activity.materials_ar || '',
+            materials_en: activity.materials_en || '',
+            duration_minutes: activity.duration_minutes || 10,
+            difficulty_level: activity.difficulty_level || 'beginner',
+            target_skills_ar: activity.target_skills_ar || 'تنمية المهارات',
+            target_skills_en: activity.target_skills_en || 'Skill development',
+            ai_generated: true,
+            based_on_document: analysis_id || 'child_info',
+            document_analysis_summary: JSON.stringify(analysisResult.child_condition || {}),
+            status: 'suggested'
+          });
+          
+          savedActivities.push({
+            ...activity,
+            id: recommendation.recommendation_id,
+            recommendation_id: recommendation.recommendation_id
+          });
+          
+          savedIds.push(recommendation.recommendation_id);
+          
+        } catch (saveError) {
+          console.error('❌ Error saving activity:', saveError);
+          // نستمر في حفظ الأنشطة الأخرى حتى لو فشل أحدها
+          savedActivities.push({
+            ...activity,
+            id: null,
+            error: 'Failed to save to database'
+          });
+        }
+      }
+    }
+
+    // حذف التحليل المؤقت إذا كان موجوداً
+    if (analysis_id) {
+      await TempActivityAnalysis.destroy({
+        where: { analysis_id, child_id: childId }
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Activity analysis completed successfully',
+      child_info: childInfo,
+      analysis: analysisResult.child_condition || {},
+      recommendations: savedActivities,
+      total_recommendations: savedActivities.length,
+      saved_count: savedActivities.filter(a => a.id).length,
+      saved_ids: savedIds,
+      next_steps: [
+        'Review the suggested activities',
+        'Start with beginner-level activities',
+        'Track your child\'s progress',
+        'Adjust difficulty based on child\'s response'
+      ]
+    });
+
+  } catch (error) {
+    console.error('❌ Error analyzing for activities:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to analyze for activities',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * جلب الأنشطة المقترحة للطفل
+ */
+exports.getActivityRecommendations = async (req, res) => {
+  try {
+    const parentId = req.user.user_id;
+    const childId = req.params.id;
+    const { status, activity_type, limit = 20, page = 1 } = req.query;
+
+    const whereClause = { child_id: childId, parent_id: parentId };
+    
+    if (status) whereClause.status = status;
+    if (activity_type) whereClause.activity_type = activity_type;
+
+    const offset = (page - 1) * limit;
+
+    const { count, rows: recommendations } = await ActivityRecommendation.findAndCountAll({
+      where: whereClause,
+      order: [['created_at', 'DESC']],
+      limit: parseInt(limit),
+      offset: offset
+    });
+
+    const formattedRecommendations = recommendations.map(rec => ({
+      id: rec.recommendation_id,
+      activity_type: rec.activity_type,
+      title_ar: rec.title_ar,
+      title_en: rec.title_en,
+      description_ar: rec.description_ar,
+      description_en: rec.description_en,
+      materials_ar: rec.materials_ar,
+      materials_en: rec.materials_en,
+      duration_minutes: rec.duration_minutes,
+      difficulty_level: rec.difficulty_level,
+      target_skills_ar: rec.target_skills_ar,
+      target_skills_en: rec.target_skills_en,
+      status: rec.status,
+      created_at: rec.created_at,
+      completed_at: rec.completed_at,
+      parent_rating: rec.parent_rating,
+      child_engagement: rec.child_engagement,
+      is_ai_generated: rec.ai_generated
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: formattedRecommendations,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: count,
+        total_pages: Math.ceil(count / limit)
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching activity recommendations:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch activity recommendations',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * تحديث حالة النشاط (بدء/إكمال/تقييم)
+ */
+exports.updateActivityStatus = async (req, res) => {
+  try {
+    const parentId = req.user.user_id;
+    const { id: childId, activityId } = req.params;
+    const { status, parent_rating, child_engagement, notes } = req.body;
+
+    // التحقق من ملكية النشاط
+    const activity = await ActivityRecommendation.findOne({
+      where: {
+        recommendation_id: activityId,
+        child_id: childId,
+        parent_id: parentId
+      }
+    });
+
+    if (!activity) {
+      return res.status(404).json({
+        success: false,
+        message: 'Activity not found or access denied'
+      });
+    }
+
+    const updateData = {};
+    if (status) {
+      updateData.status = status;
+      if (status === 'completed') {
+        updateData.completed_at = new Date();
+      }
+    }
+    if (parent_rating !== undefined) updateData.parent_rating = parent_rating;
+    if (child_engagement) updateData.child_engagement = child_engagement;
+    if (notes) updateData.parent_notes = notes;
+
+    await activity.update(updateData);
+
+    res.status(200).json({
+      success: true,
+      message: 'Activity status updated successfully',
+      activity: {
+        id: activity.recommendation_id,
+        title_ar: activity.title_ar,
+        status: activity.status,
+        completed_at: activity.completed_at,
+        parent_rating: activity.parent_rating
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error updating activity status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update activity status',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * تحليل سريع بدون مستند (بناءً على معلومات الطفل)
+ */
+exports.quickActivityAnalysis = async (req, res) => {
+  try {
+    const parentId = req.user.user_id;
+    const childId = req.params.id;
+
+    const child = await Child.findOne({
+      where: { child_id: childId, parent_id: parentId },
+      include: [{
+        model: Diagnosis,
+        as: 'Diagnosis',
+        attributes: ['name']
+      }]
+    });
+
+    if (!child) {
+      return res.status(404).json({
+        success: false,
+        message: 'Child not found'
+      });
+    }
+
+    const childInfo = {
+      name: child.full_name,
+      age: exports.calculateAge(child.date_of_birth),
+      gender: child.gender,
+      condition: child.Diagnosis?.name || 'developmental delay',
+      symptoms: child.symptoms_description || ''
+    };
+
+    // إنشاء نص افتراضي للتحليل
+    const mockDocumentText = `
+Child Assessment Summary:
+Name: ${childInfo.name}
+Age: ${childInfo.age} years
+Gender: ${childInfo.gender}
+Primary Condition: ${childInfo.condition}
+Key Observations: ${childInfo.symptoms || 'General developmental delay noted. Needs support in various skill areas.'}
+Recommendations: Focus on age-appropriate activities to support overall development.
+`;
+
+    const ActivityAnalysisService = require('../services/activityAnalysisService');
+    const analysisResult = await ActivityAnalysisService.analyzeForActivities(
+      childId, 
+      mockDocumentText, 
+      childInfo
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Quick activity analysis completed',
+      child_info: childInfo,
+      recommendations: analysisResult.activities.slice(0, 6), // 6 أنشطة كحد أقصى للتحليل السريع
+      note: 'These are general recommendations. For personalized activities, upload a medical/assessment document.'
+    });
+
+  } catch (error) {
+    console.error('❌ Error in quick activity analysis:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to perform quick analysis',
       error: error.message
     });
   }

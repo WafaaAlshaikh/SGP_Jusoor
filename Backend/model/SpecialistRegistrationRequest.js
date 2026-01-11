@@ -10,7 +10,10 @@ const SpecialistRegistrationRequest = sequelize.define('SpecialistRegistrationRe
   specialization: { type: DataTypes.STRING(100), allowNull: false },
   years_experience: { type: DataTypes.INTEGER },
   cv_url: { type: DataTypes.STRING(500) },
-  status: { type: DataTypes.ENUM('Pending', 'Approved', 'Rejected'), defaultValue: 'Pending' },
+  status: { 
+  type: DataTypes.ENUM('Pending', 'Interview', 'Approved', 'Rejected'), 
+  defaultValue: 'Pending' 
+},
   requested_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
   reviewed_by: { type: DataTypes.BIGINT.UNSIGNED },
   reviewed_at: { type: DataTypes.DATE }

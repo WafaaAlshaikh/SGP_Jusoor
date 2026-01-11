@@ -1,6 +1,9 @@
 import 'dart:convert';
 
+import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_stripe/flutter_stripe.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:frontend/screens/admin/app_content_management.dart';
@@ -36,6 +39,7 @@ import 'screens/admin/donation_management.dart';
 import 'screens/admin/report_management.dart';
 import 'screens/admin/system_settings.dart';
 import 'screens/manager/manager_onboarding_screen.dart';
+import 'services/reminder_service.dart';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -74,7 +78,18 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 // 📌 MAIN
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
+  Stripe.publishableKey = dotenv.env['STRIPE_PUBLISHABLE_KEY'] ?? '';
+  
+  // ⚙️ إعدادات إضافية (اختياري)
+  Stripe.merchantIdentifier = 'merchant.com.jusoor'; 
+  final reminderService = ReminderService();
+  
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    reminderService.cleanUpPastReminders();
+  });
 
+ 
   // اللغة
   final locale = await LanguageService.getLocale();
 
@@ -142,6 +157,10 @@ Future<void> _setupSimpleNotifications() async {
         case 'schedule_change':
           _handleScheduleNotification(message);
           break;
+        case 'child_auto_approved':
+        case 'child_auto_approved_with_session':
+          _handleChildAutoApprovalNotification(message);
+          break;  
         case 'session_cancelled':
           _handleSessionCancelledNotification(message);
           break;
@@ -151,18 +170,33 @@ Future<void> _setupSimpleNotifications() async {
         case 'session_reschedule_request':
           _handleRescheduleRequestNotification(message);
           break;
+        case 'session_rescheduled':
+          _handleSessionRescheduledNotification(message); // 🔴 NEW
+          break;
         case 'session_approved':
-          _handleSessionApprovedNotification(message);
+          _handleSessionApprovedNotification(message); // 🔴 UPDATED
           break;
         case 'session_rejected':
-          _handleSessionRejectedNotification(message);
+          _handleSessionRejectedNotification(message); // 🔴 UPDATED
+          break;
+        case 'session_confirmed':
+          _handleSessionConfirmedNotification(message); // 🔴 NEW
+          break;
+        case 'payment_received':
+          _handlePaymentReceivedNotification(message); // 🔴 NEW
+          break;
+        case 'new_session_pending':
+          _handleNewSessionPendingNotification(message); // 🔴 NEW
           break;
         case 'session_completed_bulk':
-          _handleBulkCompletedNotification(message);
+           _handleBulkCompletedNotification(message);
           break;
         case 'specialist_daily_summary':
           _handleSpecialistSummaryNotification(message);
           break;
+        case 'manager_notification':
+          _handleManagerNotification(message);
+          break;  
         default:
           _showSimpleLocalNotification(message);
       }
@@ -172,6 +206,381 @@ Future<void> _setupSimpleNotifications() async {
   } catch (e) {
     print('⚠️ خطأ في إعداد الإشعارات المبسطة: $e');
   }
+}
+
+
+// 📌 معالجة إشعار تأجيل الجلسة
+void _handleSessionRescheduledNotification(RemoteMessage message) {
+  print('🔄 Handling session rescheduled notification');
+  
+  final data = message.data;
+  print('   Session ID: ${data['session_id']}');
+  print('   Child: ${data['child_name']}');
+  print('   Old Date/Time: ${data['old_date']} ${data['old_time']}');
+  print('   New Date/Time: ${data['new_date']} ${data['new_time']}');
+  print('   Status: ${data['status']}');
+
+  _showSessionRescheduledNotification(message);
+}
+
+// 📌 عرض إشعار تأجيل الجلسة
+Future<void> _showSessionRescheduledNotification(RemoteMessage message) async {
+  try {
+    final notification = message.notification;
+    final data = message.data;
+
+    if (notification == null) return;
+
+    String? sessionId = data['session_id'];
+    String? childName = data['child_name'];
+    String? oldDate = data['old_date'];
+    String? oldTime = data['old_time'];
+    String? newDate = data['new_date'];
+    String? newTime = data['new_time'];
+    String? status = data['status'];
+    String? note = data['note'];
+
+    String notificationTitle = notification.title ?? 'Session Rescheduled';
+    String notificationBody = notification.body ?? '';
+
+    if (notificationBody.isEmpty) {
+      notificationBody = 'Session for $childName has been rescheduled';
+      if (oldDate != null && oldTime != null) {
+        notificationBody += '\nFrom: $oldDate $oldTime';
+      }
+      if (newDate != null && newTime != null) {
+        notificationBody += '\nTo: $newDate $newTime';
+      }
+      if (status != null && status == 'Pending Approval') {
+        notificationBody += '\n⚠️ Awaiting your approval';
+      }
+    }
+
+    await _showSessionStyleNotification(
+      title: notificationTitle,
+      body: notificationBody,
+      data: data,
+      channelId: 'session_channel',
+      color: const Color(0xFFFF9800), // برتقالي للتأجيل
+    );
+
+    print('📱 Session rescheduled notification shown');
+  } catch (e) {
+    print('⚠️ Error showing session rescheduled notification: $e');
+  }
+}
+
+// 📌 معالجة إشعار موافقة على الجلسة (محدث)
+void _handleSessionApprovedNotification(RemoteMessage message) {
+  print('✅ Handling session approved notification');
+  
+  final data = message.data;
+  print('   Session ID: ${data['session_id']}');
+  print('   Child: ${data['child_name']}');
+  print('   Date/Time: ${data['date']} ${data['time']}');
+  print('   Financial Aid: ${data['financial_aid_applied']}');
+  print('   Discount: ${data['discount_percentage']}%');
+
+  _showSessionApprovedNotification(message);
+}
+
+// 📌 عرض إشعار موافقة على الجلسة (محدث)
+Future<void> _showSessionApprovedNotification(RemoteMessage message) async {
+  try {
+    final notification = message.notification;
+    final data = message.data;
+
+    if (notification == null) return;
+
+    String? childName = data['child_name'];
+    String? financialAidApplied = data['financial_aid_applied'];
+    String? discountPercentage = data['discount_percentage'];
+    String? finalPrice = data['final_price'];
+
+    String notificationTitle = notification.title ?? 'Session Approved';
+    String notificationBody = notification.body ?? '';
+
+    if (notificationBody.isEmpty) {
+      notificationBody = 'Session for $childName has been approved';
+      if (financialAidApplied == 'true' && discountPercentage != null) {
+        notificationBody += '\n✅ Discount applied: $discountPercentage%';
+        if (finalPrice == '0') {
+          notificationBody += '\n🎉 Session is now FREE!';
+        }
+      }
+    }
+
+    await _showSessionStyleNotification(
+      title: notificationTitle,
+      body: notificationBody,
+      data: data,
+      channelId: 'session_channel',
+      color: const Color(0xFF4CAF50), // أخضر للموافقة
+    );
+
+    print('📱 Session approved notification shown');
+  } catch (e) {
+    print('⚠️ Error showing session approved notification: $e');
+  }
+}
+
+// 📌 معالجة إشعار رفض الجلسة (محدث)
+void _handleSessionRejectedNotification(RemoteMessage message) {
+  print('❌ Handling session rejected notification');
+  
+  final data = message.data;
+  print('   Session ID: ${data['session_id']}');
+  print('   Child: ${data['child_name']}');
+  print('   Date/Time: ${data['date']} ${data['time']}');
+
+  _showSessionRejectedNotification(message);
+}
+
+// 📌 معالجة إشعار تأكيد الجلسة
+void _handleSessionConfirmedNotification(RemoteMessage message) {
+  print('✅ Handling session confirmed notification');
+  
+  final data = message.data;
+  print('   Session ID: ${data['session_id']}');
+  print('   Child: ${data['child_name']}');
+  print('   Date/Time: ${data['date']} ${data['time']}');
+  print('   Free Session: ${data['free_session']}');
+
+  _showSessionConfirmedNotification(message);
+}
+
+// 📌 عرض إشعار تأكيد الجلسة
+Future<void> _showSessionConfirmedNotification(RemoteMessage message) async {
+  try {
+    final notification = message.notification;
+    final data = message.data;
+
+    if (notification == null) return;
+
+    String? childName = data['child_name'];
+    String? freeSession = data['free_session'];
+    String? discountPercentage = data['discount_percentage'];
+
+    String notificationTitle = notification.title ?? 'Session Confirmed';
+    String notificationBody = notification.body ?? '';
+
+    if (notificationBody.isEmpty) {
+      notificationBody = 'Session for $childName has been confirmed';
+      if (freeSession == 'true') {
+        notificationBody += '\n🎉 Session is FREE!';
+      } else if (discountPercentage != null && discountPercentage != '0') {
+        notificationBody += '\n✅ Discount: $discountPercentage%';
+      }
+    }
+
+    await _showSessionStyleNotification(
+      title: notificationTitle,
+      body: notificationBody,
+      data: data,
+      channelId: 'session_channel',
+      color: const Color(0xFF2196F3), // أزرق للتأكيد
+    );
+
+    print('📱 Session confirmed notification shown');
+  } catch (e) {
+    print('⚠️ Error showing session confirmed notification: $e');
+  }
+}
+
+// 📌 معالجة إشعار استلام الدفع
+void _handlePaymentReceivedNotification(RemoteMessage message) {
+  print('💰 Handling payment received notification');
+  
+  final data = message.data;
+  print('   Session ID: ${data['session_id']}');
+  print('   Child: ${data['child_name']}');
+  print('   Amount: ${data['amount']}');
+
+  _showPaymentReceivedNotification(message);
+}
+
+// 📌 عرض إشعار استلام الدفع
+Future<void> _showPaymentReceivedNotification(RemoteMessage message) async {
+  try {
+    final notification = message.notification;
+    final data = message.data;
+
+    if (notification == null) return;
+
+    String? childName = data['child_name'];
+    String? amount = data['amount'];
+
+    String notificationTitle = notification.title ?? 'Payment Received';
+    String notificationBody = notification.body ?? '';
+
+    if (notificationBody.isEmpty) {
+      notificationBody = 'Payment received for session with $childName';
+      if (amount != null) {
+        notificationBody += '\nAmount: \$$amount';
+      }
+    }
+
+    await _showSessionStyleNotification(
+      title: notificationTitle,
+      body: notificationBody,
+      data: data,
+      channelId: 'payment_channel',
+      color: const Color(0xFF009688), // تركواز للدفع
+    );
+
+    print('📱 Payment received notification shown');
+  } catch (e) {
+    print('⚠️ Error showing payment received notification: $e');
+  }
+}
+
+// 📌 معالجة إشعار جلسة جديدة بحاجة للموافقة
+void _handleNewSessionPendingNotification(RemoteMessage message) {
+  print('📋 Handling new session pending notification');
+  
+  final data = message.data;
+  print('   Session ID: ${data['session_id']}');
+  print('   Child: ${data['child_name']}');
+  print('   Date/Time: ${data['date']} ${data['time']}');
+  print('   Session Type: ${data['session_type']}');
+
+  _showNewSessionPendingNotification(message);
+}
+
+// 📌 عرض إشعار جلسة جديدة بحاجة للموافقة
+Future<void> _showNewSessionPendingNotification(RemoteMessage message) async {
+  try {
+    final notification = message.notification;
+    final data = message.data;
+
+    if (notification == null) return;
+
+    String? childName = data['child_name'];
+    String? date = data['date'];
+    String? time = data['time'];
+    String? sessionType = data['session_type'];
+    String? hasFinancialAid = data['has_financial_aid'];
+
+    String notificationTitle = notification.title ?? 'New Session Pending';
+    String notificationBody = notification.body ?? '';
+
+    if (notificationBody.isEmpty) {
+      notificationBody = 'New session request for $childName';
+      if (date != null && time != null) {
+        notificationBody += '\n📅 $date at $time';
+      }
+      if (sessionType != null) {
+        notificationBody += '\n🎯 Type: $sessionType';
+      }
+      if (hasFinancialAid == 'true') {
+        notificationBody += '\n💰 Financial aid applied';
+      }
+    }
+
+    await _showSessionStyleNotification(
+      title: notificationTitle,
+      body: notificationBody,
+      data: data,
+      channelId: 'pending_sessions_channel',
+      color: const Color(0xFF9C27B0), // بنفسجي للطلبات الجديدة
+    );
+
+    print('📱 New session pending notification shown');
+  } catch (e) {
+    print('⚠️ Error showing new session pending notification: $e');
+  }
+}
+
+// 📌 عرض إشعار للمدير
+Future<void> _showManagerNotification(RemoteMessage message) async {
+  try {
+    final notification = message.notification;
+    final data = message.data;
+
+    if (notification == null) return;
+
+    // إنشاء قناة خاصة بالمدير
+    const managerChannel = AndroidNotificationChannel(
+      'manager_channel',
+      'Manager Notifications',
+      description: 'Notifications for managers',
+      importance: Importance.high,
+    );
+
+    final androidPlugin = flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+
+    if (androidPlugin != null) {
+      await androidPlugin.createNotificationChannel(managerChannel);
+    }
+
+    // تخصيص الألوان حسب نوع الإشعار
+    Color color = const Color(0xFF2196F3); // أزرق افتراضي
+    
+    if (data['type'] == 'child_auto_approved') {
+      color = const Color(0xFF4CAF50); // أخضر
+    } else if (data['type'] == 'manager_schedule_change') {
+      color = const Color(0xFFFF9800); // برتقالي
+    }
+
+    // عرض الإشعار
+    await flutterLocalNotificationsPlugin.show(
+      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      notification.title ?? 'Manager Notification',
+      notification.body ?? '',
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          managerChannel.id,
+          managerChannel.name,
+          channelDescription: managerChannel.description,
+          importance: managerChannel.importance,
+          priority: Priority.high,
+          playSound: true,
+          enableVibration: true,
+          styleInformation: BigTextStyleInformation(
+            notification.body ?? '',
+          ),
+          icon: '@mipmap/ic_launcher',
+          color: color,
+        ),
+      ),
+      payload: json.encode(data),
+    );
+
+    print('📱 Manager notification shown');
+  } catch (e) {
+    print('⚠️ Error showing manager notification: $e');
+  }
+}
+
+// 📌 معالجة إشعارات المدير العامة
+void _handleManagerNotification(RemoteMessage message) {
+  print('👨‍💼 Handling general manager notification');
+  _showManagerNotification(message);
+}
+
+// 📌 دالة مساعدة لتحليل بيانات الإشعار
+Map<String, dynamic> _parseNotificationData(RemoteMessage message) {
+  final data = message.data;
+  final notification = message.notification;
+  
+  return {
+    'title': notification?.title ?? 'Notification',
+    'body': notification?.body ?? '',
+    'type': data['notificationType'] ?? data['type'] ?? 'general',
+    'child_name': data['child_name'],
+    'institution_name': data['institution_name'],
+    'specialist_name': data['specialist_name'],
+    'session_date': data['session_date'],
+    'session_time': data['session_time'],
+    'session_id': data['session_id'],
+    'child_id': data['child_id'],
+    'action': data['action'],
+    'day_of_week': data['day_of_week'],
+    'start_time': data['start_time'],
+    'end_time': data['end_time'],
+    'timestamp': DateTime.now().toIso8601String(),
+  };
 }
 
 // 📌 معالجة إشعار الجلسة الجديدة
@@ -356,38 +765,38 @@ Future<void> _showRescheduleRequestNotification(RemoteMessage message) async {
 }
 
 // 📌 معالجة إشعار موافقة على الجلسة
-void _handleSessionApprovedNotification(RemoteMessage message) {
-  print('✅ Handling session approved notification');
-  _showSessionApprovedNotification(message);
-}
+// void _handleSessionApprovedNotification(RemoteMessage message) {
+//   print('✅ Handling session approved notification');
+//   _showSessionApprovedNotification(message);
+// }
 
 // 📌 عرض إشعار موافقة على الجلسة
-Future<void> _showSessionApprovedNotification(RemoteMessage message) async {
-  try {
-    final notification = message.notification;
-    final data = message.data;
+// Future<void> _showSessionApprovedNotification(RemoteMessage message) async {
+//   try {
+//     final notification = message.notification;
+//     final data = message.data;
 
-    if (notification == null) return;
+//     if (notification == null) return;
 
-    await _showSessionStyleNotification(
-      title: notification.title ?? 'Session Approved',
-      body: notification.body ?? 'Session has been approved',
-      data: data,
-      channelId: 'session_channel',
-      color: Color(0xFF4CAF50), // أخضر
-    );
+//     await _showSessionStyleNotification(
+//       title: notification.title ?? 'Session Approved',
+//       body: notification.body ?? 'Session has been approved',
+//       data: data,
+//       channelId: 'session_channel',
+//       color: Color(0xFF4CAF50), // أخضر
+//     );
 
-    print('📱 Session approved notification shown');
-  } catch (e) {
-    print('⚠️ Error showing session approved notification: $e');
-  }
-}
+//     print('📱 Session approved notification shown');
+//   } catch (e) {
+//     print('⚠️ Error showing session approved notification: $e');
+//   }
+// }
 
-// 📌 معالجة إشعار رفض الجلسة
-void _handleSessionRejectedNotification(RemoteMessage message) {
-  print('❌ Handling session rejected notification');
-  _showSessionRejectedNotification(message);
-}
+// // 📌 معالجة إشعار رفض الجلسة
+// void _handleSessionRejectedNotification(RemoteMessage message) {
+//   print('❌ Handling session rejected notification');
+//   _showSessionRejectedNotification(message);
+// }
 
 // 📌 عرض إشعار رفض الجلسة
 Future<void> _showSessionRejectedNotification(RemoteMessage message) async {
@@ -443,6 +852,19 @@ Future<void> _showBulkCompletedNotification(RemoteMessage message) async {
 void _handleSpecialistSummaryNotification(RemoteMessage message) {
   print('📈 Handling specialist summary notification');
   _showSpecialistSummaryNotification(message);
+}
+
+// 📌 معالجة إشعار الموافقة التلقائية على الطفل للمدير
+void _handleChildAutoApprovalNotification(RemoteMessage message) {
+  print('✅ Handling child auto approval notification for manager');
+  
+  final data = message.data;
+  print('   Child: ${data['child_name']}');
+  print('   Institution: ${data['institution_name']}');
+  print('   Specialist: ${data['specialist_name']}');
+  print('   Session: ${data['session_date']} ${data['session_time']}');
+
+  _showManagerNotification(message);
 }
 
 // 📌 عرض إشعار ملخص المختص
@@ -859,15 +1281,18 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               Locale('ar'),
             ],
 
+            
+
             // ↔ RTL / LTR
-            builder: (context, child) {
-              return Directionality(
-                textDirection: _locale?.languageCode == 'ar'
-                    ? TextDirection.rtl
-                    : TextDirection.ltr,
-                child: child!,
-              );
-            },
+            // في lib/main.dart حول السطر 872
+// builder: (context, child) {
+//   return Directionality(
+//     textDirection: _locale?.languageCode == 'ar'
+//         ? TextDirection.rtl
+//         : TextDirection.ltr,
+//     child: child!,
+//   );
+// },
 
             debugShowCheckedModeBanner: false,
 

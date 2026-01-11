@@ -124,9 +124,8 @@ class Child {
 
     // معالجة الصورة
     String? photo = json['photo'];
-    if (photo != null && (photo.contains('base64') ||
-        (photo.isNotEmpty && !photo.startsWith('http')))) {
-      photo = ''; // استخدام صورة افتراضية بدلاً من base64
+    if (photo != null && photo.contains('base64')) {
+      photo = '';
     }
 
     // معالجة العمر
@@ -398,6 +397,8 @@ IconData get financialStatusIcon {
   }
   return Icons.money_off;
 }
+
+  void operator [](String other) {}
 
 
 

@@ -328,15 +328,17 @@ class _ParentPaymentDashboardState extends State<ParentPaymentDashboard> with Si
                   unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
                   tabs: [
                     Tab(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.pending_actions, size: 18),
-                          const SizedBox(width:2),
-                          Text('Pending ($_pendingCount)'),
-                        ],
-                      ),
-                    ),
+  child: FittedBox(
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.pending_actions, size: 14),
+        SizedBox(width: 4),
+        Text('Pending ($_pendingCount)'),
+      ],
+    ),
+  ),
+),
                     Tab(
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,

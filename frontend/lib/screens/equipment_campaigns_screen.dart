@@ -224,7 +224,7 @@ class _EquipmentCampaignsScreenState extends State<EquipmentCampaignsScreen> {
     );
   }
 
-  @override
+   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -239,173 +239,226 @@ class _EquipmentCampaignsScreenState extends State<EquipmentCampaignsScreen> {
           await _loadCampaigns();
           await _loadDonorAIRecommendations();
         },
-        child: ListView(
+        child: SingleChildScrollView( // <-- تغيير من ListView إلى SingleChildScrollView
           padding: const EdgeInsets.all(16),
-          children: [
-            const SizedBox(height: 4),
-            if (_isLoadingAI)
-              Container(
-                padding: const EdgeInsets.all(16),
-                color: AppColors.primary.withOpacity(0.06),
-                child: const Row(
-                  children: [
-                    SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    SizedBox(width: 10),
-                    Expanded(child: Text('Loading AI suggestions...')),
-                  ],
-                ),
-              )
-            else if (_aiRecommendations.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.all(16),
-                color: AppColors.primary.withOpacity(0.06),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'AI Suggestions for You',
-                      style: TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    if ((_aiSummary ?? '').trim().isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        _aiSummary!,
-                        style: const TextStyle(color: Colors.black87),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 4),
+              
+              // AI Recommendations Section
+              if (_isLoadingAI)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  color: AppColors.primary.withOpacity(0.06),
+                  child: const Row(
+                    children: [
+                      SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
                       ),
+                      SizedBox(width: 10),
+                      Expanded(child: Text('Loading AI suggestions...')),
                     ],
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      height: 140,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _aiRecommendations.length,
-                        itemBuilder: (context, index) {
-                          final r = _aiRecommendations[index];
-                          final id = r['institution_id'];
-                          final name = (r['name'] ?? '').toString();
-                          final reasons = (r['reasons'] is List)
-                              ? (r['reasons'] as List).map((x) => x.toString()).toList()
-                              : <String>[];
+                  ),
+                )
+              else if (_aiRecommendations.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'AI Suggestions for You',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
+                      ),
+                      if ((_aiSummary ?? '').trim().isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          _aiSummary!,
+                          style: const TextStyle(color: Colors.black87),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      
+                      // تحديد ارتفاع ثابت لـ ListView الأفقي
+                      SizedBox(
+                        height: 160, // <-- ارتفاع محدد لمنع التجاوز
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _aiRecommendations.length,
+                          itemBuilder: (context, index) {
+                            final r = _aiRecommendations[index];
+                            final id = r['institution_id'];
+                            final name = (r['name'] ?? '').toString();
+                            final reasons = (r['reasons'] is List)
+                                ? (r['reasons'] as List).map((x) => x.toString()).toList()
+                                : <String>[];
 
-                          return Container(
-                            width: 300,
-                            margin: EdgeInsets.only(right: index == _aiRecommendations.length - 1 ? 0 : 12),
-                            child: Card(
-                              elevation: 1,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              child: Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      name.isEmpty ? 'Institution' : name,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(fontWeight: FontWeight.w800),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      reasons.isNotEmpty ? reasons.first : 'Suggested for you',
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(color: Colors.grey),
-                                    ),
-                                    const Spacer(),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: OutlinedButton(
-                                            onPressed: id is int
-                                                ? () {
-                                                    Navigator.push(
-                                                      context,
-                                                      MaterialPageRoute(
-                                                        builder: (_) => DonationScreen(
-                                                          institutionId: id,
-                                                          institutionName: name,
-                                                        ),
-                                                      ),
-                                                    );
-                                                  }
-                                                : null,
-                                            child: const Text('Donate Money'),
+                            return Container(
+                              width: 300,
+                              margin: EdgeInsets.only(
+                                right: index == _aiRecommendations.length - 1 ? 0 : 12,
+                              ),
+                              child: Card(
+                                elevation: 1,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        name.isEmpty ? 'Institution' : name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Expanded( // <-- إضافة Expanded للنص
+                                        child: Text(
+                                          reasons.isNotEmpty 
+                                              ? reasons.join(', ') 
+                                              : 'Suggested for you',
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: Colors.grey[700],
+                                            fontSize: 13,
                                           ),
                                         ),
-                                        const SizedBox(width: 10),
-                                        Expanded(
-                                          child: ElevatedButton(
-                                            onPressed: id is int
-                                                ? () {
-                                                    Navigator.push(
-                                                      context,
-                                                      MaterialPageRoute(
-                                                        builder: (_) => CombinedEquipmentScreen(
-                                                          institutionId: id,
-                                                          institutionName: name,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: OutlinedButton(
+                                              onPressed: id is int
+                                                  ? () {
+                                                      Navigator.push(
+                                                        context,
+                                                        MaterialPageRoute(
+                                                          builder: (_) => DonationScreen(
+                                                            institutionId: id,
+                                                            institutionName: name,
+                                                          ),
                                                         ),
-                                                      ),
-                                                    );
-                                                  }
-                                                : null,
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: AppColors.primary,
-                                              foregroundColor: Colors.white,
+                                                      );
+                                                    }
+                                                  : null,
+                                              style: OutlinedButton.styleFrom(
+                                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                                side: BorderSide(color: AppColors.primary),
+                                              ),
+                                              child: const Text(
+                                                'Donate Money',
+                                                style: TextStyle(fontSize: 12),
+                                              ),
                                             ),
-                                            child: const Text('Donate Equipment'),
                                           ),
-                                        ),
-                                      ],
-                                    )
-                                  ],
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: ElevatedButton(
+                                              onPressed: id is int
+                                                  ? () {
+                                                      Navigator.push(
+                                                        context,
+                                                        MaterialPageRoute(
+                                                          builder: (_) => CombinedEquipmentScreen(
+                                                            institutionId: id,
+                                                            institutionName: name,
+                                                          ),
+                                                        ),
+                                                      );
+                                                    }
+                                                  : null,
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: AppColors.primary,
+                                                foregroundColor: Colors.white,
+                                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                              ),
+                                              child: const Text(
+                                                'Donate Equipment',
+                                                style: TextStyle(fontSize: 12),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
-                          );
-                        },
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            if (_error != null)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.red.withOpacity(0.25)),
-                ),
-                child: Text(
-                  _error!,
-                  style: const TextStyle(color: Colors.red),
-                ),
-              ),
-            if (_loadingCampaigns)
-              const Padding(
-                padding: EdgeInsets.only(top: 24),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (_campaigns.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(top: 24),
-                child: Center(child: Text('No open equipment campaigns found.')),
-              )
-            else
-              ..._campaigns.map(
-                (c) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _CampaignCard(
-                    campaign: c,
-                    onTap: () => _openCampaignDetails(c),
+                    ],
                   ),
                 ),
-              ),
-          ],
+              
+              const SizedBox(height: 16),
+              
+              // Campaigns Section
+              if (_error != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.red.withOpacity(0.25)),
+                  ),
+                  child: Text(
+                    _error!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ),
+              
+              if (_loadingCampaigns)
+                const Padding(
+                  padding: EdgeInsets.only(top: 24),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_campaigns.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 24),
+                  child: Center(
+                    child: Text(
+                      'No open equipment campaigns found.',
+                      style: TextStyle(color: AppColors.textGray),
+                    ),
+                  ),
+                )
+              else
+                Column(
+                  children: _campaigns.map(
+                    (c) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _CampaignCard(
+                        campaign: c,
+                        onTap: () => _openCampaignDetails(c),
+                      ),
+                    ),
+                  ).toList(),
+                ),
+              
+              const SizedBox(height: 20), // مسافة إضافية في الأسفل
+            ],
+          ),
         ),
       ),
     );

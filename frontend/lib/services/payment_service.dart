@@ -5,12 +5,12 @@ import '../models/payment_models.dart';
 
 class PaymentService {
   static String get baseUrl {
-  if (kIsWeb) {
-    return 'http://localhost:5000/api';
-  } else {
-    return 'http://10.0.2.2:5000/api';
+    if (kIsWeb) {
+      return 'http://localhost:5000/api';
+    } else {
+      return 'http://10.0.2.2:5000/api';
+    }
   }
-}
 
   // جلب فواتير ولي الأمر
   static Future<List<Invoice>> getParentInvoices(String token) async {
@@ -104,12 +104,15 @@ class PaymentService {
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
+          if (!kIsWeb) 'User-Agent': 'JusoorMobile/1.0',
+          if (!kIsWeb) 'X-Platform': 'mobile',
         },
         body: jsonEncode({
           'invoice_id': invoiceId,
           'payment_method': paymentMethod,
           'card_token': cardToken,
           'payment_details': paymentDetails,
+          if (!kIsWeb) 'platform': 'mobile',
         }),
       );
 
@@ -262,6 +265,38 @@ class PaymentService {
       }
     } catch (e) {
       print('❌ Error creating card token: $e');
+      rethrow;
+    }
+  }
+
+  static Future<Map<String, dynamic>> confirmStripePayment({
+    required String token,
+    required String paymentIntentId,
+    required int invoiceId,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/payments/confirm-stripe-payment'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+          if (!kIsWeb) 'User-Agent': 'JusoorMobile/1.0',
+          if (!kIsWeb) 'X-Platform': 'mobile',
+        },
+        body: jsonEncode({
+          'payment_intent_id': paymentIntentId,
+          'invoice_id': invoiceId,
+        }),
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return data;
+      }
+
+      throw Exception(data['message'] ?? 'Failed to confirm payment');
+    } catch (e) {
       rethrow;
     }
   }

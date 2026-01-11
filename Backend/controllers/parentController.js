@@ -5,6 +5,8 @@ const User = require('../model/User');
 const Session = require('../model/Session');
 const AIRecommendation = require('../model/AIRecommendation');
 const Institution = require('../model/Institution');
+const Notification = require('../model/Notification');
+const NotificationService = require('../services/notificationService');
 const ChildRegistrationRequest = require('../model/ChildRegistrationRequest');  
 const { Op } = require('sequelize'); 
 const sequelize = require('../config/db');
@@ -305,23 +307,105 @@ const updateParentProfile = async (req, res) => {
   }
 };
 
+
+const sendNotificationToSpecialist = async (specialistId, title, body, data = {}) => {
+  try {
+    if (!specialistId) {
+      console.log('⚠️ No specialist ID provided for notification');
+      return;
+    }
+
+    // جلب التوكن من قاعدة البيانات
+    const [tokenResult] = await sequelize.query(`
+      SELECT token 
+      FROM UserDeviceTokens 
+      WHERE user_id = ? 
+        AND is_active = 1
+      ORDER BY updated_at DESC 
+      LIMIT 1
+    `, { replacements: [specialistId] });
+
+    if (!tokenResult.length || !tokenResult[0].token) {
+      console.log(`⚠️ No token found for specialist ${specialistId}`);
+      
+      // إنشاء إشعار في قاعدة البيانات على أي حال
+      await Notification.create({
+        user_id: specialistId,
+        title: title,
+        message: body,
+        type: data.type || 'session_notification',
+        related_id: data.session_id || null,
+        is_read: false,
+        metadata: JSON.stringify(data)
+      });
+      
+      return;
+    }
+
+    const token = tokenResult[0].token.trim();
+    
+    // إعداد بيانات الإشعار
+    const notificationData = {
+      type: data.type || 'session_notification',
+      session_id: data.session_id?.toString() || '',
+      child_name: data.child_name || '',
+      date: data.date || '',
+      time: data.time || '',
+      status: data.status || '',
+      action: data.action || 'view_schedule',
+      channel: 'session_channel',
+      ...data
+    };
+
+    // إرسال الإشعار عبر Firebase
+    await NotificationService.sendToToken(
+      token,
+      title,
+      body,
+      notificationData
+    );
+
+    // حفظ الإشعار في قاعدة البيانات
+    await Notification.create({
+      user_id: specialistId,
+      title: title,
+      message: body,
+      type: data.type || 'session_notification',
+      related_id: data.session_id || null,
+      is_read: false,
+      metadata: JSON.stringify(notificationData)
+    });
+
+    console.log(`✅ Notification sent to specialist ${specialistId}: ${title}`);
+
+  } catch (error) {
+    console.error('❌ Error sending notification to specialist:', error);
+    // لا نوقف العملية إذا فشل الإشعار
+  }
+};
 // ========== Reschedule Session ==========
 const rescheduleSession = async (req, res) => {
   try {
     const { sessionId } = req.params;
     const parentId = req.user.user_id;
-    const { new_date, new_time } = req.body;
+    const { new_date, new_time, note } = req.body;
 
-    console.log('🔄 Rescheduling session:', { sessionId, parentId, new_date, new_time });
+    console.log('🔄 Rescheduling session:', { sessionId, parentId, new_date, new_time, note });
 
+    // Load the current session with child information
     const session = await Session.findOne({
       where: { session_id: sessionId },
       include: [
         {
           model: Child,
-          as: 'child', 
+          as: 'child',
           where: { parent_id: parentId },
-          attributes: ['child_id']
+          attributes: ['child_id', 'full_name']
+        },
+        {
+          model: User,
+          as: 'specialist',
+          attributes: ['user_id', 'full_name']
         }
       ]
     });
@@ -333,6 +417,7 @@ const rescheduleSession = async (req, res) => {
       });
     }
 
+    // Validate session status
     if (session.status !== 'Scheduled' && session.status !== 'Pending Approval') {
       return res.status(400).json({
         success: false,
@@ -340,6 +425,11 @@ const rescheduleSession = async (req, res) => {
       });
     }
 
+    // Save old date and time for history
+    const oldDate = session.date;
+    const oldTime = session.time;
+
+    // 1. Check for conflicting sessions
     const conflictingSession = await Session.findOne({
       where: {
         specialist_id: session.specialist_id,
@@ -357,28 +447,78 @@ const rescheduleSession = async (req, res) => {
       });
     }
 
-    await Session.update(
-      {
-        date: new_date,
-        time: new_time,
-        status: 'Pending Approval',
-        rescheduled_at: new Date(),
-        rescheduled_by: 'parent'
-      },
-      { where: { session_id: sessionId } }
-    );
+    // 2. Check specialist schedule (SpecialistSchedule)
+    const SpecialistSchedule = require('../model/SpecialistSchedule');
+    const targetDate = new Date(new_date);
+    const dayOfWeek = targetDate.toLocaleDateString('en-US', { weekday: 'long' });
 
+    const specialistSchedule = await SpecialistSchedule.findOne({
+      where: {
+        specialist_id: session.specialist_id,
+        day_of_week: dayOfWeek
+      }
+    });
+
+    let newStatus = 'Pending Approval'; // Default status
+
+    if (specialistSchedule) {
+      // Check if the new time is within specialist working hours
+      const sessionTime = new_time.substring(0, 5);
+      const scheduleStart = specialistSchedule.start_time.substring(0, 5);
+      const scheduleEnd = specialistSchedule.end_time.substring(0, 5);
+
+      if (sessionTime >= scheduleStart && sessionTime < scheduleEnd) {
+        newStatus = 'Rescheduled';
+        console.log(
+          `✅ Time ${sessionTime} is within specialist working hours (${scheduleStart}-${scheduleEnd}), setting status to Rescheduled`
+        );
+      } else {
+        console.log(
+          `⚠️ Time ${sessionTime} is outside specialist working hours (${scheduleStart}-${scheduleEnd}), status remains Pending Approval`
+        );
+      }
+    } else {
+      console.log(
+        `⚠️ No schedule found for specialist on ${dayOfWeek}, status remains Pending Approval`
+      );
+    }
+
+    // 3. Prepare update data
+    const updateData = {
+      date: new_date,
+      time: new_time,
+      status: newStatus,
+      rescheduled_at: new Date(),
+      rescheduled_by: 'parent',
+      old_date: oldDate, // Store old date for reference
+      old_time: oldTime  // Store old time for reference
+    };
+
+    // Add parent note if provided
+    if (note) {
+      updateData.reschedule_note = note;
+    }
+
+    // Add automatic note for specialist
+    const autoNote = `Session rescheduled from ${oldDate} ${oldTime} to ${new_date} ${new_time}`;
+    updateData.specialist_note =
+      autoNote + (note ? `\nParent note: ${note}` : '');
+
+    // 4. Update the session
+    await Session.update(updateData, { where: { session_id: sessionId } });
+
+    // 5. Fetch updated session with additional info
     const updatedSession = await Session.findByPk(sessionId, {
       include: [
         {
           model: Child,
-          as: 'child', 
+          as: 'child',
           attributes: ['full_name']
         },
         {
           model: User,
-          as: 'specialist', 
-          attributes: ['full_name']
+          as: 'specialist',
+          attributes: ['full_name', 'user_id']
         },
         {
           model: Institution,
@@ -388,25 +528,125 @@ const rescheduleSession = async (req, res) => {
       ]
     });
 
+    // 🔥 NEW: Send notification to specialist
+    // تحديث هذه الأجزاء في rescheduleSession:
+
+// 🔥 FIX: إصلاح بيانات الإشعار
+await sendNotificationToSpecialist(
+  updatedSession.specialist.user_id,
+  newStatus === 'Rescheduled' ? '📅 تم تأجيل الجلسة' : '⏳ طلب تأجيل الجلسة',
+  newStatus === 'Rescheduled'
+    ? `تم تأجيل جلسة ${updatedSession.child.full_name} من ${oldDate} ${oldTime} إلى ${new_date} ${new_time}`
+    : `طلب تأجيل جلسة ${updatedSession.child.full_name} من ${oldDate} ${oldTime} إلى ${new_date} ${new_time} (في انتظار الموافقة)`,
+  {
+    type: 'session_rescheduled',
+    session_id: sessionId.toString(), // ✅ تأكد أنه string
+    child_id: updatedSession.child.child_id.toString(), // ✅ إضافة child_id
+    child_name: updatedSession.child.full_name, // ✅ تأكد أن الاسم موجود
+    old_date: oldDate,
+    old_time: oldTime,
+    new_date: new_date,
+    new_time: new_time,
+    status: newStatus,
+    rescheduled_by: 'parent',
+    note: note || '',
+    action: 'view_session',
+    channel: 'session_channel',
+    // ✅ إضافة هذه الحقول المهمة للفرونت
+    notificationType: 'session_rescheduled',
+    click_action: 'FLUTTER_NOTIFICATION_CLICK',
+    timestamp: new Date().toISOString()
+  }
+);
+
+// أيضًا في إنشاء الإشعار في قاعدة البيانات
+await Notification.create({
+  user_id: session.specialist_id,
+  title: newStatus === 'Rescheduled' ? 'تم تأجيل جلسة' : 'طلب تأجيل جلسة',
+  message: newStatus === 'Rescheduled' 
+    ? `تم تأجيل جلسة ${updatedSession.child.full_name} من ${oldDate} ${oldTime} إلى ${new_date} ${new_time}. ${note ? `ملاحظة الأهل: ${note}` : ''}`
+    : `طلب تأجيل جلسة ${updatedSession.child.full_name} من ${oldDate} ${oldTime} إلى ${new_date} ${new_time}. ${note ? `ملاحظة الأهل: ${note}` : ''}`,
+  type: 'session_rescheduled',
+  related_id: sessionId,
+  is_read: false,
+  metadata: JSON.stringify({
+    old_date: oldDate,
+    old_time: oldTime,
+    new_date: new_date,
+    new_time: new_time,
+    status: newStatus,
+    rescheduled_by: 'parent',
+    child_name: updatedSession.child.full_name,
+    child_id: updatedSession.child.child_id,
+    session_id: sessionId,
+    // ✅ إضافة بيانات إضافية
+    notification_data: {
+      type: 'session_rescheduled',
+      action: 'view_session',
+      channel: 'session_channel'
+    }
+  })
+});
+
+    // 6. Create database notification for specialist
+    try {
+      await Notification.create({
+        user_id: session.specialist_id,
+        title: newStatus === 'Rescheduled' ? 'Session Rescheduled' : 'Session Reschedule Request',
+        message: newStatus === 'Rescheduled'
+          ? `Session for ${updatedSession.child.full_name} has been rescheduled from ${oldDate} ${oldTime} to ${new_date} ${new_time}. ${note ? `Parent note: ${note}` : ''}`
+          : `Reschedule request for ${updatedSession.child.full_name} from ${oldDate} ${oldTime} to ${new_date} ${new_time}. ${note ? `Parent note: ${note}` : ''}`,
+        type: 'session_rescheduled',
+        related_id: sessionId,
+        is_read: false,
+        metadata: {
+          old_date: oldDate,
+          old_time: oldTime,
+          new_date: new_date,
+          new_time: new_time,
+          status: newStatus,
+          rescheduled_by: 'parent',
+          child_name: updatedSession.child.full_name
+        }
+      });
+      console.log('✅ Notification created for specialist about rescheduling');
+    } catch (notifError) {
+      console.error('❌ Error creating notification:', notifError);
+    }
+
+    // 7. Success response
     res.status(200).json({
       success: true,
-      message: 'Session rescheduled successfully, waiting for approval',
+      message:
+        newStatus === 'Rescheduled'
+          ? 'Session rescheduled successfully'
+          : 'Session reschedule request submitted successfully and pending approval',
       session: {
         session_id: updatedSession.session_id,
         date: updatedSession.date,
         time: updatedSession.time,
         status: updatedSession.status,
         rescheduled_at: updatedSession.rescheduled_at,
+        old_date: oldDate,
+        old_time: oldTime,
+        specialist_note: updatedSession.specialist_note,
         child: updatedSession.child ? {
           full_name: updatedSession.child.full_name
         } : null,
         specialist: updatedSession.specialist ? {
-          full_name: updatedSession.specialist.full_name
+          full_name: updatedSession.specialist.full_name,
+          user_id: updatedSession.specialist.user_id
         } : null,
         institution: updatedSession.institution ? {
           name: updatedSession.institution.name
         } : null
-      }
+      },
+      notification_sent: true,
+      schedule_info: specialistSchedule ? {
+        day_of_week: dayOfWeek,
+        working_hours: `${specialistSchedule.start_time.substring(0, 5)} - ${specialistSchedule.end_time.substring(0, 5)}`,
+        is_within_schedule: newStatus === 'Rescheduled'
+      } : null
     });
 
   } catch (error) {
@@ -418,6 +658,7 @@ const rescheduleSession = async (req, res) => {
     });
   }
 };
+
 
 // ========== Get Child Evaluations ==========
 const getChildEvaluations = async (req, res) => {
@@ -520,5 +761,6 @@ module.exports = {
   updateParentProfile,
   rescheduleSession,
   getChildEvaluations,
-  uploadParentProfilePicture // ✅ تصدير الدالة الجديدة
+  uploadParentProfilePicture,
+  sendNotificationToSpecialist // ✅ تصدير الدالة الجديدة
 };

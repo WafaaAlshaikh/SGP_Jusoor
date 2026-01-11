@@ -18,6 +18,7 @@ router.get('/payment-methods', paymentController.getPaymentMethods);
 router.get('/bank-details', paymentController.getBankDetails);
 router.post('/create-card-token', paymentController.createCardToken);
 router.post('/process-payment', paymentController.processPayment);
+router.post('/confirm-stripe-payment', paymentController.confirmStripeInvoicePayment);
 router.post('/refund/:sessionId', paymentController.processRefund);
 router.get('/payment-history', paymentController.getPaymentHistory);
 router.post('/create-checkout-session', paymentController.createCheckoutSession);

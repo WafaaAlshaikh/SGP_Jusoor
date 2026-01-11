@@ -43,7 +43,7 @@ class _ManagerAdvancedFinancialReportsScreenState
 
   late TabController _tabController;
   final List<TabInfo> _tabs = [];
-  bool _showCardView = true;
+  bool _showCardView = false;
 
   @override
   void initState() {
@@ -1053,22 +1053,21 @@ class _ManagerAdvancedFinancialReportsScreenState
             onPressed: _pickDateRange,
             tooltip: 'Report period',
           ),
-          IconButton(
-            icon: Icon(
-              _showCardView ? Icons.view_list : Icons.dashboard,
-              color: AppColors.textWhite,
-            ),
-            onPressed: () {
-              setState(() {
-                _showCardView = !_showCardView;
-              });
-            },
-            tooltip:
-                _showCardView ? 'Switch to list view' : 'Switch to card view',
-          ),
+          // IconButton(
+          //   icon: Icon(
+          //     _showCardView ? Icons.view_list : Icons.dashboard,
+          //     color: AppColors.textWhite,
+          //   ),
+          //   onPressed: () {
+          //     setState(() {
+          //       _showCardView = !_showCardView;
+          //     });
+          //   },
+          //   tooltip:
+          //       _showCardView ? 'Switch to list view' : 'Switch to card view',
+          // ),
         ],
-        bottom: !_showCardView
-            ? TabBar(
+        bottom:TabBar(
                 controller: _tabController,
                 isScrollable: true,
                 tabAlignment: TabAlignment.start,
@@ -1078,15 +1077,12 @@ class _ManagerAdvancedFinancialReportsScreenState
                 indicatorWeight: 3,
                 tabs: _tabs.map((tab) => Tab(text: tab.title)).toList(),
               )
-            : null,
-      ),
+              ) ,
       backgroundColor: AppColors.background,
       body: _isLoading
           ? _buildLoadingView()
           : _error != null
               ? _buildError()
-              : _showCardView
-                  ? _buildCardView()
                   : _buildTabView(),
     );
   }

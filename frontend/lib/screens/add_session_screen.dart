@@ -40,6 +40,8 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
   String sessionType = 'Onsite';
   TextEditingController notesController = TextEditingController();
 
+  
+
   // Focus areas from AI recommendations
   List<String> focusAreas = [];
 
@@ -644,130 +646,519 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
     );
   }
 
-  Widget _buildChildrenList() {
-    return Container(
+  // Widget _buildChildrenList() {
+  //   return Container(
+  //     decoration: BoxDecoration(
+  //       color: Colors.white,
+  //       borderRadius: BorderRadius.circular(12),
+  //     ),
+  //     child: Column(
+  //       children: eligibleChildren.map((child) {
+  //         final childId = child['child_id'] as int;
+  //         final isSelected = selectedChildIds.contains(childId);
+  //         final isAutoSelectedChild =
+  //             isAutoSelected && childId == widget.childId;
+  //         final childName = child['full_name'] ?? 'Unknown';
+  //         final childCondition = child['condition'] ?? 'Not specified';
+
+  //         print(
+  //             '👶 Child in list: $childId, Selected: $isSelected, Auto: $isAutoSelectedChild');
+
+  //         return Container(
+  //           margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+  //           decoration: isAutoSelectedChild
+  //               ? BoxDecoration(
+  //                   color: Colors.green[50],
+  //                   borderRadius: BorderRadius.circular(8),
+  //                   border: Border.all(color: Colors.green, width: 2),
+  //                 )
+  //               : null,
+  //           child: CheckboxListTile(
+  //             value: isSelected,
+  //             onChanged: (value) {
+  //               setState(() {
+  //                 if (value == true) {
+  //                   selectedChildIds.add(childId);
+  //                   print('➕ Added child: $childId');
+  //                 } else {
+  //                   selectedChildIds.remove(childId);
+  //                   print('➖ Removed child: $childId');
+  //                   // إذا كان الطفل محدد تلقائياً وألغى التحديد، نزيل العلامة
+  //                   if (isAutoSelectedChild) {
+  //                     isAutoSelected = false;
+  //                     print('🔁 Auto-selection disabled');
+  //                   }
+  //                 }
+  //               });
+  //             },
+  //             title: Row(
+  //               children: [
+  //                 Expanded(
+  //                   child: Text(
+  //                     childName,
+  //                     style: TextStyle(
+  //                       fontWeight: FontWeight.w500,
+  //                       color: isAutoSelectedChild
+  //                           ? Colors.green[800]
+  //                           : Colors.black87,
+  //                     ),
+  //                   ),
+  //                 ),
+  //                 if (isAutoSelectedChild) ...[
+  //                   SizedBox(width: 8),
+  //                   Container(
+  //                     padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+  //                     decoration: BoxDecoration(
+  //                       color: Colors.green,
+  //                       borderRadius: BorderRadius.circular(12),
+  //                     ),
+  //                     child: Row(
+  //                       mainAxisSize: MainAxisSize.min,
+  //                       children: [
+  //                         Icon(Icons.auto_awesome,
+  //                             size: 12, color: Colors.white),
+  //                         SizedBox(width: 4),
+  //                         Text(
+  //                           'AI Selected',
+  //                           style: TextStyle(
+  //                             fontSize: 10,
+  //                             color: Colors.white,
+  //                             fontWeight: FontWeight.bold,
+  //                           ),
+  //                         ),
+  //                       ],
+  //                     ),
+  //                   ),
+  //                 ],
+  //               ],
+  //             ),
+  //             subtitle: Column(
+  //               crossAxisAlignment: CrossAxisAlignment.start,
+  //               children: [
+  //                 Text(
+  //                   'Condition: $childCondition',
+  //                   style: TextStyle(
+  //                     color: AppColors.textGray,
+  //                     fontSize: 12,
+  //                   ),
+  //                 ),
+  //                 if (isAutoSelectedChild)
+  //                   Text(
+  //                     'Recommended based on progress analysis',
+  //                     style: TextStyle(
+  //                       color: Colors.green[600],
+  //                       fontSize: 11,
+  //                       fontStyle: FontStyle.italic,
+  //                     ),
+  //                   ),
+  //               ],
+  //             ),
+  //             secondary: isAutoSelectedChild
+  //                 ? Icon(Icons.psychology, color: Colors.green, size: 24)
+  //                 : Icon(Icons.person_outline,
+  //                     color: Colors.grey[600], size: 24),
+  //             activeColor: AppColors.primary,
+  //             checkColor: Colors.white,
+  //             shape: RoundedRectangleBorder(
+  //               borderRadius: BorderRadius.circular(8),
+  //             ),
+  //             contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+  //           ),
+  //         );
+  //       }).toList(),
+  //     ),
+  //   );
+  // }
+
+  // 🔥 استبدل _buildChildrenList() بهذا الكود
+
+Widget _buildChildrenList() {
+  return GestureDetector(
+    onTap: () => _showChildrenBottomSheet(),
+    child: Container(
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: selectedChildIds.isEmpty ? Colors.grey[300]! : AppColors.primary,
+          width: selectedChildIds.isEmpty ? 1 : 2,
+        ),
       ),
-      child: Column(
-        children: eligibleChildren.map((child) {
-          final childId = child['child_id'] as int;
-          final isSelected = selectedChildIds.contains(childId);
-          final isAutoSelectedChild =
-              isAutoSelected && childId == widget.childId;
-          final childName = child['full_name'] ?? 'Unknown';
-          final childCondition = child['condition'] ?? 'Not specified';
+      child: Row(
+        children: [
+          // Icon
+          Container(
+            padding: EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: selectedChildIds.isEmpty
+                  ? Colors.grey[100]
+                  : AppColors.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              Icons.people,
+              color: selectedChildIds.isEmpty ? Colors.grey : AppColors.primary,
+              size: 24,
+            ),
+          ),
+          
+          SizedBox(width: 12),
+          
+          // Text content
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  selectedChildIds.isEmpty
+                      ? 'Select Children'
+                      : '${selectedChildIds.length} Child${selectedChildIds.length > 1 ? 'ren' : ''} Selected',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: selectedChildIds.isEmpty ? Colors.grey[700] : AppColors.textDark,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  selectedChildIds.isEmpty
+                      ? 'Tap to choose children'
+                      : _getSelectedChildrenNames(),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textGray,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          
+          // Arrow icon
+          Icon(
+            Icons.arrow_drop_down,
+            color: AppColors.primary,
+            size: 32,
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
-          print(
-              '👶 Child in list: $childId, Selected: $isSelected, Auto: $isAutoSelectedChild');
+// 🔥 دالة لعرض أسماء الأطفال المختارين
+String _getSelectedChildrenNames() {
+  final selectedNames = eligibleChildren
+      .where((child) => selectedChildIds.contains(child['child_id'] as int))
+      .map((child) => child['full_name'] ?? 'Unknown')
+      .take(3)
+      .join(', ');
+  
+  if (selectedChildIds.length > 3) {
+    return '$selectedNames +${selectedChildIds.length - 3} more';
+  }
+  return selectedNames;
+}
 
-          return Container(
-            margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: isAutoSelectedChild
-                ? BoxDecoration(
-                    color: Colors.green[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.green, width: 2),
-                  )
-                : null,
-            child: CheckboxListTile(
-              value: isSelected,
-              onChanged: (value) {
-                setState(() {
-                  if (value == true) {
-                    selectedChildIds.add(childId);
-                    print('➕ Added child: $childId');
-                  } else {
-                    selectedChildIds.remove(childId);
-                    print('➖ Removed child: $childId');
-                    // إذا كان الطفل محدد تلقائياً وألغى التحديد، نزيل العلامة
-                    if (isAutoSelectedChild) {
-                      isAutoSelected = false;
-                      print('🔁 Auto-selection disabled');
-                    }
-                  }
-                });
-              },
-              title: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      childName,
+// 🔥 Bottom Sheet لاختيار الأطفال
+void _showChildrenBottomSheet() {
+  String searchQuery = '';
+  Set<int> tempSelectedIds = Set.from(selectedChildIds);
+  
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setModalState) {
+        final filteredChildren = eligibleChildren.where((child) {
+          if (searchQuery.isEmpty) return true;
+          final name = (child['full_name'] ?? '').toLowerCase();
+          final condition = (child['condition'] ?? '').toLowerCase();
+          return name.contains(searchQuery) || condition.contains(searchQuery);
+        }).toList();
+
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.75,
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+          ),
+          child: Column(
+            children: [
+              // Handle bar
+              Container(
+                margin: EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              
+              // Header
+              Padding(
+                padding: EdgeInsets.all(16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Select Children',
                       style: TextStyle(
-                        fontWeight: FontWeight.w500,
-                        color: isAutoSelectedChild
-                            ? Colors.green[800]
-                            : Colors.black87,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
+                    IconButton(
+                      icon: Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Search bar
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: 'Search children...',
+                    prefixIcon: Icon(Icons.search, color: AppColors.primary),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
                   ),
-                  if (isAutoSelectedChild) ...[
-                    SizedBox(width: 8),
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.green,
-                        borderRadius: BorderRadius.circular(12),
+                  onChanged: (value) {
+                    setModalState(() {
+                      searchQuery = value.toLowerCase();
+                    });
+                  },
+                ),
+              ),
+              
+              SizedBox(height: 12),
+              
+              // Select all / Deselect all
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '${tempSelectedIds.length} selected',
+                      style: TextStyle(
+                        color: AppColors.textGray,
+                        fontWeight: FontWeight.w500,
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.auto_awesome,
-                              size: 12, color: Colors.white),
-                          SizedBox(width: 4),
-                          Text(
-                            'AI Selected',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
+                    ),
+                    TextButton.icon(
+                      onPressed: () {
+                        setModalState(() {
+                          if (tempSelectedIds.length == filteredChildren.length) {
+                            tempSelectedIds.clear();
+                          } else {
+                            tempSelectedIds = filteredChildren
+                                .map((child) => child['child_id'] as int)
+                                .toSet();
+                          }
+                        });
+                      },
+                      icon: Icon(
+                        tempSelectedIds.length == filteredChildren.length
+                            ? Icons.deselect
+                            : Icons.select_all,
+                        size: 18,
+                      ),
+                      label: Text(
+                        tempSelectedIds.length == filteredChildren.length
+                            ? 'Deselect All'
+                            : 'Select All',
+                      ),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.primary,
                       ),
                     ),
                   ],
-                ],
+                ),
               ),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Condition: $childCondition',
-                    style: TextStyle(
-                      color: AppColors.textGray,
-                      fontSize: 12,
+              
+              Divider(),
+              
+              // Children list
+              Expanded(
+                child: ListView.builder(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: filteredChildren.length,
+                  itemBuilder: (context, index) {
+                    final child = filteredChildren[index];
+                    final childId = child['child_id'] as int;
+                    final isSelected = tempSelectedIds.contains(childId);
+                    final isAutoSelectedChild = isAutoSelected && childId == widget.childId;
+                    final childName = child['full_name'] ?? 'Unknown';
+                    final childCondition = child['condition'] ?? 'Not specified';
+                    
+                    return Container(
+                      margin: EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: isAutoSelectedChild ? Colors.green[50] : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isAutoSelectedChild
+                              ? Colors.green
+                              : (isSelected ? AppColors.primary : Colors.grey[300]!),
+                          width: isAutoSelectedChild ? 2 : 1,
+                        ),
+                      ),
+                      child: CheckboxListTile(
+                        value: isSelected,
+                        onChanged: (value) {
+                          setModalState(() {
+                            if (value == true) {
+                              tempSelectedIds.add(childId);
+                            } else {
+                              tempSelectedIds.remove(childId);
+                            }
+                          });
+                        },
+                        title: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                childName,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: isAutoSelectedChild
+                                      ? Colors.green[800]
+                                      : Colors.black87,
+                                ),
+                              ),
+                            ),
+                            if (isAutoSelectedChild)
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.green,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.auto_awesome,
+                                      size: 12,
+                                      color: Colors.white,
+                                    ),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'AI',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Condition: $childCondition',
+                              style: TextStyle(
+                                color: AppColors.textGray,
+                                fontSize: 12,
+                              ),
+                            ),
+                            if (isAutoSelectedChild)
+                              Text(
+                                'Recommended by AI',
+                                style: TextStyle(
+                                  color: Colors.green[600],
+                                  fontSize: 11,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                          ],
+                        ),
+                        secondary: CircleAvatar(
+                          backgroundColor: isAutoSelectedChild
+                              ? Colors.green[100]
+                              : Colors.grey[200],
+                          child: Icon(
+                            isAutoSelectedChild ? Icons.psychology : Icons.person,
+                            color: isAutoSelectedChild
+                                ? Colors.green[700]
+                                : Colors.grey[600],
+                          ),
+                        ),
+                        activeColor: AppColors.primary,
+                        checkColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              
+              // Confirm button
+              Padding(
+                padding: EdgeInsets.all(16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: tempSelectedIds.isEmpty
+                        ? null
+                        : () {
+                            setState(() {
+                              selectedChildIds = tempSelectedIds;
+                            });
+                            Navigator.pop(context);
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      disabledBackgroundColor: Colors.grey[300],
                     ),
-                  ),
-                  if (isAutoSelectedChild)
-                    Text(
-                      'Recommended based on progress analysis',
+                    child: Text(
+                      tempSelectedIds.isEmpty
+                          ? 'Select at least one child'
+                          : 'Confirm (${tempSelectedIds.length})',
                       style: TextStyle(
-                        color: Colors.green[600],
-                        fontSize: 11,
-                        fontStyle: FontStyle.italic,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
                     ),
-                ],
+                  ),
+                ),
               ),
-              secondary: isAutoSelectedChild
-                  ? Icon(Icons.psychology, color: Colors.green, size: 24)
-                  : Icon(Icons.person_outline,
-                      color: Colors.grey[600], size: 24),
-              activeColor: AppColors.primary,
-              checkColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
+  
   Widget _buildSessionTypesList() {
     return Column(
     crossAxisAlignment: CrossAxisAlignment.start,

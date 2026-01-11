@@ -11,7 +11,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 exports.processPayment = async (req, res) => {
   try {
     const parentId = req.user.user_id;
-    const { invoice_id, payment_method, card_token, payment_details } = req.body;
+    const { invoice_id, payment_method, card_token, payment_details, platform } = req.body;
 
     console.log(`💳 Processing payment: invoice_id=${invoice_id}, parent_id=${parentId}, method=${payment_method}`);
 
@@ -79,18 +79,111 @@ exports.processPayment = async (req, res) => {
 
     switch (normalizedPaymentMethod) {
       case 'Credit Card':
-        paymentResult = await PaymentGateway.processTestCreditCardPayment(invoice.total_amount, {
-          card_number: payment_details?.card_number || '4242424242424242', // default test card
-          card_holder: payment_details?.card_holder || 'Test User',
-          session_id: invoice.session_id,
-          parent_id: parentId
-        });
-        if (paymentResult.success) {
-          paymentResult.gateway = 'Demo Mode'; 
-          paymentResult.transactionId = paymentResult.transaction_id;
-          paymentResult.cleanMethod = 'Credit Card'; 
+        {
+          const isMobile =
+            platform === 'mobile' ||
+            req.body.platform === 'mobile' ||
+            req.headers['x-platform'] === 'mobile' ||
+            req.headers['user-agent']?.toLowerCase().includes('jusoormobile');
+
+          if (isMobile) {
+            const currency = (process.env.STRIPE_CURRENCY || 'usd').toLowerCase();
+            const amountInCents = Math.round(Number(invoice.total_amount) * 100);
+
+            const paymentIntent = await stripe.paymentIntents.create({
+              amount: amountInCents,
+              currency,
+              automatic_payment_methods: { enabled: true },
+              description: `Payment for invoice ${invoice.invoice_number}`,
+              metadata: {
+                payment_type: 'invoice',
+                invoice_id: String(invoice.invoice_id),
+                invoice_number: String(invoice.invoice_number),
+                session_id: String(invoice.session_id),
+                parent_id: String(parentId),
+              },
+            });
+
+            const payment = await Payment.create({
+              invoice_id: invoice.invoice_id,
+              amount: invoice.total_amount,
+              payment_method: 'Credit Card',
+              payment_gateway: 'Stripe',
+              transaction_id: paymentIntent.id,
+              status: 'Pending',
+              gateway_response: JSON.stringify({
+                stripe_payment_intent_id: paymentIntent.id,
+                stripe_payment_intent_client_secret: paymentIntent.client_secret,
+              }),
+              payment_date: new Date(),
+            });
+
+            return res.status(200).json({
+              success: true,
+              message: 'Stripe payment intent created',
+              data: {
+                payment_method: 'Credit Card',
+                gateway: 'Stripe',
+                payment_id: payment.payment_id,
+                payment_intent_id: paymentIntent.id,
+                payment_intent_client_secret: paymentIntent.client_secret,
+              },
+            });
+          }
+
+          const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+          const checkoutSession = await stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            mode: 'payment',
+            line_items: [
+              {
+                price_data: {
+                  currency: (process.env.STRIPE_CURRENCY || 'usd').toLowerCase(),
+                  product_data: {
+                    name: `Invoice ${invoice.invoice_number}`,
+                  },
+                  unit_amount: Math.round(Number(invoice.total_amount) * 100),
+                },
+                quantity: 1,
+              },
+            ],
+            success_url: `${frontendUrl}/payments/success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${frontendUrl}/payments/cancel?invoice_id=${invoice.invoice_id}`,
+            metadata: {
+              payment_type: 'invoice',
+              invoice_id: String(invoice.invoice_id),
+              invoice_number: String(invoice.invoice_number),
+              session_id: String(invoice.session_id),
+              parent_id: String(parentId),
+            },
+          });
+
+          await Payment.create({
+            invoice_id: invoice.invoice_id,
+            amount: invoice.total_amount,
+            payment_method: 'Credit Card',
+            payment_gateway: 'Stripe',
+            transaction_id: checkoutSession.id,
+            status: 'Pending',
+            gateway_response: JSON.stringify({
+              stripe_checkout_session_id: checkoutSession.id,
+              stripe_checkout_url: checkoutSession.url,
+            }),
+            payment_date: new Date(),
+          });
+
+          return res.status(200).json({
+            success: true,
+            message: 'Stripe checkout session created',
+            data: {
+              payment_method: 'Credit Card',
+              gateway: 'Stripe',
+              checkout_session_id: checkoutSession.id,
+              checkout_url: checkoutSession.url,
+            },
+          });
         }
-        break;
       case 'Cash':
         paymentResult = await PaymentGateway.processCashPayment(invoice.total_amount, {
           session_id: invoice.session_id,
@@ -143,7 +236,7 @@ exports.processPayment = async (req, res) => {
       }, { where: { invoice_id: invoice.invoice_id } });
 
       if (invoice.Session && invoice.Session.status === 'Pending Payment') {
-        await Session.update({ status: 'Confirmed' }, { where: { session_id: invoice.session_id } });
+        await Session.update({ status: 'Scheduled' }, { where: { session_id: invoice.session_id } });
       }
 
       return res.status(200).json({
@@ -154,7 +247,7 @@ exports.processPayment = async (req, res) => {
           transaction_id: payment.transaction_id,
           amount: payment.amount,
           payment_date: payment.payment_date,
-          session_status: 'Confirmed'
+          session_status: 'Scheduled'
         }
       });
     } else {
@@ -172,6 +265,113 @@ exports.processPayment = async (req, res) => {
 
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Payment processing failed', error: error.message });
+  }
+};
+
+exports.confirmStripeInvoicePayment = async (req, res) => {
+  try {
+    const parentId = req.user.user_id;
+    const { payment_intent_id, invoice_id } = req.body;
+
+    if (!payment_intent_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'payment_intent_id is required',
+      });
+    }
+
+    let paymentIntent;
+    try {
+      paymentIntent = await stripe.paymentIntents.retrieve(payment_intent_id);
+    } catch (stripeError) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to verify payment with Stripe',
+        error: stripeError.message,
+      });
+    }
+
+    if (paymentIntent.status !== 'succeeded') {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment not completed yet',
+        status: paymentIntent.status,
+      });
+    }
+
+    const payment = await Payment.findOne({ where: { transaction_id: payment_intent_id } });
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment record not found',
+      });
+    }
+
+    const resolvedInvoiceId = invoice_id ? parseInt(invoice_id, 10) : payment.invoice_id;
+    const invoice = await Invoice.findByPk(resolvedInvoiceId);
+    if (!invoice) {
+      return res.status(404).json({
+        success: false,
+        message: 'Invoice not found',
+      });
+    }
+
+    if (invoice.parent_id !== parentId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to confirm this payment',
+      });
+    }
+
+    if (payment.status !== 'Completed') {
+      await payment.update({
+        status: 'Completed',
+        payment_gateway: payment.payment_gateway || 'Stripe',
+        gateway_response: JSON.stringify({
+          ...(payment.gateway_response ? { prior_gateway_response: payment.gateway_response } : {}),
+          stripe_payment_intent_id: paymentIntent.id,
+          stripe_payment_status: paymentIntent.status,
+        }),
+        payment_date: new Date(),
+      });
+    }
+
+    if (invoice.status !== 'Paid') {
+      await Invoice.update(
+        { status: 'Paid', paid_date: new Date() },
+        { where: { invoice_id: invoice.invoice_id } }
+      );
+    }
+
+    if (invoice.session_id) {
+      await Session.update(
+        {
+          is_paid: true,
+          payment_status: 'Paid',
+          payment_date: new Date(),
+          status: 'Scheduled',
+        },
+        { where: { session_id: invoice.session_id } }
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Payment confirmed successfully',
+      data: {
+        invoice_id: invoice.invoice_id,
+        payment_id: payment.payment_id,
+        transaction_id: payment.transaction_id,
+        session_id: invoice.session_id,
+        session_status: 'Scheduled',
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to confirm payment',
+      error: error.message,
+    });
   }
 };
 

@@ -7,7 +7,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../../models/child_model.dart';
 import '../../../services/api_service.dart';
-import '../../../screens/map_screen.dart';
 import '../theme/app_colors.dart';
 import '../services/financial_service.dart';
 import '../models/ParentFinancialModel.dart';
@@ -57,12 +56,6 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
   File? _pickedImage;
   final ImagePicker _picker = ImagePicker();
   final TextEditingController _dateController = TextEditingController();
-
-  // Location data
-  String _city = '';
-  String _address = '';
-  double? _locationLat;
-  double? _locationLng;
 
   // Medical data
   int? _selectedDiagnosisId;
@@ -456,7 +449,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
   Widget _buildDocumentCard(Map<String, dynamic> doc) {
   return Container(
     margin: const EdgeInsets.only(bottom: 8),
-    padding: const EdgeInsets.all(8), // ⬅️ تقليل padding من 12 إلى 8
+    padding: const EdgeInsets.all(8), // 
     decoration: BoxDecoration(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(8),
@@ -467,9 +460,9 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
         Icon(
           _getFileIcon(doc['file_type'] ?? ''),
           color: AppColors.primary,
-          size: 20, // ⬅️ تقليل حجم الأيقونة
+          size: 20, // 
         ),
-        const SizedBox(width: 8), // ⬅️ تقليل المسافة
+        const SizedBox(width: 8), // 
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -478,7 +471,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                 doc['file_name'] ?? 'Unknown File',
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
-                  fontSize: 13, // ⬅️ تقليل حجم الخط
+                  fontSize: 13, // 
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -487,7 +480,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
               Text(
                 '${((doc['file_size'] ?? 0) / 1024).toStringAsFixed(1)} KB',
                 style: TextStyle(
-                  fontSize: 11, // ⬅️ تقليل حجم الخط
+                  fontSize: 11, // 
                   color: AppColors.textLight,
                 ),
               ),
@@ -496,12 +489,12 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
                 Row(
                   children: [
                     Icon(Icons.check_circle,
-                        size: 10, color: AppColors.success), // ⬅️ تقليل الحجم
+                        size: 10, color: AppColors.success), // 
                     const SizedBox(width: 2),
                     Text(
                       'AI Analysis Complete',
                       style: TextStyle(
-                        fontSize: 9, // ⬅️ تقليل حجم الخط
+                        fontSize: 9, // 
                         color: AppColors.success,
                         fontWeight: FontWeight.w500,
                       ),
@@ -515,12 +508,12 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
         IconButton(
           icon: Icon(Icons.delete_outline, 
                      color: AppColors.error, 
-                     size: 18), // ⬅️ تقليل حجم الأيقونة
+                     size: 18), // 
           onPressed: () => _deleteDocument(doc['file_id'] ?? ''),
           tooltip: 'Delete',
-          padding: EdgeInsets.zero, // ⬅️ إزالة padding الافتراضي
+          padding: EdgeInsets.zero, // 
           constraints: BoxConstraints(
-            minWidth: 36, // ⬅️ تحديد حجم الحد الأدنى للزر
+            minWidth: 36, // 
             minHeight: 36,
           ),
         ),
@@ -530,7 +523,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
 }
 
   IconData _getFileIcon(String fileType) {
-  if (fileType.isEmpty) return Icons.insert_drive_file; // ⬅️ إضافة حالة فارغة
+  if (fileType.isEmpty) return Icons.insert_drive_file; // 
   if (fileType.contains('pdf')) return Icons.picture_as_pdf;
   if (fileType.contains('image')) return Icons.image;
   if (fileType.contains('word')) return Icons.description;
@@ -539,7 +532,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
 
   Future<void> _pickAndUploadDocument() async {
     try {
-      // فتح نافذة اختيار الملف
+      // 
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'],
@@ -547,12 +540,12 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
       );
 
       if (result == null || result.files.isEmpty) {
-        return; // المستخدم ألغى العملية
+        return; // 
       }
 
       final file = result.files.first;
 
-      // التحقق من حجم الملف (10MB كحد أقصى)
+      // (10MB 
       if (file.size > 10 * 1024 * 1024) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -570,7 +563,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token') ?? '';
 
-      // رفع الملف
+      // 
       final uploadResult = await ApiService.uploadMedicalDocument(
         token,
         _childId!,
@@ -584,15 +577,15 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
         _documentAnalysisData = uploadResult['ai_analysis'];
       });
       
-      // AUTO-FILL: تلقائياً ملء البيانات من التحليل
+      // AUTO-FILL: 
       _autoFillFromDocumentAnalysis(uploadResult['ai_analysis']);
       
-      // عرض نتائج التحليل
+      // 
       _showAIAnalysisResults(uploadResult['ai_analysis']);
       
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('✅ Document uploaded and analyzed successfully'),
+          content: Text(' Document uploaded and analyzed successfully'),
           backgroundColor: AppColors.success,
         ),
       );
@@ -622,27 +615,27 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
   if (analysis == null) return;
   
   setState(() {
-    // 1. ملء الحالة المشتبه بها
+    // 1. 
     if (analysis['conditions']?.isNotEmpty ?? false) {
       final conditions = List<String>.from(analysis['conditions']);
       _suspectedCondition = conditions.first;
       
-      // محاولة مطابقة مع التشخيصات المتاحة
+      // 
       _tryMatchDiagnosisFromList(conditions);
     }
     
-    // 2. ملء الأعراض
+    // 2. 
     if (analysis['symptoms']?.isNotEmpty ?? false) {
       final symptoms = List<String>.from(analysis['symptoms']);
       if (_symptomsDescription.isEmpty) {
         _symptomsDescription = symptoms.join(', ');
       } else {
-        // دمج الأعراض الجديدة مع القديمة
+        // 
         _symptomsDescription += '\n\nFrom document analysis: ${symptoms.join(', ')}';
       }
     }
     
-    // 3. ملء التاريخ الطبي
+    // 3. 
     if (analysis['additional_notes'] != null && analysis['additional_notes'].toString().isNotEmpty) {
       if (_medicalHistory.isEmpty) {
         _medicalHistory = analysis['additional_notes'].toString();
@@ -651,7 +644,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
       }
     }
     
-    // 4. ملء الأدوية
+    // 4. 
     if (analysis['medications']?.isNotEmpty ?? false) {
       final medications = List<String>.from(analysis['medications']);
       if (_additionalNotes.isEmpty) {
@@ -661,7 +654,7 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
       }
     }
     
-    // 5. ملء العلاجات السابقة
+    // 5. 
     if (analysis['treatments']?.isNotEmpty ?? false) {
       final treatments = List<String>.from(analysis['treatments']);
       if (_previousServices.isEmpty) {
@@ -672,16 +665,16 @@ class _ChildFormDialogState extends State<ChildFormDialog> {
     }
   });
   
-  // إشعار للمستخدم
+  // 
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
-      content: Text('✅ Medical information auto-filled from document analysis'),
+      content: Text(' Medical information auto-filled from document analysis'),
       backgroundColor: AppColors.success,
     ),
   );
 }
 
-// دالة مساعدة لمطابقة التشخيصات
+// 
 void _tryMatchDiagnosisFromList(List<String> conditions) {
   for (var condition in conditions) {
     final matched = _diagnoses.firstWhere(
@@ -693,8 +686,8 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
       setState(() {
         _selectedDiagnosisId = matched['diagnosis_id'];
       });
-      print('✅ Matched diagnosis: ${matched['name']}');
-      break; // نوقف عند أول تطابق
+      print(' Matched diagnosis: ${matched['name']}');
+      break; // 
     }
   }
 }
@@ -773,7 +766,7 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
           onPressed: () => Navigator.pop(context),
           child: Text('Close'),
         ),
-        if (!isDocument) // زر Auto-Fill فقط لتحليل AI وليس المستند
+        if (!isDocument) // 
           ElevatedButton(
             onPressed: () {
               _autoFillFromAnalysis(analysis);
@@ -790,12 +783,12 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
 }
   void _autoFillFromAnalysis(Map<String, dynamic> analysis) {
     setState(() {
-      // ملء الحالة المشتبه بها
+      // 
       if (analysis['conditions']?.isNotEmpty ?? false) {
         _suspectedCondition = analysis['conditions'].first;
       }
 
-      // ملء الأعراض
+      // 
       if (analysis['symptoms']?.isNotEmpty ?? false) {
         final symptoms = List<String>.from(analysis['symptoms']).join(', ');
         if (_symptomsDescription.isEmpty) {
@@ -805,7 +798,7 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
         }
       }
 
-      // ملء التاريخ الطبي
+      // 
       if (analysis['additional_notes'] != null) {
         if (_medicalHistory.isEmpty) {
           _medicalHistory = analysis['additional_notes'];
@@ -817,7 +810,7 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('✅ Medical information auto-filled from document'),
+        content: Text(' Medical information auto-filled from document'),
         backgroundColor: AppColors.success,
       ),
     );
@@ -846,6 +839,7 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token') ?? '';
+
       final result = await ApiService.deleteMedicalDocument(
         token,
         _childId!,
@@ -1083,7 +1077,7 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
       final result = await ApiService.submitFinancialAssessment(
         token,
         int.parse(_childId!),
-        1, // institution_id - يمكن تعديله
+        1, // institution_id - 
         _assessmentResponses,
         false, // skip_documents
       );
@@ -1131,6 +1125,146 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
       });
     }
   }
+
+
+  Widget _buildPhotoUploadSection() {
+  return Center(
+    child: Column(
+      children: [
+        Stack(
+          children: [
+            GestureDetector(
+              onTap: _pickImage,
+              child: Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.accent1,
+                  border: Border.all(color: AppColors.primary, width: 3),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(60),
+                  child: _pickedImage != null
+                      ? Image.file(_pickedImage!, fit: BoxFit.cover)
+                      : _photo.isNotEmpty
+                          ? Image.network(
+                              ApiService.buildFileUrl(_photo),
+                              fit: BoxFit.cover,
+                              loadingBuilder: (context, child, progress) {
+                                if (progress == null) return child;
+                                return Center(
+                                  child: CircularProgressIndicator(
+                                    value: progress.expectedTotalBytes != null
+                                        ? progress.cumulativeBytesLoaded /
+                                            progress.expectedTotalBytes!
+                                        : null,
+                                    strokeWidth: 2,
+                                    color: AppColors.primary,
+                                  ),
+                                );
+                              },
+                              errorBuilder: (context, error, stack) {
+                                return _buildNoPhotoPlaceholder();
+                              },
+                            )
+                          : _buildNoPhotoPlaceholder(),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 0,
+              right: 0,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _pickImage,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Icon(Icons.camera_alt, size: 18, color: Colors.white),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        TextButton.icon(
+          onPressed: _pickImage,
+          icon: Icon(Icons.add_photo_alternate, size: 18),
+          label: Text(
+            _pickedImage != null || _photo.isNotEmpty ? 'Change Photo' : 'Add Photo',
+            style: TextStyle(fontSize: 14),
+          ),
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.primary,
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          ),
+        ),
+        if (_pickedImage != null || _photo.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _pickedImage = null;
+                _photo = '';
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Photo removed'),
+                  backgroundColor: AppColors.info,
+                ),
+              );
+            },
+            icon: Icon(Icons.delete_outline, size: 18),
+            label: Text('Remove Photo', style: TextStyle(fontSize: 12)),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+          ),
+        ],
+        const SizedBox(height: 8),
+        Text(
+          'Optional: Add a photo to help identify your child',
+          style: TextStyle(fontSize: 12, color: AppColors.textLight),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _buildNoPhotoPlaceholder() {
+  return Center(
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.person, size: 50, color: AppColors.primary),
+        const SizedBox(height: 4),
+        Text('No Photo', style: TextStyle(fontSize: 10, color: AppColors.textLight)),
+      ],
+    ),
+  );
+}
+
 
   void _applyDiscountToInstitutions(double discountPercentage) {
     if (_recommendedInstitutions.isEmpty) return;
@@ -1182,100 +1316,198 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
   }
 
   Future<void> _saveBasicInfo() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+  if (!(_formKey.currentState?.validate() ?? false)) return;
 
-    _formKey.currentState?.save();
+  _formKey.currentState?.save();
 
-    setState(() {
-      _isLoading = true;
-    });
+  setState(() {
+    _isLoading = true;
+  });
 
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token') ?? '';
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token') ?? '';
+    
+    final isEdit = widget.child != null;
 
-      final basicInfo = {
+    // ============= EDIT MODE =============
+    if (isEdit) {
+      final childId = widget.child!.id;
+      
+      // تحديث المعلومات الأساسية
+      final updateData = {
         'full_name': _fullName,
         'date_of_birth': _dateController.text,
         'gender': _gender,
-        'child_identifier': _childIdentifier.isEmpty ? null : _childIdentifier,
-        'school_info': _schoolInfo.isEmpty ? null : _schoolInfo,
-        'photo': _photo.isEmpty ? null : _photo,
-        'city': _city.isEmpty ? null : _city,
-        'address': _address.isEmpty ? null : _address,
-        'location_lat': _locationLat,
-        'location_lng': _locationLng,
       };
 
-      print('Saving child basic info: $basicInfo');
+      print('📝 Updating child $childId with data: $updateData');
 
-      final result = await ApiService.saveChildBasicInfo(token, basicInfo);
+      final result = await ApiService.updateChildBasicInfo(
+        token,
+        childId,
+        updateData,
+      );
 
-      if (result['success'] == true) {
-        final childId = result['child_id']?.toString();
-        print('Child ID received: $childId');
-
-        if (childId == null) {
-          throw Exception('Child ID is null from server');
+      // رفع الصورة إذا تم تغييرها
+      if (_pickedImage != null) {
+        print('📸 Uploading new photo for child $childId');
+        try {
+          final photoResult = await ApiService.uploadChildPhoto(
+            token,
+            childId.toString(),
+            _pickedImage!,
+          );
+          
+          if (photoResult['success'] == true) {
+            print('✅ Photo uploaded successfully');
+          }
+        } catch (photoError) {
+          print('⚠️ Photo upload failed: $photoError');
+          // نكمل حتى لو فشل رفع الصورة
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Info updated, but photo upload failed'),
+              backgroundColor: AppColors.warning,
+            ),
+          );
         }
-
-        setState(() {
-          _childId = childId;
-          _currentStep = ChildFormStep.medicalInfo;
-          _isLoading = false;
-        });
-
-        if (widget.screeningData != null &&
-            widget.screeningData!['from_screening'] == true) {
-          print('🎯 Auto-analyzing from screening data...');
-
-          if (widget.screeningData!['suspected_condition'] != null) {
-            _suspectedCondition =
-                widget.screeningData!['suspected_condition'].toString();
-          }
-          if (widget.screeningData!['symptoms_description'] != null) {
-            _symptomsDescription =
-                widget.screeningData!['symptoms_description'].toString();
-          }
-
-          if (widget.screeningData!['recommended_institutions'] != null) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              setState(() {
-                _recommendedInstitutions =
-                    widget.screeningData!['recommended_institutions'];
-                _currentStep = ChildFormStep.selectInstitution;
-              });
-            });
-          }
-        }
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Basic information saved successfully'),
-            backgroundColor: AppColors.success,
-          ),
-        );
-      } else {
-        throw Exception(
-            result['message'] ?? 'Failed to save basic information');
       }
-    } catch (e) {
+
       setState(() {
         _isLoading = false;
       });
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          backgroundColor: AppColors.error,
+          content: Text('✅ Child information updated successfully'),
+          backgroundColor: AppColors.success,
         ),
       );
+
+      // إغلاق الـ dialog والرجوع
+      Navigator.pop(context, true);
+      return;
     }
+
+    // ============= ADD NEW MODE =============
+    // تأكد من موقع الأهل
+    final profile = await ApiService.getUserProfile(token);
+    final profileData = profile['data'] is Map<String, dynamic>
+        ? (profile['data'] as Map<String, dynamic>)
+        : <String, dynamic>{};
+    final parentLat = profileData['location_lat'];
+    final parentLng = profileData['location_lng'];
+
+    if (parentLat == null || parentLng == null) {
+      throw Exception('Parent location is not set. Please update your location in your profile before adding a child.');
+    }
+
+    final basicInfo = {
+      'full_name': _fullName,
+      'date_of_birth': _dateController.text,
+      'gender': _gender,
+    };
+
+    print('💾 Saving new child basic info: $basicInfo');
+
+    final result = await ApiService.saveChildBasicInfo(token, basicInfo);
+
+    if (result['success'] == true) {
+      final childId = result['child_id']?.toString();
+
+      if (childId == null) {
+        throw Exception('Child ID is null from server');
+      }
+
+      print('✅ Child created with ID: $childId');
+
+      setState(() {
+        _childId = childId;
+      });
+
+      // رفع الصورة إذا تم اختيارها
+      if (_pickedImage != null) {
+        print('📸 Uploading photo for new child $childId');
+        try {
+          final photoResult = await ApiService.uploadChildPhoto(
+            token,
+            childId,
+            _pickedImage!,
+          );
+          
+          if (photoResult['success'] == true) {
+            print('✅ Photo uploaded successfully');
+            // تحديث _photo بالمسار الجديد
+            if (photoResult['photo'] != null) {
+              setState(() {
+                _photo = photoResult['photo'];
+              });
+            }
+          }
+        } catch (photoError) {
+          print('⚠️ Photo upload failed: $photoError');
+          // نكمل حتى لو فشل رفع الصورة
+        }
+      }
+
+      setState(() {
+        _currentStep = ChildFormStep.medicalInfo;
+        _isLoading = false;
+      });
+
+      // معالجة بيانات الـ screening إذا كانت موجودة
+      if (widget.screeningData != null &&
+          widget.screeningData!['from_screening'] == true) {
+        print('🎯 Processing screening data...');
+
+        if (widget.screeningData!['suspected_condition'] != null) {
+          _suspectedCondition = widget.screeningData!['suspected_condition'].toString();
+        }
+        if (widget.screeningData!['symptoms_description'] != null) {
+          _symptomsDescription = widget.screeningData!['symptoms_description'].toString();
+        }
+
+        if (widget.screeningData!['recommended_institutions'] != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            setState(() {
+              _recommendedInstitutions = widget.screeningData!['recommended_institutions'];
+              _currentStep = ChildFormStep.selectInstitution;
+            });
+          });
+        }
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ Basic information saved successfully'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } else {
+      throw Exception(result['message'] ?? 'Failed to save basic information');
+    }
+  } catch (e) {
+    setState(() {
+      _isLoading = false;
+    });
+    
+    print('❌ Error in _saveBasicInfo: $e');
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Error: ${e.toString()}'),
+        backgroundColor: AppColors.error,
+      ),
+    );
   }
+}
+
 
   Future<void> _analyzeMedicalCondition() async {
   print('Starting medical analysis');
   
-  // NEW: أولوية استخدام بيانات المستند المحللة
+  // NEW: 
   bool useDocumentData = _documentAnalyzed && 
                         (_symptomsDescription.isEmpty && 
                          _suspectedCondition.isEmpty);
@@ -1294,11 +1526,11 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
   print('   - Diagnosis: $hasDiagnosis');
   print('   - Child ID: $_childId');
   
-  // NEW: إذا لم تكن هناك بيانات يدوية ولكن هناك تحليل مستند
+  // NEW: 
   if (useDocumentData) {
-    print('🔍 Using data from document analysis for AI analysis');
+    print(' Using data from document analysis for AI analysis');
     
-    // إنشاء وصف للأعراض من بيانات المستند
+    // 
     final docSymptoms = _documentAnalysisData?['symptoms'] as List<String>? ?? [];
     final docConditions = _documentAnalysisData?['conditions'] as List<String>? ?? [];
     
@@ -1312,7 +1544,7 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
       combinedDescription += 'Symptoms: ${docSymptoms.join(', ')}';
     }
     
-    // استخدام البيانات في التحليل
+    // 
     _symptomsDescription = combinedDescription;
     if (docConditions.isNotEmpty && _suspectedCondition.isEmpty) {
       _suspectedCondition = docConditions.first;
@@ -1337,7 +1569,7 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
       medicalData['suspected_condition'] = _suspectedCondition;
     }
     
-    // NEW: تضمين flag إذا كانت البيانات من مستند
+    // NEW: 
     if (useDocumentData) {
       medicalData['source'] = 'document_analysis';
     }
@@ -1358,7 +1590,7 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
       medicalData['additional_notes'] = _additionalNotes;
     }
     
-    // Attach simplified financial help flags if enabled
+    // 
     if (_needsFinancialHelp) {
       medicalData['needs_financial_help'] = _needsFinancialHelp;
       medicalData['monthly_income_range'] = _monthlyIncomeRange;
@@ -1625,8 +1857,8 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
                 Text(
                   'Suggested Results:',
                   style: TextStyle(
-                    fontWeight: FontWeight.w600,
                     fontSize: 14,
+                    fontWeight: FontWeight.w500,
                     color: AppColors.textDark,
                   ),
                 ),
@@ -1715,151 +1947,218 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
   }
 
   Widget _buildBasicInfoStep() {
-    return SingleChildScrollView(
-      child: Form(
-        key: _formKey,
-        child: Column(
-          children: [
-            _buildSection(
-              title: 'Basic Information',
-              icon: Icons.person_outline,
-              children: [
-                TextFormField(
-                  initialValue: _fullName,
-                  decoration: InputDecoration(
-                    labelText: 'Full Name *',
-                    labelStyle: TextStyle(color: AppColors.textGray),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.accent3),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide:
-                          BorderSide(color: AppColors.primary, width: 2),
-                    ),
-                    prefixIcon: Icon(Icons.person, color: AppColors.primary),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 16),
-                  ),
-                  validator: (v) =>
-                      v == null || v.isEmpty ? 'Please enter full name' : null,
-                  onSaved: (v) => _fullName = v ?? '',
-                ),
-                const SizedBox(height: 20),
-                TextFormField(
-                  controller: _dateController,
-                  readOnly: true,
-                  decoration: InputDecoration(
-                    labelText: 'Date of Birth *',
-                    labelStyle: TextStyle(color: AppColors.textGray),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.accent3),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide:
-                          BorderSide(color: AppColors.primary, width: 2),
-                    ),
-                    prefixIcon:
-                        Icon(Icons.calendar_today, color: AppColors.primary),
-                    suffixIcon: IconButton(
-                      icon:
-                          Icon(Icons.arrow_drop_down, color: AppColors.primary),
-                      onPressed: _pickDate,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 16),
-                  ),
-                  validator: (v) => v == null || v.isEmpty
-                      ? 'Please select date of birth'
-                      : null,
-                ),
-                const SizedBox(height: 20),
-                
-                // ⭐ تم التصحيح: استخدام Column بدلاً من Row مع Expanded
-                Column(
+  final isEdit = widget.child != null;
+  
+  return SingleChildScrollView(
+    child: Form(
+      key: _formKey,
+      child: Column(
+        children: [
+          _buildSection(
+            title: 'Basic Information',
+            icon: Icons.person_outline,
+            children: [
+              // ============= NEW: Photo Upload Section =============
+              Center(
+                child: Column(
                   children: [
-                    DropdownButtonFormField<String>(
-                      value: _gender,
-                      decoration: InputDecoration(
-                        labelText: 'Gender *',
-                        labelStyle: TextStyle(color: AppColors.textGray),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: AppColors.accent3),
+                    Stack(
+                      children: [
+                        GestureDetector(
+                          onTap: _pickImage,
+                          child: Container(
+                            width: 120,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.accent1,
+                              border: Border.all(
+                                color: AppColors.primary,
+                                width: 3,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 10,
+                                  offset: Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(60),
+                              child: _pickedImage != null
+                                  ? Image.file(
+                                      _pickedImage!,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : _photo.isNotEmpty
+                                      ? Image.network(
+                                          ApiService.buildFileUrl(_photo),
+                                          fit: BoxFit.cover,
+                                          loadingBuilder: (context, child, loadingProgress) {
+                                            if (loadingProgress == null) return child;
+                                            return Center(
+                                              child: CircularProgressIndicator(
+                                                value: loadingProgress.expectedTotalBytes != null
+                                                    ? loadingProgress.cumulativeBytesLoaded /
+                                                        loadingProgress.expectedTotalBytes!
+                                                    : null,
+                                              ),
+                                            );
+                                          },
+                                          errorBuilder: (context, error, stack) {
+                                            return Icon(
+                                              Icons.person,
+                                              size: 60,
+                                              color: AppColors.primary,
+                                            );
+                                          },
+                                        )
+                                      : Icon(
+                                          Icons.person,
+                                          size: 60,
+                                          color: AppColors.primary,
+                                        ),
+                            ),
+                          ),
                         ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide:
-                              BorderSide(color: AppColors.primary, width: 2),
+                        // Camera icon badge
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 3,
+                              ),
+                            ),
+                            child: Icon(
+                              Icons.camera_alt,
+                              size: 18,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 16),
-                      ),
-                      items: const [
-                        DropdownMenuItem(value: 'Male', child: Text('Male')),
-                        DropdownMenuItem(value: 'Female', child: Text('Female')),
                       ],
-                      onChanged: (v) => setState(() => _gender = v ?? 'Male'),
                     ),
-                    const SizedBox(height: 20),
-                    
-                    TextFormField(
-                      initialValue: _childIdentifier,
-                      decoration: InputDecoration(
-                        labelText: 'Child Identifier',
-                        labelStyle: TextStyle(color: AppColors.textGray),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: AppColors.accent3),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide:
-                              BorderSide(color: AppColors.primary, width: 2),
-                        ),
-                        hintText: 'Optional',
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 16),
+                    const SizedBox(height: 12),
+                    TextButton.icon(
+                      onPressed: _pickImage,
+                      icon: Icon(Icons.add_photo_alternate, size: 18),
+                      label: Text(
+                        _pickedImage != null || _photo.isNotEmpty
+                            ? 'Change Photo'
+                            : 'Add Photo',
+                        style: TextStyle(fontSize: 14),
                       ),
-                      onSaved: (v) => _childIdentifier = v ?? '',
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      ),
                     ),
+                    if (_pickedImage != null || _photo.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      TextButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _pickedImage = null;
+                            _photo = '';
+                          });
+                        },
+                        icon: Icon(Icons.delete_outline, size: 18),
+                        label: Text('Remove Photo', style: TextStyle(fontSize: 12)),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.error,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
-                
-                const SizedBox(height: 20),
-                TextFormField(
-                  initialValue: _schoolInfo,
-                  decoration: InputDecoration(
-                    labelText: 'School Information',
-                    labelStyle: TextStyle(color: AppColors.textGray),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.accent3),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide:
-                          BorderSide(color: AppColors.primary, width: 2),
-                    ),
-                    hintText: 'Optional',
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 16),
+              ),
+              const SizedBox(height: 24),
+              // ============= END Photo Upload Section =============
+              
+              // Rest of form fields...
+              TextFormField(
+                initialValue: _fullName,
+                decoration: InputDecoration(
+                  labelText: 'Full Name *',
+                  labelStyle: TextStyle(color: AppColors.textGray),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: AppColors.accent3),
                   ),
-                  maxLines: 2,
-                  onSaved: (v) => _schoolInfo = v ?? '',
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: AppColors.primary, width: 2),
+                  ),
+                  prefixIcon: Icon(Icons.person, color: AppColors.primary),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 ),
-                const SizedBox(height: 20),
-                _buildLocationSection(),
-              ],
-            ),
-          ],
-        ),
+                validator: (v) => v == null || v.isEmpty ? 'Please enter full name' : null,
+                onSaved: (v) => _fullName = v ?? '',
+              ),
+              const SizedBox(height: 20),
+              
+              TextFormField(
+                controller: _dateController,
+                readOnly: true,
+                decoration: InputDecoration(
+                  labelText: 'Date of Birth *',
+                  labelStyle: TextStyle(color: AppColors.textGray),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: AppColors.accent3),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: AppColors.primary, width: 2),
+                  ),
+                  prefixIcon: Icon(Icons.calendar_today, color: AppColors.primary),
+                  suffixIcon: IconButton(
+                    icon: Icon(Icons.arrow_drop_down, color: AppColors.primary),
+                    onPressed: _pickDate,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                ),
+                validator: (v) => v == null || v.isEmpty ? 'Please select date of birth' : null,
+              ),
+              const SizedBox(height: 20),
+              
+              DropdownButtonFormField<String>(
+                value: _gender,
+                decoration: InputDecoration(
+                  labelText: 'Gender *',
+                  labelStyle: TextStyle(color: AppColors.textGray),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: AppColors.accent3),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: AppColors.primary, width: 2),
+                  ),
+                  prefixIcon: Icon(Icons.person, color: AppColors.primary),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'Male', child: Text('Male')),
+                  DropdownMenuItem(value: 'Female', child: Text('Female')),
+                ],
+                onChanged: (v) => setState(() => _gender = v ?? 'Male'),
+              ),
+            ],
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
+
 
   Widget _buildMedicalInfoStep() {
     return SingleChildScrollView(
@@ -1871,7 +2170,7 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
             title: 'Medical Information',
             icon: Icons.medical_services_outlined,
             children: [
-              // NEW: Show document analysis status
+              // NEW: 
               if (_documentAnalyzed)
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -1924,7 +2223,7 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
                       ),
                       SizedBox(height: 8),
                       Text(
-                        '• Symptoms description\n• Suspected condition\n• Diagnosis',
+                        '• Symptoms description\n• Diagnosis\n• Medical Document',
                         style:
                             TextStyle(fontSize: 12, color: AppColors.textGray),
                       ),
@@ -2051,6 +2350,7 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
                           style: TextStyle(
                             fontSize: 14,
                             color: AppColors.textDark,
+                            fontWeight: FontWeight.w600,
                           ),
                         );
                       }).toList(),
@@ -2095,52 +2395,52 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
                     ),
                   ),
                 const SizedBox(height: 20),
-                TextFormField(
-                  initialValue: _medicalHistory,
-                  decoration: InputDecoration(
-                    labelText: 'Medical History',
-                    labelStyle: TextStyle(color: AppColors.textGray),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.accent3),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide:
-                          BorderSide(color: AppColors.primary, width: 2),
-                    ),
-                    hintText:
-                        'Previous diagnoses, treatments, hospitalizations...',
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 16),
-                  ),
-                  maxLines: 3,
-                  onSaved: (v) => _medicalHistory = v ?? '',
-                ),
-                const SizedBox(height: 20),
-                TextFormField(
-                  initialValue: _previousServices,
-                  decoration: InputDecoration(
-                    labelText: 'Previous Services/Therapies',
-                    labelStyle: TextStyle(color: AppColors.textGray),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.accent3),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide:
-                          BorderSide(color: AppColors.primary, width: 2),
-                    ),
-                    hintText:
-                        'Speech therapy, occupational therapy, behavioral therapy...',
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 16),
-                  ),
-                  maxLines: 2,
-                  onSaved: (v) => _previousServices = v ?? '',
-                ),
-                const SizedBox(height: 20),
+                // TextFormField(
+                //   initialValue: _medicalHistory,
+                //   decoration: InputDecoration(
+                //     labelText: 'Medical History',
+                //     labelStyle: TextStyle(color: AppColors.textGray),
+                //     border: OutlineInputBorder(
+                //       borderRadius: BorderRadius.circular(12),
+                //       borderSide: BorderSide(color: AppColors.accent3),
+                //     ),
+                //     focusedBorder: OutlineInputBorder(
+                //       borderRadius: BorderRadius.circular(12),
+                //       borderSide:
+                //           BorderSide(color: AppColors.primary, width: 2),
+                //     ),
+                //     hintText:
+                //         'Previous diagnoses, treatments, hospitalizations...',
+                //     contentPadding: const EdgeInsets.symmetric(
+                //         horizontal: 16, vertical: 16),
+                //   ),
+                //   maxLines: 3,
+                //   onSaved: (v) => _medicalHistory = v ?? '',
+                // ),
+                // const SizedBox(height: 20),
+                // TextFormField(
+                //   initialValue: _previousServices,
+                //   decoration: InputDecoration(
+                //     labelText: 'Previous Services/Therapies',
+                //     labelStyle: TextStyle(color: AppColors.textGray),
+                //     border: OutlineInputBorder(
+                //       borderRadius: BorderRadius.circular(12),
+                //       borderSide: BorderSide(color: AppColors.accent3),
+                //     ),
+                //     focusedBorder: OutlineInputBorder(
+                //       borderRadius: BorderRadius.circular(12),
+                //       borderSide:
+                //           BorderSide(color: AppColors.primary, width: 2),
+                //     ),
+                //     hintText:
+                //         'Speech therapy, occupational therapy, behavioral therapy...',
+                //     contentPadding: const EdgeInsets.symmetric(
+                //         horizontal: 16, vertical: 16),
+                //   ),
+                //   maxLines: 2,
+                //   onSaved: (v) => _previousServices = v ?? '',
+                // ),
+                // const SizedBox(height: 20),
                 TextFormField(
                   initialValue: _additionalNotes,
                   decoration: InputDecoration(
@@ -2171,99 +2471,97 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: AppColors.info.withOpacity(0.3)),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.attach_money,
-                              size: 18, color: AppColors.info),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Financial Help (Optional)',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.info,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'If you would like to request financial assistance, we may use your existing financial assessment or ask you to complete it now.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textGray,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      SwitchListTile.adaptive(
-                        value: _needsFinancialHelp,
-                        onChanged: (value) async {
-                          if (value) {
-                            await _loadParentFinancialProfile();
-
-                            if (!_hasValidParentFinancialAssessment) {
-                              final proceed = await showDialog<bool>(
-                                context: context,
-                                builder: (context) {
-                                  return AlertDialog(
-                                    title: Text('Financial Assessment Needed'),
-                                    content: Text(
-                                        'To apply official financial assistance, please complete the financial assessment first. You will be redirected to the financial assistance screen.'),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.of(context).pop(false),
-                                        child: Text('Later'),
-                                      ),
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.of(context).pop(true),
-                                        child: Text('Continue'),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              );
-
-                              if (proceed == true) {
-                                await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const FinancialAssistanceDashboard(),
-                                  ),
-                                );
-
-                                await _loadParentFinancialProfile();
-                              }
-                            }
-                          }
-
-                          setState(() {
-                            _needsFinancialHelp = value;
-                            if (!value) {
-                              _monthlyIncomeRange = null;
-                            }
-                          });
-                        },
-                        activeColor: AppColors.primary,
-                        title: Text(
-                          'I would like to request financial assistance',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                        subtitle: Text(
-                          'This will not affect the quality of services your child receives.',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: AppColors.textLight,
-                          ),
-                        ),
-                      ),
-                      // لا نطلب الراتب هنا؛ التقييم التفصيلي يتم في شاشة المساعدة المالية
-                    ],
-                  ),
+                  // child: Column(
+                  //   crossAxisAlignment: CrossAxisAlignment.start,
+                  //   children: [
+                  //     Row(
+                  //       children: [
+                  //         Icon(Icons.attach_money,
+                  //             size: 18, color: AppColors.info),
+                  //         const SizedBox(width: 8),
+                  //         Text(
+                  //           'Financial Help (Optional)',
+                  //           style: TextStyle(
+                  //             fontWeight: FontWeight.w600,
+                  //             color: AppColors.info,
+                  //           ),
+                  //         ),
+                  //       ],
+                  //     ),
+                  //     const SizedBox(height: 8),
+                  //     Text(
+                  //       'If you would like to request financial assistance, we may use your existing financial assessment or ask you to complete it now.',
+                  //       style:
+                  //           TextStyle(fontSize: 12, color: AppColors.textGray),
+                  //     ),
+                  //     const SizedBox(height: 12),
+                  //     SwitchListTile.adaptive(
+                  //       value: _needsFinancialHelp,
+                  //       onChanged: (value) async {
+                  //         if (value) {
+                  //           await _loadParentFinancialProfile();
+                  //
+                  //           if (!_hasValidParentFinancialAssessment) {
+                  //             final proceed = await showDialog<bool>(
+                  //               context: context,
+                  //               builder: (context) {
+                  //                 return AlertDialog(
+                  //                   title: Text('Financial Assessment Needed'),
+                  //                   content: Text(
+                  //                       'To apply official financial assistance, please complete the financial assessment first. You will be redirected to the financial assistance screen.'),
+                  //                   actions: [
+                  //                     TextButton(
+                  //                       onPressed: () =>
+                  //                           Navigator.of(context).pop(false),
+                  //                       child: Text('Later'),
+                  //                     ),
+                  //                     TextButton(
+                  //                       onPressed: () =>
+                  //                           Navigator.of(context).pop(true),
+                  //                       child: Text('Continue'),
+                  //                     ),
+                  //                   ],
+                  //                 );
+                  //               },
+                  //             );
+                  //
+                  //             if (proceed == true) {
+                  //               await Navigator.push(
+                  //                 context,
+                  //                 MaterialPageRoute(
+                  //                   builder: (context) =>
+                  //                       const FinancialAssistanceDashboard(),
+                  //                 ),
+                  //               );
+                  //
+                  //               await _loadParentFinancialProfile();
+                  //             }
+                  //           }
+                  //         }
+                  //
+                  //         setState(() {
+                  //           _needsFinancialHelp = value;
+                  //           if (!value) {
+                  //             _monthlyIncomeRange = null;
+                  //           }
+                  //         });
+                  //       },
+                  //       activeColor: AppColors.primary,
+                  //       title: Text(
+                  //         'I would like to request financial assistance',
+                  //         style: TextStyle(fontSize: 14),
+                  //       ),
+                  //       subtitle: Text(
+                  //         'This will not affect the quality of services your child receives.',
+                  //         style: TextStyle(
+                  //           fontSize: 11,
+                  //           color: AppColors.textLight,
+                  //         ),
+                  //       ),
+                  //     ),
+                  //     // 
+                  //   ],
+                  // ),
                 ),
               ],
             ),
@@ -2466,11 +2764,11 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
                   ),
                   const SizedBox(height: 16),
 
-                  // تصميم متجاوب للفلاتر
+                  // 
                   LayoutBuilder(
                     builder: (context, constraints) {
                       if (constraints.maxWidth < 600) {
-                        // تصميم عمودي للشاشات الصغيرة
+                        // 
                         return Column(
                           children: [
                             DropdownButtonFormField<String>(
@@ -2537,7 +2835,7 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
                           ],
                         );
                       } else {
-                        // تصميم أفقي للشاشات الكبيرة
+                        // 
                         return Row(
                           children: [
                             Expanded(
@@ -2646,7 +2944,7 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
                   ),
                   const SizedBox(height: 12),
 
-                  // خيارات الترتيب
+                  // 
                   Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -2658,9 +2956,13 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
                       children: [
                         Icon(Icons.sort, size: 16, color: AppColors.primary),
                         const SizedBox(width: 8),
-                        Text('Sort by:',
-                            style: TextStyle(
-                                fontSize: 12, fontWeight: FontWeight.w500)),
+                        Text(
+                          'Sort by:',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: DropdownButtonHideUnderline(
@@ -2701,7 +3003,7 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
 
                   const SizedBox(height: 12),
 
-                  // زر الفلاتر المتقدمة
+                  // 
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
@@ -2801,7 +3103,7 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
                           Divider(color: AppColors.accent3),
                           const SizedBox(height: 12),
                           Text(
-                            'Minimum Rating: ${_localMinRating.toStringAsFixed(1)} ⭐',
+                            'Minimum Rating: ${_localMinRating.toStringAsFixed(1)} ',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -3035,11 +3337,12 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
             ],
           ),
         );
-      },
+      }
     );
   }
 
-// أضف هذه الدالة المساعدة في الكلاس
+
+// 
   String _truncateText(String text, int maxLength) {
     if (text.length <= maxLength) return text;
     return '${text.substring(0, maxLength)}...';
@@ -3173,19 +3476,26 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
             Text(
               name,
               style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                color: isSelected ? AppColors.primary : AppColors.textDark,
               ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             if (city.isNotEmpty && city != 'null')
               Row(
                 children: [
                   Icon(Icons.location_on, size: 12, color: AppColors.textLight),
                   const SizedBox(width: 4),
-                  Text(
-                    city,
-                    style: const TextStyle(fontSize: 12),
+                  Expanded(
+                    child: Text(
+                      city,
+                      style:
+                          TextStyle(fontSize: 12, color: AppColors.textLight),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
                   ),
                 ],
               ),
@@ -3197,8 +3507,8 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
                 children:
                     (specialties as List).take(3).map<Widget>((specialty) {
                   return Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
                       color: AppColors.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
@@ -3214,8 +3524,8 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
             Row(
               children: [
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: AppColors.success.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(8),
@@ -3325,7 +3635,7 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
               runSpacing: 2,
               children:
                   (specialties as List).take(2).map<Widget>((specialty) {
-                // ⬇️ استبدال ConstrainedBox بـ Container مع عرض محدود
+                // 
                 return Container(
                   constraints: const BoxConstraints(maxWidth: 120),
                   child: Container(
@@ -3349,12 +3659,12 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
               }).toList(),
             ),
           const SizedBox(height: 6),
-          // ⬇️ التصحيح الرئيسي: استخدام SingleChildScrollView بدلاً من Wrap للرقعات
+          // 
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                // رقاقة نتيجة المطابقة
+                // 
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -3380,7 +3690,7 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
                   ),
                 ),
                 const SizedBox(width: 6),
-                // رقاقة التقييم
+                // 
                 if (institution['rating'] != null)
                   Container(
                     padding:
@@ -3408,7 +3718,7 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
                     ),
                   ),
                 const SizedBox(width: 6),
-                // رقاقة السعر
+                // 
                 if (institution['avg_price'] != null &&
                     double.tryParse(institution['avg_price'].toString()) !=
                         null)
@@ -3439,7 +3749,7 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
                     ),
                   ),
                 const SizedBox(width: 6),
-                // رقاقة المسافة
+                // 
                 if (distance != null)
                   Container(
                     padding:
@@ -3467,7 +3777,7 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
                     ),
                   ),
                 const SizedBox(width: 6),
-                // رقاقة الخدمات المتاحة
+                // 
                 if (institution['available_services'] != null &&
                     institution['available_services'] is List &&
                     (institution['available_services'] as List).isNotEmpty)
@@ -3613,101 +3923,13 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
     );
   }
 
-  Widget _buildLocationSection() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.accent2),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.location_on, color: AppColors.primary, size: 20),
-              SizedBox(width: 8),
-              Text(
-                'Child Location',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textDark,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Select the child\'s location on the map to help us find the nearest institutions to you',
-            style: TextStyle(fontSize: 12, color: AppColors.textLight),
-          ),
-          SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: _openMapScreen,
-            icon: Icon(Icons.map, color: AppColors.primary),
-            label: Text(
-              _locationLat != null && _locationLng != null
-                  ? 'Edit Location on Map'
-                  : 'Choose Location from Map',
-              style: TextStyle(color: AppColors.primary),
-            ),
-            style: OutlinedButton.styleFrom(
-              side: BorderSide(color: AppColors.primary),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-            ),
-          ),
-          if (_locationLat != null && _locationLng != null) ...[
-            SizedBox(height: 12),
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.success.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.success.withOpacity(0.3)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.check_circle,
-                          color: AppColors.success, size: 16),
-                      SizedBox(width: 8),
-                      Text(
-                        'Location Selected',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.success,
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 8),
-                  if (_city.isNotEmpty)
-                    Text('City: $_city', style: TextStyle(fontSize: 12)),
-                  if (_address.isNotEmpty)
-                    Text('Address: $_address', style: TextStyle(fontSize: 12)),
-                  Text(
-                    'Coordinates: ${_locationLat!.toStringAsFixed(4)}, ${_locationLng!.toStringAsFixed(4)}',
-                    style: TextStyle(fontSize: 11, color: AppColors.textLight),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
   Widget _buildNavigationButtons() {
-    return Column(
-      children: [
+  final isEdit = widget.child != null;
+  
+  return Column(
+    children: [
+      // إخفاء مؤشرات الخطوات في Edit Mode
+      if (!isEdit) ...[
         Container(
           padding: const EdgeInsets.symmetric(vertical: 16),
           child: Row(
@@ -3721,57 +3943,99 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
           ),
         ),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            if (_currentStep != ChildFormStep.basicInfo)
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _isLoading ? null : _goToPreviousStep,
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    side: BorderSide(color: AppColors.primary),
-                  ),
-                  child: Text(
-                    'Back',
-                    style: TextStyle(color: AppColors.primary),
-                  ),
-                ),
-              ),
-            if (_currentStep != ChildFormStep.basicInfo)
-              const SizedBox(width: 12),
+      ],
+      
+      Row(
+        children: [
+          // زر Back (يظهر فقط في Add Mode وليس في الخطوة الأولى)
+          if (_currentStep != ChildFormStep.basicInfo && !isEdit)
             Expanded(
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _goToNextStep,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
+              child: OutlinedButton(
+                onPressed: _isLoading ? null : _goToPreviousStep,
+                style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  elevation: 2,
+                  side: BorderSide(color: AppColors.primary),
                 ),
-                child: _isLoading
-                    ? SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
-                      )
-                    : Text(
-                        _getActionButtonText(),
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.arrow_back, size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      'Back',
+                      style: TextStyle(color: AppColors.primary),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          if (_currentStep != ChildFormStep.basicInfo && !isEdit)
+            const SizedBox(width: 12),
+          
+          // زر الإجراء الرئيسي
+          Expanded(
+            child: ElevatedButton(
+              onPressed: _isLoading ? null : _goToNextStep,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
+              ),
+              child: _isLoading
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          _getActionButtonText(),
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        if (!isEdit) ...[
+                          SizedBox(width: 8),
+                          Icon(Icons.arrow_forward, size: 18),
+                        ],
+                      ],
+                    ),
+            ),
+          ),
+          
+          // زر Cancel في Edit Mode
+          if (isEdit) ...[
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _isLoading ? null : () => Navigator.pop(context, false),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  side: BorderSide(color: AppColors.error),
+                ),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(color: AppColors.error),
+                ),
               ),
             ),
           ],
-        ),
-      ],
-    );
-  }
+        ],
+      ),
+    ],
+  );
+}
 
   Widget _buildStepIndicator(String label, bool isActive, int stepIndex) {
     return Expanded(
@@ -3819,7 +4083,7 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
       case ChildFormStep.medicalInfo:
         return _buildMedicalInfoStep();
       case ChildFormStep.financialAssessment:
-        return _buildFinancialAssessmentStep(); // ⬅️ تم التصحيح
+        return _buildFinancialAssessmentStep(); // 
       case ChildFormStep.selectInstitution:
         return _buildInstitutionSelectionStep();
       case ChildFormStep.confirmation:
@@ -3861,7 +4125,7 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
           _analyzeMedicalCondition();
         }
         break;
-      case ChildFormStep.financialAssessment: // ⬅️ حالة جديدة
+      case ChildFormStep.financialAssessment: // 
         _performFinancialAssessment();
         break;
       case ChildFormStep.selectInstitution:
@@ -3880,7 +4144,7 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
         case ChildFormStep.medicalInfo:
           _currentStep = ChildFormStep.basicInfo;
           break;
-        case ChildFormStep.financialAssessment: // ⬅️ حالة جديدة
+        case ChildFormStep.financialAssessment: // 
           _currentStep = ChildFormStep.medicalInfo;
           break;
         case ChildFormStep.selectInstitution:
@@ -3899,42 +4163,158 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
 
 // في _getActionButtonText():
   String _getActionButtonText() {
-    switch (_currentStep) {
-      case ChildFormStep.basicInfo:
-        return 'Continue to Medical Info';
-      case ChildFormStep.medicalInfo:
-        return _showFinancialAssessment
-            ? 'Continue to Financial Assessment'
-            : 'Analyze & Find Institutions';
-      case ChildFormStep.financialAssessment: // ⬅️ حالة جديدة
-        return _skipFinancialAssessment
-            ? 'Skip & Continue'
-            : 'Submit Assessment';
-      case ChildFormStep.selectInstitution:
-        return 'Request Registration';
-      case ChildFormStep.confirmation:
-        return 'Finish';
-      default:
-        return 'Continue';
-    }
+  final isEdit = widget.child != null;
+  
+  switch (_currentStep) {
+    case ChildFormStep.basicInfo:
+      return isEdit ? '💾 Save Changes' : 'Continue to Medical Info →';
+    case ChildFormStep.medicalInfo:
+      return _showFinancialAssessment
+          ? 'Continue to Financial Assessment'
+          : 'Analyze & Find Institutions';
+    case ChildFormStep.financialAssessment:
+      return _skipFinancialAssessment
+          ? 'Skip & Continue'
+          : 'Submit Assessment';
+    case ChildFormStep.selectInstitution:
+      return 'Request Registration';
+    case ChildFormStep.confirmation:
+      return 'Finish';
+    default:
+      return 'Continue';
   }
+}
 
   String _getStepTitle() {
-    switch (_currentStep) {
-      case ChildFormStep.basicInfo:
-        return 'Basic Information';
-      case ChildFormStep.medicalInfo:
-        return widget.screeningData != null
-            ? 'Screening Results Summary'
-            : 'Medical Information';
-      case ChildFormStep.financialAssessment:
-        return 'Financial Assessment';
-      case ChildFormStep.selectInstitution:
-        return 'Recommended Institutions';
-      case ChildFormStep.confirmation:
-        return 'Confirmation';
-    }
+  final isEdit = widget.child != null;
+  
+  if (isEdit) return 'Edit Basic Information';
+  
+  switch (_currentStep) {
+    case ChildFormStep.basicInfo:
+      return 'Basic Information';
+    case ChildFormStep.medicalInfo:
+      return widget.screeningData != null
+          ? 'Screening Results Summary'
+          : 'Medical Information';
+    case ChildFormStep.financialAssessment:
+      return 'Financial Assessment';
+    case ChildFormStep.selectInstitution:
+      return 'Recommended Institutions';
+    case ChildFormStep.confirmation:
+      return 'Confirmation';
   }
+}
+
+Widget _buildDialogHeader() {
+  final isEdit = widget.child != null;
+  
+  return Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    isEdit ? Icons.edit : Icons.person_add,
+                    size: 20,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    isEdit ? 'Edit Child Profile' : 'Add New Child',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textDark,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.only(left: 44),
+              child: Text(
+                _getStepTitle(),
+                style: TextStyle(fontSize: 14, color: AppColors.textLight),
+              ),
+            ),
+          ],
+        ),
+      ),
+      Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: IconButton(
+          icon: Icon(Icons.close, color: AppColors.textLight),
+          onPressed: () => Navigator.pop(context, false),
+          tooltip: 'Close',
+        ),
+      ),
+    ],
+  );
+}
+
+Widget _buildEditModeInfo() {
+  return Container(
+    padding: const EdgeInsets.all(12),
+    margin: const EdgeInsets.only(bottom: 16),
+    decoration: BoxDecoration(
+      color: AppColors.info.withOpacity(0.1),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: AppColors.info.withOpacity(0.3)),
+    ),
+    child: Row(
+      children: [
+        Icon(Icons.info_outline, size: 18, color: AppColors.info),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Edit Mode',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.info,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Update basic information and photo. Changes will be saved immediately.',
+                style: TextStyle(fontSize: 11, color: AppColors.info),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 
   double _getProgressValue() {
     switch (_currentStep) {
@@ -4025,116 +4405,122 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
   }
 
   Future<void> _pickImage() async {
-    final picked =
-        await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+  try {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Choose Photo Source',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textDark,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.camera_alt, color: AppColors.primary),
+              ),
+              title: Text('Camera'),
+              subtitle: Text('Take a new photo'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            const SizedBox(height: 10),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.photo_library, color: AppColors.primary),
+              ),
+              title: Text('Gallery'),
+              subtitle: Text('Choose from gallery'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+            const SizedBox(height: 10),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancel'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    final picked = await _picker.pickImage(
+      source: source,
+      imageQuality: 85,
+      maxWidth: 800,
+      maxHeight: 800,
+    );
+
     if (picked != null) {
       setState(() {
         _pickedImage = File(picked.path);
         _photo = '';
       });
-    }
-  }
-
-  Future<void> _openMapScreen() async {
-    print('🗺️ Opening map screen...');
-
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => MapScreen(
-          initialLat: _locationLat,
-          initialLng: _locationLng,
-          initialAddress: _address.isNotEmpty ? _address : null,
-        ),
-      ),
-    );
-
-    if (result != null && result is Map<String, dynamic>) {
-      print('📍 [FORM] Received location data from map: $result');
-      setState(() {
-        _locationLat = result['lat'];
-        _locationLng = result['lng'];
-        _address = result['address'] ?? '';
-        _city = result['city'] ?? '';
-      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('✅ Location selected: $_city'),
+          content: Text('✅ Photo selected successfully'),
           backgroundColor: AppColors.success,
           duration: Duration(seconds: 2),
         ),
       );
     }
+  } catch (e) {
+    print('❌ Error picking image: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Failed to pick image: ${e.toString()}'),
+        backgroundColor: AppColors.error,
+      ),
+    );
   }
+}
 
   @override
-  Widget build(BuildContext context) {
-    final isEdit = widget.child != null;
+Widget build(BuildContext context) {
+  final isEdit = widget.child != null;
 
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      elevation: 0,
-      backgroundColor: Colors.transparent,
-      child: Container(
-        width: MediaQuery.of(context).size.width * 0.9,
-        height: MediaQuery.of(context).size.height * 0.85,
-        decoration: BoxDecoration(
-          color: AppColors.background,
-          borderRadius: BorderRadius.circular(24),
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          isEdit ? 'Edit Child' : 'Add New Child',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textDark,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _getStepTitle(),
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textLight,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 8,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: IconButton(
-                      icon: Icon(Icons.close, color: AppColors.textLight),
-                      onPressed: () => Navigator.pop(context, false),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
+  return Dialog(
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+    elevation: 0,
+    backgroundColor: Colors.transparent,
+    child: Container(
+      width: MediaQuery.of(context).size.width * 0.9,
+      height: MediaQuery.of(context).size.height * 0.85,
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildDialogHeader(),
+            const SizedBox(height: 24),
+            
+            if (!isEdit) ...[
               Container(
                 height: 6,
                 decoration: BoxDecoration(
@@ -4149,13 +4535,19 @@ void _tryMatchDiagnosisFromList(List<String> conditions) {
                 ),
               ),
               const SizedBox(height: 32),
-              _buildStepContent(),
-              const SizedBox(height: 32),
-              _buildNavigationButtons(),
+            ] else ...[
+              const SizedBox(height: 16),
             ],
-          ),
+            
+            _buildStepContent(),
+            const SizedBox(height: 32),
+            _buildNavigationButtons(),
+          ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
+
+
 }

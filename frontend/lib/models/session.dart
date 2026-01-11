@@ -7,6 +7,7 @@ class Session {
   final String specialistName;
   final String institutionName;
   final String sessionType;
+
   final String date;
   final String time;
   final int duration;
@@ -22,11 +23,17 @@ class Session {
   final double sessionTypePrice;
   final bool isPaid;
   final String paymentStatus;
+  final double? originalPrice;
+  final double? finalPrice;
+  final double? discountPercentage;
+  final double? discountAmount;
+  final double? refundAmount;
   final bool canCancel;
   final bool canPay;
   final String? parentNotes;
   final String? review;
   final int? childAge;
+
   final String? childCondition;
   final bool canRate; // ← هل يمكن تقييم الجلسة؟
   bool? isEligibleForAutoDiscount;
@@ -41,6 +48,7 @@ class Session {
     required this.specialistName,
     required this.institutionName,
     required this.sessionType,
+
     required this.date,
     required this.time,
     required this.duration,
@@ -56,11 +64,17 @@ class Session {
     required this.sessionTypePrice,
     required this.isPaid,
     required this.paymentStatus,
+    this.originalPrice,
+    this.finalPrice,
+    this.discountPercentage,
+    this.discountAmount,
+    this.refundAmount,
     required this.canCancel,
     required this.canPay,
     this.parentNotes,
     this.review,
     this.childAge,
+
     this.childCondition,
     required this.canRate, // ← تمت الإضافة
     this.isEligibleForAutoDiscount = false,
@@ -72,9 +86,17 @@ class Session {
 
   factory Session.fromJson(Map<String, dynamic> json) {
     final status = json['status']?.toString() ?? '';
-    final isPaid = json['is_paid'] ?? false;
+    final isPaid = (json['is_paid'] ?? json['isPaid'] ?? false) == true;
     final isRated = json['is_rated'] ?? false;
     final canRate = status == 'Completed' && !isRated;
+
+    double? _toDouble(dynamic v) {
+      if (v == null) return null;
+      if (v is num) return v.toDouble();
+      return double.tryParse(v.toString());
+    }
+
+    final paymentStatus = (json['payment_status'] ?? json['paymentStatus'] ?? 'Pending').toString();
 
     return Session(
       sessionId: json['sessionId']?.toString() ?? json['id']?.toString() ?? '',
@@ -82,6 +104,7 @@ class Session {
       specialistName: json['specialistName'] ?? '',
       institutionName: json['institutionName'] ?? '',
       sessionType: json['sessionType'] ?? '',
+
       date: json['date'] ?? '',
       time: json['time'] ?? '',
       duration: json['duration'] ?? 0,
@@ -95,23 +118,36 @@ class Session {
       isRated: isRated,
       cancellationReason: json['cancellationReason'],
       isPaid: isPaid,
-      paymentStatus: json['payment_status'] ?? 'Pending',
+      paymentStatus: paymentStatus,
+      originalPrice: _toDouble(json['original_price'] ?? json['originalPrice']),
+      finalPrice: _toDouble(json['final_price'] ?? json['finalPrice']),
+      discountPercentage: _toDouble(json['applied_discount_percentage'] ?? json['discountPercentage']),
+      discountAmount: _toDouble(json['discount_amount'] ?? json['discountAmount']),
+      refundAmount: _toDouble(json['refund_amount'] ?? json['refundAmount']),
       canCancel: status == 'Scheduled',
       canPay: status == 'Scheduled' && !isPaid,
       parentNotes: json['parentNotes'],
       review: json['review'],
+
       childAge: json['childAge'] ?? json['age'],
       childCondition: json['childCondition'] ?? json['condition'],
       sessionTypePrice: _getPriceFromSessionType(json['sessionType']),
       canRate: canRate, // ← تعيين القيمة
       isEligibleForAutoDiscount: json['eligible_for_auto_discount'] ?? false,
-      autoDiscountPercentage: json['discount_percentage'] != null 
-          ? double.tryParse(json['discount_percentage'].toString()) ?? 0 
-          : 0,
-      autoDiscountAmount: json['discount_amount'] != null 
-          ? double.tryParse(json['discount_amount'].toString()) ?? 0 
-          : 0,
-      autoDiscountReason: json['discount_reason'],
+      autoDiscountPercentage: _toDouble(
+        json['discount_percentage'] ??
+            json['auto_discount_percentage'] ??
+            json['autoDiscountPercentage'],
+      ),
+      autoDiscountAmount: _toDouble(
+        json['discount_amount'] ??
+            json['auto_discount_amount'] ??
+            json['autoDiscountAmount'],
+      ),
+      autoDiscountReason: (json['discount_reason'] ??
+              json['auto_discount_reason'] ??
+              json['autoDiscountReason'])
+          ?.toString(),
       financialAssessment: json['financial_assessment'],
     );
   }

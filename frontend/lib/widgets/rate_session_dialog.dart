@@ -23,11 +23,11 @@ class _RateSessionDialogState extends State<RateSessionDialog> {
   bool _isSubmitting = false;
 
   final Map<int, String> _ratingTags = {
-    1: 'سيء جداً',
-    2: 'سيء',
-    3: 'متوسط',
-    4: 'جيد',
-    5: 'ممتاز',
+    1: 'Very Poor',
+    2: 'Poor',
+    3: 'Average',
+    4: 'Good',
+    5: 'Excellent',
   };
 
   @override
@@ -63,7 +63,7 @@ class _RateSessionDialogState extends State<RateSessionDialog> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'تقييم الجلسة',
+                            'Rate Session',
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
@@ -96,7 +96,7 @@ class _RateSessionDialogState extends State<RateSessionDialog> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'تفاصيل الجلسة',
+                        'Session Details',
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
                           color: AppColors.textDark,
@@ -104,10 +104,10 @@ class _RateSessionDialogState extends State<RateSessionDialog> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      _buildSessionInfoRow('المختص', widget.session.specialistName),
-                      _buildSessionInfoRow('التاريخ', widget.session.date),
-                      _buildSessionInfoRow('الوقت', widget.session.time),
-                      _buildSessionInfoRow('النوع', widget.session.sessionType),
+                      _buildSessionInfoRow('Specialist', widget.session.specialistName),
+                      _buildSessionInfoRow('Date', widget.session.date),
+                      _buildSessionInfoRow('Time', widget.session.time),
+                      _buildSessionInfoRow('Type', widget.session.sessionType),
                     ],
                   ),
                 ),
@@ -119,7 +119,7 @@ class _RateSessionDialogState extends State<RateSessionDialog> {
                   child: Column(
                     children: [
                       Text(
-                        'كيف تقيم هذه الجلسة؟',
+                        'How would you rate this session?',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -174,7 +174,7 @@ class _RateSessionDialogState extends State<RateSessionDialog> {
 
                 // Comment
                 Text(
-                  'تعليق (اختياري)',
+                  'Comment (Optional)',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     color: AppColors.textDark,
@@ -186,7 +186,7 @@ class _RateSessionDialogState extends State<RateSessionDialog> {
                   controller: _commentController,
                   maxLines: 3,
                   decoration: InputDecoration(
-                    hintText: 'اكتب تعليقك عن الجلسة...',
+                    hintText: 'Write your comment about the session...',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide(color: AppColors.textLight.withOpacity(0.3)),
@@ -213,7 +213,7 @@ class _RateSessionDialogState extends State<RateSessionDialog> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           side: BorderSide(color: AppColors.textGray.withOpacity(0.3)),
                         ),
-                        child: const Text('إلغاء'),
+                        child: const Text('Cancel'),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -236,7 +236,7 @@ class _RateSessionDialogState extends State<RateSessionDialog> {
                             color: Colors.white,
                           ),
                         )
-                            : const Text('تقييم الجلسة'),
+                            : const Text('Rate Session'),
                       ),
                     ),
                   ],
@@ -283,7 +283,7 @@ class _RateSessionDialogState extends State<RateSessionDialog> {
     setState(() => _isSubmitting = true);
 
     try {
-      print('🎯 بدء عملية التقييم...');
+      print('🎯 Starting rating process...');
       print('📱 Session ID: ${widget.session.sessionId}');
       print('⭐ Rating: $_rating');
       print('📝 Comment: ${_commentController.text}');
@@ -295,51 +295,51 @@ class _RateSessionDialogState extends State<RateSessionDialog> {
         ratingTag: _ratingTags[_rating.toInt()],
       );
 
-      print('✅ استجابة الخادم: $result');
+      print('✅ Server response: $result');
 
       if (result['success'] == true) {
-        // تأخير بسيط لمنع المشاكل
+        // Short delay to prevent issues
         await Future.delayed(const Duration(milliseconds: 300));
 
         if (mounted) {
-          // أغلق الـ Dialog أولاً
+          // Close Dialog first
           Navigator.pop(context);
 
-          // انتظر قليلاً قبل إظهار Snackbar
+          // Wait a bit before showing Snackbar
           await Future.delayed(const Duration(milliseconds: 100));
 
-          // أظهر رسالة النجاح
+          // Show success message
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(result['message'] ?? 'تم التقييم بنجاح'),
+              content: Text(result['message'] ?? 'Rating submitted successfully'),
               backgroundColor: AppColors.success,
               duration: const Duration(seconds: 2),
             ),
           );
 
-          // انتظر قبل استدعاء onRated
+          // Wait before calling onRated
           await Future.delayed(const Duration(milliseconds: 500));
 
-          // استدعاء دالة التحديث
+          // Call update function
           widget.onRated();
         }
       } else {
         throw Exception(result['message'] ?? 'Failed to rate session');
       }
     } catch (e) {
-      print('❌ خطأ في التقييم: $e');
+      print('❌ Rating error: $e');
 
       if (mounted) {
-        // في حالة الخطأ، ابقي Dialog مفتوحاً
+        // In case of error, keep Dialog open
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('فشل التقييم: ${e.toString()}'),
+            content: Text('Rating failed: ${e.toString()}'),
             backgroundColor: AppColors.error,
             duration: const Duration(seconds: 3),
           ),
         );
 
-        // أعِد تعيين حالة الإرسال
+        // Reset submitting state
         setState(() => _isSubmitting = false);
       }
     }

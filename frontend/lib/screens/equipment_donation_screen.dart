@@ -40,46 +40,33 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
   bool _isLoading = true;
   bool _isSubmitting = false;
   List<Map<String, dynamic>> _institutions = [];
-  List<Map<String, dynamic>> _categories = [];
   final ImagePicker _picker = ImagePicker();
   List<XFile> _selectedImages = [];
-  
+
   // Form controllers
   final TextEditingController _institutionController = TextEditingController();
   final TextEditingController _equipmentNameController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-  final TextEditingController _estimatedValueController = TextEditingController();
-  final TextEditingController _contactPersonController = TextEditingController();
-  final TextEditingController _contactPhoneController = TextEditingController();
-  final TextEditingController _contactEmailController = TextEditingController();
-  
+
   // Form values
   int? _selectedInstitutionId;
-  int? _selectedCategoryId;
   String _selectedCondition = 'used_good';
-  String _selectedDeliveryType = 'pickup';
   DateTime? _selectedDate;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    
+
     // Load data for both tabs
     _loadCampaigns();
     _loadDonorAIRecommendations();
     _loadInitialData();
-    
+
     // Pre-fill if coming from campaign
     if (widget.equipmentName != null && widget.equipmentName!.trim().isNotEmpty) {
       _equipmentNameController.text = widget.equipmentName!.trim();
     }
-    if (widget.categoryId != null) {
-      _selectedCategoryId = widget.categoryId;
-    }
-    
-    // Pre-fill contact info
-    _loadUserContactInfo();
   }
 
   @override
@@ -88,10 +75,6 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
     _institutionController.dispose();
     _equipmentNameController.dispose();
     _descriptionController.dispose();
-    _estimatedValueController.dispose();
-    _contactPersonController.dispose();
-    _contactPhoneController.dispose();
-    _contactEmailController.dispose();
     super.dispose();
   }
 
@@ -308,14 +291,6 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
 
       // Load institutions
       await _loadInstitutions();
-      
-      // Load equipment categories
-      await _loadCategories();
-
-      // Auto-select institution if provided
-      if (widget.institutionId != null) {
-        _selectInstitution(widget.institutionId!);
-      }
 
       setState(() {
         _isLoading = false;
@@ -330,7 +305,7 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
   Future<void> _loadInstitutions() async {
     try {
       final institutions = await ApiService.getEquipmentInstitutions();
-      
+
       setState(() {
         _institutions = institutions;
       });
@@ -342,65 +317,12 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
     }
   }
 
-  Future<void> _loadCategories() async {
-    try {
-      final url = Uri.parse('${ApiService.baseUrl}/api/equipment/categories');
-      final response = await http.get(url);
-      
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          setState(() {
-            _categories = List<Map<String, dynamic>>.from(data['data'] ?? []);
-          });
-        }
-      }
-    } catch (e) {
-      print('Error loading categories: $e');
-      setState(() {
-        _categories = [];
-      });
-    }
-  }
-
-  Future<void> _loadUserContactInfo() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token');
-      
-      if (token != null && token.isNotEmpty) {
-        final userResponse = await http.get(
-          Uri.parse('${ApiService.baseUrl}/api/users/profile'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-          },
-        );
-        
-        if (userResponse.statusCode == 200) {
-          final userData = jsonDecode(userResponse.body);
-          if (userData['success'] == true && userData['data'] != null) {
-            final user = userData['data'];
-            
-            setState(() {
-              _contactPersonController.text = user['full_name'] ?? '';
-              _contactPhoneController.text = user['phone'] ?? '';
-              _contactEmailController.text = user['email'] ?? '';
-            });
-          }
-        }
-      }
-    } catch (e) {
-      print('Error loading user contact info: $e');
-    }
-  }
-
   void _selectInstitution(int institutionId) {
     final institution = _institutions.firstWhere(
       (inst) => inst['institution_id'] == institutionId,
       orElse: () => {},
     );
-    
+
     if (institution.isNotEmpty) {
       setState(() {
         _selectedInstitutionId = institutionId;
@@ -416,7 +338,7 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
         maxHeight: 800,
         imageQuality: 85,
       );
-      
+
       if (images != null) {
         setState(() {
           _selectedImages.addAll(images);
@@ -441,7 +363,7 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
         maxHeight: 800,
         imageQuality: 85,
       );
-      
+
       if (image != null) {
         setState(() {
           _selectedImages.add(image);
@@ -484,19 +406,15 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
     if (_selectedInstitutionId == null) {
       return 'Please select an institution';
     }
-    
+
     if (_equipmentNameController.text.isEmpty) {
       return 'Please enter equipment name';
     }
-    
-    if (_contactPersonController.text.isEmpty) {
-      return 'Please enter your name';
+
+    if (_selectedDate == null) {
+      return 'Please select delivery time';
     }
-    
-    if (_contactPhoneController.text.isEmpty) {
-      return 'Please enter your phone number';
-    }
-    
+
     return null;
   }
 
@@ -519,36 +437,22 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
-      
+
       final request = http.MultipartRequest(
         'POST',
         Uri.parse('${ApiService.baseUrl}/api/equipment/donate'),
       );
-      
+
       if (token != null && token.isNotEmpty) {
         request.headers['Authorization'] = 'Bearer $token';
       }
-      
+
       request.fields['institution_id'] = _selectedInstitutionId.toString();
-      if (_selectedCategoryId != null) {
-        request.fields['category_id'] = _selectedCategoryId.toString();
-      }
       request.fields['equipment_name'] = _equipmentNameController.text;
       request.fields['description'] = _descriptionController.text;
       request.fields['condition'] = _selectedCondition;
-      request.fields['delivery_type'] = _selectedDeliveryType;
-      if (_estimatedValueController.text.isNotEmpty) {
-        request.fields['estimated_value'] = _estimatedValueController.text;
-      }
-      if (_selectedDate != null) {
-        request.fields['preferred_date'] = _selectedDate!.toIso8601String();
-      }
-      request.fields['contact_person'] = _contactPersonController.text;
-      request.fields['contact_phone'] = _contactPhoneController.text;
-      if (_contactEmailController.text.isNotEmpty) {
-        request.fields['contact_email'] = _contactEmailController.text;
-      }
-      
+      request.fields['preferred_date'] = _selectedDate!.toIso8601String();
+
       for (int i = 0; i < _selectedImages.length; i++) {
         final image = _selectedImages[i];
         final file = await http.MultipartFile.fromPath(
@@ -558,11 +462,11 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
         );
         request.files.add(file);
       }
-      
+
       final response = await request.send();
       final responseBody = await response.stream.bytesToString();
       final data = jsonDecode(responseBody);
-      
+
       if (response.statusCode == 201 && data['success'] == true) {
         await _showSuccessDialog(data);
       } else {
@@ -586,7 +490,7 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
     final donationId = response['data']['equipment_donation_id'] as int? ?? 0;
     final paddedId = donationId.toString().padLeft(6, '0');
     final trackingCode = 'EQ$paddedId';
-    
+
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -646,9 +550,10 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
             ),
             const SizedBox(height: 8),
             const Text(
-              '1. The institution will review your donation request\n'
-              '2. You will be contacted to arrange pickup/delivery\n'
-              '3. You will receive updates via SMS/Email',
+              '• Your donation will be registered immediately\n'
+              '• The institution will coordinate with you based on your delivery time\n'
+              '• You can track your donation using the tracking code\n'
+              '• All donations are tax-deductible',
               style: TextStyle(fontSize: 12),
             ),
           ],
@@ -680,16 +585,10 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
     setState(() {
       _selectedInstitutionId = null;
       _institutionController.clear();
-      _selectedCategoryId = null;
       _equipmentNameController.clear();
       _descriptionController.clear();
-      _estimatedValueController.clear();
       _selectedCondition = 'used_good';
-      _selectedDeliveryType = 'pickup';
       _selectedDate = null;
-      _contactPersonController.clear();
-      _contactPhoneController.clear();
-      _contactEmailController.clear();
       _selectedImages.clear();
     });
   }
@@ -755,134 +654,11 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
     return RefreshIndicator(
       onRefresh: () async {
         await _loadCampaigns();
-        await _loadDonorAIRecommendations();
       },
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           const SizedBox(height: 4),
-          if (_isLoadingAI)
-            Container(
-              padding: const EdgeInsets.all(16),
-              color: AppColors.primary.withOpacity(0.06),
-              child: const Row(
-                children: [
-                  SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                  SizedBox(width: 10),
-                  Expanded(child: Text('Loading AI suggestions...')),
-                ],
-              ),
-            )
-          else if (_aiRecommendations.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.all(16),
-              color: AppColors.primary.withOpacity(0.06),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'AI Suggestions for You',
-                    style: TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  if ((_aiSummary ?? '').trim().isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      _aiSummary!,
-                      style: const TextStyle(color: Colors.black87),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 140,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _aiRecommendations.length,
-                      itemBuilder: (context, index) {
-                        final r = _aiRecommendations[index];
-                        final id = r['institution_id'];
-                        final name = (r['name'] ?? '').toString();
-                        final reasons = (r['reasons'] is List)
-                            ? (r['reasons'] as List).map((x) => x.toString()).toList()
-                            : <String>[];
-
-                        return Container(
-                          width: 300,
-                          margin: EdgeInsets.only(right: index == _aiRecommendations.length - 1 ? 0 : 12),
-                          child: Card(
-                            elevation: 1,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    name.isEmpty ? 'Institution' : name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontWeight: FontWeight.w800),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    reasons.isNotEmpty ? reasons.first : 'Suggested for you',
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(color: Colors.grey),
-                                  ),
-                                  const Spacer(),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: OutlinedButton(
-                                          onPressed: id is int
-                                              ? () {
-                                                  Navigator.push(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder: (_) => DonationScreen(
-                                                        institutionId: id,
-                                                        institutionName: name,
-                                                      ),
-                                                    ),
-                                                  );
-                                                }
-                                              : null,
-                                          child: const Text('Donate Money'),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: ElevatedButton(
-                                          onPressed: id is int
-                                              ? () {
-                                                  _selectInstitution(id);
-                                                  _tabController.animateTo(1);
-                                                }
-                                              : null,
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: AppColors.primary,
-                                            foregroundColor: Colors.white,
-                                          ),
-                                          child: const Text('Donate Equipment'),
-                                        ),
-                                      ),
-                                    ],
-                                  )
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
           if (_error != null)
             Container(
               padding: const EdgeInsets.all(12),
@@ -974,14 +750,14 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 24),
-                
+
                 // Institution Selection
                 _buildInstitutionSelector(),
-                
+
                 const SizedBox(height: 20),
-                
+
                 // Equipment Information
                 const Text(
                   'Equipment Information',
@@ -990,9 +766,9 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // Equipment Name
                 TextFormField(
                   controller: _equipmentNameController,
@@ -1003,14 +779,9 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
                     prefixIcon: Icon(Icons.medical_services),
                   ),
                 ),
-                
+
                 const SizedBox(height: 16),
-                
-                // Category
-                _buildCategorySelector(),
-                
-                const SizedBox(height: 16),
-                
+
                 // Description
                 TextFormField(
                   controller: _descriptionController,
@@ -1022,29 +793,14 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
                     prefixIcon: Icon(Icons.description),
                   ),
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // Condition
-                _buildConditionSelector(),
-                
-                const SizedBox(height: 16),
-                
-                // Estimated Value
-                TextFormField(
-                  controller: _estimatedValueController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Estimated Value (JOD) (Optional)',
-                    hintText: 'e.g., 500',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.attach_money),
-                    suffixText: 'JOD',
-                  ),
-                ),
-                
-                const SizedBox(height: 24),
-                
+                // _buildConditionSelector(),
+
+                // const SizedBox(height: 24),
+
                 // Delivery Information
                 const Text(
                   'Delivery Information',
@@ -1053,20 +809,15 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                
+
                 const SizedBox(height: 16),
-                
-                // Delivery Method
-                _buildDeliveryTypeSelector(),
-                
-                const SizedBox(height: 16),
-                
+
                 // Preferred Date
                 InkWell(
                   onTap: _selectDate,
                   child: InputDecorator(
                     decoration: const InputDecoration(
-                      labelText: 'Preferred Delivery Date (Optional)',
+                      labelText: 'Delivery Time *',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.calendar_today),
                     ),
@@ -1086,66 +837,14 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 24),
-                
-                // Contact Information
-                const Text(
-                  'Contact Information',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                
-                const SizedBox(height: 16),
-                
-                // Contact Person
-                TextFormField(
-                  controller: _contactPersonController,
-                  decoration: const InputDecoration(
-                    labelText: 'Your Name *',
-                    hintText: 'Enter your full name',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.person),
-                  ),
-                ),
-                
-                const SizedBox(height: 16),
-                
-                // Contact Phone
-                TextFormField(
-                  controller: _contactPhoneController,
-                  keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(
-                    labelText: 'Phone Number *',
-                    hintText: 'e.g., 0791234567',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.phone),
-                  ),
-                ),
-                
-                const SizedBox(height: 16),
-                
-                // Contact Email
-                TextFormField(
-                  controller: _contactEmailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                    labelText: 'Email Address (Optional)',
-                    hintText: 'your.email@example.com',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.email),
-                  ),
-                ),
-                
-                const SizedBox(height: 24),
-                
+
                 // Photos
                 _buildImageSelector(),
-                
+
                 const SizedBox(height: 32),
-                
+
                 // Submit Button
                 SizedBox(
                   width: double.infinity,
@@ -1175,9 +874,9 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // Information note
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -1204,16 +903,16 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
                       ),
                       SizedBox(height: 8),
                       Text(
-                        '• Your donation request will be reviewed by the institution\n'
-                        '• You will be contacted within 2-3 business days\n'
-                        '• You can track your donation status using the tracking code\n'
+                        '• Your donation will be registered immediately\n'
+                        '• The institution will coordinate with you based on your delivery time\n'
+                        '• You can track your donation using the tracking code\n'
                         '• All donations are tax-deductible',
                         style: TextStyle(fontSize: 10),
                       ),
                     ],
                   ),
                 ),
-                
+
                 // Option to switch to money donation
                 if (widget.institutionId != null)
                   Container(
@@ -1271,7 +970,6 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
   Widget _buildMoneyDonationTab() {
     return Column(
       children: [
-        // Header for money donation tab
         Container(
           padding: const EdgeInsets.all(16),
           color: AppColors.primary.withOpacity(0.1),
@@ -1310,8 +1008,6 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
             ],
           ),
         ),
-        
-        // Quick switch to equipment donation
         if (widget.institutionId != null)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1327,8 +1023,6 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
               ),
             ),
           ),
-        
-        // Display the full DonationScreen
         Expanded(
           child: DonationScreen(
             institutionId: widget.institutionId,
@@ -1382,47 +1076,6 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
     );
   }
 
-  Widget _buildCategorySelector() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Equipment Category',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-          ),
-        ),
-        const SizedBox(height: 8),
-        DropdownButtonFormField<int>(
-          value: _selectedCategoryId,
-          decoration: const InputDecoration(
-            hintText: 'Select category (optional)',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.category),
-          ),
-          items: [
-            const DropdownMenuItem(
-              value: null,
-              child: Text('Select category (optional)'),
-            ),
-            ..._categories.map((category) {
-              return DropdownMenuItem(
-                value: category['category_id'] as int,
-                child: Text(category['name_ar'] ?? category['name_en'] ?? ''),
-              );
-            }).toList(),
-          ],
-          onChanged: (value) {
-            setState(() {
-              _selectedCategoryId = value;
-            });
-          },
-        ),
-      ],
-    );
-  }
-
   Widget _buildConditionSelector() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1450,7 +1103,7 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
 
   Widget _buildConditionChip(String value, String label, IconData icon) {
     final isSelected = _selectedCondition == value;
-    
+
     return ChoiceChip(
       label: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1468,86 +1121,6 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
       },
       backgroundColor: isSelected ? AppColors.primary.withOpacity(0.1) : null,
       selectedColor: AppColors.primary.withOpacity(0.2),
-    );
-  }
-
-  Widget _buildDeliveryTypeSelector() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Delivery Method *',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Column(
-          children: [
-            RadioListTile<String>(
-              title: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.delivery_dining),
-                  SizedBox(width: 8),
-                  Flexible(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('I can deliver it'),
-                        SizedBox(height: 2),
-                        Text(
-                          'I can bring the equipment to the institution',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              value: 'delivery',
-              groupValue: _selectedDeliveryType,
-              onChanged: (value) {
-                setState(() {
-                  _selectedDeliveryType = value!;
-                });
-              },
-              contentPadding: EdgeInsets.zero,
-            ),
-            RadioListTile<String>(
-              title: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.local_shipping),
-                  SizedBox(width: 8),
-                  Flexible(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Pickup needed'),
-                        SizedBox(height: 2),
-                        Text(
-                          'The institution needs to arrange pickup',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              value: 'pickup',
-              groupValue: _selectedDeliveryType,
-              onChanged: (value) {
-                setState(() {
-                  _selectedDeliveryType = value!;
-                });
-              },
-              contentPadding: EdgeInsets.zero,
-            ),
-          ],
-        ),
-      ],
     );
   }
 
@@ -1571,7 +1144,6 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
           ),
         ),
         const SizedBox(height: 12),
-        
         if (_selectedImages.isNotEmpty)
           GridView.builder(
             shrinkWrap: true,
@@ -1613,9 +1185,7 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
               );
             },
           ),
-        
         const SizedBox(height: 16),
-        
         Row(
           children: [
             Expanded(
@@ -1641,7 +1211,6 @@ class _CombinedEquipmentScreenState extends State<CombinedEquipmentScreen> with 
             ),
           ],
         ),
-        
         if (_selectedImages.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 8),

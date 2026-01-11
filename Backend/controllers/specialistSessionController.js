@@ -9,61 +9,59 @@ const Session = require('../model/Session');
   const { createZoomMeeting } = require('../services/zoomService');
   const { createInvoiceForSession } = require('./sessionBookingController');
   const NotificationService = require('../services/notificationService');
-  
-  
-  exports.getAllSessionsForSpecialist = async (req, res) => {
-    try {
-      const specialistId = req.user.user_id;
 
-      const sessions = await Session.findAll({
-        where: { 
-          specialist_id: specialistId,
-          is_visible: true
+exports.getAllSessionsForSpecialist = async (req, res) => {
+  try {
+    const specialistId = req.user.user_id;
+
+    const sessions = await Session.findAll({
+      where: { 
+        specialist_id: specialistId,
+        is_visible: true
+      },
+      include: [
+        { 
+          model: Child, 
+          as: 'child',
+          attributes: ['child_id', 'full_name', 'parent_id', 'photo'] 
         },
-        include: [
-          { 
-            model: Child, 
-            as: 'child',
-            attributes: ['child_id', 'full_name', 'parent_id'] 
-          },
-          { 
-            model: Institution, 
-            as: 'institution',
-            attributes: ['institution_id', 'name'] 
-          },
-          {
-            model: SessionType,
-            attributes: ['session_type_id', 'name', 'duration', 'category']
-          }
-        ],
-        attributes: [
-          'session_id', 
-          'date', 
-          'time', 
-          'status',
-          'session_type',
-          'session_type_id', 
-          'child_id', 
-          'institution_id',
-          'delete_request',
-          'delete_status',
-          'requested_by_parent',
-          'is_pending',
-          'original_session_id',
-          'reason'
-        ],
-        order: [['date', 'ASC'], ['time', 'ASC']]
-      });
+        { 
+          model: Institution, 
+          as: 'institution',
+          attributes: ['institution_id', 'name'] 
+        },
+        {
+          model: SessionType,
+          attributes: ['session_type_id', 'name', 'duration', 'category']
+        }
+      ],
+      attributes: [
+        'session_id', 
+        'date', 
+        'time', 
+        'status',
+        'session_type',
+        'session_type_id', 
+        'child_id', 
+        'institution_id',
+        'delete_request',
+        'delete_status',
+        'requested_by_parent',
+        'is_pending',
+        'original_session_id',
+        'reason'
+      ],
+      order: [['date', 'ASC'], ['time', 'ASC']]
+    });
 
-      res.status(200).json(sessions);
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: 'Server error retrieving sessions' });
-    }
-  };
+    res.status(200).json(sessions);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error retrieving sessions' });
+  }
+};
 
-
-  exports.requestDeleteSession = async (req, res) => {
+exports.requestDeleteSession = async (req, res) => {
   try {
     const { id } = req.params;
     const { reason } = req.body;
@@ -75,7 +73,7 @@ const Session = require('../model/Session');
         { 
           model: Child, 
           as: 'child',
-          attributes: ['child_id', 'full_name', 'parent_id'] 
+          attributes: ['child_id', 'full_name', 'parent_id', 'photo'] 
         }
       ]
     });
@@ -152,7 +150,6 @@ const Session = require('../model/Session');
   }
 };
 
-
 exports.requestSessionUpdate = async (req, res) => {
   try {
     const { id } = req.params;
@@ -165,7 +162,7 @@ exports.requestSessionUpdate = async (req, res) => {
         {
           model: Child,
           as: 'child',
-          attributes: ['child_id', 'full_name', 'parent_id']
+          attributes: ['child_id', 'full_name', 'parent_id', 'photo']
         }
       ]
     });
@@ -389,7 +386,7 @@ exports.requestSessionUpdate = async (req, res) => {
         { 
           model: Child, 
           as: 'child',
-          attributes: ['child_id', 'full_name', 'parent_id']
+          attributes: ['child_id', 'full_name', 'parent_id', 'photo']
         }
       ]
     });
@@ -489,7 +486,7 @@ exports.requestSessionUpdate = async (req, res) => {
           { 
             model: Child, 
             as: 'child',
-            attributes: ['child_id', 'full_name'] 
+            attributes: ['child_id', 'full_name', 'photo'] 
           },
           { 
             model: Institution, 
@@ -601,10 +598,10 @@ exports.requestSessionUpdate = async (req, res) => {
           session_type: 'Online'
         },
         include: [
-          { 
-            model: Child, 
+          {
+            model: Child,
             as: 'child',
-            attributes: ['child_id', 'full_name', 'parent_id'] 
+            attributes: ['child_id', 'full_name', 'parent_id', 'photo']
           }
         ]
       });
@@ -639,7 +636,7 @@ exports.requestSessionUpdate = async (req, res) => {
         }
       }
 
-      res.status(200).json({
+      return res.status(200).json({
         message: 'Zoom meeting retrieved successfully',
         meeting: {
           meetingId: zoomMeeting.meeting_id,
@@ -650,7 +647,7 @@ exports.requestSessionUpdate = async (req, res) => {
       });
     } catch (err) {
       console.error('Zoom session error:', err.response?.data || err.message);
-      res.status(500).json({ message: 'Server error creating/retrieving Zoom meeting' });
+      return res.status(500).json({ message: 'Server error creating/retrieving Zoom meeting' });
     }
   };
 
@@ -667,7 +664,7 @@ exports.requestSessionUpdate = async (req, res) => {
           {
             model: Child,
             as: 'child',
-            attributes: ['child_id', 'full_name'],
+            attributes: ['child_id', 'full_name', 'parent_id', 'photo'],
             where: { parent_id: parentId }
           },
           {
@@ -699,8 +696,7 @@ exports.requestSessionUpdate = async (req, res) => {
           {
             model: Child,
             as: 'child',
-            attributes: ['child_id', 'full_name', 'photo'],
-            where: { parent_id: parentId }
+            attributes: ['child_id', 'full_name', 'parent_id', 'photo']
           },
           {
             model: User,
@@ -753,7 +749,7 @@ exports.requestSessionUpdate = async (req, res) => {
         {
           model: Child,
           as: 'child',
-          attributes: ['child_id', 'full_name', 'parent_id'],
+          attributes: ['child_id', 'full_name', 'parent_id', 'photo'],
           where: { parent_id: parentId }
         },
         {
@@ -988,7 +984,7 @@ exports.requestSessionUpdate = async (req, res) => {
           { 
             model: Child, 
             as: 'child',
-            attributes: ['child_id', 'full_name', 'parent_id'] 
+            attributes: ['child_id', 'full_name', 'parent_id', 'photo'] 
           },
           { 
             model: Institution, 
@@ -1040,7 +1036,7 @@ exports.requestSessionUpdate = async (req, res) => {
           { 
             model: Child, 
             as: 'child',
-            attributes: ['child_id', 'full_name', 'parent_id'] 
+            attributes: ['child_id', 'full_name', 'parent_id', 'photo'] 
           },
           { 
             model: Institution, 
@@ -1063,7 +1059,7 @@ exports.requestSessionUpdate = async (req, res) => {
               { 
                 model: Child, 
                 as: 'child',
-                attributes: ['child_id', 'full_name', 'parent_id'] 
+                attributes: ['child_id', 'full_name', 'parent_id', 'photo'] 
               },
               { 
                 model: Institution, 

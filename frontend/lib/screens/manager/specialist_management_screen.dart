@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:frontend/screens/manager/employment_requests_screen.dart';
 import '../../theme/app_colors.dart';
 import '../../services/manager_specialist_api_service.dart';
 import '../../services/manager_stats_service.dart';
@@ -1013,6 +1014,12 @@ class _SpecialistManagementScreenState extends State<SpecialistManagementScreen>
                     () => _showAddSpecialistDialog(),
               ),
               _buildActionButton(
+              'Employment Requests',
+              Icons.assignment_turned_in_rounded,
+              Color(0xFF2196F3), // لون أزرق
+              () => _navigateToEmploymentRequests(),
+            ),
+              _buildActionButton(
                 'Session Types',
                 Icons.list_alt_rounded,
                 Color(0xFF9C27B0),
@@ -1048,6 +1055,15 @@ class _SpecialistManagementScreenState extends State<SpecialistManagementScreen>
       ),
     );
   }
+
+  void _navigateToEmploymentRequests() {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => EmploymentRequestsScreen(),
+    ),
+  );
+}
 
   Widget _buildActionButton(String label, IconData icon, Color color, VoidCallback onTap) {
     return GestureDetector(

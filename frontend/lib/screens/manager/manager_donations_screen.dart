@@ -1,4 +1,6 @@
 // lib/screens/manager/manager_donations_screen.dart
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../../services/manager_dashboard_service.dart';
@@ -6,6 +8,7 @@ import '../../services/equipment_management_service.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'manager_impact_posts_screen.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 class ManagerDonationsScreen extends StatefulWidget {
   const ManagerDonationsScreen({Key? key}) : super(key: key);
@@ -74,133 +77,10 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
     }
   }
 
-  Future<void> _openEquipmentDonationManageSheet(Map<String, dynamic> donation) async {
-    final donationIdRaw = donation['id'] ?? donation['equipment_donation_id'];
-    final donationId = donationIdRaw is int ? donationIdRaw : int.tryParse(donationIdRaw.toString());
-    if (donationId == null) return;
-
-    String status = (donation['status'] ?? 'pending').toString();
-    final notesController = TextEditingController(text: (donation['admin_notes'] ?? '').toString());
-    final rejectionController = TextEditingController(text: (donation['rejection_reason'] ?? '').toString());
-    DateTime? actualDeliveryDate;
-    final actualDeliveryRaw = donation['actual_delivery_date']?.toString();
-    if (actualDeliveryRaw != null && actualDeliveryRaw.isNotEmpty) {
-      actualDeliveryDate = DateTime.tryParse(actualDeliveryRaw);
-    }
-
-    final ok = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 16,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Manage Equipment Donation', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: status,
-                  decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Status'),
-                  items: const [
-                    DropdownMenuItem(value: 'pending', child: Text('pending')),
-                    DropdownMenuItem(value: 'approved', child: Text('approved')),
-                    DropdownMenuItem(value: 'scheduled', child: Text('scheduled')),
-                    DropdownMenuItem(value: 'delivered', child: Text('delivered')),
-                    DropdownMenuItem(value: 'rejected', child: Text('rejected')),
-                    DropdownMenuItem(value: 'cancelled', child: Text('cancelled')),
-                  ],
-                  onChanged: (v) {
-                    if (v != null) status = v;
-                  },
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: notesController,
-                  maxLines: 2,
-                  decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Admin notes'),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: rejectionController,
-                  maxLines: 2,
-                  decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Rejection reason (optional)'),
-                ),
-                const SizedBox(height: 10),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      firstDate: DateTime(2000),
-                      lastDate: DateTime.now().add(const Duration(days: 3650)),
-                      initialDate: actualDeliveryDate ?? DateTime.now(),
-                    );
-                    if (picked != null) {
-                      actualDeliveryDate = picked;
-                    }
-                  },
-                  icon: const Icon(Icons.calendar_today_rounded, size: 18),
-                  label: Text(
-                    actualDeliveryDate == null
-                        ? 'Actual delivery date'
-                        : DateFormat('yyyy-MM-dd').format(actualDeliveryDate!),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Cancel'),
-                      ),
-                    ),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryDark),
-                        child: const Text('Save'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-
-    if (ok == true) {
-      final payload = <String, dynamic>{
-        'status': status,
-        'admin_notes': notesController.text.trim().isEmpty ? null : notesController.text.trim(),
-        'rejection_reason': rejectionController.text.trim().isEmpty ? null : rejectionController.text.trim(),
-        'actual_delivery_date': actualDeliveryDate?.toIso8601String(),
-      };
-      payload.removeWhere((k, v) => v == null);
-
-      try {
-        await ManagerDashboardService.updateEquipmentDonationStatus(donationId, payload);
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Equipment donation updated')),
-        );
-        await _loadEquipmentDonations();
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update: $e')),
-        );
-      }
-    }
+  void _openEquipmentDonationManageSheet(Map<String, dynamic> donation) {
+    // Equipment in-kind donations are auto-approved and added to inventory immediately.
+    // Manager approval workflow has been removed.
+    return;
   }
 
   Future<void> _openEquipmentCampaignManageSheet(Map<String, dynamic> campaign) async {
@@ -387,46 +267,66 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
   }
 
   Future<void> _loadData() async {
+  setState(() {
+    _isLoading = true;
+  });
+
+  try {
+    final result = await ManagerDashboardService.getDonationDetails();
+    final campaigns = await ManagerDashboardService.getDonationCampaigns();
+    final stats = await ManagerDashboardService.getDonationStatistics();
+
+    // Debug: طباعة تفاصيل البيانات
+    print('=== Debug Donation Data ===');
+    print('Total donations: ${result['donations']?.length ?? 0}');
+    print('Total campaigns: ${campaigns.length}');
+    print('Campaigns list:');
+    for (var i = 0; i < campaigns.length; i++) {
+      final camp = campaigns[i] as Map<String, dynamic>;
+      print('  ${i + 1}. ID: ${camp['campaign_id']}, Name: "${camp['name']}"');
+    }
+    
+    print('\nSample donations:');
+    final donations = List<dynamic>.from(result['donations'] as List? ?? []);
+    for (var i = 0; i < min(3, donations.length); i++) {
+      final donation = donations[i] as Map<String, dynamic>;
+      print('  ${i + 1}. Amount: ${donation['amount']}, CampaignID: ${donation['campaign_id']}');
+    }
+    print('===========================\n');
+
+    await _loadImpactV2();
+    await _loadEquipmentDonations();
+    await _loadEquipmentCampaigns();
+    await _loadEquipmentCampaignStats();
+
     setState(() {
-      _isLoading = true;
+      _data = result;
+      _stats = stats;
+      _donations = List<dynamic>.from(result['donations'] as List? ?? []);
+
+      _allocations = List<dynamic>.from(result['allocations'] as List? ?? []);
+      _campaigns = campaigns;
+
+      final topDonor = stats['topDonor'];
+      _topDonors = topDonor != null ? [topDonor] : [];
+      _latestDonations = List<dynamic>.from(stats['latestDonations'] ?? []);
+      _donationDistribution = List<dynamic>.from(stats['distribution'] ?? []);
+      _applyFilters();
+      _processLatestDonations();
+      _isLoading = false;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _analyzeCampaignData();
     });
 
-    try {
-      final result = await ManagerDashboardService.getDonationDetails();
-      final campaigns = await ManagerDashboardService.getDonationCampaigns();
-      final stats = await ManagerDashboardService.getDonationStatistics();
-
-      await _loadImpactV2();
-
-      await _loadEquipmentDonations();
-      await _loadEquipmentCampaigns();
-      await _loadEquipmentCampaignStats();
-
-      setState(() {
-        _data = result;
-        _stats = stats;
-        _donations = List<dynamic>.from(result['donations'] as List? ?? []);
-
-        _allocations = List<dynamic>.from(result['allocations'] as List? ?? []);
-        _campaigns = campaigns;
-
-        final topDonor = stats['topDonor'];
-        _topDonors = topDonor != null ? [topDonor] : [];
-        _latestDonations = List<dynamic>.from(stats['latestDonations'] ?? []);
-        _donationDistribution = List<dynamic>.from(stats['distribution'] ?? []);
-        _applyFilters();
-        _processLatestDonations();
-        _isLoading = false;
-      });
-
-      _loadFilterData(); // تحميل بيانات الفلاتر بعد تحميل الحملات
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
+    _loadFilterData();
+  } catch (e) {
+    print('Error loading data: $e');
+    setState(() {
+      _isLoading = false;
+    });
   }
-
+}
   Future<void> _loadImpactV2() async {
     try {
       if (!mounted) return;
@@ -776,46 +676,110 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
 
   // ========== دوال الفلاتر المتقدمة الجديدة ==========
   void _loadFilterData() async {
-    try {
-      // تحميل الحملات من البيانات الموجودة
-      setState(() {
-        _availableCampaigns = List<Map<String, dynamic>>.from(_campaigns);
-      });
-
-      // تجميع المتبرعين من البيانات المحملة
-      final Set<Map<String, dynamic>> uniqueDonors = {};
-
-      // جمع من التبرعات
-      for (final donation in _donations) {
-        final donor = _asStringMap(donation['donor']);
-        if (donor != null && donor['id'] != null) {
-          uniqueDonors.add(donor);
-        }
+  try {
+    // تحميل الحملات من البيانات الموجودة
+    final List<Map<String, dynamic>> campaignList = [];
+    
+    for (final campaign in _campaigns) {
+      final camp = _asStringMap(campaign);
+      if (camp != null) {
+        campaignList.add(camp);
       }
-
-      // جمع من أحدث التبرعات
-      for (final donation in _latestDonations) {
-        final donor = _asStringMap(donation['donor']);
-        if (donor != null && donor['id'] != null) {
-          uniqueDonors.add(donor);
-        }
-      }
-
-      // جمع من أفضل المتبرعين
-      for (final donorData in _topDonors) {
-        final donorInfo = _asStringMap(donorData['donor_info']);
-        if (donorInfo != null && donorInfo['id'] != null) {
-          uniqueDonors.add(donorInfo);
-        }
-      }
-
-      setState(() {
-        _donorsList = uniqueDonors.toList();
-      });
-    } catch (e) {
-      print('Error loading filter data: $e');
     }
+    
+    setState(() {
+      _availableCampaigns = campaignList;
+    });
+
+    // تجميع المتبرعين من البيانات المحملة
+    final Set<Map<String, dynamic>> uniqueDonors = {};
+
+    // جمع من التبرعات
+    for (final donation in _donations) {
+      final donor = _asStringMap(donation['donor']);
+      if (donor != null && donor['id'] != null) {
+        uniqueDonors.add(donor);
+      }
+    }
+
+    // جمع من أحدث التبرعات
+    for (final donation in _latestDonations) {
+      final donor = _asStringMap(donation['donor']);
+      if (donor != null && donor['id'] != null) {
+        uniqueDonors.add(donor);
+      }
+    }
+
+    // جمع من أفضل المتبرعين
+    for (final donorData in _topDonors) {
+      final donorInfo = _asStringMap(donorData['donor_info']);
+      if (donorInfo != null && donorInfo['id'] != null) {
+        uniqueDonors.add(donorInfo);
+      }
+    }
+
+    setState(() {
+      _donorsList = uniqueDonors.toList();
+    });
+    
+    // طباعة معلومات التشخيص
+    print('=== Campaign Data Analysis ===');
+    print('Total campaigns in system: ${_campaigns.length}');
+    print('Total donations: ${_donations.length}');
+    print('Latest donations: ${_latestDonations.length}');
+    
+    // تحليل ارتباط التبرعات بالحملات
+    int linkedToCampaign = 0;
+    for (final donation in _donations) {
+      final donationMap = _asStringMap(donation);
+      if (donationMap != null) {
+        final campaignId = donationMap['campaign_id'] ?? donationMap['campaign']?['campaign_id'];
+        if (campaignId != null) linkedToCampaign++;
+      }
+    }
+    
+    print('Donations linked to campaigns: $linkedToCampaign/${_donations.length}');
+    print('=============================\n');
+    
+  } catch (e) {
+    print('Error loading filter data: $e');
   }
+}
+void _analyzeCampaignData() {
+  print('🔍 Campaign Data Analysis:');
+  print('==========================');
+  
+  // 1. التحقق من الحملات
+  print('Campaigns (${_campaigns.length}):');
+  for (var i = 0; i < min(5, _campaigns.length); i++) {
+    final campaign = _asStringMap(_campaigns[i]) ?? {};
+    print('  ${i + 1}. ${campaign['name'] ?? 'Unnamed'} (ID: ${campaign['campaign_id']})');
+  }
+  
+  // 2. التحقق من التبرعات
+  print('\nDonations (${_donations.length}):');
+  int withCampaign = 0;
+  for (var i = 0; i < min(5, _donations.length); i++) {
+    final donation = _asStringMap(_donations[i]) ?? {};
+    final hasCampaign = donation['campaign_id'] != null || donation['campaign'] != null;
+    if (hasCampaign) withCampaign++;
+    print('  ${i + 1}. Amount: ${donation['amount']}, Has Campaign: $hasCampaign');
+  }
+  
+  // 3. التحقق من أحدث التبرعات
+  print('\nLatest Donations (${_latestDonations.length}):');
+  for (var i = 0; i < min(3, _latestDonations.length); i++) {
+    final donation = _asStringMap(_latestDonations[i]) ?? {};
+    print('  ${i + 1}. Amount: ${donation['amount']}, Campaign: ${donation['campaign']}');
+  }
+  
+  print('\n📊 Summary:');
+  print('  - Campaigns available: ${_campaigns.length}');
+  print('  - Total donations: ${_donations.length}');
+  print('  - Donations with campaign: $withCampaign');
+  print('  - Donations without campaign: ${_donations.length - withCampaign}');
+  print('==========================\n');
+}
 
   void _applyAdvancedFilters() {
     List<dynamic> filteredDonations = List<dynamic>.from(_donations);
@@ -1417,11 +1381,9 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: AppColors.accent2.withOpacity(0.18)),
               ),
-              child: InkWell(
-                onTap: () => _openEquipmentDonationManageSheet(m),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                     Row(
                       children: [
                         Expanded(
@@ -1449,17 +1411,8 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
                       const SizedBox(height: 4),
                       Text('Created: $created', style: const TextStyle(color: AppColors.textGray, fontSize: 12)),
                     ],
-                    const SizedBox(height: 10),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: OutlinedButton(
-                        onPressed: () => _openEquipmentDonationManageSheet(m),
-                        child: const Text('Manage'),
-                      ),
-                    ),
                   ],
                 ),
-              ),
             );
           }).toList(),
       ],
@@ -1728,8 +1681,17 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
           _buildImpactV2Section(),
           const SizedBox(height: 16),
           // Stats Summary Cards
-          _buildStatsSummary(summary, recent),
-          const SizedBox(height: 16),
+          // _buildStatsSummary(summary, recent),
+          // const SizedBox(height: 16),
+           _buildMonthlyDonationsChart(),
+        const SizedBox(height: 16),
+        
+        _buildCampaignDistributionChart(),
+        const SizedBox(height: 16),
+        
+        _buildDonationTypeComparisonChart(),
+        const SizedBox(height: 16),
+        
 
           // Top Donor Card
           _buildTopDonorCard(),
@@ -1755,7 +1717,898 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
     );
   }
 
+ // أضف هذه الويدجت بعد _buildImpactV2Section في _buildAnalyticsContent()
+
+Widget _buildMonthlyDonationsChart() {
+  final Map<String, double> monthlyData = {};
+  
+  // تجميع البيانات الشهرية
+  for (final donation in _filteredDonations) {
+    final dateStr = donation['date']?.toString();
+    if (dateStr != null) {
+      try {
+        final date = DateTime.parse(dateStr);
+        final key = '${date.year}-${date.month.toString().padLeft(2, '0')}';
+        final amount = double.tryParse(donation['amount'].toString()) ?? 0;
+        monthlyData[key] = (monthlyData[key] ?? 0) + amount;
+      } catch (_) {}
+    }
+  }
+  
+  final sortedMonths = monthlyData.keys.toList()..sort();
+  final List<double> amounts = sortedMonths.map((month) => monthlyData[month] ?? 0).toList();
+  
+  if (sortedMonths.isEmpty) {
+    return _buildEmptyChart('Monthly Donations');
+  }
+  
+  // تحضير بيانات المخطط
+  final barGroups = List.generate(sortedMonths.length, (index) {
+    final month = sortedMonths[index];
+    final monthNumber = int.tryParse(month.substring(5)) ?? 1;
+    
+    return BarChartGroupData(
+      x: index,
+      barRods: [
+        BarChartRodData(
+          toY: amounts[index],
+          gradient: LinearGradient(
+            colors: [_getChartColor(index), _getChartColor(index).withOpacity(0.8)],
+            begin: Alignment.bottomCenter,
+            end: Alignment.topCenter,
+          ),
+          width: 20,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(6),
+            topRight: Radius.circular(6),
+          ),
+          backDrawRodData: BackgroundBarChartRodData(
+            show: true,
+            toY: amounts.isNotEmpty ? amounts.reduce((a, b) => a > b ? a : b) * 1.1 : 1,
+            color: Colors.grey.withOpacity(0.1),
+          ),
+        ),
+      ],
+    );
+  });
+
+  return Container(
+    height: 260,
+    decoration: BoxDecoration(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 10,
+          offset: const Offset(0, 5),
+        ),
+      ],
+    ),
+    padding: const EdgeInsets.all(16),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Monthly Donations',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Last 12 months',
+          style: TextStyle(fontSize: 12, color: AppColors.textGray),
+        ),
+        const SizedBox(height: 16),
+        Expanded(
+          child: BarChart(
+            BarChartData(
+              barGroups: barGroups,
+              borderData: FlBorderData(
+                show: true,
+                border: Border.all(color: AppColors.accent3, width: 1),
+              ),
+              gridData: FlGridData(
+                show: true,
+                drawHorizontalLine: true,
+                drawVerticalLine: false,
+                getDrawingHorizontalLine: (value) => FlLine(
+                  color: AppColors.accent1,
+                  strokeWidth: 0.5,
+                ),
+              ),
+              titlesData: FlTitlesData(
+                show: true,
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    getTitlesWidget: (value, meta) {
+                      if (value.toInt() < sortedMonths.length) {
+                        final monthName = _getMonthName(sortedMonths[value.toInt()]);
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 6.0),
+                          child: Transform.rotate(
+                            angle: -0.3,
+                            child: Text(
+                              monthName,
+                              style: TextStyle(
+                                fontSize: 9,
+                                color: AppColors.textGray,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+                      return const Text('');
+                    },
+                    reservedSize: 28,
+                  ),
+                ),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    getTitlesWidget: (value, meta) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 6.0),
+                        child: Text(
+                          '${value.toInt()} JOD',
+                          style: TextStyle(
+                            fontSize: 9,
+                            color: AppColors.textGray,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      );
+                    },
+                    reservedSize: 40,
+                  ),
+                ),
+                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              ),
+              barTouchData: BarTouchData(
+                touchTooltipData: BarTouchTooltipData(
+                  getTooltipColor: (bar) => AppColors.primary.withOpacity(0.9),
+                  getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                    final monthName = _getMonthName(sortedMonths[group.x.toInt()]);
+                    return BarTooltipItem(
+                      '$monthName\n',
+                      const TextStyle(color: Colors.white, fontSize: 11),
+                      children: [
+                        TextSpan(
+                          text: '${rod.toY.toStringAsFixed(0)} JOD',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _buildCampaignDistributionChart() {
+  // خريطة لتخزين إجمالي التبرعات لكل حملة
+  final Map<String, double> campaignAmounts = {};
+  double totalDonations = 0;
+  
+  // خريطة لأسماء الحملات
+  final Map<int, String> campaignIdToName = {};
+  
+  // 1. تجميع أسماء الحملات
+  for (final campaign in _campaigns) {
+    final camp = campaign as Map<String, dynamic>;
+    final id = camp['campaign_id'] as int?;
+    final name = camp['name']?.toString() ?? 'Unnamed Campaign';
+    if (id != null) {
+      campaignIdToName[id] = name;
+      campaignAmounts[name] = 0; // تهيئة بقيمة 0
+    }
+  }
+  
+  // 2. تجميع التبرعات من _donations (المصدر الأساسي)
+  for (final donation in _donations) {
+    final donationMap = _asStringMap(donation);
+    if (donationMap == null) continue;
+    
+    final amount = double.tryParse(donationMap['amount']?.toString() ?? '0') ?? 0;
+    if (amount == 0) continue;
+    
+    totalDonations += amount;
+    
+    // البحث عن campaign_id في أماكن مختلفة
+    dynamic campaignIdRaw = donationMap['campaign_id'] ?? 
+                           donationMap['campaign']?['campaign_id'] ?? 
+                           donationMap['campaign']?['id'];
+    
+    String campaignName;
+    
+    if (campaignIdRaw != null) {
+      final campaignId = campaignIdRaw is int ? campaignIdRaw : int.tryParse(campaignIdRaw.toString());
+      
+      if (campaignId != null && campaignIdToName.containsKey(campaignId)) {
+        campaignName = campaignIdToName[campaignId]!;
+      } else {
+        // إذا كان هناك campaign_id ولكن ليس في قائمة الحملات
+        campaignName = donationMap['campaign']?['name']?.toString() ?? 'Campaign $campaignId';
+      }
+    } else {
+      // تبرعات عامة (بدون حملة)
+      campaignName = 'General Donations';
+    }
+    
+    campaignAmounts[campaignName] = (campaignAmounts[campaignName] ?? 0) + amount;
+  }
+  
+  // 3. تجميع التبرعات من _latestDonations (المصدر الثانوي)
+  for (final donation in _latestDonations) {
+    final donationMap = _asStringMap(donation);
+    if (donationMap == null) continue;
+    
+    final amount = double.tryParse(donationMap['amount']?.toString() ?? '0') ?? 0;
+    if (amount == 0) continue;
+    
+    totalDonations += amount;
+    
+    dynamic campaignIdRaw = donationMap['campaign_id'] ?? 
+                           donationMap['campaign']?['campaign_id'] ?? 
+                           donationMap['campaign']?['id'];
+    
+    String campaignName;
+    
+    if (campaignIdRaw != null) {
+      final campaignId = campaignIdRaw is int ? campaignIdRaw : int.tryParse(campaignIdRaw.toString());
+      
+      if (campaignId != null && campaignIdToName.containsKey(campaignId)) {
+        campaignName = campaignIdToName[campaignId]!;
+      } else {
+        campaignName = donationMap['campaign']?['name']?.toString() ?? 'Campaign $campaignId';
+      }
+    } else {
+      campaignName = 'General Donations';
+    }
+    
+    campaignAmounts[campaignName] = (campaignAmounts[campaignName] ?? 0) + amount;
+  }
+  
+  // 4. إزالة الحملات التي ليس لها تبرعات (إلا إذا أردنا عرضها)
+  final validCampaigns = campaignAmounts.entries
+      .where((entry) => entry.value > 0)
+      .toList();
+  
+  if (validCampaigns.isEmpty) {
+    return _buildNoCampaignsDataWidget();
+  }
+  
+  // 5. فرز الحملات حسب القيمة
+  validCampaigns.sort((a, b) => b.value.compareTo(a.value));
+  
+  final List<MapEntry<String, double>> sorted = validCampaigns;
+  final total = sorted.fold(0.0, (sum, entry) => sum + entry.value);
+  
+  // 6. إنشاء المخطط الدائري
+  final sections = sorted.asMap().entries.map((entry) {
+    final index = entry.key;
+    final item = entry.value;
+    final value = item.value;
+    final percentage = ((value / total) * 100).toStringAsFixed(1);
+    final color = _getChartColor(index);
+    
+    return PieChartSectionData(
+      color: color,
+      value: value,
+      title: value >= (total * 0.05) ? '$percentage%' : '',
+      radius: 50,
+      titleStyle: const TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        color: Colors.white,
+        shadows: [Shadow(color: Colors.black38, blurRadius: 1)],
+      ),
+    );
+  }).toList();
+
+  return Container(
+    height: 260,
+    decoration: BoxDecoration(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 10,
+          offset: const Offset(0, 5),
+        ),
+      ],
+    ),
+    padding: const EdgeInsets.all(16),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Donations by Campaign',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Total: ${total.toStringAsFixed(0)} JOD • ${sorted.length} campaign${sorted.length != 1 ? 's' : ''}',
+          style: TextStyle(fontSize: 12, color: AppColors.textGray),
+        ),
+        const SizedBox(height: 16),
+        Expanded(
+          child: Row(
+            children: [
+              // المخطط الدائري
+              Expanded(
+                child: PieChart(
+                  PieChartData(
+                    sections: sections,
+                    centerSpaceRadius: 25,
+                    sectionsSpace: 1,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // مفتاح الألوان
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (var i = 0; i < min(sorted.length, 6); i++)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                color: _getChartColor(i),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    sorted[i].key,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.textGray,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    '${sorted[i].value.toStringAsFixed(0)} JOD',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: AppColors.textGray,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${((sorted[i].value / total) * 100).toStringAsFixed(1)}%',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textDark,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (sorted.length > 6)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          '+ ${sorted.length - 6} more campaign${sorted.length - 6 != 1 ? 's' : ''}',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: AppColors.textGray,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+// دالة لعرض رسالة عندما لا توجد بيانات
+Widget _buildNoCampaignsDataWidget() {
+  final hasCampaigns = _campaigns.isNotEmpty;
+  final hasDonations = _donations.isNotEmpty;
+  
+  String title;
+  String message;
+  IconData icon;
+  
+  if (hasCampaigns && !hasDonations) {
+    title = 'No Donations Yet';
+    message = 'You have campaigns but no donations have been made yet.';
+    icon = Icons.money_off;
+  } else if (!hasCampaigns && hasDonations) {
+    title = 'Donations Not Linked to Campaigns';
+    message = 'All donations are general and not assigned to specific campaigns.';
+    icon = Icons.link_off;
+  } else if (!hasCampaigns && !hasDonations) {
+    title = 'No Data Available';
+    message = 'Create campaigns and receive donations to see distribution.';
+    icon = Icons.data_array;
+  } else {
+    title = 'Loading Campaign Data';
+    message = 'Processing donation distribution...';
+    icon = Icons.hourglass_empty;
+  }
+  
+  return Container(
+    height: 260,
+    decoration: BoxDecoration(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 10,
+          offset: const Offset(0, 5),
+        ),
+      ],
+    ),
+    padding: const EdgeInsets.all(16),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Donations by Campaign',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Distribution analysis',
+          style: TextStyle(fontSize: 12, color: AppColors.textGray),
+        ),
+        const SizedBox(height: 16),
+        Expanded(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 60, color: Colors.grey.withOpacity(0.5)),
+                const SizedBox(height: 16),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Text(
+                    message,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                      height: 1.4,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                if (hasCampaigns)
+                  Column(
+                    children: [
+                      const Text(
+                        'Available Campaigns:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 80,
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: min(3, _campaigns.length),
+                          itemBuilder: (context, index) {
+                            final campaign = _campaigns[index] as Map<String, dynamic>;
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: _getChartColor(index),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      campaign['name']?.toString() ?? 'Unnamed',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textGray,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+Widget _buildDonationTypeComparisonChart() {
+  double moneyTotal = 0;
+  double equipmentValue = 0;
+  
+  // التبرعات النقدية
+  for (final donation in _filteredDonations) {
+    moneyTotal += double.tryParse(donation['amount'].toString()) ?? 0;
+  }
+  
+  // قيمة المعدات (افتراضية)
+  for (final equipment in _equipmentDonations) {
+    final value = double.tryParse(equipment['estimated_value']?.toString() ?? '0') ?? 0;
+    equipmentValue += value;
+  }
+  
+  final total = moneyTotal + equipmentValue;
+  final maxValue = max(moneyTotal, equipmentValue) * 1.1;
+  
+  return Container(
+    height: 280,
+    decoration: BoxDecoration(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 10,
+          offset: const Offset(0, 5),
+        ),
+      ],
+    ),
+    padding: const EdgeInsets.all(16),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Donations by Type',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Money vs Equipment donations',
+          style: TextStyle(fontSize: 12, color: AppColors.textGray),
+        ),
+        const SizedBox(height: 16),
+        
+        // مخطط الأعمدة المقارنة
+        Expanded(
+          child: BarChart(
+            BarChartData(
+              barGroups: [
+                BarChartGroupData(
+                  x: 0,
+                  barRods: [
+                    BarChartRodData(
+                      toY: moneyTotal,
+                      gradient: LinearGradient(
+                        colors: [AppColors.primary, AppColors.primary.withOpacity(0.8)],
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                      ),
+                      width: 40,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(6),
+                        topRight: Radius.circular(6),
+                      ),
+                    ),
+                  ],
+                  showingTooltipIndicators: [0],
+                ),
+                BarChartGroupData(
+                  x: 1,
+                  barRods: [
+                    BarChartRodData(
+                      toY: equipmentValue,
+                      gradient: LinearGradient(
+                        colors: [Colors.purple, Colors.purple.withOpacity(0.8)],
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                      ),
+                      width: 40,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(6),
+                        topRight: Radius.circular(6),
+                      ),
+                    ),
+                  ],
+                  showingTooltipIndicators: [0],
+                ),
+              ],
+              borderData: FlBorderData(
+                show: true,
+                border: Border.all(color: AppColors.accent3, width: 1),
+              ),
+              gridData: FlGridData(
+                show: true,
+                drawHorizontalLine: true,
+                drawVerticalLine: false,
+                getDrawingHorizontalLine: (value) => FlLine(
+                  color: AppColors.accent1,
+                  strokeWidth: 0.5,
+                ),
+              ),
+              titlesData: FlTitlesData(
+                show: true,
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    getTitlesWidget: (value, meta) {
+                      final labels = ['Money', 'Equipment'];
+                      if (value.toInt() < labels.length) {
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Text(
+                            labels[value.toInt()],
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textDark,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        );
+                      }
+                      return const Text('');
+                    },
+                    reservedSize: 30,
+                  ),
+                ),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    getTitlesWidget: (value, meta) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 6.0),
+                        child: Text(
+                          '${value.toInt()} JOD',
+                          style: TextStyle(
+                            fontSize: 9,
+                            color: AppColors.textGray,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      );
+                    },
+                    reservedSize: 40,
+                  ),
+                ),
+                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              ),
+              barTouchData: BarTouchData(
+                touchTooltipData: BarTouchTooltipData(
+                  getTooltipColor: (bar) => AppColors.primary.withOpacity(0.9),
+                  getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                    final labels = ['Money', 'Equipment'];
+                    final values = [moneyTotal, equipmentValue];
+                    return BarTooltipItem(
+                      '${labels[group.x.toInt()]}\n',
+                      const TextStyle(color: Colors.white, fontSize: 12),
+                      children: [
+                        TextSpan(
+                          text: '${rod.toY.toStringAsFixed(0)} JOD\n',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        TextSpan(
+                          text: '${total > 0 ? ((rod.toY / total) * 100).toStringAsFixed(1) : "0.0"}% of total',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+              minY: 0,
+              maxY: maxValue,
+            ),
+          ),
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // الإحصائيات التفصيلية
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildTypeStatItem(
+              title: 'Money Donations',
+              value: '${moneyTotal.toStringAsFixed(0)} JOD',
+              percentage: total > 0 ? (moneyTotal / total * 100) : 0,
+              color: AppColors.primary,
+            ),
+            _buildTypeStatItem(
+              title: 'Equipment Value',
+              value: '${equipmentValue.toStringAsFixed(0)} JOD',
+              percentage: total > 0 ? (equipmentValue / total * 100) : 0,
+              color: Colors.purple,
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+// ========== دوال مساعدة ==========
+
+Widget _buildEmptyChart(String title) {
+  return Container(
+    height: 180,
+    decoration: BoxDecoration(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 10,
+          offset: const Offset(0, 5),
+        ),
+      ],
+    ),
+    child: Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.bar_chart, size: 48, color: AppColors.textLight),
+          const SizedBox(height: 12),
+          Text(
+            'No data available',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textGray,
+            ),
+          ),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textGray,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _buildTypeStatItem({
+  required String title,
+  required String value,
+  required double percentage,
+  required Color color,
+}) {
+  return Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: color.withOpacity(0.08),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: color.withOpacity(0.2)),
+    ),
+    child: Column(
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 11,
+            color: AppColors.textGray,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '${percentage.toStringAsFixed(1)}%',
+          style: TextStyle(
+            fontSize: 11,
+            color: AppColors.textGray,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Color _getChartColor(int index) {
+  final colors = [
+    AppColors.primary,
+    Colors.green,
+    Colors.orange,
+    Colors.purple,
+    Colors.blue,
+    Colors.red,
+    Colors.teal,
+    Colors.amber,
+    Colors.pink,
+    Colors.cyan,
+  ];
+  return colors[index % colors.length];
+}
+
+String _getMonthName(String monthKey) {
+  try {
+    final monthNum = int.parse(monthKey.substring(5));
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return months[monthNum - 1];
+  } catch (_) {
+    return monthKey;
+  }
+}
+
+// أضف هذه الاستيرادات في بداية الملف إن لم تكن موجودة:
+// import 'package:fl_chart/fl_chart.dart';
+
   Widget _buildImpactV2Section() {
+    final recent = _stats['summary']?['recent30Days'] as Map<String, dynamic>? ?? {};
     final money = (_impactV2?['money_impact'] is Map)
         ? Map<String, dynamic>.from(_impactV2!['money_impact'] as Map)
         : <String, dynamic>{};
@@ -1838,13 +2691,15 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildSummaryStatCard(
-                  title: 'Allocated',
-                  value: '${_toDouble(money['totalAllocatedAmount']).toStringAsFixed(0)} JOD',
-                  icon: Icons.receipt_long_rounded,
-                  color: Colors.green,
+                child: _buildStatCard(
+                  title: 'Avg Donation',
+                  value: '${(_toDouble(money['totalDonationsAmount']) / (_toDouble(money['donationCount']) > 0 ? _toDouble(money['donationCount']) : 1)).toStringAsFixed(0)} JOD',
+                  icon: Icons.trending_up_rounded,
+                  color: Colors.orange,
                 ),
               ),
+
+              
             ],
           ),
           const SizedBox(height: 12),
@@ -1882,13 +2737,13 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildSummaryStatCard(
-                  title: 'Published',
-                  value: _toInt(posts['published']).toString(),
-                  icon: Icons.public,
-                  color: Colors.teal,
-                ),
-              ),
+      child: _buildStatCard(
+        title: 'Last 30 Days',
+        value: '${_toDouble(recent['amount']).toStringAsFixed(0)} JOD',
+        icon: Icons.calendar_month_rounded,
+        color: Colors.purple,
+      ),
+    ),
             ],
           ),
         ],
@@ -5200,4 +6055,55 @@ class _ManagerDonationsScreenState extends State<ManagerDonationsScreen> with Si
       return dateString;
     }
   }
+}
+
+class _PieChartPainter extends CustomPainter {
+  final List<MapEntry<String, double>> data;
+  
+  _PieChartPainter({required this.data});
+  Color _getColorForIndex(int index) {
+  final colors = [
+    AppColors.primary,
+    Colors.green,
+    Colors.orange,
+    Colors.purple,
+    Colors.blue,
+    Colors.red,
+    Colors.teal,
+  ];
+  return colors[index % colors.length];
+}
+
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    final total = data.fold(0.0, (sum, entry) => sum + entry.value);
+    if (total == 0) return;
+    
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2.5;
+    
+    double startAngle = -90 * (3.1415926535 / 180);
+    
+    for (int i = 0; i < data.length; i++) {
+      final sweepAngle = (data[i].value / total) * 360 * (3.1415926535 / 180);
+      
+      final paint = Paint()
+        ..color = _getColorForIndex(i)
+        ..style = PaintingStyle.fill;
+      
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        startAngle,
+        sweepAngle,
+        true,
+        paint,
+      );
+      
+      startAngle += sweepAngle;
+    }
+  }
+  
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

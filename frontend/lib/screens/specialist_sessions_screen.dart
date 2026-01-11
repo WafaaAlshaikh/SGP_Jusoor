@@ -2,10 +2,12 @@
   import 'package:flutter/material.dart';
   import 'package:intl/intl.dart';
   import '../services/specialist_session_service.dart';
+  import '../services/api_service.dart';
   import '../theme/app_colors.dart';
   import 'package:url_launcher/url_launcher.dart';
   import 'package:flutter/services.dart';
   import '../services/activity_service.dart';
+  
   class SpecialistSessionsScreen extends StatefulWidget {
     @override
     _SpecialistSessionsScreenState createState() => _SpecialistSessionsScreenState();
@@ -14,9 +16,9 @@
   class _SpecialistSessionsScreenState extends State<SpecialistSessionsScreen> {
     List<Map<String, dynamic>> sessions = [];
     List<Map<String, dynamic>> filteredSessions = [];
-    List<Map<String, dynamic>> pendingUpdateRequests = []; // 🔥 الجديد
+    List<Map<String, dynamic>> pendingUpdateRequests = []; // 
     bool isLoading = true;
-    bool isLoadingPendingRequests = false; // 🔥 الجديد
+    bool isLoadingPendingRequests = false; // 
   
     String filterStatus = 'All';
     DateTime selectedDate = DateTime.now();
@@ -38,14 +40,16 @@
     List<String> _searchSuggestions = [];
     Timer? _searchDebounce;
   
-    // قائمة الحالات للفلتر
+    // 
     final List<String> statusFilters = [
       'All',
       'Scheduled',
       'Completed',
       'Cancelled',
       'Absent',
-      'Rescheduled'
+      'Rescheduled',
+      'Pending',
+      'Pending Approval',
   
     ];
   
@@ -53,7 +57,7 @@
     void initState() {
       super.initState();
       _fetchSessionsFromApi();
-      _fetchPendingUpdateRequests(); // 🔥 الجديد
+      _fetchPendingUpdateRequests(); // 
       _searchController.addListener(_onSearchChanged);
     }
   
@@ -67,7 +71,7 @@
       super.dispose();
     }
   
-    // 🔥 الجديد: دالة لجلب الطلبات المعلقة
+    // : 
     Future<void> _fetchPendingUpdateRequests() async {
       setState(() => isLoadingPendingRequests = true);
       try {
@@ -82,7 +86,7 @@
       }
     }
   
-    // 🔥 الجديد: دالة لعرض الطلبات المعلقة
+    // : 
     void _showPendingUpdateRequests() {
       showModalBottomSheet(
         context: context,
@@ -181,7 +185,7 @@
       );
     }
   
-    // 🔥 الجديد: كارد لعرض الطلب المعلق
+    // : 
     Widget _buildPendingRequestCard(Map<String, dynamic> request) {
       return Card(
         margin: EdgeInsets.only(bottom: 12),
@@ -301,7 +305,7 @@
       );
     }
   
-    // 🔥 الجديد: عنصر معلومات في الطلب المعلق
+    // : 
     Widget _buildPendingInfoItem(IconData icon, String label, String value) {
       return Padding(
         padding: EdgeInsets.symmetric(vertical: 4),
@@ -451,7 +455,7 @@
           _calculateStatistics();
           isLoading = false;
         });
-        // 🔥 تحديث الطلبات المعلقة أيضاً
+        // : 
         _fetchPendingUpdateRequests();
       } catch (e) {
         setState(() => isLoading = false);
@@ -471,20 +475,20 @@
     void _applyFilters() {
       setState(() {
         filteredSessions = sessions.where((session) {
-          // فلتر البحث
+          // 
           bool matchesSearch = searchQuery.isEmpty ||
               session['childName'].toString().toLowerCase().contains(searchQuery.toLowerCase()) ||
               session['childName'].toString().toLowerCase().startsWith(searchQuery.toLowerCase()) ||
               session['institution'].toString().toLowerCase().contains(searchQuery.toLowerCase()) ||
               session['type'].toString().toLowerCase().contains(searchQuery.toLowerCase());
   
-          // فلتر الحالة
+          // 
           bool matchesStatus = filterStatus == 'All' || session['status'] == filterStatus;
   
-          // فلتر إظهار المكتملة
+          // 
           bool showCompleted = _showCompleted || session['status'] != 'Completed';
   
-          // فلتر التاريخ
+          // 
           bool matchesDate = true;
           final now = DateTime.now();
   
@@ -494,8 +498,7 @@
             final sevenDaysFromNow = now.add(Duration(days: 7));
             matchesDate = session['date'].isAfter(now) && session['date'].isBefore(sevenDaysFromNow);
           }
-          // إذا كان 'all' فلا نطبق أي فلتر تاريخ
-  
+          // 
           return matchesSearch && matchesStatus && showCompleted && matchesDate;
         }).toList();
       });
@@ -513,10 +516,10 @@
         filteredSessions = List.from(sessions);
       });
     }
-
-
-
-    // ✅ التحديث: دالة التحديث مع التعامل مع الحالات المباشرة
+  
+  
+  
+    // : 
     void _requestSessionUpdate(int id, String status, DateTime date, String time, String mode, {String reason = ''}) async {
       try {
         final response = await SpecialistSessionService.requestSessionUpdate(
@@ -527,10 +530,10 @@
           sessionType: mode,
           reason: reason.isNotEmpty ? reason : null,
         );
-
+  
         await _fetchSessionsFromApi();
-
-        // ✅ التحقق من الاستجابة
+  
+        // : 
         if (response['updatedImmediately'] == true) {
           _showSuccessSnackBar('Session marked as $status successfully${reason.isNotEmpty ? ' with reason' : ''}');
         } else {
@@ -540,9 +543,9 @@
         _showErrorSnackBar('Failed to request session update: $e');
       }
     }
-
-
-     // ⭐ جديد: طلب حذف الجلسة مع السبب
+  
+  
+     // : 
     void _requestDeleteSession(int id) async {
       String reason = '';
   
@@ -590,7 +593,7 @@
                 ),
                 SizedBox(height: 16),
   
-                // ⭐ حقل السبب
+                // 
                 Text('Reason (Optional)', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textDark, fontSize: 14)),
                 SizedBox(height: 8),
                 Container(
@@ -802,22 +805,183 @@
     }
   
     Widget _buildSessionDetails(Map<String, dynamic> session) {
-      return Padding(
-        padding: EdgeInsets.all(24),
-        child: Column(
-          children: [
-            _buildEnhancedDetailItem(Icons.school, 'Institution', session['institution']),
-            _buildEnhancedDetailItem(Icons.category, 'Session Type', session['type']),
-            _buildEnhancedDetailItem(Icons.calendar_today, 'Date', DateFormat('EEEE, MMMM d, yyyy').format(session['date'])),
-            _buildEnhancedDetailItem(Icons.access_time, 'Time', session['time']),
-            _buildEnhancedDetailItem(Icons.timer, 'Duration', '${session['duration'] ?? 60} minutes'),
-            _buildEnhancedDetailItem(Icons.video_call, 'Mode', session['mode']),
-            if (session['category'] != null)
-              _buildEnhancedDetailItem(Icons.label, 'Category', session['category']),
-          ],
-        ),
-      );
-    }
+  bool isRescheduled = session['status'] == 'Rescheduled';
+  
+  return Padding(
+    padding: EdgeInsets.all(24),
+    child: Column(
+      children: [
+        _buildEnhancedDetailItem(Icons.school, 'Institution', session['institution']),
+        _buildEnhancedDetailItem(Icons.category, 'Session Type', session['type']),
+        
+        // : 
+        if (isRescheduled) ...[
+          Container(
+            margin: EdgeInsets.only(bottom: 16),
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.orange.withOpacity(0.3), width: 2),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.schedule, color: Colors.orange, size: 20),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Rescheduled Session',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 12),
+                
+                // 
+                if (session['old_date'] != null && session['old_time'] != null) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.event_busy, size: 18, color: Colors.red),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Original Date',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textGray,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              '${DateFormat('EEEE, MMMM d, yyyy').format(DateTime.parse(session['old_date']))} at ${session['old_time']}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.red,
+                                decoration: TextDecoration.lineThrough,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 12),
+                ],
+                
+                // 
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.event_available, size: 18, color: Colors.green),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'New Date',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textGray,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            '${DateFormat('EEEE, MMMM d, yyyy').format(session['date'])} at ${session['time']}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.green,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                
+                // 
+                if (session['reschedule_note'] != null && session['reschedule_note'].toString().isNotEmpty) ...[
+                  SizedBox(height: 12),
+                  Divider(color: Colors.orange.withOpacity(0.3)),
+                  SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.note, size: 18, color: Colors.orange),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Note',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textGray,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              session['reschedule_note'],
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.textDark,
+                                fontStyle: FontStyle.italic,
+                              ),
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ] else ...[
+          _buildEnhancedDetailItem(Icons.calendar_today, 'Date', DateFormat('EEEE, MMMM d, yyyy').format(session['date'])),
+          _buildEnhancedDetailItem(Icons.access_time, 'Time', session['time']),
+        ],
+        
+        _buildEnhancedDetailItem(Icons.timer, 'Duration', '${session['duration'] ?? 60} minutes'),
+        _buildEnhancedDetailItem(Icons.video_call, 'Mode', session['mode']),
+        if (session['category'] != null)
+          _buildEnhancedDetailItem(Icons.label, 'Category', session['category']),
+      ],
+    ),
+  );
+}
   
     Widget _buildEnhancedDetailItem(IconData icon, String label, String value) {
       return Container(
@@ -921,7 +1085,7 @@
     }
   
     // Enhanced Edit Session Dialog
-  // Enhanced Edit Session Dialog مع إضافة السبب
+  // Enhanced Edit Session Dialog 
     void _showEditSessionDialog(Map<String, dynamic> session) {
       if (session['status'] == 'Completed') {
         _showErrorSnackBar('Cannot edit completed sessions');
@@ -932,8 +1096,7 @@
       DateTime newDate = session['date'];
       String newTime = session['time'];
       String newMode = session['mode'] ?? 'Onsite';
-      String reason = ''; // ⭐ جديد: حقل السبب
-  
+      String reason = ''; // 
       showDialog(
         context: context,
         builder: (context) => StatefulBuilder(
@@ -1009,7 +1172,7 @@
   
                     SizedBox(height: 20),
   
-                    // ⭐ جديد: حقل السبب
+                    // 
                     Text('Reason (Optional)', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textDark, fontSize: 16)),
                     SizedBox(height: 8),
                     Container(
@@ -1057,7 +1220,7 @@
                             height: 50,
                             child: ElevatedButton(
                               onPressed: () {
-                                // ✅ التحديث: إرسال السبب مع التعديل
+                                // : 
                                 _requestSessionUpdate(session['id'], newStatus, newDate, newTime, newMode, reason: reason);
                                 Navigator.pop(context);
                               },
@@ -1367,11 +1530,13 @@
     }
   
     Widget _buildSessionLeading(Map<String, dynamic> session) {
+      final childPhotoUrl = ApiService.buildFileUrl(session['childPhoto']?.toString());
       return Stack(
         children: [
           Container(
             width: 50,
             height: 50,
+  
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
@@ -1387,12 +1552,26 @@
                 ),
               ],
             ),
-            child: Icon(Icons.child_care, color: Colors.white, size: 24),
+            child: childPhotoUrl.isNotEmpty
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(
+                      childPhotoUrl,
+                      width: 50,
+                      height: 50,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Icon(Icons.child_care, color: Colors.white, size: 24);
+                      },
+                    ),
+                  )
+                : Icon(Icons.child_care, color: Colors.white, size: 24),
           ),
           if (session['mode'] == 'Online')
             Positioned(
               right: -2,
               top: -2,
+  
               child: Container(
                 padding: EdgeInsets.all(3),
                 decoration: BoxDecoration(
@@ -1408,81 +1587,176 @@
     }
   
     Widget _buildSessionContent(Map<String, dynamic> session) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  bool isRescheduled = session['status'] == 'Rescheduled';
+  
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  session['childName'],
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: AppColors.textDark,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                ),
+          Expanded(
+            child: Text(
+              session['childName'],
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: AppColors.textDark,
               ),
-              _buildStatusBadge(session['status']),
-            ],
-          ),
-          SizedBox(height: 6),
-          Text(
-            session['institution'],
-            style: TextStyle(
-              color: AppColors.textGray,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
             ),
-            overflow: TextOverflow.ellipsis,
-            maxLines: 1,
           ),
-          SizedBox(height: 4),
-          Wrap(
-            spacing: 8,
+          _buildStatusBadge(session['status']),
+        ],
+      ),
+      SizedBox(height: 6),
+      Text(
+        session['institution'],
+        style: TextStyle(
+          color: AppColors.textGray,
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+        ),
+        overflow: TextOverflow.ellipsis,
+        maxLines: 1,
+      ),
+      SizedBox(height: 4),
+      
+      // ⭐ جديد: عرض معلومات التأجيل
+      if (isRescheduled) ...[
+        Container(
+          margin: EdgeInsets.only(top: 8, bottom: 4),
+          padding: EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.orange.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.orange.withOpacity(0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // التاريخ القديم
+              if (session['old_date'] != null && session['old_time'] != null) ...[
+                Row(
+                  children: [
+                    Icon(Icons.event_busy, size: 12, color: Colors.red),
+                    SizedBox(width: 4),
+                    Text(
+                      'Old: ',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red,
+                      ),
+                    ),
+                    Text(
+                      '${DateFormat('MMM dd').format(DateTime.parse(session['old_date']))} ${session['old_time']}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.red,
+                        decoration: TextDecoration.lineThrough,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 4),
+              ],
+              // التاريخ الجديد
               Row(
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.calendar_today, size: 14, color: AppColors.primary),
+                  Icon(Icons.event_available, size: 12, color: Colors.green),
                   SizedBox(width: 4),
                   Text(
-                    DateFormat('MMM dd').format(session['date']),
-                    style: TextStyle(color: AppColors.textDark, fontSize: 12, fontWeight: FontWeight.w500),
+                    'New: ',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
+                  Text(
+                    '${DateFormat('MMM dd').format(session['date'])} ${session['time']}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.green,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.access_time, size: 14, color: AppColors.primary),
-                  SizedBox(width: 4),
-                  Text(
-                    session['time'],
-                    style: TextStyle(color: AppColors.textDark, fontSize: 12, fontWeight: FontWeight.w500),
-                  ),
-                ],
-              ),
+              // الملاحظات
+              if (session['reschedule_note'] != null && session['reschedule_note'].toString().isNotEmpty) ...[
+                SizedBox(height: 4),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.note, size: 12, color: Colors.orange),
+                    SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        session['reschedule_note'],
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: AppColors.textGray,
+                          fontStyle: FontStyle.italic,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
-          if (session['duration'] != null) ...[
-            SizedBox(height: 4),
+        ),
+      ] else ...[
+        // عرض التاريخ والوقت العادي للجلسات غير المؤجلة
+        Wrap(
+          spacing: 8,
+          children: [
             Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.timer, size: 14, color: AppColors.primary),
+                Icon(Icons.calendar_today, size: 14, color: AppColors.primary),
                 SizedBox(width: 4),
                 Text(
-                  '${session['duration']} min',
+                  DateFormat('MMM dd').format(session['date']),
+                  style: TextStyle(color: AppColors.textDark, fontSize: 12, fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.access_time, size: 14, color: AppColors.primary),
+                SizedBox(width: 4),
+                Text(
+                  session['time'],
                   style: TextStyle(color: AppColors.textDark, fontSize: 12, fontWeight: FontWeight.w500),
                 ),
               ],
             ),
           ],
-        ],
-      );
-    }
+        ),
+      ],
+      
+      if (session['duration'] != null) ...[
+        SizedBox(height: 4),
+        Row(
+          children: [
+            Icon(Icons.timer, size: 14, color: AppColors.primary),
+            SizedBox(width: 4),
+            Text(
+              '${session['duration']} min',
+              style: TextStyle(color: AppColors.textDark, fontSize: 12, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+      ],
+    ],
+  );
+}
   
     Widget _buildSessionTrailing(Map<String, dynamic> session) {
       bool isCompleted = session['status'] == 'Completed';
@@ -1528,7 +1802,8 @@
         itemBuilder: (context) => [
           PopupMenuItem(value: 'details', child: _buildPopupItem(Icons.info_outline, 'Details')),
           if (isOnline) PopupMenuItem(value: 'join', child: _buildPopupItem(Icons.video_call, 'Join Zoom')),
-          PopupMenuItem(value: 'edit', child: _buildPopupItem(Icons.edit, 'Edit Session')),
+          if (session['status'] != 'Cancelled' && session['status'] != 'Completed') // ⭐ غير هنا
+    PopupMenuItem(value: 'edit', child: _buildPopupItem(Icons.edit, 'Edit Session')),
           PopupMenuItem(value: 'delete', child: _buildPopupItem(Icons.delete_outline, 'Request Delete', isDestructive: true)),
         ],
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -2047,6 +2322,8 @@
         case 'Absent': return Icons.person_off;
         case 'Rescheduled': return Icons.schedule;
         case 'Cancelled': return Icons.delete;
+        case 'Pending Approval': return Icons.pending;
+        case 'Pending': return Icons.pending;
         default: return Icons.circle;
       }
     }

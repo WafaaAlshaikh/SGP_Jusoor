@@ -48,6 +48,10 @@ const Session = sequelize.define('Session', {
     type: DataTypes.ENUM('Pending', 'Approved', 'Rejected'),
     allowNull: true
   },
+  old_date: { type: DataTypes.DATEONLY, allowNull: true },
+old_time: { type: DataTypes.TIME, allowNull: true },
+reschedule_note: { type: DataTypes.TEXT, allowNull: true },
+specialist_note: { type: DataTypes.TEXT, allowNull: true },
 
 
   is_pending: {          

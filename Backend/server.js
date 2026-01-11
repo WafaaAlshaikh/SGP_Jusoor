@@ -302,7 +302,14 @@ const publicEquipmentRoutes = require('./routes/publicEquipmentRoutes');
 app.use('/api/auth/api/public/equipment', publicEquipmentRoutes);
 
 app.use('/api/specialist/completion', require('./routes/childCompletionRoutes'));
+const managerEmploymentRoutes = require('./routes/manager/managerEmploymentRoutes');
 
+
+// استخدام المسارات الجديدة
+app.use('/api/manager/employment', managerEmploymentRoutes);
+// بعد الـ routes الأخرى
+const employmentRoutes = require('./routes/employmentRoutes');
+app.use('/api/employment', employmentRoutes);
 // Static uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   maxAge: '1d', // caching

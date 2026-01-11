@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/manager_children_service.dart';
+import '../../services/api_service.dart';
 import '../../theme/app_colors.dart';
 import 'child_detailed_screen.dart';
 
@@ -67,6 +68,7 @@ class _ChildrenListScreenState extends State<ChildrenListScreen> {
     return rawChildren.map((rawChild) {
       // تحويل البيانات مباشرة من API
       final childName = rawChild['full_name']?.toString() ?? 'Unknown';
+
       final rawStatus = rawChild['registration_status']?.toString() ?? 'Unknown';
       final diagnosis = rawChild['Diagnosis']?['name']?.toString() ?? 'Not specified';
       final age = _calculateAge(rawChild['date_of_birth']?.toString());
@@ -85,6 +87,7 @@ class _ChildrenListScreenState extends State<ChildrenListScreen> {
       return {
         'child_id': rawChild['child_id'] ?? 0,
         'name': childName,
+        'photo': rawChild['photo']?.toString() ?? '',
         'age': age,
         'diagnosis': diagnosis,
         'gender': gender,
@@ -215,6 +218,7 @@ class _ChildrenListScreenState extends State<ChildrenListScreen> {
     final childName = child['name']?.toString() ?? 'Unknown';
     final status = child['status']?.toString() ?? 'Unknown';
     final diagnosis = child['diagnosis']?.toString() ?? 'Not specified';
+
     final age = child['age']?.toString() ?? '0';
     final gender = child['gender']?.toString() ?? 'Unknown';
     final progress = child['progress'] is num ? child['progress'].toDouble() : 0.0;
@@ -223,6 +227,7 @@ class _ChildrenListScreenState extends State<ChildrenListScreen> {
     final statusColor = _getStatusColor(status);
     final progressPercentage = (progress * 100).round();
     final firstLetter = childName.isNotEmpty ? childName.substring(0, 1) : '?';
+    final photoUrl = ApiService.buildFileUrl(child['photo']?.toString());
     final lastSession = _formatDate(child['lastSession']?.toString());
     final registrationDate = _formatDate(child['registrationDate']?.toString());
 
@@ -264,16 +269,37 @@ class _ChildrenListScreenState extends State<ChildrenListScreen> {
                       color: statusColor.withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
-                    child: Center(
-                      child: Text(
-                        firstLetter,
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                          color: statusColor,
-                        ),
-                      ),
-                    ),
+                    child: photoUrl.isNotEmpty
+                        ? ClipOval(
+                            child: Image.network(
+                              photoUrl,
+                              width: 60,
+                              height: 60,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Center(
+                                  child: Text(
+                                    firstLetter,
+                                    style: TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w800,
+                                      color: statusColor,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          )
+                        : Center(
+                            child: Text(
+                              firstLetter,
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800,
+                                color: statusColor,
+                              ),
+                            ),
+                          ),
                   ),
                   SizedBox(width: 16),
 

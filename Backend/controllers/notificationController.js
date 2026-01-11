@@ -167,3 +167,88 @@ exports.sendSessionNotification = async (req, res) => {
     });
   }
 };
+
+// في notificationController.js - إضافة دوال جديدة
+exports.sendManagerNotification = async (req, res) => {
+  try {
+    const { manager_id, title, body, data } = req.body;
+
+    if (!manager_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Manager ID is required'
+      });
+    }
+
+    const result = await NotificationService.sendToManager(
+      manager_id,
+      title || 'Manager Notification',
+      body || 'Notification from system',
+      data || {}
+    );
+
+    if (result.success) {
+      res.status(200).json({
+        success: true,
+        message: 'Manager notification sent successfully'
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to send manager notification',
+        error: result.error
+      });
+    }
+
+  } catch (error) {
+    console.error('Error in sendManagerNotification:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+exports.sendChildApprovalNotification = async (req, res) => {
+  try {
+    const { 
+      manager_id, 
+      child_name, 
+      institution_name, 
+      child_id, 
+      session_details 
+    } = req.body;
+
+    if (!manager_id || !child_name || !institution_name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Manager ID, child name and institution name are required'
+      });
+    }
+
+    const result = await NotificationService.sendChildApprovalNotifications(
+      manager_id,
+      child_name,
+      institution_name,
+      child_id,
+      session_details
+    );
+
+    res.status(200).json({
+      success: result.manager_notification.success,
+      message: result.manager_notification.success 
+        ? 'Child approval notification sent successfully' 
+        : 'Failed to send notification',
+      error: result.manager_notification.error
+    });
+
+  } catch (error) {
+    console.error('Error in sendChildApprovalNotification:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};

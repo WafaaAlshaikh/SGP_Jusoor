@@ -1,6 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:file_picker/file_picker.dart';
 import '../../theme/app_colors.dart';
 import '../../services/manager_dashboard_service.dart';
 
@@ -82,9 +85,21 @@ class _ManagerImpactPostsScreenState extends State<ManagerImpactPostsScreen> {
     final mediaUrlsController = TextEditingController(
       text: existing?['media_urls'] != null ? jsonEncode(existing!['media_urls']) : '',
     );
+    final mediaLinkController = TextEditingController(
+      text: (() {
+        final cover = (existing?['cover_url'] ?? '').toString();
+        if (cover.isNotEmpty) return cover;
+        final urls = existing?['media_urls'];
+        if (urls is List && urls.isNotEmpty) return urls.first.toString();
+        if (urls is String && urls.isNotEmpty) return urls;
+        return '';
+      })(),
+    );
 
     String type = (existing?['type'] ?? 'update').toString();
     bool isPublished = existing?['is_published'] == true;
+    String mediaSource = 'link';
+    File? pickedFile;
 
     final result = await showDialog<bool>(
       context: context,
@@ -110,6 +125,15 @@ class _ManagerImpactPostsScreenState extends State<ManagerImpactPostsScreen> {
                         if (v == null) return;
                         setStateDialog(() {
                           type = v;
+                          if (type == 'video') {
+                            if (mediaSource != 'file' && mediaSource != 'link') {
+                              mediaSource = 'link';
+                            }
+                          } else {
+                            if (mediaSource != 'file' && mediaSource != 'link') {
+                              mediaSource = 'link';
+                            }
+                          }
                         });
                       },
                       decoration: const InputDecoration(labelText: 'Type'),
@@ -127,20 +151,88 @@ class _ManagerImpactPostsScreenState extends State<ManagerImpactPostsScreen> {
                       decoration: const InputDecoration(labelText: 'Content'),
                     ),
                     const SizedBox(height: 10),
-                    TextField(
-                      controller: coverUrlController,
-                      decoration: const InputDecoration(labelText: 'Cover URL (optional)'),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: RadioListTile<String>(
+                            value: 'link',
+                            groupValue: mediaSource,
+                            onChanged: (v) {
+                              if (v == null) return;
+                              setStateDialog(() {
+                                mediaSource = v;
+                                pickedFile = null;
+                              });
+                            },
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(type == 'video' ? 'Video Link' : 'Image Link'),
+                          ),
+                        ),
+                        Expanded(
+                          child: RadioListTile<String>(
+                            value: 'file',
+                            groupValue: mediaSource,
+                            onChanged: (v) {
+                              if (v == null) return;
+                              setStateDialog(() {
+                                mediaSource = v;
+                              });
+                            },
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(type == 'video' ? 'Upload Video' : 'Upload Image'),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: mediaUrlsController,
-                      minLines: 2,
-                      maxLines: 4,
-                      decoration: const InputDecoration(
-                        labelText: 'Media URLs JSON (optional)',
-                        hintText: '["https://..."]',
+                    if (mediaSource == 'link') ...[
+                      TextField(
+                        controller: mediaLinkController,
+                        decoration: InputDecoration(
+                          labelText: type == 'video' ? 'Video URL (optional)' : 'Image URL (optional)',
+                        ),
                       ),
-                    ),
+                    ] else ...[
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          pickedFile == null ? 'No file selected' : 'Selected: ${pickedFile!.path.split(RegExp(r"[\\/]")).last}',
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            if (kIsWeb) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('File upload is not supported on web in this screen. Use a link instead.'), backgroundColor: Colors.orange),
+                              );
+                              return;
+                            }
+                            final result = await FilePicker.platform.pickFiles(
+                              type: FileType.custom,
+                              allowMultiple: false,
+                              allowedExtensions: type == 'video'
+                                  ? ['mp4', 'mov', 'mkv', 'webm']
+                                  : ['jpg', 'jpeg', 'png', 'gif'],
+                            );
+                            if (result == null || result.files.isEmpty) return;
+                            final p = result.files.single.path;
+                            if (p == null || p.isEmpty) return;
+                            setStateDialog(() {
+                              pickedFile = File(p);
+                            });
+                          },
+                          icon: const Icon(Icons.attach_file),
+                          label: const Text('Choose file'),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
@@ -165,22 +257,29 @@ class _ManagerImpactPostsScreenState extends State<ManagerImpactPostsScreen> {
                     final title = titleController.text.trim();
                     if (title.isEmpty) return;
 
-                    dynamic mediaUrls;
-                    final rawMedia = mediaUrlsController.text.trim();
-                    if (rawMedia.isNotEmpty) {
+                    final content = contentController.text.trim().isEmpty ? null : contentController.text.trim();
+
+                    final mediaLink = mediaLinkController.text.trim().isEmpty ? null : mediaLinkController.text.trim();
+
+                    dynamic legacyMediaUrls;
+                    final rawMediaJson = mediaUrlsController.text.trim();
+                    if (rawMediaJson.isNotEmpty) {
                       try {
-                        mediaUrls = jsonDecode(rawMedia);
+                        legacyMediaUrls = jsonDecode(rawMediaJson);
                       } catch (_) {
-                        mediaUrls = rawMedia;
+                        legacyMediaUrls = rawMediaJson;
                       }
                     }
+
+                    final linkMediaUrls = mediaLink != null ? [mediaLink] : null;
+                    final linkCoverUrl = mediaLink;
 
                     final body = <String, dynamic>{
                       'type': type,
                       'title': title,
-                      'content': contentController.text.trim().isEmpty ? null : contentController.text.trim(),
-                      'cover_url': coverUrlController.text.trim().isEmpty ? null : coverUrlController.text.trim(),
-                      'media_urls': rawMedia.isEmpty ? null : mediaUrls,
+                      'content': content,
+                      'cover_url': linkCoverUrl,
+                      'media_urls': linkMediaUrls ?? (rawMediaJson.isEmpty ? null : legacyMediaUrls),
                       'is_published': isPublished,
                     };
 
@@ -188,15 +287,38 @@ class _ManagerImpactPostsScreenState extends State<ManagerImpactPostsScreen> {
                       if (isEdit) {
                         final postId = existing!['post_id'];
                         if (postId is int) {
-                          await ManagerDashboardService.updateImpactPost(postId, body);
+                          if (mediaSource == 'file' && pickedFile != null) {
+                            await ManagerDashboardService.updateImpactPostMultipart(
+                              postId: postId,
+                              fields: body,
+                              mediaFile: pickedFile!,
+                            );
+                          } else {
+                            await ManagerDashboardService.updateImpactPost(postId, body);
+                          }
                         } else {
                           final id = int.tryParse(postId.toString());
                           if (id != null) {
-                            await ManagerDashboardService.updateImpactPost(id, body);
+                            if (mediaSource == 'file' && pickedFile != null) {
+                              await ManagerDashboardService.updateImpactPostMultipart(
+                                postId: id,
+                                fields: body,
+                                mediaFile: pickedFile!,
+                              );
+                            } else {
+                              await ManagerDashboardService.updateImpactPost(id, body);
+                            }
                           }
                         }
                       } else {
-                        await ManagerDashboardService.createImpactPost(body);
+                        if (mediaSource == 'file' && pickedFile != null) {
+                          await ManagerDashboardService.createImpactPostMultipart(
+                            fields: body,
+                            mediaFile: pickedFile!,
+                          );
+                        } else {
+                          await ManagerDashboardService.createImpactPost(body);
+                        }
                       }
 
                       if (context.mounted) {

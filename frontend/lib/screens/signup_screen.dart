@@ -691,20 +691,20 @@ class _SignupScreenState extends State<SignupScreen> {
                           onPressed: _openMapPicker,
                           tooltip: 'Select from map',
                         ),
-                        IconButton(
-                          icon: isGettingLocation
-                              ? SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    color: AppColors.primary,
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : Icon(Icons.my_location, color: AppColors.primary),
-                          onPressed: getCurrentLocation,
-                          tooltip: 'Use current location',
-                        ),
+                        // IconButton(
+                        //   icon: isGettingLocation
+                        //       ? SizedBox(
+                        //           width: 20,
+                        //           height: 20,
+                        //           child: CircularProgressIndicator(
+                        //             color: AppColors.primary,
+                        //             strokeWidth: 2,
+                        //           ),
+                        //         )
+                        //       : Icon(Icons.my_location, color: AppColors.primary),
+                        //   onPressed: getCurrentLocation,
+                        //   tooltip: 'Use current location',
+                        // ),
                       ],
                     ),
                   ),
@@ -793,7 +793,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   value: role,
                   items: [
                     DropdownMenuItem(value: 'Parent', child: Text('Parent')),
-                    DropdownMenuItem(value: 'Specialist', child: Text('Specialist')),
+                    // DropdownMenuItem(value: 'Specialist', child: Text('Specialist')),
                     DropdownMenuItem(value: 'Donor', child: Text('Donor')),
                     DropdownMenuItem(value: 'Manager', child: Text('Manager')),
                     DropdownMenuItem(value: 'Admin', child: Text('Admin')),
@@ -970,14 +970,14 @@ class _SignupScreenState extends State<SignupScreen> {
 
             // Parent Specific Fields
             if (role == 'Parent') ...[
-              _buildTextField(
-                label: 'Address',
-                hintText: 'Enter your home address',
-                icon: Icons.home_outlined,
-                isWeb: isWeb,
-                onChanged: (val) => parentAddress = val,
-                validator: (val) =>null,
-              ),
+              // _buildTextField(
+              //   label: 'Address',
+              //   hintText: 'Enter your home address',
+              //   icon: Icons.home_outlined,
+              //   isWeb: isWeb,
+              //   onChanged: (val) => parentAddress = val,
+              //   validator: (val) =>null,
+              // ),
               SizedBox(height: isWeb ? 20 : 16),
               _buildTextField(
                 label: 'Occupation',
@@ -990,35 +990,35 @@ class _SignupScreenState extends State<SignupScreen> {
             ],
 
             // Specialist Specific Fields
-            if (role == 'Specialist') ...[
-              _buildTextField(
-                label: 'Specialization *',
-                hintText: 'e.g., Speech Therapy, Occupational Therapy',
-                icon: Icons.medical_services_outlined,
-                isWeb: isWeb,
-                onChanged: (val) => specialistSpecialization = val,
-                validator: (val) => val!.isEmpty ? 'Required' : null,
-              ),
-              SizedBox(height: isWeb ? 20 : 16),
-              _buildTextField(
-                label: 'Years of Experience *',
-                hintText: 'Enter number of years',
-                icon: Icons.timeline_outlined,
-                isWeb: isWeb,
-                keyboardType: TextInputType.number,
-                onChanged: (val) => specialistYearsExperience = int.tryParse(val),
-                validator: (val) => val!.isEmpty ? 'Required' : null,
-              ),
-              SizedBox(height: isWeb ? 20 : 16),
-              _buildTextField(
-                label: 'Institution ID (Optional)',
-                hintText: 'If affiliated with an institution',
-                icon: Icons.business_outlined,
-                isWeb: isWeb,
-                onChanged: (val) => specialistInstitutionId = val,
-                validator: (val) =>null,
-              ),
-            ],
+            // if (role == 'Specialist') ...[
+            //   _buildTextField(
+            //     label: 'Specialization *',
+            //     hintText: 'e.g., Speech Therapy, Occupational Therapy',
+            //     icon: Icons.medical_services_outlined,
+            //     isWeb: isWeb,
+            //     onChanged: (val) => specialistSpecialization = val,
+            //     validator: (val) => val!.isEmpty ? 'Required' : null,
+            //   ),
+            //   SizedBox(height: isWeb ? 20 : 16),
+            //   _buildTextField(
+            //     label: 'Years of Experience *',
+            //     hintText: 'Enter number of years',
+            //     icon: Icons.timeline_outlined,
+            //     isWeb: isWeb,
+            //     keyboardType: TextInputType.number,
+            //     onChanged: (val) => specialistYearsExperience = int.tryParse(val),
+            //     validator: (val) => val!.isEmpty ? 'Required' : null,
+            //   ),
+            //   SizedBox(height: isWeb ? 20 : 16),
+            //   _buildTextField(
+            //     label: 'Institution ID (Optional)',
+            //     hintText: 'If affiliated with an institution',
+            //     icon: Icons.business_outlined,
+            //     isWeb: isWeb,
+            //     onChanged: (val) => specialistInstitutionId = val,
+            //     validator: (val) =>null,
+            //   ),
+            // ],
 
             // Donor Specific Fields
             if (role == 'Donor') ...[

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/child_model.dart';
+import '../services/api_service.dart';
 import '../theme/app_colors.dart';
 
 class ChildCard extends StatelessWidget {
@@ -150,9 +151,8 @@ class ChildCard extends StatelessWidget {
   }
 
   Widget _buildAvatar() {
-    final hasImage = child.photo.isNotEmpty &&
-        !child.photo.contains('base64') &&
-        child.photo.startsWith('http');
+    final imageUrl = ApiService.buildFileUrl(child.photo);
+    final hasImage = imageUrl.isNotEmpty && !imageUrl.contains('base64');
 
     return Stack(
       children: [
@@ -177,7 +177,7 @@ class ChildCard extends StatelessWidget {
             child: hasImage
                 ? ClipOval(
               child: Image.network(
-                child.photo,
+                imageUrl,
                 width: 56,
                 height: 56,
                 fit: BoxFit.cover,

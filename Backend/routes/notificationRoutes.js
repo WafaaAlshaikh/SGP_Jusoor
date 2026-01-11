@@ -17,4 +17,10 @@ router.post('/session-booked', notificationController.sendSessionNotification);
 
 router.post('/simple-test', notificationController.sendSimpleTest);
 
+// 5. إرسال إشعار للمدير
+router.post('/manager', notificationController.sendManagerNotification);
+
+// 6. إرسال إشعار موافقة على طفل للمدير
+router.post('/child-approval', notificationController.sendChildApprovalNotification);
+
 module.exports = router;

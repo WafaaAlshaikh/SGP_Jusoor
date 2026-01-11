@@ -80,21 +80,25 @@ const Child = sequelize.define('Child', {
     type: DataTypes.BOOLEAN, 
     defaultValue: false 
   },
-location_lat: {
-  type: DataTypes.FLOAT,
-  allowNull: true
-},
-location_lng: {
-  type: DataTypes.FLOAT,
-  allowNull: true
-},
-medical_documents: {
-  type: DataTypes.JSON,
-  allowNull: true,
-  comment: 'Array of uploaded medical documents with metadata'
-},
-
-  deleted_at: { type: DataTypes.DATE, allowNull: true }
+  location_lat: {
+    type: DataTypes.FLOAT,
+    allowNull: true
+  },
+  location_lng: {
+    type: DataTypes.FLOAT,
+    allowNull: true
+  },
+  medical_documents: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    comment: 'Array of uploaded medical documents with metadata'
+  },
+  deleted_at: { type: DataTypes.DATE, allowNull: true },
+  visibility_status: {
+    type: DataTypes.ENUM('active', 'hide'),
+    allowNull: false,
+    defaultValue: 'active'
+  }
 }, { 
   tableName: 'Children', 
   timestamps: true,

@@ -553,11 +553,11 @@ Location: ${session.sessionLocation}
           tabs: _tabs,
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: _navigateToBookSession,
-            tooltip: 'Book New Session',
-          ),
+          // IconButton(
+          //   icon: const Icon(Icons.add),
+          //   onPressed: _navigateToBookSession,
+          //   tooltip: 'Book New Session',
+          // ),
           IconButton(
             icon: _isRefreshing
                 ? const SizedBox(
@@ -595,12 +595,12 @@ Location: ${session.sessionLocation}
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _navigateToBookSession,
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        child: const Icon(Icons.add),
-      ),
+      // floatingActionButton: FloatingActionButton(
+      //   onPressed: _navigateToBookSession,
+      //   backgroundColor: AppColors.primary,
+      //   foregroundColor: Colors.white,
+      //   child: const Icon(Icons.add),
+      // ),
     );
   }
 

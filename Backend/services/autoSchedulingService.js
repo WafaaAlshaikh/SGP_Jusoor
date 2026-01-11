@@ -350,45 +350,47 @@ const sequelize = require('../config/db');
           );
           
           if (availableSlot) {
-            // Calculate pricing
-            const originalPrice = parseFloat(sessionType.price) || 0;
-            const finalPrice = originalPrice * (1 - discountPercentage / 100);
-            
-            // Create session with financial assistance data
-            const session = await Session.create({
-              child_id: childId,
-              specialist_id: specialist.specialist_id,
-              institution_id: institutionId,
-              session_type_id: sessionType.session_type_id,
-              date: availableSlot.date,
-              time: availableSlot.startTime,
-              session_type: 'Onsite',
-              status: 'Scheduled',
-              original_price: originalPrice,
-              applied_discount_percentage: discountPercentage,
-              final_price: finalPrice,
-              financial_assistance_applied: discountPercentage > 0,
-              financial_assistance_request_id: financialRequestId,
-              payment_status: discountPercentage === 100 ? 'free_session' : 'pending',
-              discount_reason: discountPercentage > 0 ? 
-                'Financial assistance applied' : 'Regular pricing',
-              is_first_booking: true
-            });
-            
-            return {
-              success: true,
-              session: {
-                session_id: session.session_id,
-                date: session.date,
-                time: session.time,
-                specialist_name: specialist.User.full_name,
-                session_type: sessionType.name,
-                original_price: originalPrice,
-                discount_percentage: discountPercentage,
-                final_price: finalPrice
-              }
-            };
-          }
+  // 1️⃣ تأكد من وجود سعر الجلسة الأصلي
+  const originalPrice = parseFloat(sessionType.price) || 0;
+
+  // 2️⃣ حساب السعر النهائي بعد الخصم
+  const finalPrice = originalPrice - (originalPrice * (discountPercentage || 0) / 100);
+
+  // 3️⃣ إنشاء الجلسة
+  const session = await Session.create({
+    child_id: childId,
+    specialist_id: specialist.specialist_id,
+    institution_id: institutionId,
+    session_type_id: sessionType.session_type_id,
+    date: availableSlot.date,
+    time: availableSlot.startTime,
+    session_type: 'Onsite',
+    status: 'Scheduled',
+    original_price: originalPrice,
+    applied_discount_percentage: discountPercentage || 0,
+    final_price: finalPrice,
+    financial_assistance_applied: discountPercentage > 0,
+    financial_assistance_request_id: financialRequestId,
+    payment_status: discountPercentage === 100 ? 'free_session' : 'pending',
+    discount_reason: discountPercentage > 0 ? 'Financial assistance applied' : 'Regular pricing',
+    is_first_booking: true
+  });
+
+  return {
+    success: true,
+    session: {
+      session_id: session.session_id,
+      date: session.date,
+      time: session.time,
+      specialist_name: specialist.User.full_name,
+      session_type: sessionType.name,
+      original_price: originalPrice,
+      discount_percentage: discountPercentage || 0,
+      final_price: finalPrice
+    }
+  };
+}
+
         }
         
         return { success: false, reason: 'No available time slots' };

@@ -141,6 +141,10 @@ class PaymentResponse {
   final String message;
   final String? transactionId;
   final String? paymentId;
+  final String? checkoutUrl;
+  final String? checkoutSessionId;
+  final String? paymentIntentClientSecret;
+  final String? paymentIntentId;
   final Map<String, dynamic>? data;
 
   PaymentResponse({
@@ -148,16 +152,26 @@ class PaymentResponse {
     required this.message,
     this.transactionId,
     this.paymentId,
+    this.checkoutUrl,
+    this.checkoutSessionId,
+    this.paymentIntentClientSecret,
+    this.paymentIntentId,
     this.data,
   });
 
   factory PaymentResponse.fromJson(Map<String, dynamic> json) {
+    final data = json['data'];
+
     return PaymentResponse(
       success: json['success'] ?? false,
       message: json['message'] ?? '',
-      transactionId: json['data']?['transaction_id'],
-      paymentId: json['data']?['payment_id']?.toString(),
-      data: json['data'],
+      transactionId: data?['transaction_id']?.toString(),
+      paymentId: data?['payment_id']?.toString(),
+      checkoutUrl: data?['checkout_url']?.toString(),
+      checkoutSessionId: data?['checkout_session_id']?.toString(),
+      paymentIntentClientSecret: data?['payment_intent_client_secret']?.toString(),
+      paymentIntentId: data?['payment_intent_id']?.toString(),
+      data: data,
     );
   }
 
@@ -167,6 +181,10 @@ class PaymentResponse {
       'message': message,
       'transaction_id': transactionId,
       'payment_id': paymentId,
+      'checkout_url': checkoutUrl,
+      'checkout_session_id': checkoutSessionId,
+      'payment_intent_client_secret': paymentIntentClientSecret,
+      'payment_intent_id': paymentIntentId,
       'data': data,
     };
   }

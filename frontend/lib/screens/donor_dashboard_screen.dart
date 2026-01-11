@@ -8,6 +8,8 @@ import 'donation_screen.dart';
 import 'reports_list_screen.dart';
 import '../services/api_service.dart';
 import '../services/reports_service.dart';
+import 'package:video_player/video_player.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class DonorDashboardScreen extends StatefulWidget {
   const DonorDashboardScreen({super.key});
@@ -17,6 +19,7 @@ class DonorDashboardScreen extends StatefulWidget {
 }
 
 class _DonorDashboardScreenState extends State<DonorDashboardScreen> {
+
   bool _isLoadingImpact = false;
   String? _impactError;
   Map<String, dynamic>? _impactV2;
@@ -156,6 +159,107 @@ class _DonorDashboardScreenState extends State<DonorDashboardScreen> {
     return '$y-$m-$d';
   }
 
+  String _extractImpactMediaUrl(Map<String, dynamic> p) {
+    final cover = (p['cover_url'] ?? '').toString().trim();
+    if (cover.isNotEmpty) return cover;
+    final media = p['media_urls'];
+    if (media is List && media.isNotEmpty) {
+      return (media.first ?? '').toString().trim();
+    }
+    if (media is String) return media.trim();
+    return '';
+  }
+
+  bool _isDirectVideoUrl(String url) {
+    final u = url.toLowerCase();
+    return u.endsWith('.mp4') || u.endsWith('.webm') || u.endsWith('.mov') || u.endsWith('.mkv');
+  }
+
+  bool _isLikelyVideoLink(String url) {
+    final u = url.toLowerCase();
+    if (_isDirectVideoUrl(u)) return true;
+    return u.contains('youtube.com') || u.contains('youtu.be') || u.contains('vimeo.com');
+  }
+
+  Future<void> _openExternalUrl(String url) async {
+    try {
+      final uri = Uri.parse(url);
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  Widget _buildImpactMediaPreview(Map<String, dynamic> p) {
+    final url = _extractImpactMediaUrl(p);
+    if (url.isEmpty) {
+      return Container(
+        height: 80,
+        decoration: BoxDecoration(
+          color: Colors.grey.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Center(child: Icon(Icons.photo, color: Colors.grey)),
+      );
+    }
+
+    final fullUrl = ApiService.buildFileUrl(url);
+
+    if (_isDirectVideoUrl(fullUrl)) {
+      return SizedBox(
+        height: 70,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: _InlineVideoPreview(url: fullUrl),
+        ),
+      );
+    }
+
+    if (_isLikelyVideoLink(fullUrl)) {
+      return GestureDetector(
+        onTap: () => _openExternalUrl(fullUrl),
+        child: Container(
+          height: 70,
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Center(
+            child: Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.55),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.play_arrow, color: Colors.white),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Image.network(
+        fullUrl,
+        height: 70,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            height: 70,
+            decoration: BoxDecoration(
+              color: Colors.grey.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildImpactSection() {
     if (_authToken.isEmpty) {
       return Container(
@@ -211,12 +315,8 @@ class _DonorDashboardScreenState extends State<DonorDashboardScreen> {
       ...moneyTimeline.map((e) => {...e, 'timeline_type': 'money'}),
       ...equipmentTimeline.map((e) => {...e, 'timeline_type': 'equipment'})
     ]..sort((a, b) {
-        final ad = DateTime.tryParse('${a['date'] ?? a['created_at'] ?? ''}')
-                ?.millisecondsSinceEpoch ??
-            0;
-        final bd = DateTime.tryParse('${b['date'] ?? b['created_at'] ?? ''}')
-                ?.millisecondsSinceEpoch ??
-            0;
+        final ad = DateTime.tryParse('${a['date'] ?? a['created_at'] ?? ''}')?.millisecondsSinceEpoch ?? 0;
+        final bd = DateTime.tryParse('${b['date'] ?? b['created_at'] ?? ''}')?.millisecondsSinceEpoch ?? 0;
         return bd.compareTo(ad);
       });
 
@@ -477,7 +577,7 @@ class _DonorDashboardScreenState extends State<DonorDashboardScreen> {
             ),
             const SizedBox(height: 8),
             SizedBox(
-              height: 140,
+              height: 200,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 itemCount: _impactFeedItems.length,
@@ -491,57 +591,72 @@ class _DonorDashboardScreenState extends State<DonorDashboardScreen> {
                   final instName = (inst?['name'] ?? '').toString();
                   final date = _formatDate(p['published_at'] ?? p['created_at']);
 
-                  return Container(
-                    width: 240,
-                    margin:
-                        EdgeInsets.only(right: index == _impactFeedItems.length - 1 ? 0 : 12),
-                    child: Card(
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              title.isEmpty ? 'Update' : title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontWeight: FontWeight.w800),
-                            ),
-                            const SizedBox(height: 6),
-                            Expanded(
-                              child: Text(
-                                content.isNotEmpty ? content : 'New impact update.',
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(color: Colors.grey, fontSize: 12),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    instName.isEmpty ? 'Institution' : instName,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                        fontSize: 11, fontWeight: FontWeight.w600),
-                                  ),
-                                ),
-                                Text(
-                                  date,
-                                  style: const TextStyle(fontSize: 10, color: Colors.grey),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
+                  // داخل Container الذي عرضه 240
+return Container(
+  width: 240,
+  child: Card(
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // الصورة بارتفاع محدود
+          SizedBox(
+            height: 80,
+            width: double.infinity,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: _buildImpactMediaPreview(p),
+            ),
+          ),
+          const SizedBox(height: 10),
+          
+          // النصوص فقط بدون توسع
+          Text(
+            title.isEmpty ? 'Update' : title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 4),
+          
+          Text(
+            content.isNotEmpty ? content : 'New impact update.',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.grey,
+              fontSize: 11,
+            ),
+          ),
+          const SizedBox(height: 8),
+          
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  instName.isEmpty ? 'Institution' : instName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 10),
+                ),
+              ),
+              Text(
+                date,
+                style: const TextStyle(fontSize: 9, color: Colors.grey),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  ),
+);
                 },
               ),
             ),
@@ -1335,7 +1450,7 @@ Widget _buildYourImpactSection() {
                       ),
                       const SizedBox(height: 12),
                       SizedBox(
-                        height: 160,
+                        height: 220,
                         child: ListView.builder(
                           scrollDirection: Axis.horizontal,
                           itemCount: _impactFeedItems.length,
@@ -1350,90 +1465,115 @@ Widget _buildYourImpactSection() {
                             final date = _formatDate(p['published_at'] ?? p['created_at']);
 
                             return Container(
-                              width: 260,
-                              margin: EdgeInsets.only(
-                                right: index == _impactFeedItems.length - 1 ? 0 : 16,
-                              ),
-                              child: Card(
-                                elevation: 3,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(14),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.all(6),
-                                            decoration: BoxDecoration(
-                                              color: AppColors.primary.withOpacity(0.1),
-                                              shape: BoxShape.circle,
-                                            ),
-                                            child: Icon(
-                                              Icons.newspaper,
-                                              size: 16,
-                                              color: AppColors.primary,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              title.isEmpty ? 'Impact Update' : title,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                                fontSize: 14,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Expanded(
-                                        child: Text(
-                                          content.isNotEmpty ? content : 'New impact story from our community.',
-                                          maxLines: 3,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            color: Colors.grey,
-                                            fontSize: 12.5,
-                                            height: 1.4,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              instName.isEmpty ? 'Institution' : instName,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                fontSize: 11.5,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ),
-                                          Text(
-                                            date,
-                                            style: const TextStyle(
-                                              fontSize: 10.5,
-                                              color: Colors.grey,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            );
+  width: 280, // 👈 زيد العرض شوي
+  height: 200, // 👈 حدد ارتفاع ثابت للبطاقة
+  margin: EdgeInsets.only(
+    right: index == _impactFeedItems.length - 1 ? 0 : 16,
+  ),
+  child: Card(
+    elevation: 3,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(14),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Media Preview - ارتفاع ثابت
+        SizedBox(
+          height: 90, // 👈 زيد ارتفاع الصورة/الفيديو
+          width: double.infinity,
+          child: _buildImpactMediaPreview(p),
+        ),
+        
+        // المحتوى النصي مع مساحة محددة
+        Expanded( // 👈 استخدم Expanded للجزء النصي
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween, // 👈 وزع المساحة
+              children: [
+                // العنوان
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.newspaper,
+                        size: 14,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        title.isEmpty ? 'Impact Update' : title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                
+                // المحتوى
+                Expanded( // 👈 محتوى قابل للتوسع
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Text(
+                      content.isNotEmpty ? content : 'New impact story from our community.',
+                      maxLines: 3, // 👈 رجع 3 أسطر
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.grey,
+                        fontSize: 12.0,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                ),
+                
+                // المعلومات السفلية
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        instName.isEmpty ? 'Institution' : instName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11.0,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      date,
+                      style: const TextStyle(
+                        fontSize: 10.0,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    ),
+  ),
+);
                           },
                         ),
                       ),
@@ -1720,10 +1860,126 @@ const SizedBox(height: 24),
   }
 }
 
+class _InlineVideoPreview extends StatefulWidget {
+  final String url;
+
+  const _InlineVideoPreview({required this.url});
+
+  @override
+  State<_InlineVideoPreview> createState() => _InlineVideoPreviewState();
+}
+
+class _InlineVideoPreviewState extends State<_InlineVideoPreview> {
+  VideoPlayerController? _controller;
+  bool _initializing = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  Future<void> _init() async {
+    try {
+      final uri = Uri.parse(widget.url);
+      final controller = VideoPlayerController.networkUrl(uri);
+      await controller.initialize();
+      controller.setLooping(true);
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+      setState(() {
+        _controller = controller;
+        _initializing = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _controller = null;
+        _initializing = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_initializing) {
+      return Container(
+        color: Colors.black.withOpacity(0.08),
+        child: const Center(
+          child: SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    if (_controller == null || !_controller!.value.isInitialized) {
+      return Container(
+        color: Colors.black.withOpacity(0.08),
+        child: const Center(child: Icon(Icons.play_arrow, color: Colors.white)),
+      );
+    }
+
+    final isPlaying = _controller!.value.isPlaying;
+
+    return GestureDetector(
+      onTap: () {
+        if (!mounted) return;
+        setState(() {
+          if (isPlaying) {
+            _controller!.pause();
+          } else {
+            _controller!.play();
+          }
+        });
+      },
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          FittedBox(
+            fit: BoxFit.cover,
+            child: SizedBox(
+              width: _controller!.value.size.width,
+              height: _controller!.value.size.height,
+              child: VideoPlayer(_controller!),
+            ),
+          ),
+          Align(
+            alignment: Alignment.center,
+            child: Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.45),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isPlaying ? Icons.pause : Icons.play_arrow,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Clipper للمنحدر (نص دائرة)
 class CurvedBackgroundClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
+
     final path = Path();
 
     path.moveTo(0, 0);

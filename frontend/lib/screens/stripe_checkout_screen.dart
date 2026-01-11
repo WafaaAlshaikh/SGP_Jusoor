@@ -123,7 +123,7 @@ class _StripeCheckoutScreenState extends State<StripeCheckoutScreen> {
 
     // Only treat as complete when Stripe redirects to OUR known endpoints.
     // Avoid false-positives because the initial Stripe checkout URL contains success_url=.../donations/success
-    if (path.endsWith('/donations/success')) {
+    if (path.endsWith('/donations/success') || path.endsWith('/payments/success')) {
       if (!_paymentCompleted) {
         _paymentCompleted = true;
         _showSuccessMessage();
@@ -131,7 +131,7 @@ class _StripeCheckoutScreenState extends State<StripeCheckoutScreen> {
       return;
     }
 
-    if (path.endsWith('/donations/cancel')) {
+    if (path.endsWith('/donations/cancel') || path.endsWith('/payments/cancel')) {
       if (mounted) {
         Navigator.pop(context, false);
       }

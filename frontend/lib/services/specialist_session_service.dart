@@ -46,6 +46,7 @@ class SpecialistSessionService {
         return {
           'id': session['session_id'],
           'childName': session['child']?['full_name'] ?? 'Unknown',
+          'childPhoto': session['child']?['photo'] ?? '',
           'institution': session['institution']?['name'] ?? 'N/A',
           'type': session['SessionType']?['name'] ?? session['session_type'] ?? 'Therapy',
           'date': DateTime.parse(session['date']),
@@ -85,6 +86,7 @@ class SpecialistSessionService {
         return {
           'id': session['session_id'],
           'childName': session['child']?['full_name'] ?? 'Unknown',
+          'childPhoto': session['child']?['photo'] ?? '',
           'institution': session['institution']?['name'] ?? 'N/A',
           'type': session['SessionType']?['name'] ?? session['session_type'] ?? 'Therapy',
           'date': DateTime.parse(session['date']),
@@ -372,6 +374,7 @@ class SpecialistSessionService {
         return {
           'id': session['session_id'],
           'childName': session['child']?['full_name'] ?? 'Unknown',
+          'childPhoto': session['child']?['photo'] ?? '',
           'institution': session['institution']?['name'] ?? 'N/A',
           'type': session['SessionType']?['name'] ?? 'Therapy',
           'date': DateTime.parse(session['date']),
@@ -443,6 +446,7 @@ class SpecialistSessionService {
           return {
             'id': session['session_id'],
             'childName': session['child']?['full_name'] ?? 'Unknown Child',
+            'childPhoto': session['child']?['photo'] ?? '',
             'institution': session['institution']?['name'] ?? 'Unknown Institution',
             'type': session['SessionType']?['name'] ?? session['session_type'] ?? 'Therapy',
 
@@ -480,12 +484,14 @@ class SpecialistSessionService {
     return {
       'id': session['session_id'],
       'childName': session['child']?['full_name'] ?? 'Unknown Child',
+      'childPhoto': session['child']?['photo'] ?? '',
       'institution': session['institution']?['name'] ?? 'Unknown Institution',
       'type': session['session_type'] ?? 'Session',
       'date': DateTime.parse(session['date']),
       'time': session['time'],
       'status': session['status'],
       'mode': session['session_type'],
+
       'duration': session['session_type_details']?['duration'] ?? 60,
       'category': session['session_type_details']?['category'],
       'isPending': session['is_pending'] ?? false,

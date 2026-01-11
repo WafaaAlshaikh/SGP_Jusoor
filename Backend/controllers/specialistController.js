@@ -211,64 +211,6 @@ async function updateCompletionTableOnSessionAdd(childId, specialistId, institut
   }
 }
 
-// ============== Main Function ==============
-// const addSession = async (req, res) => {
-//   try {
-//     const specialistId = req.user.user_id;
-//     const { child_id, institution_id, date, time, duration = 60, price = 0, session_type = 'Onsite' } = req.body;
-
-//     if (!child_id || !date || !time) {
-//       return res.status(400).json({ message: 'Missing required fields' });
-//     }
-
-//     if (duration <= 0) return res.status(400).json({ message: 'Duration must be positive' });
-//     if (price < 0) return res.status(500).json({ message: 'Price cannot be negative' });
-
-//     const sessionDateTime = new Date(`${date}T${time}`);
-//     if (sessionDateTime < new Date()) return res.status(400).json({ message: 'Cannot schedule session in the past' });
-
-//     if (session_type === 'Onsite' && !institution_id) {
-//       return res.status(400).json({ message: 'Institution is required for onsite sessions' });
-//     }
-
-//     const conflictSession = await Session.findOne({
-//       where: {
-//         specialist_id: specialistId,
-//         date,
-//         time,
-//         status: 'Scheduled'
-//       }
-//     });
-//     if (conflictSession) return res.status(400).json({ message: 'You already have a session scheduled at this time' });
-
-//     const session = await Session.create({
-//       child_id,
-//       specialist_id: specialistId,
-//       institution_id: institution_id || null,
-//       date,
-//       time,
-//       duration,
-//       price,
-//       session_type,
-//       status: 'Scheduled'
-//     });
-
-//     // ============================================
-//     // ⭐⭐ Call the helper function ⭐⭐
-//     // ============================================
-//     await updateCompletionTableOnSessionAdd(
-//       child_id, 
-//       specialistId, 
-//       institution_id || null
-//     );
-
-//     res.status(201).json({ message: 'Session created successfully', session });
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ message: 'Server error' });
-//   }
-// };
-
 const addSession = async (req, res) => {
   try {
     const specialistId = req.user.user_id;

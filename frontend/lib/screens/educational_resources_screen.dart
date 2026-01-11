@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:frontend/screens/activity_recommendation_hub.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -653,27 +654,29 @@ class _EducationalResourcesScreenState extends State<EducationalResourcesScreen>
               ),
             ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Trusted Educational Resources',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textDark,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Evidence-based resources from trusted sources',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textGray,
-                  ),
-                ),
-              ],
-            ),
-          ),
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _buildActivityHubCard(),  // ✅ الآن داخل child
+      SizedBox(height: 20),     // ✅ الآن داخل child
+      // Text(
+      //   'Trusted Educational Resources',
+      //   style: TextStyle(
+      //     fontSize: 18,
+      //     fontWeight: FontWeight.w600,
+      //     color: AppColors.textDark,
+      //   ),
+      // ),
+      // SizedBox(height: 4),
+      // Text(
+      //   'Evidence-based resources from trusted sources',
+      //   style: TextStyle(
+      //     fontSize: 14,
+      //     color: AppColors.textGray,
+      //   ),
+      // ),
+    ],
+  ),
+),
 
           // Search and Filters Section
           Padding(
@@ -1007,4 +1010,72 @@ class _EducationalResourcesScreenState extends State<EducationalResourcesScreen>
           : null,
     );
   }
+
+  Widget _buildActivityHubCard() {
+  return GestureDetector(
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => ActivityRecommendationHub()),
+      );
+    },
+    child: Container(
+      margin: EdgeInsets.symmetric(vertical: 8),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF4CAF50), Color(0xFF8BC34A)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.videogame_asset, color: Colors.white, size: 24),
+          ),
+          SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '🎮 Activity & Games Hub',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Get AI-based activity recommendations from medical reports',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.arrow_forward_ios, color: Colors.white, size: 20),
+        ],
+      ),
+    ),
+  );
+}
+
 }

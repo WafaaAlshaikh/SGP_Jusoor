@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../services/manager_children_service.dart';
+import '../../services/api_service.dart';
 import '../../theme/app_colors.dart';
 import 'children_list_screen.dart';
 import 'add_child_screen.dart';
@@ -75,38 +76,10 @@ class _ChildrenManagementScreenState extends State<ChildrenManagementScreen> {
         'progress': progress / 100,
         'lastSession': _formatDate(child['latest_progress']?['date']),
         'nextSession': 'Check schedule',
-        'profile_picture': _getProfilePictureUrl(child), // استخراج رابط الصورة
+        'profile_picture': ApiService.buildFileUrl(child['photo']), // استخراج رابط الصورة
         'rawData': child,
       };
     }).toList();
-  }
-
-  // استخراج رابط الصورة
-  String? _getProfilePictureUrl(dynamic childData) {
-    final profilePicture = childData['profile_picture'];
-    if (profilePicture == null || profilePicture.toString().isEmpty) {
-      return null;
-    }
-
-    String url = profilePicture.toString();
-
-    // إذا كان الرابط يبدأ بـ http فهو رابط كامل
-    if (url.startsWith('http')) {
-      return url;
-    }
-
-    // إذا كان الرابط يبدأ بـ /uploads فهو رابط نسبي
-    if (url.startsWith('/uploads')) {
-      return 'http://10.0.2.2:5000$url';
-    }
-
-    // إذا كان الرابط مجرد اسم ملف
-    if (!url.contains('/')) {
-      return 'http://10.0.2.2:5000/uploads/children/$url';
-    }
-
-    // في حالات أخرى نعيده كما هو
-    return url;
   }
 
   int _calculateAge(String? dateOfBirth) {
@@ -814,7 +787,8 @@ class _ChildrenManagementScreenState extends State<ChildrenManagementScreen> {
   }
 
   Widget _buildChildAvatar(String childName, String? profilePictureUrl, Color statusColor) {
-    if (profilePictureUrl != null && profilePictureUrl.isNotEmpty) {
+    final imageUrl = ApiService.buildFileUrl(profilePictureUrl);
+    if (imageUrl.isNotEmpty) {
       // Show network image if available
       return ClipOval(
         child: Container(
@@ -825,7 +799,7 @@ class _ChildrenManagementScreenState extends State<ChildrenManagementScreen> {
             shape: BoxShape.circle,
           ),
           child: Image.network(
-            profilePictureUrl,
+            imageUrl,
             fit: BoxFit.cover,
             loadingBuilder: (context, child, loadingProgress) {
               if (loadingProgress == null) return child;

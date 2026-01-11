@@ -36,6 +36,28 @@ class ParentDashboardScreen extends StatefulWidget {
   State<ParentDashboardScreen> createState() => _ParentDashboardScreenState();
 }
 
+// Custom painter for dot pattern background
+class _DotsPatternPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.05)
+      ..style = PaintingStyle.fill;
+
+    const double spacing = 20;
+    const double radius = 1.5;
+
+    for (double x = 0; x < size.width; x += spacing) {
+      for (double y = 0; y < size.height; y += spacing) {
+        canvas.drawCircle(Offset(x, y), radius, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   int _selectedIndex = 0;
   DashboardData? dashboardData;
@@ -130,11 +152,11 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           _isLoading = false;
         });
       }
-
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Failed to load dashboard. Please check your connection.';
+          _errorMessage =
+              'Failed to load dashboard. Please check your connection.';
           _isLoading = false;
         });
       }
@@ -207,7 +229,6 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       } else {
         _setFallbackTip();
       }
-
     } catch (e) {
       _setFallbackTip();
     }
@@ -254,48 +275,48 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     if (index == 4) {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) =>  ProfileSettingsScreen()),
+        MaterialPageRoute(builder: (context) => ProfileSettingsScreen()),
       );
-    }
-
-    else {
+    } else {
       setState(() {
         _selectedIndex = index;
       });
     }
   }
 
-  Widget _buildAvatar({required String name, required String image, double radius = 28}) {
+  Widget _buildAvatar(
+      {required String name, required String image, double radius = 28}) {
+    final imageUrl = ApiService.buildFileUrl(image);
     return CircleAvatar(
       radius: radius,
       backgroundColor: AppColors.primary.withOpacity(0.1),
-      child: (image.isNotEmpty)
+      child: (imageUrl.isNotEmpty)
           ? ClipOval(
-        child: Image.network(
-          image,
-          width: radius * 2,
-          height: radius * 2,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            return Center(
-              child: Text(
-                name.isNotEmpty ? name[0].toUpperCase() : '?',
-                style: TextStyle(
-                    color: AppColors.primary,
-                    fontSize: radius * 0.65,
-                    fontWeight: FontWeight.w600),
+              child: Image.network(
+                imageUrl,
+                width: radius * 2,
+                height: radius * 2,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Center(
+                    child: Text(
+                      name.isNotEmpty ? name[0].toUpperCase() : '?',
+                      style: TextStyle(
+                          color: AppColors.primary,
+                          fontSize: radius * 0.65,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  );
+                },
               ),
-            );
-          },
-        ),
-      )
+            )
           : Text(
-        name.isNotEmpty ? name[0].toUpperCase() : '?',
-        style: TextStyle(
-            color: AppColors.primary,
-            fontSize: radius * 0.65,
-            fontWeight: FontWeight.w600),
-      ),
+              name.isNotEmpty ? name[0].toUpperCase() : '?',
+              style: TextStyle(
+                  color: AppColors.primary,
+                  fontSize: radius * 0.65,
+                  fontWeight: FontWeight.w600),
+            ),
     );
   }
 
@@ -307,316 +328,400 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       drawer: _buildDrawer(),
       body: _isLoading
           ? Center(
-        child: CircularProgressIndicator(
-          color: AppColors.primary,
-        ),
-      )
-          : _errorMessage != null
-          ? Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, color: AppColors.error, size: 48),
-            SizedBox(height: 16),
-            Text(_errorMessage!,
-              style: TextStyle(color: AppColors.textGray, fontSize: 16),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _fetchDashboardData,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
+              child: CircularProgressIndicator(
+                color: AppColors.primary,
               ),
-              child: Text('Try Again'),
-            ),
-          ],
-        ),
-      )
-          : RefreshIndicator(
-        onRefresh: _fetchDashboardData,
-        backgroundColor: AppColors.background,
-        color: AppColors.primary,
-        child: SingleChildScrollView(
-          physics: AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildWelcomeSection(),
-              SizedBox(height: 20),
-              _buildFinancialAssistanceCard(), // 
-              SizedBox(height: 20),
-              _buildChildrenSection(),
-              SizedBox(height: 20),
-              _buildDailyTipCard(),
-              SizedBox(height: 20),
-              _buildQuickStats(),
-              SizedBox(height: 20),
-              _buildDonationImpactCard(),
-              SizedBox(height: 20),
-              _buildMainActions(),
-              SizedBox(height: 20),
-              // _buildPaymentOverview(),
-              // SizedBox(height: 20),
-              _buildCommunitySection(),
-              SizedBox(height: 20),
-              _buildRecentNotificationsFeed(),
-              SizedBox(height: 30),
-            ],
-          ),
-        ),
-      ),
+            )
+          : _errorMessage != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.error_outline,
+                          color: AppColors.error, size: 48),
+                      SizedBox(height: 16),
+                      Text(
+                        _errorMessage!,
+                        style:
+                            TextStyle(color: AppColors.textGray, fontSize: 16),
+                        textAlign: TextAlign.center,
+                      ),
+                      SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _fetchDashboardData,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: Text('Try Again'),
+                      ),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _fetchDashboardData,
+                  backgroundColor: AppColors.background,
+                  color: AppColors.primary,
+                  child: SingleChildScrollView(
+                    physics: AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildWelcomeSection(),
+                        SizedBox(height: 20),
+                        _buildFinancialAssistanceCard(),
+                        SizedBox(height: 20),
+                        _buildChildrenSection(),
+                        SizedBox(height: 20),
+                        _buildDailyTipCard(),
+                        SizedBox(height: 20),
+                        _buildQuickStats(),
+                        SizedBox(height: 20),
+                        // _buildDonationImpactCard(),
+                        // SizedBox(height: 20),
+                        _buildMainActions(),
+                        SizedBox(height: 20),
+                        // _buildPaymentOverview(),
+                        // SizedBox(height: 20),
+                        // _buildCommunitySection(),
+                        // SizedBox(height: 20),
+                        _buildRecentNotificationsFeed(),
+                        SizedBox(height: 30),
+                      ],
+                    ),
+                  ),
+                ),
       bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
 
-  Widget _buildFinancialAssistanceCard() {
-  return GestureDetector(
-    onTap: () {
-      // Navigator.push(
-      //   context,
-      //   MaterialPageRoute(
-      //     builder: (context) => FinancialAssistanceDashboard(),
-      //   ),
-      // );
-       _showFinancialAssistanceOptions();
-    },
-    child: Container(
-      margin: EdgeInsets.symmetric(vertical: 8),
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.attach_money, color: Colors.white, size: 24),
-          ),
-          SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Financial Assistance',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Check your eligibility and apply for therapy cost support',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white.withOpacity(0.9),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Icon(Icons.arrow_forward_ios, color: Colors.white, size: 20),
-        ],
-      ),
-    ),
-  );
-}
+  // Widget _buildFinancialAssistanceCard() {
+  //   return GestureDetector(
+  //     onTap: () {
+  //       // Navigator.push(
+  //       //   context,
+  //       //   MaterialPageRoute(
+  //       //     builder: (context) => FinancialAssistanceDashboard(),
+  //       //   ),
+  //       // );
+  //       _showFinancialAssistanceOptions();
+  //     },
+  //     child: Container(
+  //       margin: EdgeInsets.symmetric(vertical: 8),
+  //       padding: EdgeInsets.all(16),
+  //       decoration: BoxDecoration(
+  //         gradient: LinearGradient(
+  //           colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+  //           begin: Alignment.topLeft,
+  //           end: Alignment.bottomRight,
+  //         ),
+  //         borderRadius: BorderRadius.circular(16),
+  //         boxShadow: [
+  //           BoxShadow(
+  //             color: Colors.black.withOpacity(0.1),
+  //             blurRadius: 8,
+  //             offset: Offset(0, 4),
+  //           ),
+  //         ],
+  //       ),
+  //       child: Row(
+  //         children: [
+  //           Container(
+  //             padding: EdgeInsets.all(12),
+  //             decoration: BoxDecoration(
+  //               color: Colors.white.withOpacity(0.2),
+  //               shape: BoxShape.circle,
+  //             ),
+  //             child: Icon(Icons.attach_money, color: Colors.white, size: 24),
+  //           ),
+  //           SizedBox(width: 16),
+  //           Expanded(
+  //             child: Column(
+  //               crossAxisAlignment: CrossAxisAlignment.start,
+  //               children: [
+  //                 Text(
+  //                   'Financial Assistance',
+  //                   style: TextStyle(
+  //                     fontSize: 16,
+  //                     fontWeight: FontWeight.w600,
+  //                     color: Colors.white,
+  //                   ),
+  //                 ),
+  //                 SizedBox(height: 4),
+  //                 Text(
+  //                   'Check your eligibility and apply for therapy cost support',
+  //                   style: TextStyle(
+  //                     fontSize: 12,
+  //                     color: Colors.white.withOpacity(0.9),
+  //                   ),
+  //                 ),
+  //               ],
+  //             ),
+  //           ),
+  //           Icon(Icons.arrow_forward_ios, color: Colors.white, size: 20),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
 
-void _showFinancialAssistanceOptions() {
-  showModalBottomSheet(
-    context: context,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
-    builder: (context) {
-      return Container(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            SizedBox(height: 20),
-            Text(
-              'Financial Assistance Options',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textDark,
-              ),
-            ),
-            SizedBox(height: 20),
-            
-            // Option 1: General Assessment
-            ListTile(
-              leading: Icon(Icons.assessment, color: AppColors.primary),
-              title: Text('Quick Financial Assessment'),
-              subtitle: Text('Check your eligibility in 3-5 minutes'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => GeneralFinancialAssessmentScreen(),
-                  ),
-                );
-              },
-            ),
-            
-            // Option 2: Dashboard
-            ListTile(
-              leading: Icon(Icons.dashboard, color: AppColors.primary),
-              title: Text('Financial Assistance Dashboard'),
-              subtitle: Text('View all options and manage requests'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => FinancialAssistanceDashboard(),
-                  ),
-                );
-              },
-            ),
-            
-            // Option 3: Existing Requests
-            ListTile(
-              leading: Icon(Icons.request_quote, color: AppColors.primary),
-              title: Text('My Assistance Requests'),
-              subtitle: Text('View and manage your applications'),
-              onTap: () {
-                Navigator.pop(context);
-                // Navigate to requests screen
-              },
-            ),
-            
-            SizedBox(height: 20),
-            OutlinedButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Close'),
-            ),
-          ],
-        ),
-      );
-    },
-  );
-}
+// void _showFinancialAssistanceOptions() {
+//   showModalBottomSheet(
+//     context: context,
+//     shape: RoundedRectangleBorder(
+//       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+//     ),
+//     builder: (context) {
+//       return Container(
+//         padding: EdgeInsets.all(20),
+//         child: Column(
+//           mainAxisSize: MainAxisSize.min,
+//           children: [
+//             Container(
+//               width: 40,
+//               height: 4,
+//               decoration: BoxDecoration(
+//                 color: Colors.grey[300],
+//                 borderRadius: BorderRadius.circular(2),
+//               ),
+//             ),
+//             SizedBox(height: 20),
+//             Text(
+//               'Financial Assistance Options',
+//               style: TextStyle(
+//                 fontSize: 18,
+//                 fontWeight: FontWeight.bold,
+//                 color: AppColors.textDark,
+//               ),
+//             ),
+//             SizedBox(height: 20),
 
+//             // Option 1: General Assessment
+//             ListTile(
+//               leading: Icon(Icons.assessment, color: AppColors.primary),
+//               title: Text('Quick Financial Assessment'),
+//               subtitle: Text('Check your eligibility in 3-5 minutes'),
+//               onTap: () {
+//                 Navigator.pop(context);
+//                 Navigator.push(
+//                   context,
+//                   MaterialPageRoute(
+//                     builder: (context) => GeneralFinancialAssessmentScreen(),
+//                   ),
+//                 );
+//               },
+//             ),
 
+//             // Option 2: Dashboard
+//             ListTile(
+//               leading: Icon(Icons.dashboard, color: AppColors.primary),
+//               title: Text('Financial Assistance Dashboard'),
+//               subtitle: Text('View all options and manage requests'),
+//               onTap: () {
+//                 Navigator.pop(context);
+//                 Navigator.push(
+//                   context,
+//                   MaterialPageRoute(
+//                     builder: (context) => FinancialAssistanceDashboard(),
+//                   ),
+//                 );
+//               },
+//             ),
+
+//             // Option 3: Existing Requests
+//             ListTile(
+//               leading: Icon(Icons.request_quote, color: AppColors.primary),
+//               title: Text('My Assistance Requests'),
+//               subtitle: Text('View and manage your applications'),
+//               onTap: () {
+//                 Navigator.pop(context);
+//                 // Navigate to requests screen
+//               },
+//             ),
+
+//             SizedBox(height: 20),
+//             OutlinedButton(
+//               onPressed: () => Navigator.pop(context),
+//               child: Text('Close'),
+//             ),
+//           ],
+//         ),
+//       );
+//     },
+//   );
+// }
 
   Widget _buildWelcomeSection() {
     final parent = dashboardData?.parent;
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(24), // 
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [AppColors.primary.withOpacity(0.08), AppColors.primary.withOpacity(0.03)],
+          colors: [
+            AppColors.primary.withOpacity(0.15),
+            AppColors.primary.withOpacity(0.05),
+            Colors.white.withOpacity(0.8),
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      constraints: BoxConstraints(
-        minHeight: 120, // 
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppColors.primary.withOpacity(0.1),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: Colors.white.withOpacity(0.9),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          Stack(
-            children: [
-              _buildAvatar(
-                name: parent?.name ?? '',
-                image: parent?.profilePicture ?? '',
-                radius: 36, // 
+          // Profile Avatar with modern frame
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.primary,
+                  AppColors.primary.withOpacity(0.7),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              Positioned(
-                bottom: 0,
-                right: 0,
-                child: GestureDetector(
-                  onTap: _showProfileMenu,
-                  child: Container(
-                    padding: EdgeInsets.all(5),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
-                          blurRadius: 4,
-                          offset: Offset(0, 2),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withOpacity(0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                _buildAvatar(
+                  name: parent?.name ?? '',
+                  image: parent?.profilePicture ?? '',
+                  radius: 32,
+                ),
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: GestureDetector(
+                    onTap: _showProfileMenu,
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.primary,
+                          width: 2,
                         ),
-                      ],
-                    ),
-                    child: Icon(
-                      Icons.edit,
-                      color: Colors.white,
-                      size: 14,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.edit,
+                        color: AppColors.primary,
+                        size: 14,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          SizedBox(width: 20),
+          const SizedBox(width: 20),
 
+          // Welcome Text
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center, // 
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Row(
-                  children: [
-                    Text(
-                      'Hello,',
-                      style: TextStyle(
-                        fontSize: 19,
-                        color: AppColors.textDark,
-                        fontWeight: FontWeight.w500,
+                // Welcome message with emoji
+                RichText(
+                  text: TextSpan(
+                    children: [
+                      TextSpan(
+                        text: 'Hello, ',
+                        style: TextStyle(
+                          fontSize: 20,
+                          color: AppColors.textDark.withOpacity(0.8),
+                          fontWeight: FontWeight.w400,
+                          height: 1.3,
+                        ),
                       ),
-                    ),
-                    SizedBox(width: 6),
-                    Text(
-                      parent?.name ?? 'Parent',
-                      style: TextStyle(
-                        fontSize: 19,
-                        color: AppColors.textDark,
-                        height: 1.2,
+                      TextSpan(
+                        text: parent?.name.split(' ').first ?? 'Parent',
+                        style: TextStyle(
+                          fontSize: 22,
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                          height: 1.3,
+                        ),
                       ),
-                    ),
-                  ],
+                      const TextSpan(
+                        text: ' 👋',
+                        style: TextStyle(
+                          fontSize: 22,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                SizedBox(height: 8), // 
-                Text(
-                  'Ready to continue your child\'s journey',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textGray,
+                const SizedBox(height: 8),
+
+                // Subtle message with gradient text
+                ShaderMask(
+                  shaderCallback: (bounds) {
+                    return LinearGradient(
+                      colors: [
+                        AppColors.textDark.withOpacity(0.7),
+                        AppColors.textGray,
+                      ],
+                    ).createShader(bounds);
+                  },
+                  child: Text(
+                    'Ready to continue your child\'s journey',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+
+                // Decorative line
+                const SizedBox(height: 12),
+                Container(
+                  width: 60,
+                  height: 3,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.primary,
+                        AppColors.primary.withOpacity(0.5),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ],
@@ -627,7 +732,333 @@ void _showFinancialAssistanceOptions() {
     );
   }
 
+  Widget _buildFinancialAssistanceCard() {
+  return GestureDetector(
+    onTap: _showFinancialAssistanceOptions,
+    child: Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFF667EEA).withOpacity(0.15),
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF667EEA).withOpacity(0.08),
+            blurRadius: 25,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Icon with subtle gradient background
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF667EEA).withOpacity(0.1),
+                  const Color(0xFF764BA2).withOpacity(0.05),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: const Color(0xFF667EEA).withOpacity(0.2),
+                width: 1.5,
+              ),
+            ),
+            child: const Icon(
+              Icons.attach_money_rounded,
+              color: Color(0xFF667EEA),
+              size: 26,
+            ),
+          ),
+          
+          const SizedBox(width: 18),
+          
+          // Text content
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Financial Assistance',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1A1A2E),
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Support available for therapy costs',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[700],
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Modern arrow indicator
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFF667EEA).withOpacity(0.1),
+            ),
+            child: Icon(
+              Icons.arrow_forward_ios_rounded,
+              color: const Color(0xFF667EEA),
+              size: 16,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+// Also update the bottom sheet for better visual consistency:
+  void _showFinancialAssistanceOptions() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          margin: const EdgeInsets.only(top: 50),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(30),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 30,
+                spreadRadius: -5,
+                offset: const Offset(0, -10),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar with modern design
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
 
+              const SizedBox(height: 20),
+
+              // Title with gradient
+              ShaderMask(
+                shaderCallback: (bounds) {
+                  return LinearGradient(
+                    colors: [
+                      const Color(0xFF6366F1),
+                      const Color(0xFF8B5CF6),
+                    ],
+                  ).createShader(bounds);
+                },
+                child: Text(
+                  'Financial Assistance',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              Text(
+                'Choose an option to get started',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textGray,
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Options with modern cards
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  children: [
+                    _buildBottomSheetOption(
+                      icon: Icons.assessment_rounded,
+                      title: 'Quick Assessment',
+                      subtitle: 'Check eligibility in 3-5 minutes',
+                      color: AppColors.primary,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                GeneralFinancialAssessmentScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _buildBottomSheetOption(
+                      icon: Icons.dashboard_rounded,
+                      title: 'Dashboard',
+                      subtitle: 'View all options & manage requests',
+                      color: const Color(0xFF8B5CF6),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                FinancialAssistanceDashboard(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _buildBottomSheetOption(
+                      icon: Icons.request_quote_rounded,
+                      title: 'My Applications',
+                      subtitle: 'View and track your requests',
+                      color: const Color(0xFFD946EF),
+                      onTap: () {
+                        Navigator.pop(context);
+                        // Navigate to requests screen
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 30),
+
+              // Close button
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      side: BorderSide(
+                        color: Colors.grey[300]!,
+                      ),
+                    ),
+                    child: Text(
+                      'Close',
+                      style: TextStyle(
+                        color: AppColors.textGray,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildBottomSheetOption({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: color.withOpacity(0.1),
+              width: 1.5,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: color,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textGray,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                color: AppColors.textLight,
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   // === CHILDREN SECTION ===
   Widget _buildChildrenSection() {
@@ -678,12 +1109,14 @@ void _showFinancialAssistanceOptions() {
                   decoration: BoxDecoration(
                     color: AppColors.primary.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+                    border:
+                        Border.all(color: AppColors.primary.withOpacity(0.2)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.medical_information, size: 14, color: AppColors.primary),
+                      Icon(Icons.medical_information,
+                          size: 14, color: AppColors.primary),
                       SizedBox(width: 6),
                       Text(
                         'Equipment',
@@ -722,7 +1155,8 @@ void _showFinancialAssistanceOptions() {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => ParentChildEvaluationsScreen(childId: child.childId),
+            builder: (_) =>
+                ParentChildEvaluationsScreen(childId: child.childId),
           ),
         );
       },
@@ -847,9 +1281,13 @@ void _showFinancialAssistanceOptions() {
             SizedBox(height: 12),
             AnimatedCrossFade(
               duration: Duration(milliseconds: 300),
-              crossFadeState: _showFullTip ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+              crossFadeState: _showFullTip
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
               firstChild: Text(
-                _dailyTip.length > 100 ? '${_dailyTip.substring(0, 100)}...' : _dailyTip,
+                _dailyTip.length > 100
+                    ? '${_dailyTip.substring(0, 100)}...'
+                    : _dailyTip,
                 style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textDark,
@@ -941,8 +1379,10 @@ void _showFinancialAssistanceOptions() {
                 );
               }
 
-              final sessions = (_donationImpact!['sessionsSupportedCount'] ?? 0) as int;
-              final children = (_donationImpact!['childrenSupportedCount'] ?? 0) as int;
+              final sessions =
+                  (_donationImpact!['sessionsSupportedCount'] ?? 0) as int;
+              final children =
+                  (_donationImpact!['childrenSupportedCount'] ?? 0) as int;
 
               if (sessions == 0 || children == 0) {
                 return const Text(
@@ -983,8 +1423,8 @@ void _showFinancialAssistanceOptions() {
           shrinkWrap: true,
           physics: NeverScrollableScrollPhysics(),
           crossAxisCount: 4,
-          crossAxisSpacing: 8,
-          mainAxisSpacing: 8,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 20,
           childAspectRatio: 0.8,
           children: [
             _buildMiniStatCard(
@@ -1008,18 +1448,18 @@ void _showFinancialAssistanceOptions() {
                 }
               },
             ),
-            _buildMiniStatCard(
-              icon: Icons.assessment,
-              title: 'Reports',
-              value: s?.newReportsCount ?? 0,
-              color: AppColors.info,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ParentChildEvaluationsScreen()),
-                );
-              },
-            ),
+            // _buildMiniStatCard(
+            //   icon: Icons.assessment,
+            //   title: 'Reports',
+            //   value: s?.newReportsCount ?? 0,
+            //   color: AppColors.info,
+            //   onTap: () {
+            //     Navigator.push(
+            //       context,
+            //       MaterialPageRoute(builder: (_) => const ParentChildEvaluationsScreen()),
+            //     );
+            //   },
+            // ),
             _buildMiniStatCard(
               icon: Icons.child_care,
               title: 'Children',
@@ -1036,7 +1476,8 @@ void _showFinancialAssistanceOptions() {
               value: _unreadMessagesCount,
               color: AppColors.accent4,
               onTap: () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => ChatListScreen()));
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (context) => ChatListScreen()));
               },
             ),
           ],
@@ -1141,7 +1582,8 @@ void _showFinancialAssistanceOptions() {
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const StartScreeningScreen()),
+                          MaterialPageRoute(
+                              builder: (_) => const StartScreeningScreen()),
                         );
                       },
                     ),
@@ -1156,7 +1598,8 @@ void _showFinancialAssistanceOptions() {
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const BrowseCentersScreen()),
+                          MaterialPageRoute(
+                              builder: (_) => const BrowseCentersScreen()),
                         );
                       },
                     ),
@@ -1175,7 +1618,9 @@ void _showFinancialAssistanceOptions() {
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const EducationalResourcesScreen()),
+                          MaterialPageRoute(
+                              builder: (_) =>
+                                  const EducationalResourcesScreen()),
                         );
                       },
                     ),
@@ -1396,7 +1841,8 @@ void _showFinancialAssistanceOptions() {
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => CommunityScreen()),
+                      MaterialPageRoute(
+                          builder: (context) => CommunityScreen()),
                     );
                   },
                   borderRadius: BorderRadius.circular(8),
@@ -1413,7 +1859,8 @@ void _showFinancialAssistanceOptions() {
                           ),
                         ),
                         SizedBox(width: 4),
-                        Icon(Icons.arrow_forward, size: 16, color: AppColors.primary),
+                        Icon(Icons.arrow_forward,
+                            size: 16, color: AppColors.primary),
                       ],
                     ),
                   ),
@@ -1463,7 +1910,8 @@ void _showFinancialAssistanceOptions() {
         else
           ..._communityHighlights.map((post) {
             final content = post['content']?.toString() ?? 'Post content';
-            final userName = post['user_name']?.toString() ?? 'Community Member';
+            final userName =
+                post['user_name']?.toString() ?? 'Community Member';
             final timeAgo = _getTimeAgo(post['created_at']);
             final likesCount = (post['likes_count'] as num?) ?? 0;
             final commentsCount = (post['comments_count'] as num?) ?? 0;
@@ -1555,7 +2003,8 @@ void _showFinancialAssistanceOptions() {
             children: [
               Row(
                 children: [
-                  Icon(Icons.favorite_outline, size: 14, color: AppColors.textGray),
+                  Icon(Icons.favorite_outline,
+                      size: 14, color: AppColors.textGray),
                   SizedBox(width: 4),
                   Text(
                     '$likesCount',
@@ -1566,7 +2015,8 @@ void _showFinancialAssistanceOptions() {
               SizedBox(width: 12),
               Row(
                 children: [
-                  Icon(Icons.comment_outlined, size: 14, color: AppColors.textGray),
+                  Icon(Icons.comment_outlined,
+                      size: 14, color: AppColors.textGray),
                   SizedBox(width: 4),
                   Text(
                     '$commentsCount',
@@ -1623,7 +2073,8 @@ void _showFinancialAssistanceOptions() {
                     color: AppColors.primary.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(Icons.notifications_none, color: AppColors.primary, size: 18),
+                  child: Icon(Icons.notifications_none,
+                      color: AppColors.primary, size: 18),
                 ),
                 SizedBox(width: 12),
                 Expanded(
@@ -1674,11 +2125,26 @@ void _showFinancialAssistanceOptions() {
       ),
       child: BottomNavigationBar(
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.child_care_outlined), activeIcon: Icon(Icons.child_care), label: 'Children'),
-          BottomNavigationBarItem(icon: Icon(Icons.local_hospital_outlined), activeIcon: Icon(Icons.local_hospital), label: 'Centers'),
-          BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline), activeIcon: Icon(Icons.chat_bubble), label: 'Chat'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), activeIcon: Icon(Icons.settings), label: 'Settings'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.home_outlined),
+              activeIcon: Icon(Icons.home),
+              label: 'Home'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.child_care_outlined),
+              activeIcon: Icon(Icons.child_care),
+              label: 'Children'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.local_hospital_outlined),
+              activeIcon: Icon(Icons.local_hospital),
+              label: 'Centers'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.chat_bubble_outline),
+              activeIcon: Icon(Icons.chat_bubble),
+              label: 'Chat'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.settings_outlined),
+              activeIcon: Icon(Icons.settings),
+              label: 'Settings'),
         ],
         currentIndex: _selectedIndex,
         selectedItemColor: AppColors.primary,
@@ -1689,7 +2155,8 @@ void _showFinancialAssistanceOptions() {
         elevation: 0,
         showSelectedLabels: true,
         showUnselectedLabels: true,
-        selectedLabelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+        selectedLabelStyle:
+            TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
         unselectedLabelStyle: TextStyle(fontSize: 12),
       ),
     );
@@ -1712,18 +2179,18 @@ void _showFinancialAssistanceOptions() {
       ),
       title: Text('Parent Dashboard',
           style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold)),
+              color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
       actions: [
         Stack(
           children: [
             IconButton(
-              icon: Icon(Icons.notifications_outlined, color: Colors.white, size: 22),
+              icon: Icon(Icons.notifications_outlined,
+                  color: Colors.white, size: 22),
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => NotificationsScreen()),
+                  MaterialPageRoute(
+                      builder: (context) => NotificationsScreen()),
                 );
               },
             ),
@@ -1746,7 +2213,7 @@ void _showFinancialAssistanceOptions() {
     );
   }
 
-  // === DRAWER === ( 
+  // === DRAWER === (
   Widget _buildDrawer() {
     return Drawer(
       width: MediaQuery.of(context).size.width * 0.75,
@@ -1756,7 +2223,8 @@ void _showFinancialAssistanceOptions() {
           children: [
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.only(top: 60, bottom: 20, left: 20, right: 20),
+              padding: const EdgeInsets.only(
+                  top: 60, bottom: 20, left: 20, right: 20),
               color: AppColors.primary.withOpacity(0.05),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1816,7 +2284,8 @@ void _showFinancialAssistanceOptions() {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Icon(Icons.family_restroom, color: AppColors.primary, size: 16),
+                      Icon(Icons.family_restroom,
+                          color: AppColors.primary, size: 16),
                       const SizedBox(width: 4),
                       Text(
                         '${dashboardData?.children.length ?? 0} Children',
@@ -1830,7 +2299,6 @@ void _showFinancialAssistanceOptions() {
                 ],
               ),
             ),
-
             Expanded(
               child: ListView(
                 padding: EdgeInsets.zero,
@@ -1849,7 +2317,8 @@ void _showFinancialAssistanceOptions() {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => ManageChildrenScreen()),
+                        MaterialPageRoute(
+                            builder: (context) => ManageChildrenScreen()),
                       );
                     },
                   ),
@@ -1860,7 +2329,8 @@ void _showFinancialAssistanceOptions() {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => SessionsScreen()),
+                        MaterialPageRoute(
+                            builder: (context) => SessionsScreen()),
                       );
                     },
                   ),
@@ -1876,7 +2346,10 @@ void _showFinancialAssistanceOptions() {
                     title: 'Messages',
                     badgeCount: _unreadMessagesCount,
                     onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => ChatListScreen()));
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => ChatListScreen()));
                     },
                   ),
                   _buildDrawerItem(
@@ -1886,7 +2359,8 @@ void _showFinancialAssistanceOptions() {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const MyRatingsScreen()),
+                        MaterialPageRoute(
+                            builder: (context) => const MyRatingsScreen()),
                       );
                     },
                   ),
@@ -1929,23 +2403,24 @@ void _showFinancialAssistanceOptions() {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (context) => const ParentDonationHistoryScreen()),
+                            builder: (context) =>
+                                const ParentDonationHistoryScreen()),
                       );
                     },
                   ),
-                    // _buildDrawerItem(
-                    //   icon: Icons.volunteer_activism,
-                    //   title: 'Free Session Offers',
-                    //   onTap: () {
-                    //     Navigator.pop(context);
-                    //     Navigator.push(
-                    //       context,
-                    //       MaterialPageRoute(
-                    //         builder: (context) => const ParentFreeSessionsScreen(),
-                    //       ),
-                    //     );
-                    //   },
-                    // ),
+                  // _buildDrawerItem(
+                  //   icon: Icons.volunteer_activism,
+                  //   title: 'Free Session Offers',
+                  //   onTap: () {
+                  //     Navigator.pop(context);
+                  //     Navigator.push(
+                  //       context,
+                  //       MaterialPageRoute(
+                  //         builder: (context) => const ParentFreeSessionsScreen(),
+                  //       ),
+                  //     );
+                  //   },
+                  // ),
 
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -1959,34 +2434,35 @@ void _showFinancialAssistanceOptions() {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => EducationalResourcesScreen()),
-                      );
-                    },
-                  ),
-                  _buildDrawerItem(
-                    icon: Icons.local_hospital,
-                    title: 'Centers & Institutions',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const BrowseCentersScreen()),
-                      );
-                    },
-                  ),
-                  _buildDrawerItem(
-                    icon: Icons.groups,
-                    title: 'Parent Workshops',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
                         MaterialPageRoute(
-                          builder: (context) => const ParentWorkshopsScreen(),
-                        ),
+                            builder: (context) => EducationalResourcesScreen()),
                       );
                     },
                   ),
+                  // _buildDrawerItem(
+                  //   icon: Icons.local_hospital,
+                  //   title: 'Centers & Institutions',
+                  //   onTap: () {
+                  //     Navigator.pop(context);
+                  //     Navigator.push(
+                  //       context,
+                  //       MaterialPageRoute(builder: (context) => const BrowseCentersScreen()),
+                  //     );
+                  //   },
+                  // ),
+                  // _buildDrawerItem(
+                  //   icon: Icons.groups,
+                  //   title: 'Parent Workshops',
+                  //   onTap: () {
+                  //     Navigator.pop(context);
+                  //     Navigator.push(
+                  //       context,
+                  //       MaterialPageRoute(
+                  //         builder: (context) => const ParentWorkshopsScreen(),
+                  //       ),
+                  //     );
+                  //   },
+                  // ),
                   _buildDrawerItem(
                     icon: Icons.people,
                     title: 'Community',
@@ -1994,7 +2470,8 @@ void _showFinancialAssistanceOptions() {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => CommunityScreen()),
+                        MaterialPageRoute(
+                            builder: (context) => CommunityScreen()),
                       );
                     },
                   ),
@@ -2027,22 +2504,22 @@ void _showFinancialAssistanceOptions() {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => ProfileSettingsScreen()),
+                        MaterialPageRoute(
+                            builder: (context) => ProfileSettingsScreen()),
                       );
                     },
                   ),
 
-                  _buildDrawerItem(
-                    icon: Icons.help,
-                    title: 'Help & Support',
-                    onTap: () {
-                      Navigator.pop(context);
-                    },
-                  ),
+                  // _buildDrawerItem(
+                  //   icon: Icons.help,
+                  //   title: 'Help & Support',
+                  //   onTap: () {
+                  //     Navigator.pop(context);
+                  //   },
+                  // ),
                 ],
               ),
             ),
-
             Container(
               padding: const EdgeInsets.all(20),
               child: _buildDrawerItem(
@@ -2083,20 +2560,20 @@ void _showFinancialAssistanceOptions() {
       ),
       trailing: badgeCount != null && badgeCount > 0
           ? Container(
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: AppColors.error,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Text(
-          badgeCount.toString(),
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      )
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: AppColors.error,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                badgeCount.toString(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            )
           : null,
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
@@ -2135,7 +2612,6 @@ void _showFinancialAssistanceOptions() {
                 ),
               ),
               const SizedBox(height: 20),
-
               _buildProfileMenuItem(
                 icon: Icons.edit,
                 title: 'Edit Profile',
@@ -2169,7 +2645,6 @@ void _showFinancialAssistanceOptions() {
                 },
               ),
               const SizedBox(height: 20),
-
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton(
@@ -2295,13 +2770,15 @@ void _showFinancialAssistanceOptions() {
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text('Logout', style: TextStyle(color: AppColors.textDark)),
-          content: Text('Are you sure you want to logout?', style: TextStyle(color: AppColors.textGray)),
+          content: Text('Are you sure you want to logout?',
+              style: TextStyle(color: AppColors.textGray)),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.pop(context);
               },
-              child: Text('Cancel', style: TextStyle(color: AppColors.textGray)),
+              child:
+                  Text('Cancel', style: TextStyle(color: AppColors.textGray)),
             ),
             TextButton(
               onPressed: () {
@@ -2341,10 +2818,9 @@ void _showFinancialAssistanceOptions() {
         Navigator.pushNamedAndRemoveUntil(
           context,
           '/login',
-              (route) => false,
+          (route) => false,
         );
       }
-
     } catch (e) {
       if (mounted) {
         Navigator.pop(context);
@@ -2352,7 +2828,7 @@ void _showFinancialAssistanceOptions() {
         Navigator.pushNamedAndRemoveUntil(
           context,
           '/login',
-              (route) => false,
+          (route) => false,
         );
       }
     }

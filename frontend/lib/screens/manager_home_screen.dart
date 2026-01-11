@@ -1,5 +1,6 @@
 // lib/screens/manager/manager_home_screen.dart
 import 'package:flutter/material.dart';
+import 'package:frontend/screens/manager/manager_advanced_financial_reports_screen.dart';
 import 'package:frontend/screens/manager/manager_free_sessions_screen.dart';
 import 'package:frontend/screens/manager_equipment_donations_screen.dart';
 import 'package:frontend/screens/manager/manager_equipment_campaigns_screen.dart';
@@ -35,7 +36,8 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
   bool _isLoading = true;
   Map<String, dynamic> _dashboardData = {};
   List<Map<String, dynamic>> _chartData = [];
-  List<Map<String, dynamic>> _sidebarItems = [];
+  // List<Map<String, dynamic>> _sidebarItems = [];
+  List<Map<String, dynamic>> _sidebarGroups = [];
   Map<String, dynamic> _stats = {};
 
   @override
@@ -87,114 +89,224 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           };
         }).toList();
 
+        // تحديث sidebar groups
+_sidebarGroups = [
+  {
+    'title': 'Institution',
+    'items': [
+      {
+        'title': 'Complete Institution Setup',
+        'icon': Icons.verified_outlined,
+        'count': 0,
+        'route': 'onboarding',
+      },
+      {
+        'title': 'CMS Management',
+        'icon': Icons.dashboard_customize_rounded,
+        'count': 0,
+        'route': 'cms',
+      },
+      {
+        'title': 'Institution Profile',
+        'icon': Icons.business_rounded,
+        'count': 0,
+        'route': 'profile',
+      },
+      {
+        'title': 'Institution Rating',
+        'icon': Icons.star,
+        'count': 0,
+        'route': 'rate',
+      },
+    ]
+  },
+  {
+    'title': 'Management',
+    'items': [
+      {
+        'title': 'Children Management',
+        'icon': Icons.child_care_rounded,
+        'count': data['children']['total'] ?? 0,
+        'route': 'children',
+      },
+      {
+        'title': 'Specialists Management',
+        'icon': Icons.medical_services_rounded,
+        'count': data['specialists']['total'] ?? 0,
+        'route': 'specialists',
+      },
+      
+    ]
+  },
+  {
+    'title': 'Financial',
+    'items': [
+      {
+        'title': 'Financial Reports',
+        'icon': Icons.assessment_rounded,
+        'count': data['revenue']['currentMonth']?.toInt() ?? 0,
+        'route': 'financial',
+      },
+      {
+        'title': 'Donations',
+        'icon': Icons.volunteer_activism_rounded,
+        'count': (data['donationStats']?['totalDonations'] ?? 0).toInt(),
+        'route': 'donations',
+      },
+      
+    ]
+  },
+  {
+    'title': 'More',
+    'items': [
+      {
+        'title': 'Community',
+        'icon': Icons.groups_rounded,
+        'count': data['communityStats']?['members'] ?? 0,
+        'route': 'community',
+      },
+      {
+        'title': 'Messages',
+        'icon': Icons.message_rounded,
+        'count': data['messageStats']?['unread'] ?? 0,
+        'route': 'messages',
+      },
+      {
+        'title': 'Reports',
+        'icon': Icons.report_gmailerrorred_rounded,
+        'count': 0,
+        'route': 'reports',
+      },
+      // {
+      //   'title': 'Equipment Donations',
+      //   'icon': Icons.medical_services_rounded,
+      //   'count': 0,
+      //   'route': 'equipment_donations',
+      // },
+      // {
+      //   'title': 'Equipment Campaigns',
+      //   'icon': Icons.campaign_rounded,
+      //   'count': 0,
+      //   'route': 'equipment_campaigns',
+      // },
+      // {
+      //   'title': 'Public Institution Preview',
+      //   'icon': Icons.public_rounded,
+      //   'count': 0,
+      //   'route': 'public_preview',
+      // },
+    ]
+  },
+];
+
         // تحديث sidebar items مع إضافة التبرعات العينية
-        _sidebarItems = [
-          // {
-          //   'title': 'Public Institution Preview',
-          //   'icon': Icons.public_rounded,
-          //   'count': 0,
-          //   'route': 'public_preview',
-          // },
-          {
-            'title': 'Complete Institution Setup',
-            'icon': Icons.verified_outlined,
-            'count': 0,
-            'route': 'onboarding',
-          },
-          {
-            'title': 'CMS Management',
-            'icon': Icons.dashboard_customize_rounded,
-            'count': 0,
-            'route': 'cms',
-          },
-          {
-            'title': 'Children Management',
-            'icon': Icons.child_care_rounded,
-            'count': data['children']['total'] ?? 0,
-            'route': 'children',
-          },
-          {
-            'title': 'Specialists Management',
-            'icon': Icons.medical_services_rounded,
-            'count': data['specialists']['total'] ?? 0,
-            'route': 'specialists',
-          },
-          {
-            'title': 'Financial Assistance Requests',
-            'icon': Icons.request_quote_rounded,
-            'count': data['pendingRequests']['financial'] ?? 0,
-          },
-          // {
-          //   'title': 'Free Session Offers',
-          //   'icon': Icons.volunteer_activism_rounded,
-          //   'count': 0,
-          // },
-          {
-            'title': 'Parent Workshops',
-            'icon': Icons.groups_2_rounded,
-            'count': 0,
-          },
-          {
-            'title': 'Financial Reports',
-            'icon': Icons.assessment_rounded,
-            'count': data['revenue']['currentMonth']?.toInt() ?? 0,
-            'route': 'financial',
-          },
-          {
-            'title': 'Donations',
-            'icon': Icons.volunteer_activism_rounded,
-            'count': (data['donationStats']?['totalDonations'] ?? 0).toInt(),
-            'route': 'donations',
-          },
-          // أضف هذا العنصر الجديد
-          {
-            'title': 'Equipment Donations',
-            'icon': Icons.medical_services_rounded,
-            'count': 0, // يمكنك جلب العدد من API
-            'route': 'equipment_donations',
-          },
-          // {
-          //   'title': 'Equipment Campaigns',
-          //   'icon': Icons.campaign_rounded,
-          //   'count': 0,
-          //   'route': 'equipment_campaigns',
-          // },
-          // {
-          //   'title': 'Session Management',
-          //   'icon': Icons.calendar_today_rounded,
-          //   'count': data['sessionStats']['monthlySessions'] ?? 0,
-          // },
-          {
-            'title': 'Community',
-            'icon': Icons.groups_rounded,
-            'count': data['communityStats']?['members'] ?? 0,
-            'route': 'community',
-          },
-          {
-            'title': 'Messages',
-            'icon': Icons.message_rounded,
-            'count': data['messageStats']?['unread'] ?? 0,
-            'route': 'messages',
-          },
-          {
-            'title': 'Institution Profile',
-            'icon': Icons.business_rounded,
-            'count': 0,
-            'route': 'profile',
-          },
-          {
-            'title': 'Institution Rating',
-            'icon': Icons.star,
-            'count': 0,
-            'route': 'rate',
-          },
-          {
-            'title': 'Reports',
-            'icon': Icons.report_gmailerrorred_rounded,
-            'count': 0,
-            'route': 'reports',
-          },
-        ];
+        // _sidebarItems = [
+        //   // {
+        //   //   'title': 'Public Institution Preview',
+        //   //   'icon': Icons.public_rounded,
+        //   //   'count': 0,
+        //   //   'route': 'public_preview',
+        //   // },
+        //   {
+        //     'title': 'Complete Institution Setup',
+        //     'icon': Icons.verified_outlined,
+        //     'count': 0,
+        //     'route': 'onboarding',
+        //   },
+        //   {
+        //     'title': 'CMS Management',
+        //     'icon': Icons.dashboard_customize_rounded,
+        //     'count': 0,
+        //     'route': 'cms',
+        //   },
+        //   {
+        //     'title': 'Children Management',
+        //     'icon': Icons.child_care_rounded,
+        //     'count': data['children']['total'] ?? 0,
+        //     'route': 'children',
+        //   },
+        //   {
+        //     'title': 'Specialists Management',
+        //     'icon': Icons.medical_services_rounded,
+        //     'count': data['specialists']['total'] ?? 0,
+        //     'route': 'specialists',
+        //   },
+        //   // {
+        //   //   'title': 'Financial Assistance Requests',
+        //   //   'icon': Icons.request_quote_rounded,
+        //   //   'count': data['pendingRequests']['financial'] ?? 0,
+        //   // },
+        //   // {
+        //   //   'title': 'Free Session Offers',
+        //   //   'icon': Icons.volunteer_activism_rounded,
+        //   //   'count': 0,
+        //   // },
+        //   // {
+        //   //   'title': 'Parent Workshops',
+        //   //   'icon': Icons.groups_2_rounded,
+        //   //   'count': 0,
+        //   // },
+        //   {
+        //     'title': 'Financial Reports',
+        //     'icon': Icons.assessment_rounded,
+        //     'count': data['revenue']['currentMonth']?.toInt() ?? 0,
+        //     'route': 'financial',
+        //   },
+        //   {
+        //     'title': 'Donations',
+        //     'icon': Icons.volunteer_activism_rounded,
+        //     'count': (data['donationStats']?['totalDonations'] ?? 0).toInt(),
+        //     'route': 'donations',
+        //   },
+        //   // أضف هذا العنصر الجديد
+        //   // {
+        //   //   'title': 'Equipment Donations',
+        //   //   'icon': Icons.medical_services_rounded,
+        //   //   'count': 0, // يمكنك جلب العدد من API
+        //   //   'route': 'equipment_donations',
+        //   // },
+        //   // {
+        //   //   'title': 'Equipment Campaigns',
+        //   //   'icon': Icons.campaign_rounded,
+        //   //   'count': 0,
+        //   //   'route': 'equipment_campaigns',
+        //   // },
+        //   // {
+        //   //   'title': 'Session Management',
+        //   //   'icon': Icons.calendar_today_rounded,
+        //   //   'count': data['sessionStats']['monthlySessions'] ?? 0,
+        //   // },
+        //   {
+        //     'title': 'Community',
+        //     'icon': Icons.groups_rounded,
+        //     'count': data['communityStats']?['members'] ?? 0,
+        //     'route': 'community',
+        //   },
+        //   {
+        //     'title': 'Messages',
+        //     'icon': Icons.message_rounded,
+        //     'count': data['messageStats']?['unread'] ?? 0,
+        //     'route': 'messages',
+        //   },
+        //   {
+        //     'title': 'Institution Profile',
+        //     'icon': Icons.business_rounded,
+        //     'count': 0,
+        //     'route': 'profile',
+        //   },
+        //   {
+        //     'title': 'Institution Rating',
+        //     'icon': Icons.star,
+        //     'count': 0,
+        //     'route': 'rate',
+        //   },
+        //   {
+        //     'title': 'Reports',
+        //     'icon': Icons.report_gmailerrorred_rounded,
+        //     'count': 0,
+        //     'route': 'reports',
+        //   },
+        // ];
 
         _isLoading = false;
       });
@@ -223,13 +335,13 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           {'label': 'Educational', 'value': 10, 'color': AppColors.info},
           {'label': 'Other', 'value': 5, 'color': AppColors.accent3},
         ];
-        _sidebarItems = [
-          // {
-          //   'title': 'Public Institution Preview',
-          //   'icon': Icons.public_rounded,
-          //   'count': 0,
-          //   'route': 'public_preview',
-          // },
+
+        // تحديث sidebar groups
+// هنا استخدم القيم الافتراضية بدل data
+    _sidebarGroups = [
+      {
+        'title': 'Institution',
+        'items': [
           {
             'title': 'Complete Institution Setup',
             'icon': Icons.verified_outlined,
@@ -243,74 +355,6 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             'route': 'cms',
           },
           {
-            'title': 'Children Management',
-            'icon': Icons.child_care_rounded,
-            'count': 0,
-            'route': 'children',
-          },
-          {
-            'title': 'Specialists Management',
-            'icon': Icons.medical_services_rounded,
-            'count': 0,
-            'route': 'specialists',
-          },
-          {
-            'title': 'Financial Assistance Requests',
-            'icon': Icons.request_quote_rounded,
-            'count': 0,
-          },
-          // {
-          //   'title': 'Free Session Offers',
-          //   'icon': Icons.volunteer_activism_rounded,
-          //   'count': 0,
-          // },
-          {
-            'title': 'Parent Workshops',
-            'icon': Icons.groups_2_rounded,
-            'count': 0,
-          },
-          {
-            'title': 'Financial Reports',
-            'icon': Icons.assessment_rounded,
-            'count': 0,
-            'route': 'financial',
-          },
-          {
-            'title': 'Donations',
-            'icon': Icons.volunteer_activism_rounded,
-            'count': 0,
-            'route': 'donations',
-          },
-          {
-            'title': 'Equipment Donations',
-            'icon': Icons.medical_services_rounded,
-            'count': 0,
-            'route': 'equipment_donations',
-          },
-          // {
-          //   'title': 'Equipment Campaigns',
-          //   'icon': Icons.campaign_rounded,
-          //   'count': 0,
-          //   'route': 'equipment_campaigns',
-          // },
-          // {
-          //   'title': 'Session Management',
-          //   'icon': Icons.calendar_today_rounded,
-          //   'count': 0,
-          // },
-          {
-            'title': 'Community',
-            'icon': Icons.groups_rounded,
-            'count': 0,
-            'route': 'community',
-          },
-          {
-            'title': 'Messages',
-            'icon': Icons.message_rounded,
-            'count': 0,
-            'route': 'messages',
-          },
-          {
             'title': 'Institution Profile',
             'icon': Icons.business_rounded,
             'count': 0,
@@ -322,13 +366,177 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             'count': 0,
             'route': 'rate',
           },
+        ]
+      },
+      {
+        'title': 'Management',
+        'items': [
+          {
+            'title': 'Children Management',
+            'icon': Icons.child_care_rounded,
+            'count': 0, // هنا 0 بدل data['children']['total']
+            'route': 'children',
+          },
+          {
+            'title': 'Specialists Management',
+            'icon': Icons.medical_services_rounded,
+            'count': 0, // هنا 0 بدل data['specialists']['total']
+            'route': 'specialists',
+          },
+          {
+            'title': 'Community',
+            'icon': Icons.groups_rounded,
+            'count': 0, // هنا 0 بدل data['communityStats']?['members']
+            'route': 'community',
+          },
+          {
+            'title': 'Messages',
+            'icon': Icons.message_rounded,
+            'count': 0, // هنا 0 بدل data['messageStats']?['unread']
+            'route': 'messages',
+          },
+        ]
+      },
+      {
+        'title': 'Financial',
+        'items': [
+          {
+            'title': 'Financial Reports',
+            'icon': Icons.assessment_rounded,
+            'count': 0, // هنا 0 بدل data['revenue']['currentMonth']
+            'route': 'financial',
+          },
+          {
+            'title': 'Donations',
+            'icon': Icons.volunteer_activism_rounded,
+            'count': 0, // هنا 0 بدل data['donationStats']?['totalDonations']
+            'route': 'donations',
+          },
           {
             'title': 'Reports',
             'icon': Icons.report_gmailerrorred_rounded,
             'count': 0,
             'route': 'reports',
           },
-        ];
+        ]
+      },
+      {
+        'title': 'More',
+        'items': [
+          {
+            'title': 'Equipment Donations',
+            'icon': Icons.medical_services_rounded,
+            'count': 0,
+            'route': 'equipment_donations',
+          },
+        ]
+      },
+    ];       // _sidebarItems = [
+        //   // {
+        //   //   'title': 'Public Institution Preview',
+        //   //   'icon': Icons.public_rounded,
+        //   //   'count': 0,
+        //   //   'route': 'public_preview',
+        //   // },
+        //   {
+        //     'title': 'Complete Institution Setup',
+        //     'icon': Icons.verified_outlined,
+        //     'count': 0,
+        //     'route': 'onboarding',
+        //   },
+        //   {
+        //     'title': 'CMS Management',
+        //     'icon': Icons.dashboard_customize_rounded,
+        //     'count': 0,
+        //     'route': 'cms',
+        //   },
+        //   {
+        //     'title': 'Children Management',
+        //     'icon': Icons.child_care_rounded,
+        //     'count': 0,
+        //     'route': 'children',
+        //   },
+        //   {
+        //     'title': 'Specialists Management',
+        //     'icon': Icons.medical_services_rounded,
+        //     'count': 0,
+        //     'route': 'specialists',
+        //   },
+        //   // {
+        //   //   'title': 'Financial Assistance Requests',
+        //   //   'icon': Icons.request_quote_rounded,
+        //   //   'count': 0,
+        //   // },
+        //   // {
+        //   //   'title': 'Free Session Offers',
+        //   //   'icon': Icons.volunteer_activism_rounded,
+        //   //   'count': 0,
+        //   // },
+        //   // {
+        //   //   'title': 'Parent Workshops',
+        //   //   'icon': Icons.groups_2_rounded,
+        //   //   'count': 0,
+        //   // },
+        //   {
+        //     'title': 'Financial Reports',
+        //     'icon': Icons.assessment_rounded,
+        //     'count': 0,
+        //     'route': 'financial',
+        //   },
+        //   {
+        //     'title': 'Donations',
+        //     'icon': Icons.volunteer_activism_rounded,
+        //     'count': 0,
+        //     'route': 'donations',
+        //   },
+        //   // {
+        //   //   'title': 'Equipment Donations',
+        //   //   'icon': Icons.medical_services_rounded,
+        //   //   'count': 0,
+        //   //   'route': 'equipment_donations',
+        //   // },
+        //   // {
+        //   //   'title': 'Equipment Campaigns',
+        //   //   'icon': Icons.campaign_rounded,
+        //   //   'count': 0,
+        //   //   'route': 'equipment_campaigns',
+        //   // },
+        //   // {
+        //   //   'title': 'Session Management',
+        //   //   'icon': Icons.calendar_today_rounded,
+        //   //   'count': 0,
+        //   // },
+        //   {
+        //     'title': 'Community',
+        //     'icon': Icons.groups_rounded,
+        //     'count': 0,
+        //     'route': 'community',
+        //   },
+        //   {
+        //     'title': 'Messages',
+        //     'icon': Icons.message_rounded,
+        //     'count': 0,
+        //     'route': 'messages',
+        //   },
+        //   {
+        //     'title': 'Institution Profile',
+        //     'icon': Icons.business_rounded,
+        //     'count': 0,
+        //     'route': 'profile',
+        //   },
+        //   {
+        //     'title': 'Institution Rating',
+        //     'icon': Icons.star,
+        //     'count': 0,
+        //     'route': 'rate',
+        //   },
+        //   {
+        //     'title': 'Reports',
+        //     'icon': Icons.report_gmailerrorred_rounded,
+        //     'count': 0,
+        //     'route': 'reports',
+        //   },
+        // ];
       });
     }
   }
@@ -435,7 +643,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => ManagerFinancialReportScreen(),
+          builder: (context) => ManagerAdvancedFinancialReportsScreen(),
         ),
       );
       break;
@@ -544,14 +752,14 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
       );
     }
 
-    if (title == 'Financial Assistance Requests') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const ManagerFinancialRequestsScreen(),
-        ),
-      );
-    }
+    // if (title == 'Financial Assistance Requests') {
+    //   Navigator.push(
+    //     context,
+    //     MaterialPageRoute(
+    //       builder: (context) => const ManagerFinancialRequestsScreen(),
+    //     ),
+    //   );
+    // }
     // if (title == 'Free Session Offers') {
     //   Navigator.push(
     //     context,
@@ -560,14 +768,14 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
     //     ),
     //   );
     // }
-    if (title == 'Parent Workshops') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const ManagerWorkshopsScreen(),
-        ),
-      );
-    }
+    // if (title == 'Parent Workshops') {
+    //   Navigator.push(
+    //     context,
+    //     MaterialPageRoute(
+    //       builder: (context) => const ManagerWorkshopsScreen(),
+    //     ),
+    //   );
+    // }
     // يمكنك إضافة باقي الصفحات هنا
   }
 
@@ -666,8 +874,8 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
                   SizedBox(height: 25),
 
                   // Donations Overview
-                  _buildDonationsOverview(),
-                  SizedBox(height: 25),
+                  // _buildDonationsOverview(),
+                  // SizedBox(height: 25),
 
                   // Chart Section
                   _buildChartSection(),
@@ -1255,15 +1463,15 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      SizedBox(height: 4),
-                      Text(
-                        'equipment_donations',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white.withOpacity(0.8),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                      // SizedBox(height: 4),
+                      // Text(
+                      //   'equipment_donations',
+                      //   style: TextStyle(
+                      //     fontSize: 12,
+                      //     color: Colors.white.withOpacity(0.8),
+                      //     fontWeight: FontWeight.w500,
+                      //   ),
+                      // ),
                     ],
                   ),
 
@@ -1274,58 +1482,138 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           ),
 
           // Sidebar Content
-          Expanded(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.all(16),
+          // Sidebar Content
+Expanded(
+  child: SingleChildScrollView(
+    padding: EdgeInsets.all(16),
+    child: Column(
+      children: [
+        // Search Bar
+        // _buildSearchBar(),
+        // SizedBox(height: 8),
+        // Divider(color: AppColors.textLight.withOpacity(0.3)),
+        // SizedBox(height: 8),
+
+        // Sidebar Groups
+        if (_sidebarGroups.isNotEmpty)
+          ..._sidebarGroups.map((group) {
+            return _buildSidebarGroup(group);
+          }).toList()
+        else
+          Center(
+            child: Padding(
+              padding: EdgeInsets.only(top: 50),
               child: Column(
                 children: [
-                  // Sidebar Items
-                  ..._sidebarItems.map((item) {
-                    return _buildSidebarItem(item);
-                  }).toList(),
-
-                  // Divider
-                  SizedBox(height: 20),
-                  Divider(color: AppColors.textLight.withOpacity(0.3)),
-
-                  // Logout Button
+                  Icon(Icons.error_outline_rounded,
+                      size: 50, color: Colors.grey),
                   SizedBox(height: 10),
-                  Container(
-                    margin: EdgeInsets.only(top: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: _handleLogout,
-                        child: ListTile(
-                          leading:
-                              Icon(Icons.logout_rounded, color: Colors.red),
-                          title: Text(
-                            'Logout',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.red,
-                            ),
-                          ),
-                          contentPadding: EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 12),
-                        ),
-                      ),
-                    ),
-                  ),
+                  Text('No menu items available',
+                      style: TextStyle(color: Colors.grey)),
                 ],
               ),
             ),
           ),
+
+        // Divider
+        SizedBox(height: 20),
+        Divider(color: AppColors.textLight.withOpacity(0.3)),
+
+        // Logout Button
+        SizedBox(height: 10),
+        _buildLogoutButton(),
+      ],
+    ),
+  ),
+),
         ],
       ),
     );
   }
+
+  Widget _buildSidebarGroup(Map<String, dynamic> group) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      // Group Header
+      Padding(
+        padding: EdgeInsets.only(left: 16, top: 16, bottom: 8),
+        child: Text(
+          group['title'],
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textLight,
+            letterSpacing: 1.0,
+          ),
+        ),
+      ),
+
+      // Group Items
+      ...(group['items'] as List).map((item) {
+        return _buildSidebarItem(item);
+      }).toList(),
+    ],
+  );
+}
+Widget _buildSearchBar() {
+  return Container(
+    margin: EdgeInsets.symmetric(horizontal: 8),
+    padding: EdgeInsets.symmetric(horizontal: 12),
+    decoration: BoxDecoration(
+      color: AppColors.background,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: AppColors.textLight.withOpacity(0.2)),
+    ),
+    child: Row(
+      children: [
+        Icon(Icons.search_rounded, size: 20, color: AppColors.textLight),
+        SizedBox(width: 8),
+        Expanded(
+          child: TextField(
+            decoration: InputDecoration(
+              hintText: 'Search...',
+              hintStyle: TextStyle(color: AppColors.textLight),
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.symmetric(vertical: 12),
+            ),
+            style: TextStyle(fontSize: 14),
+            onChanged: (value) {
+              // يمكنك إضافة search logic هنا
+            },
+          ),
+        ),
+      ],
+    ),
+  );
+}
+Widget _buildLogoutButton() {
+  return Container(
+    decoration: BoxDecoration(
+      color: Colors.red.withOpacity(0.1),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: _handleLogout,
+        child: ListTile(
+          leading: Icon(Icons.logout_rounded, color: Colors.red),
+          title: Text(
+            'Logout',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.red,
+            ),
+          ),
+          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        ),
+      ),
+    ),
+  );
+}
 
   Widget _buildSidebarItem(Map<String, dynamic> item) {
     final count = item['count'] as int;

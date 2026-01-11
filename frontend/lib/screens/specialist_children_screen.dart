@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
 import '../services/specialist_children_service.dart';
+import '../services/api_service.dart';
 import 'child_details_screen.dart';
 import '../theme/app_colors.dart';
 
@@ -98,6 +99,8 @@ class _SpecialistChildrenScreenState extends State<SpecialistChildrenScreen> {
   Widget _buildChildCard(dynamic child) {
     final safeChild = _safeMap(child);
     final childName = _safeString(safeChild['full_name']);
+    final childPhoto = _safeString(safeChild['photo']);
+    final childPhotoUrl = ApiService.buildFileUrl(childPhoto);
     final diagnosis = _safeMap(safeChild['diagnosis']);
     final evaluations = _safeList(safeChild['evaluations']);
     final totalSessions = _safeInt(safeChild['total_sessions']);
@@ -137,14 +140,33 @@ class _SpecialistChildrenScreenState extends State<SpecialistChildrenScreen> {
                         shape: BoxShape.circle,
                       ),
                       child: Center(
-                        child: Text(
-                          childName.isNotEmpty ? childName[0].toUpperCase() : '?',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
-                        ),
+                        child: childPhotoUrl.isNotEmpty
+                            ? ClipOval(
+                                child: Image.network(
+                                  childPhotoUrl,
+                                  width: 48,
+                                  height: 48,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Text(
+                                      childName.isNotEmpty ? childName[0].toUpperCase() : '?',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 18,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              )
+                            : Text(
+                                childName.isNotEmpty ? childName[0].toUpperCase() : '?',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                ),
+                              ),
                       ),
                     ),
                     SizedBox(width: 16),

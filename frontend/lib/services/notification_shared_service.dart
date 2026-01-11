@@ -169,4 +169,40 @@ class NotificationSharedService {
       print('⚠️ Failed to send schedule notification: $e');
     }
   }
+
+  static Future<void> sendManagerApprovalNotification({
+  required String managerToken,
+  required String childName,
+  required String institutionName,
+  required String childId,
+  String? specialistName,
+  String? sessionDate,
+  String? sessionTime,
+  String? sessionId,
+}) async {
+  try {
+    print('👨‍💼 Sending manager approval notification...');
+    await sendNotification(
+      fcmToken: managerToken,
+      title: '✅ Automatic approval for child registration',
+      body:
+          'The child $childName has been automatically approved at $institutionName',
+      data: {
+        'type': 'child_auto_approved',
+        'child_name': childName,
+        'institution_name': institutionName,
+        'child_id': childId,
+        'specialist_name': specialistName ?? '',
+        'session_date': sessionDate ?? '',
+        'session_time': sessionTime ?? '',
+        'session_id': sessionId ?? '',
+        'action': 'view_pending_registrations',
+        'channel': 'manager_channel',
+      },
+    );
+    print('✅ Manager approval notification sent successfully');
+  } catch (e) {
+    print('⚠️ Failed to send manager approval notification: $e');
+  }
+}
 }

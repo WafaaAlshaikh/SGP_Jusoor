@@ -286,16 +286,60 @@ class _ManageChildrenScreenState extends State<ManageChildrenScreen> {
         final prefs = await SharedPreferences.getInstance();
         final token = prefs.getString('token') ?? '';
         await ApiService.deleteChild(token, child.id);
+
+        final removedChild = child;
+
         setState(() {
           _allChildren.removeWhere((c) => c.id == child.id);
           _applyLocalFilters();
         });
+
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${child.fullName} deleted successfully'),
+            content: Text('${child.fullName} hidden'),
             backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            action: SnackBarAction(
+              label: 'Undo',
+              textColor: Colors.white,
+              onPressed: () async {
+                try {
+                  final prefs = await SharedPreferences.getInstance();
+                  final token = prefs.getString('token') ?? '';
+                  await ApiService.unhideChild(token, removedChild.id);
+
+                  if (!mounted) return;
+
+                  setState(() {
+                    if (!_allChildren.any((c) => c.id == removedChild.id)) {
+                      _allChildren.add(removedChild);
+                    }
+                    _applyLocalFilters();
+                  });
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('${removedChild.fullName} restored'),
+                      backgroundColor: AppColors.success,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  );
+                } catch (e) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Restore failed: $e'),
+                      backgroundColor: AppColors.error,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  );
+                }
+              },
+            ),
           ),
         );
       } catch (e) {

@@ -182,6 +182,11 @@ router.get('/profile', authMiddleware, async (req, res) => {
       profile_picture: user.profile_picture,
       status: user.status,
       created_at: user.created_at,
+      location_lat: user.location_lat,
+      location_lng: user.location_lng,
+      location_address: user.location_address,
+      city: user.city,
+      region: user.region,
       institution: user.institution,
       specialist_info: specialistInfo
     };
@@ -205,7 +210,16 @@ router.get('/profile', authMiddleware, async (req, res) => {
 router.put('/profile', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.user_id;
-    const { full_name, phone, profile_picture } = req.body;
+    const {
+      full_name,
+      phone,
+      profile_picture,
+      location_lat,
+      location_lng,
+      location_address,
+      city,
+      region
+    } = req.body;
 
     const user = await User.findByPk(userId);
     if (!user) {
@@ -220,6 +234,11 @@ router.put('/profile', authMiddleware, async (req, res) => {
     if (full_name !== undefined) allowedUpdates.full_name = full_name;
     if (phone !== undefined) allowedUpdates.phone = phone;
     if (profile_picture !== undefined) allowedUpdates.profile_picture = profile_picture;
+    if (location_lat !== undefined) allowedUpdates.location_lat = location_lat;
+    if (location_lng !== undefined) allowedUpdates.location_lng = location_lng;
+    if (location_address !== undefined) allowedUpdates.location_address = location_address;
+    if (city !== undefined) allowedUpdates.city = city;
+    if (region !== undefined) allowedUpdates.region = region;
 
     // Add updated_at
     allowedUpdates.updated_at = new Date();
