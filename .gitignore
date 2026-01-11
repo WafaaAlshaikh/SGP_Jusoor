@@ -8,11 +8,14 @@ node_modules/
 /Backend/node_modules/
 /Backend/firebase/
 /Backend/uploads/
+/Backend/migrations/
 /.idea/
 
 
 
 /frontend/android/
-/frontend/macos/
+/frontend/macos/Flutter/
 /frontend/web/
+/frontend/.env/
+
 
