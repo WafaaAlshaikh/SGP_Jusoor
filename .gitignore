@@ -10,6 +10,11 @@ node_modules/
 /Backend/uploads/
 /Backend/migrations/
 /.idea/
+/Backend/eng.traineddata
+/Backend/ara.traineddata
+/Backend/package-lock.json
+/Backend/package.json
+
 
 
 
@@ -17,5 +22,7 @@ node_modules/
 /frontend/macos/Flutter/
 /frontend/web/
 /frontend/.env/
+/frontend/pubspec.yaml
+/frontend/pubspec.lock
 
 
