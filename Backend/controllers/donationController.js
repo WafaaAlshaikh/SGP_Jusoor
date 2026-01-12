@@ -41,10 +41,7 @@ async function getManagerInstitution(managerId) {
   return manager.Institution;
 }
 
-// ✅ أضف هذه الدالة إلى donationController.js
 
-// ==================== NEW: Confirm Donation ====================
-// ✅ تحسين confirmDonation
 exports.confirmDonation = async (req, res) => {
   try {
     const { session_id } = req.body;
@@ -58,7 +55,6 @@ exports.confirmDonation = async (req, res) => {
       });
     }
 
-    // 1. البحث عن التبرع باستخدام stripe_session_id
     const donation = await Donation.findOne({
       where: { stripe_session_id: session_id },
       include: [
@@ -83,7 +79,6 @@ exports.confirmDonation = async (req, res) => {
       });
     }
 
-    // 2. إذا كان التبرع مكتملاً بالفعل، أرجع البيانات
     if (donation.status === 'completed') {
       return res.status(200).json({
         success: true,
@@ -101,7 +96,6 @@ exports.confirmDonation = async (req, res) => {
       });
     }
 
-    // 3. التحقق من Stripe
     let stripeSession;
     try {
       stripeSession = await stripe.checkout.sessions.retrieve(session_id, {
@@ -117,7 +111,6 @@ exports.confirmDonation = async (req, res) => {
       });
     }
 
-    // 4. التحقق من حالة الدفع
     if (stripeSession.payment_status !== 'paid') {
       await donation.update({
         status: 'pending',
@@ -132,7 +125,6 @@ exports.confirmDonation = async (req, res) => {
       });
     }
 
-    // 5. تحديث التبرع
     const updateData = {
       status: 'completed',
       payment_status: 'paid',
@@ -154,7 +146,6 @@ exports.confirmDonation = async (req, res) => {
 
     await donation.update(updateData);
 
-    // 6. تحديث رصيد المؤسسة
     const institution = await Institution.findByPk(donation.institution_id);
     if (institution) {
       const newBalance =
@@ -166,7 +157,6 @@ exports.confirmDonation = async (req, res) => {
       console.log(`💰 Institution balance updated: ${newBalance} JOD`);
     }
 
-    // 7. تحديث رصيد الحملة
     if (donation.campaign_id) {
       const campaign = await DonationCampaign.findByPk(donation.campaign_id);
       if (campaign) {
@@ -180,14 +170,12 @@ exports.confirmDonation = async (req, res) => {
       }
     }
 
-    // 8. إرسال إشعار
     try {
       await sendDonationSuccessNotification(donation, stripeSession);
     } catch (notifError) {
       console.error('Notification error:', notifError);
     }
 
-    // 9. إرجاع النتيجة
     return res.status(200).json({
       success: true,
       message: 'Donation confirmed successfully',
@@ -216,7 +204,6 @@ exports.confirmDonation = async (req, res) => {
   }
 };
 
-// Manager: institution-level impact (money + equipment + posts)
 exports.getManagerDonationImpactV2 = async (req, res) => {
   try {
     const managerId = req.user.user_id;
@@ -233,7 +220,6 @@ exports.getManagerDonationImpactV2 = async (req, res) => {
       payment_status: 'paid',
     };
 
-    // ===== Money impact (institution-level) =====
     const donationAgg = await Donation.findOne({
       where: paidDonationWhere,
       attributes: [[Donation.sequelize.fn('SUM', Donation.sequelize.col('amount')), 'total']],
@@ -329,7 +315,6 @@ exports.getManagerDonationImpactV2 = async (req, res) => {
       timeline: moneyTimeline,
     };
 
-    // ===== Equipment impact (institution-level) =====
     const equipmentDonations = await EquipmentDonation.findAll({
       where: { institution_id: institutionId },
       attributes: ['equipment_donation_id', 'donor_id', 'equipment_name', 'status', 'estimated_value', 'created_at', 'actual_delivery_date'],
@@ -432,7 +417,6 @@ exports.getManagerDonationImpactV2 = async (req, res) => {
       timeline: equipmentTimeline,
     };
 
-    // ===== Impact posts stats =====
     const [postsTotal, postsPublished] = await Promise.all([
       ImpactPost.count({ where: { institution_id: institutionId } }),
       ImpactPost.count({ where: { institution_id: institutionId, is_published: true } }),
@@ -466,7 +450,6 @@ exports.getManagerDonationImpactV2 = async (req, res) => {
   }
 };
 
-// Get list of institutions available for donation
 exports.getDonationInstitutions = async (req, res) => {
   try {
     const institutions = await Institution.findAll({
@@ -487,7 +470,6 @@ exports.getDonationInstitutions = async (req, res) => {
   }
 };
 
-// في donationController.js
 exports.getInstitutionCampaignsForDonations = async (req, res) => {
   try {
     const institutionId = parseInt(req.params.institutionId, 10);
@@ -510,7 +492,7 @@ exports.getInstitutionCampaignsForDonations = async (req, res) => {
     const campaigns = await DonationCampaign.findAll({
       where: {
         institution_id: institutionId,
-        status: 'active', // إرجاع الحملات النشطة فقط
+        status: 'active', 
       },
       order: [['created_at', 'DESC']],
       attributes: [
@@ -527,7 +509,7 @@ exports.getInstitutionCampaignsForDonations = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: campaigns, // تأكد أنك تستخدم data وليس campaigns مباشرة
+      data: campaigns, 
     });
   } catch (error) {
     console.error('Error fetching institution campaigns for donations:', error);
@@ -539,405 +521,7 @@ exports.getInstitutionCampaignsForDonations = async (req, res) => {
   }
 };
 
-// exports.createDonationCheckout = async (req, res) => {
-//   try {
 
-//     let donorId = null;
-//     let donorEmail = '';
-//     let donorName = '';
-//     // ==================== 1. التحقق من التوثيق ====================
-//     if (req.user && req.user.user_id) {
-//       // متبرع مسجل
-//       donorId = req.user.user_id;
-//       donorEmail = req.user.email || '';
-//       donorName = req.user.full_name || '';
-//     } else {
-//       // متبرع مجهول - التحقق من وجود بيانات بديلة
-//       const { donor_email, donor_name } = req.body;
-      
-//       if (donor_email && donor_name) {
-//         donorEmail = donor_email;
-//         donorName = donor_name;
-//       }
-//       // يمكن السماح بالتبرع بدون معلومات شخصية تماماً
-//     }
-
-//     const { institution_id, amount, campaign_id, mode, currency = 'usd', anonymous = false, invite_code } = req.body;
-
-//     // ==================== 2. التحقق من المدخلات ====================
-//     if (!institution_id || !amount) {
-//       return res.status(400).json({
-//         success: false,
-//         message: 'institution_id and amount are required'
-//       });
-//     }
-//     // التحقق من نوع institution_id
-//     const parsedInstitutionId = parseInt(institution_id, 10);
-//     if (!Number.isFinite(parsedInstitutionId) || parsedInstitutionId <= 0) {
-//       return res.status(400).json({
-//         success: false,
-//         message: 'Valid institution id is required'
-//       });
-//     }
-
-//     // التحقق من المبلغ
-//     const parsedAmount = parseFloat(amount);
-//     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-//       return res.status(400).json({
-//         success: false,
-//         message: 'Amount must be a positive number'
-//       });
-//     }
-
-//     // التحقق من الحد الأدنى والأقصى للمبلغ
-//     const MIN_DONATION = process.env.MIN_DONATION_AMOUNT || 1;
-//     const MAX_DONATION = process.env.MAX_DONATION_AMOUNT || 10000;
-    
-//     if (parsedAmount < MIN_DONATION) {
-//       return res.status(400).json({
-//         success: false,
-//         message: `Minimum donation amount is ${MIN_DONATION} JOD`
-//       });
-//     }
-    
-//     if (parsedAmount > MAX_DONATION) {
-//       return res.status(400).json({
-//         success: false,
-//         message: `Maximum donation amount is ${MAX_DONATION} JOD`
-//       });
-//     }
-
-//     // التحقق من العملة
-//     const allowedCurrencies = (process.env.ALLOWED_CURRENCIES || 'usd,eur,gbp,jod').split(',');
-//     if (!allowedCurrencies.includes(currency.toLowerCase())) {
-//       return res.status(400).json({
-//         success: false,
-//         message: `Currency not supported. Allowed currencies: ${allowedCurrencies.join(', ')}`
-//       });
-//     }
-
-//     // ==================== 3. التحقق من المؤسسة ====================
-//     const institution = await Institution.findByPk(parsedInstitutionId, {
-//       attributes: ['institution_id', 'name', 'city', 'is_active', 'donation_balance']
-//     });
-
-//     if (!institution) {
-//       return res.status(404).json({
-//         success: false,
-//         message: 'Institution not found'
-//       });
-//     }
-
-//     if (institution.is_active !== true) {
-//       return res.status(400).json({
-//         success: false,
-//         message: 'This institution is not currently accepting donations'
-//       });
-//     }
-
-//     // ==================== 4. التحقق من الحملة (إذا وجدت) ====================
-//     let campaign = null;
-//     let parsedCampaignId = null;
-
-//     if (campaign_id) {
-//       parsedCampaignId = parseInt(campaign_id, 10);
-//       if (Number.isFinite(parsedCampaignId) && parsedCampaignId > 0) {
-//         campaign = await DonationCampaign.findOne({
-//           where: {
-//             campaign_id: parsedCampaignId,
-//             institution_id: parsedInstitutionId,
-//             status: 'active'
-//           },
-//           attributes: ['campaign_id', 'name', 'description', 'target_amount', 'amount_raised', 'end_date']
-//         });
-        
-//         if (!campaign) {
-//           return res.status(404).json({
-//             success: false,
-//             message: 'Campaign not found or not active'
-//           });
-//         }
-
-//         // التحقق من تاريخ انتهاء الحملة
-//         if (campaign.end_date && new Date(campaign.end_date) < new Date()) {
-//           return res.status(400).json({
-//             success: false,
-//             message: 'This campaign has ended'
-//           });
-//         }
-//       }
-//     }
-
-//     // ==================== 4.5 التحقق من invite_code (إذا وجد) ====================
-//     let invite = null;
-//     let inviteId = null;
-//     const inviteCodeStr = (invite_code ?? '').toString().trim();
-//     if (inviteCodeStr) {
-//       invite = await DonationInvite.findOne({
-//         where: {
-//           code: inviteCodeStr,
-//           is_active: true,
-//         },
-//         raw: true,
-//       });
-
-//       if (!invite) {
-//         return res.status(404).json({ success: false, message: 'Invalid invite code' });
-//       }
-
-//       if (parseInt(invite.institution_id, 10) !== parsedInstitutionId) {
-//         return res.status(400).json({ success: false, message: 'Invite code does not match this institution' });
-//       }
-
-//       // If invite is tied to a specific campaign, enforce it
-//       if (invite.campaign_id && parsedCampaignId && parseInt(invite.campaign_id, 10) !== parsedCampaignId) {
-//         return res.status(400).json({ success: false, message: 'Invite code does not match this campaign' });
-//       }
-//       if (invite.campaign_id && !parsedCampaignId) {
-//         return res.status(400).json({ success: false, message: 'This invite is tied to a campaign; campaign_id is required' });
-//       }
-
-//       inviteId = invite.invite_id;
-//     }
-
-//     // ==================== 5. تحديد نوع التبرع ====================
-//     const donationMode = (mode === 'monthly' || mode === 'recurring') ? 'monthly' : 'one_time';
-    
-//     // التحقق من أن التبرع الشهري لا يزيد عن حد معين
-//     if (donationMode === 'monthly' && parsedAmount > 1000) {
-//       return res.status(400).json({
-//         success: false,
-//         message: 'Maximum monthly donation amount is 1000 JOD'
-//       });
-//     }
-
-//     // ==================== 6. إعداد بيانات المنتج في Stripe ====================
-//     const lineItemPriceData = {
-//       currency: currency.toLowerCase(),
-//       product_data: {
-//         name: `Donation to ${institution.name}`,
-//         description: campaign 
-//           ? `Supporting campaign: ${campaign.name}` 
-//           : `General donation to ${institution.name}`,
-//         metadata: {
-//           institution_id: String(parsedInstitutionId),
-//           institution_name: institution.name,
-//           donation_type: donationMode
-//         }
-//       },
-//       unit_amount: Math.round(parsedAmount * 100), // تحويل إلى سنتات/قروش
-//     };
-
-//     // إضافة التكرار إذا كان تبرعاً شهرياً
-//     if (donationMode === 'monthly') {
-//       lineItemPriceData.recurring = { 
-//         interval: 'month',
-//         interval_count: 1
-//       };
-//     }
-
-//     // ==================== 7. إعداد الميتاداتا ====================
-//     const metadata = {
-//       donor_id: donorId ? String(donorId) : 'anonymous',
-//       donor_email: donorEmail || '',
-//       donor_name: donorName || '',
-//       anonymous: String(anonymous === true),
-//       institution_id: String(parsedInstitutionId),
-//       institution_name: institution.name,
-//       campaign_id: parsedCampaignId ? String(parsedCampaignId) : '',
-//       campaign_name: campaign ? campaign.name : '',
-//       amount: String(parsedAmount),
-//       currency: currency.toLowerCase(),
-//       mode: donationMode,
-//       timestamp: new Date().toISOString(),
-//       ip_address: req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress || '',
-//       user_agent: req.headers['user-agent'] || '',
-//       invite_code: inviteCodeStr || '',
-//     };
-
-//     // ==================== 8. إعداد طرق الدفع - الإصلاح هنا ====================
-//     const payment_method_types = ['card']; // فقط card مرة واحدة
-    
-//     // إزالة الكود الذي يضيف card مرة ثانية بناءً على المنطقة
-//     /*
-//     // إضافة طرق دفع إضافية حسب المنطقة
-//     const country = req.headers['x-country-code'] || 'JO';
-//     if (country === 'JO') {
-//       // يمكن إضافة طرق دفع محلية للأردن
-//       payment_method_types.push('card'); // ❌ هذا يسبب الخطأ!
-//     }
-//     */
-
-//     // بدلاً من ذلك، يمكنك إضافة طرق دفع مختلفة حسب المنطقة:
-//     const country = req.headers['x-country-code'] || 'JO';
-//     if (country === 'US') {
-//       // أمريكا: نضيف afterpay_clearpay
-//       payment_method_types.push('afterpay_clearpay');
-//     } else if (country === 'EU') {
-//       // أوروبا: نضيف ideal, sofort
-//       payment_method_types.push('ideal', 'sofort');
-//     }
-//     // لاحظ: لا تضيف card مرة أخرى!
-
-//     // ==================== 9. إنشاء جلسة الدفع في Stripe ====================
-//     const sessionConfig = {
-//       payment_method_types: ['card'],
-//       line_items: [{
-//         price_data: {
-//           currency: currency.toLowerCase(),
-//           product_data: {
-//             name: `Donation to ${institution.name}`,
-//             description: campaign 
-//               ? `Supporting campaign: ${campaign.name}` 
-//               : `General donation to ${institution.name}`,
-//             metadata: {
-//               institution_id: String(parsedInstitutionId),
-//               institution_name: institution.name,
-//               donation_type: donationMode,
-//               anonymous: String(anonymous === true)
-//             }
-//           },
-//           unit_amount: Math.round(parsedAmount * 100),
-//           recurring: donationMode === 'monthly' ? { 
-//             interval: 'month',
-//             interval_count: 1
-//           } : undefined
-//         },
-//         quantity: 1,
-//       }],
-//       mode: donationMode === 'monthly' ? 'subscription' : 'payment',
-//       success_url: `${process.env.FRONTEND_URL}/donations/success?session_id={CHECKOUT_SESSION_ID}`,
-//       cancel_url: `${process.env.FRONTEND_URL}/donations/cancel`,
-//       metadata: metadata,
-//       billing_address_collection: 'auto',
-//       allow_promotion_codes: true,
-//       expires_at: Math.floor(Date.now() / 1000) + 3600,
-//       submit_type: 'donate',
-//       locale: 'auto',
-//     };
-
-//     // إضافة البريد الإلكتروني إذا كان متوفراً
-//     if (donorEmail) {
-//       sessionConfig.customer_email = donorEmail;
-//     }
-
-//     // إعدادات إضافية للتبرعات الشهرية
-//     if (donationMode === 'monthly') {
-//       sessionConfig.subscription_data = {
-//         metadata: metadata,
-//         description: `Monthly donation to ${institution.name}`
-//       };
-//     }
-
-//     const session = await stripe.checkout.sessions.create(sessionConfig);
-
-//     // ==================== 5. حفظ التبرع في قاعدة البيانات ====================
-//     const donationData = {
-//       donor_id: donorId, // قد يكون null للمتبرع المجهول
-//       institution_id: parsedInstitutionId,
-//       campaign_id: parsedCampaignId || null,
-//       amount: parsedAmount,
-//       currency: currency.toLowerCase(),
-//       status: 'pending',
-//       payment_method: 'stripe',
-//       stripe_session_id: session.id,
-//       stripe_payment_intent_id: session.payment_intent || null,
-//       donation_type: donationMode,
-//       ip_address: metadata.ip_address,
-//       user_agent: metadata.user_agent,
-//       expires_at: new Date(session.expires_at * 1000),
-//       // ⭐ بيانات المتبرع المجهول
-//       anonymous_donor: anonymous || !donorId, // true إذا كان anonymous أو لا يوجد donorId
-//       donor_email: donorEmail || null,
-//       donor_name: donorName || null,
-//     };
-
-//     const donation = await Donation.create(donationData);
-
-//     // Log invite checkout_started (if any)
-//     if (inviteId) {
-//       try {
-//         await DonationInviteEvent.create({
-//           invite_id: inviteId,
-//           event_type: 'checkout_started',
-//           referred_user_id: donorId || null,
-//           donation_id: donation.donation_id,
-//           stripe_session_id: session.id,
-//           amount: parsedAmount,
-//           currency: currency.toLowerCase(),
-//           ip_address: metadata.ip_address,
-//           user_agent: metadata.user_agent,
-//           created_at: new Date(),
-//         });
-//       } catch (e) {
-//         console.warn('Failed to log invite checkout_started:', e.message);
-//       }
-//     }
-
-//     // ==================== 6. إرجاع النتيجة ====================
-//     return res.status(200).json({
-//       success: true,
-//       url: session.url,
-//       sessionId: session.id,
-//       donation_id: donation.donation_id,
-//       anonymous: donation.anonymous_donor,
-//       instructions: {
-//         for_anonymous: 'You will be redirected to Stripe to complete your payment',
-//         note: anonymous ? 'Your donation will be recorded as anonymous' : 'Thank you for your donation!'
-//       }
-//     });
-
-
-//   } catch (error) {
-//     console.error('Error creating donation checkout session:', error);
-    
-//     // ==================== معالجة الأخطاء المحددة ====================
-//     let statusCode = 500;
-//     let errorMessage = 'Failed to create donation checkout session';
-//     let errorDetails = {};
-
-//     if (error.type === 'StripeInvalidRequestError') {
-//       statusCode = 400;
-//       errorMessage = 'Invalid payment request. Please check your information.';
-//       errorDetails = {
-//         param: error.param,
-//         code: error.code,
-//         type: error.type
-//       };
-//     } else if (error.code === 'resource_missing') {
-//       statusCode = 400;
-//       errorMessage = 'Payment information is incomplete.';
-//     } else if (error.code === 'rate_limit') {
-//       statusCode = 429;
-//       errorMessage = 'Too many requests. Please try again later.';
-//     } else if (error.name === 'SequelizeValidationError') {
-//       statusCode = 400;
-//       errorMessage = 'Validation error in donation data';
-//       errorDetails = {
-//         errors: error.errors.map(e => ({
-//           field: e.path,
-//           message: e.message
-//         }))
-//       };
-//     } else if (error.name === 'SequelizeDatabaseError') {
-//       statusCode = 500;
-//       errorMessage = 'Database error occurred';
-//     }
-
-//     return res.status(statusCode).json({
-//       success: false,
-//       message: errorMessage,
-//       error: error.message,
-//       error_type: error.type || error.name,
-//       details: errorDetails,
-//       timestamp: new Date().toISOString(),
-//       support_contact: 'support@example.com'
-//     });
-//   }
-// };
-
-
-// ==================== NEW: Create Anonymous Donation ====================
 
 exports.createDonationCheckout = async (req, res) => {
   try {
@@ -945,21 +529,17 @@ exports.createDonationCheckout = async (req, res) => {
     let donorEmail = '';
     let donorName = '';
 
-    // ==================== 1. التحقق من التوثيق ====================
     if (req.user && req.user.user_id) {
-      // متبرع مسجل
       donorId = req.user.user_id;
       donorEmail = req.user.email || '';
       donorName = req.user.full_name || '';
     } else {
-      // متبرع مجهول - التحقق من وجود بيانات بديلة
       const { donor_email, donor_name } = req.body;
       
       if (donor_email && donor_name) {
         donorEmail = donor_email;
         donorName = donor_name;
       }
-      // يمكن السماح بالتبرع بدون معلومات شخصية تماماً
     }
 
     const { 
@@ -970,10 +550,9 @@ exports.createDonationCheckout = async (req, res) => {
       currency = 'jod', 
       anonymous = false, 
       invite_code,
-      platform // ✅ جديد: للتفريق بين Mobile و Web
+      platform 
     } = req.body;
 
-    // ==================== 2. التحقق من المدخلات ====================
     if (!institution_id || !amount) {
       return res.status(400).json({
         success: false,
@@ -981,7 +560,6 @@ exports.createDonationCheckout = async (req, res) => {
       });
     }
 
-    // التحقق من نوع institution_id
     const parsedInstitutionId = parseInt(institution_id, 10);
     if (!Number.isFinite(parsedInstitutionId) || parsedInstitutionId <= 0) {
       return res.status(400).json({
@@ -990,7 +568,6 @@ exports.createDonationCheckout = async (req, res) => {
       });
     }
 
-    // التحقق من المبلغ
     const parsedAmount = parseFloat(amount);
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       return res.status(400).json({
@@ -999,7 +576,6 @@ exports.createDonationCheckout = async (req, res) => {
       });
     }
 
-    // التحقق من الحد الأدنى والأقصى للمبلغ
     const MIN_DONATION = parseFloat(process.env.MIN_DONATION_AMOUNT) || 1;
     const MAX_DONATION = parseFloat(process.env.MAX_DONATION_AMOUNT) || 10000;
     
@@ -1017,7 +593,6 @@ exports.createDonationCheckout = async (req, res) => {
       });
     }
 
-    // التحقق من العملة
     const allowedCurrencies = (process.env.ALLOWED_CURRENCIES || 'usd,eur,gbp,jod').split(',');
     if (!allowedCurrencies.includes(currency.toLowerCase())) {
       return res.status(400).json({
@@ -1026,7 +601,6 @@ exports.createDonationCheckout = async (req, res) => {
       });
     }
 
-    // ==================== 3. التحقق من المؤسسة ====================
     const institution = await Institution.findByPk(parsedInstitutionId, {
       attributes: ['institution_id', 'name', 'city', 'is_active', 'donation_balance']
     });
@@ -1045,7 +619,6 @@ exports.createDonationCheckout = async (req, res) => {
       });
     }
 
-    // ==================== 4. التحقق من الحملة (إذا وجدت) ====================
     let campaign = null;
     let parsedCampaignId = null;
 
@@ -1068,7 +641,6 @@ exports.createDonationCheckout = async (req, res) => {
           });
         }
 
-        // التحقق من تاريخ انتهاء الحملة
         if (campaign.end_date && new Date(campaign.end_date) < new Date()) {
           return res.status(400).json({
             success: false,
@@ -1078,7 +650,6 @@ exports.createDonationCheckout = async (req, res) => {
       }
     }
 
-    // ==================== 4.5 التحقق من invite_code ====================
     let invite = null;
     let inviteId = null;
     const inviteCodeStr = (invite_code ?? '').toString().trim();
@@ -1123,7 +694,6 @@ exports.createDonationCheckout = async (req, res) => {
       inviteId = invite.invite_id;
     }
 
-    // ==================== 5. تحديد نوع التبرع ====================
     const donationMode = (mode === 'monthly' || mode === 'recurring') ? 'monthly' : 'one_time';
     
     if (donationMode === 'monthly' && parsedAmount > 1000) {
@@ -1133,7 +703,6 @@ exports.createDonationCheckout = async (req, res) => {
       });
     }
 
-    // ==================== 6. إعداد الميتاداتا ====================
     const metadata = {
       donor_id: donorId ? String(donorId) : 'anonymous',
       donor_email: donorEmail || '',
@@ -1153,7 +722,6 @@ exports.createDonationCheckout = async (req, res) => {
       platform: platform || 'web',
     };
 
-    // ==================== 7. التحقق إذا كان Mobile ====================
     const isMobile = 
       platform === 'mobile' || 
       req.body.platform === 'mobile' ||
@@ -1166,7 +734,6 @@ exports.createDonationCheckout = async (req, res) => {
     console.log('   X-Platform header:', req.headers['x-platform']);
     console.log('   Detected as mobile:', isMobile);
 
-    // ==================== 8A. للـ MOBILE: إنشاء Payment Intent ====================
     if (isMobile) {
       console.log('📱 Creating Payment Intent for mobile...');
       
@@ -1184,7 +751,6 @@ exports.createDonationCheckout = async (req, res) => {
           receipt_email: donorEmail || null,
         });
 
-        // حفظ التبرع
         const donation = await Donation.create({
           donor_id: donorId,
           institution_id: parsedInstitutionId,
@@ -1232,7 +798,6 @@ exports.createDonationCheckout = async (req, res) => {
       }
     }
 
-    // ==================== 8B. للـ WEB: إنشاء Checkout Session ====================
     console.log('💻 Creating Checkout Session for web...');
 
     const lineItemPriceData = {
@@ -1252,7 +817,6 @@ exports.createDonationCheckout = async (req, res) => {
       unit_amount: Math.round(parsedAmount * 100),
     };
 
-    // إضافة التكرار إذا كان تبرعاً شهرياً
     if (donationMode === 'monthly') {
       lineItemPriceData.recurring = { 
         interval: 'month',
@@ -1272,17 +836,15 @@ exports.createDonationCheckout = async (req, res) => {
       metadata: metadata,
       billing_address_collection: 'auto',
       allow_promotion_codes: true,
-      expires_at: Math.floor(Date.now() / 1000) + 3600, // 1 hour
+      expires_at: Math.floor(Date.now() / 1000) + 3600, 
       submit_type: 'donate',
       locale: 'auto',
     };
 
-    // إضافة البريد الإلكتروني إذا كان متوفراً
     if (donorEmail) {
       sessionConfig.customer_email = donorEmail;
     }
 
-    // إعدادات إضافية للتبرعات الشهرية
     if (donationMode === 'monthly') {
       sessionConfig.subscription_data = {
         metadata: metadata,
@@ -1293,7 +855,6 @@ exports.createDonationCheckout = async (req, res) => {
     try {
       const session = await stripe.checkout.sessions.create(sessionConfig);
 
-      // حفظ التبرع
       const donation = await Donation.create({
         donor_id: donorId,
         institution_id: parsedInstitutionId,
@@ -1313,7 +874,6 @@ exports.createDonationCheckout = async (req, res) => {
         donor_name: donorName || null,
       });
 
-      // Log invite checkout_started
       if (inviteId) {
         try {
           await DonationInviteEvent.create({
@@ -1360,7 +920,6 @@ exports.createDonationCheckout = async (req, res) => {
   } catch (error) {
     console.error('❌ Error in createDonationCheckout:', error);
     
-    // معالجة الأخطاء المحددة
     let statusCode = 500;
     let errorMessage = 'Failed to create donation checkout';
     let errorDetails = {};
@@ -1405,7 +964,7 @@ exports.createDonationCheckout = async (req, res) => {
   }
 };
 
-// ==================== تأكيد الدفع للـ Mobile ====================
+
 exports.confirmDonationPayment = async (req, res) => {
   try {
     const { payment_intent_id, donation_id } = req.body;
@@ -1419,7 +978,6 @@ exports.confirmDonationPayment = async (req, res) => {
       });
     }
 
-    // 1. التحقق من Payment Intent في Stripe
     let paymentIntent;
     try {
       paymentIntent = await stripe.paymentIntents.retrieve(payment_intent_id);
@@ -1442,7 +1000,6 @@ exports.confirmDonationPayment = async (req, res) => {
       });
     }
 
-    // 2. البحث عن التبرع
     let donation;
     if (donation_id) {
       donation = await Donation.findByPk(donation_id);
@@ -1461,7 +1018,6 @@ exports.confirmDonationPayment = async (req, res) => {
 
     console.log('📦 Donation found:', donation.donation_id);
 
-    // 3. إذا كان مكتملاً بالفعل
     if (donation.status === 'completed') {
       return res.status(200).json({
         success: true,
@@ -1474,7 +1030,6 @@ exports.confirmDonationPayment = async (req, res) => {
       });
     }
 
-    // 4. تحديث التبرع
     await donation.update({
       status: 'completed',
       payment_status: 'paid',
@@ -1482,7 +1037,6 @@ exports.confirmDonationPayment = async (req, res) => {
       receipt_url: paymentIntent.charges?.data[0]?.receipt_url || null,
     });
 
-    // 5. تحديث رصيد المؤسسة
     const institution = await Institution.findByPk(donation.institution_id);
     if (institution) {
       const newBalance = parseFloat(institution.donation_balance || 0) + 
@@ -1494,7 +1048,6 @@ exports.confirmDonationPayment = async (req, res) => {
       console.log(`💰 Institution balance updated: ${newBalance} JOD`);
     }
 
-    // 6. تحديث الحملة
     if (donation.campaign_id) {
       const campaign = await DonationCampaign.findByPk(donation.campaign_id);
       if (campaign) {
@@ -1508,7 +1061,6 @@ exports.confirmDonationPayment = async (req, res) => {
       }
     }
 
-    // 7. تسجيل حدث الدعوة
     try {
       const inviteEvents = await DonationInviteEvent.findAll({
         where: {
@@ -1563,7 +1115,6 @@ exports.createAnonymousDonation = async (req, res) => {
   try {
     const { institution_id, amount, campaign_id, donor_email, donor_name, currency = 'jod' } = req.body;
 
-    // التحقق من المدخلات الأساسية
     if (!institution_id || !amount) {
       return res.status(400).json({
         success: false,
@@ -1571,7 +1122,6 @@ exports.createAnonymousDonation = async (req, res) => {
       });
     }
 
-    // التحقق من المؤسسة
     const institution = await Institution.findByPk(parseInt(institution_id, 10));
     if (!institution) {
       return res.status(404).json({
@@ -1580,7 +1130,6 @@ exports.createAnonymousDonation = async (req, res) => {
       });
     }
 
-    // إذا كان المستخدم مسجلاً، نستخدم بيانات حسابه
     let isAnonymous = true;
     let donorId = null;
     let email = donor_email || '';
@@ -1593,7 +1142,6 @@ exports.createAnonymousDonation = async (req, res) => {
       isAnonymous = false;
     }
 
-    // إنشاء جلسة Stripe (مشابه للدالة الأصلية)
     const sessionConfig = {
       payment_method_types: ['card'],
       line_items: [{
@@ -1625,18 +1173,16 @@ exports.createAnonymousDonation = async (req, res) => {
         currency: currency.toLowerCase()
       },
       billing_address_collection: 'auto',
-      expires_at: Math.floor(Date.now() / 1000) + 1800, // 30 دقيقة
+      expires_at: Math.floor(Date.now() / 1000) + 1800,
       submit_type: 'donate',
     };
 
-    // إضافة البريد الإلكتروني إذا كان متوفراً
     if (email) {
       sessionConfig.customer_email = email;
     }
 
     const session = await stripe.checkout.sessions.create(sessionConfig);
 
-    // حفظ التبرع
     const donation = await Donation.create({
       donor_id: donorId,
       institution_id: institution.institution_id,
@@ -1668,10 +1214,9 @@ exports.createAnonymousDonation = async (req, res) => {
     });
   }
 };
-// ==================== دالة مساعدة لإرسال الإيميل ====================
+
 async function sendDonationInitiatedEmail(toEmail, data) {
-  // تنفيذ إرسال الإيميل
-  // يمكن استخدام nodemailer أو أي خدمة أخرى
+
   console.log('Sending donation initiated email to:', toEmail);
   console.log('Donation data:', data);
   
@@ -1708,10 +1253,9 @@ async function sendDonationInitiatedEmail(toEmail, data) {
   */
 }
 
-// Create a new donation for an institution
 exports.createDonation = async (req, res) => {
   try {
-    const donorId = req.user ? req.user.user_id : null; // optional auth
+    const donorId = req.user ? req.user.user_id : null;
     const { institution_id, amount, campaign_id } = req.body;
 
     if (!institution_id || !amount) {
@@ -1744,7 +1288,6 @@ exports.createDonation = async (req, res) => {
       amount: parsedAmount
     });
 
-    // زيادة رصيد التبرعات للمؤسسة بهذا المبلغ
     const currentBalance = parseFloat(institution.donation_balance || 0);
     const newBalance = currentBalance + parsedAmount;
     await institution.update({ donation_balance: newBalance });
@@ -1766,12 +1309,10 @@ exports.createDonation = async (req, res) => {
 
 
 
-// Get aggregated donation impact for the current donor: sessions/children supported
 exports.getDonationImpact = async (req, res) => {
   try {
     const donorId = req.user.user_id;
 
-    // Aggregate total donations for this donor
     const donationAgg = await Donation.findOne({
       where: { donor_id: donorId },
       attributes: [
@@ -1782,7 +1323,6 @@ exports.getDonationImpact = async (req, res) => {
 
     const totalDonationsAmount = parseFloat(donationAgg?.total || 0);
 
-    // Get all donations for this donor
     const donations = await Donation.findAll({
       where: { donor_id: donorId },
       attributes: ['donation_id', 'campaign_id'],
@@ -1804,7 +1344,6 @@ exports.getDonationImpact = async (req, res) => {
 
     const donationIds = donations.map((d) => d.donation_id);
 
-    // Find allocations tied to these donations
     const allocations = await DonationAllocation.findAll({
       where: {
         donation_id: {
@@ -1889,7 +1428,6 @@ exports.getDonationImpact = async (req, res) => {
           return acc;
         }, {});
 
-        // Build a small timeline (last 10 allocations)
         const allocationsForTimeline = allocations.slice(0, 10);
 
         timeline = allocationsForTimeline.map((a) => {
@@ -1934,7 +1472,6 @@ exports.getDonationImpactV2 = async (req, res) => {
   try {
     const donorId = req.user.user_id;
 
-    // ===== Money impact (same logic as getDonationImpact) =====
     const donationAgg = await Donation.findOne({
       where: { donor_id: donorId },
       attributes: [[Donation.sequelize.fn('SUM', Donation.sequelize.col('amount')), 'total']],
@@ -2061,7 +1598,6 @@ exports.getDonationImpactV2 = async (req, res) => {
       }
     }
 
-    // ===== Equipment impact (linked to inventory + allocations) =====
     const equipmentDonations = await EquipmentDonation.findAll({
       where: { donor_id: donorId },
       attributes: [
@@ -2089,7 +1625,6 @@ exports.getDonationImpactV2 = async (req, res) => {
       0,
     );
 
-    // Link delivered donations to inventory items (source_donation_id)
     let allocations = [];
     let inventoryItems = [];
     if (equipmentDonationIds.length) {
@@ -2175,7 +1710,6 @@ exports.getDonationImpactV2 = async (req, res) => {
     const needsSupportedCount = new Set(allocations.map((a) => a.need_id).filter((x) => !!x)).size;
     const childrenSupportedByEquipmentCount = new Set(allocations.map((a) => a.child_id).filter((x) => !!x)).size;
 
-    // Timeline: combine donations + inventory + allocations (latest 10 events)
     const donationById = equipmentDonations.reduce((acc, d) => {
       acc[d.equipment_donation_id] = d;
       return acc;
@@ -2262,7 +1796,6 @@ exports.getDonationImpactV2 = async (req, res) => {
   }
 };
 
-// Confirm donation after returning from Stripe Checkout using session_id
 exports.confirmDonationFromStripe = async (req, res) => {
   try {
     const donorId = req.user.user_id;
@@ -2303,7 +1836,6 @@ exports.confirmDonationFromStripe = async (req, res) => {
       });
     }
 
-    // Basic safety check: donor from token should match metadata if present
     if (md.donor_id && String(donorId) !== String(md.donor_id)) {
       return res.status(403).json({
         success: false,
@@ -2359,7 +1891,6 @@ exports.confirmDonationFromStripe = async (req, res) => {
   }
 };
 
-// Get donation history for the current donor
 exports.getDonationHistory = async (req, res) => {
   try {
     const donorId = req.user.user_id;
@@ -2433,8 +1964,7 @@ exports.getDonationHistory = async (req, res) => {
   }
 };
 
-// Get comprehensive donation statistics for manager's institution
-// Get comprehensive donation statistics for manager's institution
+
 exports.getDonationStatistics = async (req, res) => {
   try {
     const managerId = req.user.user_id;
@@ -2455,7 +1985,6 @@ exports.getDonationStatistics = async (req, res) => {
       payment_status: 'paid',
     };
 
-    // 1. إحصائيات أساسية
     const totalDonations = await Donation.sum('amount', {
       where: paidDonationWhere,
     });
@@ -2466,7 +1995,6 @@ exports.getDonationStatistics = async (req, res) => {
       col: 'donor_id'
     });
 
-    // 2. متوسط التبرع
     const avgDonation = await Donation.findOne({
       where: paidDonationWhere,
       attributes: [
@@ -2475,7 +2003,6 @@ exports.getDonationStatistics = async (req, res) => {
       raw: true
     });
 
-    // 3. أعلى متبرع
     const topDonorQuery = `
       SELECT 
         donor_id,
@@ -2493,7 +2020,6 @@ exports.getDonationStatistics = async (req, res) => {
       type: sequelize.QueryTypes.SELECT
     });
 
-    // 4. إحصائيات زمنية (آخر 30 يوم)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -2513,7 +2039,6 @@ exports.getDonationStatistics = async (req, res) => {
       col: 'donor_id'
     });
 
-    // 5. توزيع التبرعات حسب المبلغ (للعروض المرئية)
     const donationDistribution = await Donation.findAll({
       where: paidDonationWhere,
       attributes: [
@@ -2541,7 +2066,6 @@ exports.getDonationStatistics = async (req, res) => {
       raw: true
     });
 
-    // 6. أحدث التبرعات (للعرض في القائمة)
     const latestDonationsQuery = `
       SELECT 
         d.donation_id,
@@ -2568,7 +2092,6 @@ exports.getDonationStatistics = async (req, res) => {
       type: sequelize.QueryTypes.SELECT
     });
 
-    // 7. تبرعات حسب الحملات
     const donationsByCampaignQuery = `
       SELECT 
         d.campaign_id,
@@ -2650,9 +2173,7 @@ exports.getDonationStatistics = async (req, res) => {
   }
 };
 
-// ... الكود السابق يبقى كما هو ...
 
-// ✅ دالة البحث عن التبرع باستخدام session_id
 exports.checkDonationBySession = async (req, res) => {
   try {
     const { session_id } = req.query;
@@ -2666,7 +2187,6 @@ exports.checkDonationBySession = async (req, res) => {
       });
     }
 
-    // البحث عن التبرع باستخدام session_id
     const donation = await Donation.findOne({
       where: { stripe_session_id: session_id },
       include: [
@@ -2691,14 +2211,12 @@ exports.checkDonationBySession = async (req, res) => {
       });
     }
 
-    // محاولة التحقق من Stripe إذا كان التبرع pending
     let stripeSession = null;
     if (donation.status === 'pending') {
       try {
         stripeSession = await stripe.checkout.sessions.retrieve(session_id);
       } catch (stripeError) {
         console.error('Stripe retrieval error:', stripeError.message);
-        // لا نعيد خطأ، فقط نسجل
       }
     }
 
@@ -2739,7 +2257,6 @@ exports.checkDonationBySession = async (req, res) => {
   }
 };
 
-// Get filtered donation statistics
 exports.getFilteredDonationStatistics = async (req, res) => {
   try {
     const managerId = req.user.user_id;
@@ -2749,7 +2266,7 @@ exports.getFilteredDonationStatistics = async (req, res) => {
       campaignId, 
       minAmount, 
       maxAmount,
-      groupBy = 'day' // day, week, month, year
+      groupBy = 'day'
     } = req.query;
 
     const institution = await getManagerInstitution(managerId);
@@ -2762,7 +2279,6 @@ exports.getFilteredDonationStatistics = async (req, res) => {
 
     const institutionId = institution.institution_id;
 
-    // بناء where clause
     const whereClause = {
       institution_id: institutionId,
       status: 'completed',
@@ -2785,7 +2301,6 @@ exports.getFilteredDonationStatistics = async (req, res) => {
       whereClause.amount = { ...whereClause.amount, [Op.lte]: parseFloat(maxAmount) };
     }
 
-    // تحديد GROUP BY بناءً على groupBy
     let groupByClause;
     switch (groupBy) {
       case 'day':
@@ -2810,7 +2325,6 @@ exports.getFilteredDonationStatistics = async (req, res) => {
         groupByClause = [sequelize.fn('DATE', sequelize.col('date'))];
     }
 
-    // إحصائيات حسب التاريخ
     const timeSeriesStats = await Donation.findAll({
       where: whereClause,
       attributes: [
@@ -2825,7 +2339,6 @@ exports.getFilteredDonationStatistics = async (req, res) => {
       raw: true
     });
 
-    // إحصائيات إضافية
     const totalStats = await Donation.findOne({
       where: whereClause,
       attributes: [
@@ -2839,7 +2352,6 @@ exports.getFilteredDonationStatistics = async (req, res) => {
       raw: true
     });
 
-    // أعلى 10 متبرعين في الفترة
     const topDonors = await Donation.findAll({
       where: whereClause,
       attributes: [
@@ -2854,7 +2366,6 @@ exports.getFilteredDonationStatistics = async (req, res) => {
       raw: true
     });
 
-    // الحصول على أسماء المتبرعين
     const donorIds = topDonors.map(d => d.donor_id).filter(id => id > 0);
     let donorsInfo = {};
     if (donorIds.length > 0) {
@@ -2920,7 +2431,6 @@ exports.getFilteredDonationStatistics = async (req, res) => {
   }
 };
 
-// ✅ دالة للتحقق من جميع التبرعات في قاعدة البيانات
 exports.debugDonations = async (req, res) => {
   try {
     console.log('🔍 Debug: Checking all donations in database...');
@@ -2952,24 +2462,20 @@ exports.debugDonations = async (req, res) => {
   }
 };
 
-// دالة مساعدة لإرسال الإشعارات
 async function sendDonationSuccessNotification(donation, stripeSession) {
   try {
     console.log('📧 Sending success notification for donation:', donation.donation_id);
-    // يمكن إضافة إرسال إيميل هنا
   } catch (error) {
     console.error('❌ Error sending notification:', error);
   }
 }
 
-// ==================== Get Donor Profile ====================
 exports.getDonorProfile = async (req, res) => {
   try {
     const donorId = req.user.user_id;
 
     console.log('🔍 Fetching donor profile for user:', donorId);
 
-    // البحث عن المستخدم في قاعدة البيانات
     const donor = await User.findByPk(donorId, {
       attributes: [
         'user_id',
@@ -2994,7 +2500,6 @@ exports.getDonorProfile = async (req, res) => {
       });
     }
 
-    // جلب إحصائيات التبرعات
     const donationStats = await Donation.findOne({
       where: { donor_id: donorId },
       attributes: [
@@ -3007,7 +2512,6 @@ exports.getDonorProfile = async (req, res) => {
 
     console.log('📊 Donation stats:', donationStats);
 
-    // جلب المؤسسات التي تبرع لها
     const institutionsDonated = await Donation.findAll({
       where: { donor_id: donorId },
       include: [{
@@ -3021,7 +2525,6 @@ exports.getDonorProfile = async (req, res) => {
       nest: true
     });
 
-    // تنسيق البيانات
     const formattedInstitutions = institutionsDonated
       .filter(item => item.Institution)
       .map(item => ({
@@ -3056,5 +2559,4 @@ exports.getDonorProfile = async (req, res) => {
     });
   }
 };
-// ==================== إغلاق الملف هنا ====================
 module.exports = exports;

@@ -8,13 +8,12 @@ const {
   Institution,
   Manager,
   User,
-  Specialist, // تأكد من إضافته
+  Specialist, 
   SessionType
 } = require('../../model/index');
 const { Op } = require('sequelize');
 const sequelize = require('../../config/db');
 
-// دالة مساعدة لتنسيق التاريخ
 const formatDate = (date) => {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
@@ -24,7 +23,6 @@ const formatDate = (date) => {
 
 
 
-// الحصول على معلومات مفصلة عن طفل معين
 exports.getChildDetailedInfo = async (req, res) => {
   console.log('=== START getChildDetailedInfo ===');
   
@@ -41,7 +39,6 @@ exports.getChildDetailedInfo = async (req, res) => {
       });
     }
 
-    // الحصول على معلومات المدير والمؤسسة
     const manager = await Manager.findOne({
       where: { 
         manager_id: managerId, 
@@ -64,7 +61,6 @@ exports.getChildDetailedInfo = async (req, res) => {
     const institutionId = manager.Institution.institution_id;
     console.log('2. Institution ID:', institutionId);
 
-    // 1. الحصول على معلومات الطفل الأساسية
     console.log('3. Fetching child basic info...');
     const child = await Child.findOne({
       where: {
@@ -102,7 +98,6 @@ exports.getChildDetailedInfo = async (req, res) => {
 
     console.log('4. Child found:', child.full_name);
 
-    // 2. الحصول على جميع الجلسات للطفل
     console.log('5. Fetching all sessions for child...');
     const sessions = await Session.findAll({
       where: {
@@ -130,7 +125,6 @@ exports.getChildDetailedInfo = async (req, res) => {
 
     console.log(`6. Found ${sessions.length} sessions`);
 
-    // 3. الحصول على جميع التقييمات للطفل
     console.log('7. Fetching all evaluations for child...');
     const evaluations = await Evaluation.findAll({
       where: {
@@ -148,7 +142,6 @@ exports.getChildDetailedInfo = async (req, res) => {
 
     console.log(`8. Found ${evaluations.length} evaluations`);
 
-    // 4. الحصول على الأخصائيين الذين عملوا مع الطفل
     console.log('9. Fetching specialists who worked with child...');
     const specialistIds = [...new Set(sessions.map(s => s.specialist_id))];
     const specialists = await User.findAll({
@@ -166,7 +159,6 @@ exports.getChildDetailedInfo = async (req, res) => {
 
     console.log(`10. Found ${specialists.length} specialists`);
 
-    // 5. الحصول على آخر تقدم (آخر تقييم)
     console.log('11. Getting latest progress...');
     const latestEvaluation = evaluations.length > 0 ? evaluations[0] : null;
     const latestProgress = latestEvaluation ? {
@@ -177,11 +169,9 @@ exports.getChildDetailedInfo = async (req, res) => {
       evaluated_by: latestEvaluation.specialistUser?.full_name
     } : null;
 
-    // 6. تحليل الجلسات بشكل أفضل
     console.log('12. Analyzing sessions with better logic...');
     const now = new Date();
     
-    // تصنيف الجلسات بشكل أدق
     const sessionCategories = {
       completed: [],
       upcoming: [],
@@ -193,7 +183,6 @@ exports.getChildDetailedInfo = async (req, res) => {
     sessions.forEach(session => {
       const sessionDateTime = new Date(session.date + ' ' + session.time);
       const sessionEndTime = new Date(sessionDateTime);
-      // إضافة مدة الجلسة (افترض أن duration بالدقائق)
       const duration = session.SessionType?.duration || 60;
       sessionEndTime.setMinutes(sessionEndTime.getMinutes() + duration);
 
@@ -210,7 +199,6 @@ exports.getChildDetailedInfo = async (req, res) => {
       }
     });
 
-    // تحليل الجلسات حسب الحالة
     const sessionAnalysis = {
       total: sessions.length,
       by_status: sessions.reduce((acc, session) => {
@@ -227,13 +215,11 @@ exports.getChildDetailedInfo = async (req, res) => {
       cancelled_sessions: sessionCategories.cancelled.length,
       ongoing_sessions: sessionCategories.ongoing.length,
       missed_sessions: sessionCategories.past_but_not_completed.length,
-      // جلسات انتهى وقتها بالفعل (مكتملة أو مفوتهة أو ملغية)
       total_past_sessions: sessionCategories.completed.length + 
                           sessionCategories.past_but_not_completed.length + 
                           sessionCategories.cancelled.length
     };
 
-    // 7. إحصائيات التقييمات
     console.log('13. Analyzing evaluations...');
    const evaluationStats = {
   total: evaluations.length,
@@ -256,7 +242,6 @@ exports.getChildDetailedInfo = async (req, res) => {
   })).sort((a, b) => new Date(a.date) - new Date(b.date))
 };
 
-    // 8. جلسات الأسبوع الحالي
     console.log('14. Getting this week sessions...');
     const today = new Date();
     const startOfWeek = new Date(today);
@@ -272,7 +257,6 @@ exports.getChildDetailedInfo = async (req, res) => {
       return sessionDate >= startOfWeek && sessionDate <= endOfWeek;
     });
 
-    // 9. الجلسات القادمة (الشهر القادم)
     console.log('15. Getting upcoming sessions...');
     const nextMonth = new Date();
     nextMonth.setMonth(nextMonth.getMonth() + 1);
@@ -289,9 +273,8 @@ exports.getChildDetailedInfo = async (req, res) => {
         const dateB = new Date(b.date + ' ' + b.time);
         return dateA - dateB;
       })
-      .slice(0, 5); // أول 5 جلسات قادمة
+      .slice(0, 5); 
 
-    // 10. معلومات إضافية عن الطفل
     console.log('16. Preparing additional child info...');
     const childInfo = {
       basic_info: {
@@ -332,7 +315,6 @@ exports.getChildDetailedInfo = async (req, res) => {
       }
     };
 
-    // 11. معلومات الأهل
     console.log('17. Preparing parent info...');
     const parentInfo = child.Parent ? {
       parent_id: child.Parent.parent_id,
@@ -345,13 +327,11 @@ exports.getChildDetailedInfo = async (req, res) => {
       }
     } : null;
 
-    // 12. حساب نسبة الحضور الصحيحة
     console.log('18. Calculating attendance rate correctly...');
     let attendanceRate = '0%';
     let attendancePercentage = 0;
     
     if (sessionAnalysis.total_past_sessions > 0) {
-      // نسبة الحضور = (الجلسات المكتملة) ÷ (إجمالي الجلسات الماضية - الملغية)
       const validPastSessions = sessionAnalysis.total_past_sessions - sessionAnalysis.cancelled_sessions;
       if (validPastSessions > 0) {
         attendancePercentage = (sessionAnalysis.completed_sessions / validPastSessions) * 100;
@@ -359,7 +339,6 @@ exports.getChildDetailedInfo = async (req, res) => {
       }
     }
 
-    // 13. جلسات الأسبوع الماضي للأداء
     console.log('19. Getting last week sessions for performance...');
     const lastWeekStart = new Date(today);
     lastWeekStart.setDate(today.getDate() - 7);
@@ -378,7 +357,6 @@ exports.getChildDetailedInfo = async (req, res) => {
     const lastWeekTotal = lastWeekSessions.filter(s => !['Cancelled', 'Rejected'].includes(s.status)).length;
     const lastWeekAttendance = lastWeekTotal > 0 ? (lastWeekCompleted / lastWeekTotal * 100).toFixed(2) + '%' : '0%';
 
-    // إعداد الرد النهائي
     console.log('20. Preparing final response...');
     const response = {
       success: true,
@@ -461,7 +439,6 @@ exports.getChildDetailedInfo = async (req, res) => {
           latest_progress: latestProgress
         },
         statistics: {
-          // إحصائيات الجلسات
           total_sessions: sessions.length,
           completed_sessions: sessionAnalysis.completed_sessions,
           upcoming_sessions: sessionAnalysis.upcoming_sessions,
@@ -469,18 +446,15 @@ exports.getChildDetailedInfo = async (req, res) => {
           missed_sessions: sessionAnalysis.missed_sessions,
           ongoing_sessions: sessionAnalysis.ongoing_sessions,
           
-          // إحصائيات الحضور
           attendance_rate: attendanceRate,
           attendance_percentage: attendancePercentage,
           last_week_attendance: lastWeekAttendance,
           total_past_sessions: sessionAnalysis.total_past_sessions,
           valid_past_sessions: sessionAnalysis.total_past_sessions - sessionAnalysis.cancelled_sessions,
           
-          // إحصائيات التقييمات
           total_evaluations: evaluations.length,
           average_progress_score: evaluationStats.average_score,
           
-          // نسبة نجاح الحضور
           attendance_breakdown: {
             completed: sessionAnalysis.completed_sessions,
             missed: sessionAnalysis.missed_sessions,
@@ -489,13 +463,11 @@ exports.getChildDetailedInfo = async (req, res) => {
           }
         },
         performance: {
-          // أداء الأسبوع الماضي
           last_week: {
             total_sessions: lastWeekTotal,
             completed: lastWeekCompleted,
             attendance_rate: lastWeekAttendance
           },
-          // نسب حسب نوع الجلسة
           by_session_type: Object.entries(sessionAnalysis.by_category || {}).map(([category, count]) => ({
             category,
             count,
@@ -523,7 +495,6 @@ exports.getChildDetailedInfo = async (req, res) => {
 };
 
 
-// الحصول على إحصائيات الأطفال والمعلومات
 exports.getChildrenManagementData = async (req, res) => {
   console.log('=== START getChildrenManagementData ===');
   
@@ -531,7 +502,6 @@ exports.getChildrenManagementData = async (req, res) => {
     const managerId = req.user.user_id;
     console.log('1. Manager ID from token:', managerId);
     
-    // الحصول على المؤسسة الخاصة بالمدير
     console.log('2. Fetching manager with institution...');
     const manager = await Manager.findOne({
       where: { 
@@ -567,7 +537,6 @@ exports.getChildrenManagementData = async (req, res) => {
     const today = formatDate(new Date());
     console.log('4. Today date (start of day):', today);
     
-    // 1. الحصول على معلومات الأطفال حسب الحالة
     console.log('5. Fetching children by status for institution:', institutionId);
     const childrenByStatus = await Child.findAll({
       where: {
@@ -598,12 +567,10 @@ exports.getChildrenManagementData = async (req, res) => {
 
     console.log(`6. Found ${childrenByStatus.length} total children`);
     
-    // عرض حالة كل طفل
     childrenByStatus.forEach((child, index) => {
       console.log(`   Child ${index + 1}: ID=${child.child_id}, Name=${child.full_name}, Status=${child.registration_status}`);
     });
 
-    // 2. حساب عدد الأطفال حسب الحالة
     console.log('7. Calculating status counts...');
     const statusCounts = {
       Pending: 0,
@@ -622,7 +589,6 @@ exports.getChildrenManagementData = async (req, res) => {
 
     console.log('8. Status counts:', statusCounts);
 
-    // 3. الأطفال الذين سجلوا اليوم (بعد تغيير الحالة إلى Approved)
     console.log('9. Counting children updated today...');
     const childrenUpdatedToday = await Child.count({
       where: {
@@ -634,7 +600,6 @@ exports.getChildrenManagementData = async (req, res) => {
       }
     });
 
-    // للحصول على تفاصيل الأطفال المحدثين اليوم
     const updatedChildrenToday = await Child.findAll({
       where: {
         current_institution_id: institutionId,
@@ -651,7 +616,6 @@ exports.getChildrenManagementData = async (req, res) => {
       console.log(`    - ID: ${child.child_id}, Name: ${child.full_name}, Updated: ${child.updated_at}`);
     });
 
-    // 4. جلسات اليوم
     console.log('11. Fetching today sessions...');
     const todaySessions = await Session.findAll({
       where: {
@@ -670,7 +634,6 @@ exports.getChildrenManagementData = async (req, res) => {
       console.log(`    Session ${index + 1}: ID=${session.session_id}, Child=${session.child?.full_name}, Status=${session.status}`);
     });
 
-    // 5. عدد الأطفال الذين لديهم جلسات اليوم
     console.log('13. Calculating children with sessions today...');
     const activeSessions = todaySessions.filter(session => 
       ['Approved', 'Confirmed', 'Scheduled', 'Completed'].includes(session.status)
@@ -684,7 +647,6 @@ exports.getChildrenManagementData = async (req, res) => {
 
     console.log(`15. Unique children with sessions today: ${childrenWithSessionsToday}`);
 
-    // 6. عدد الأطفال الغائبين اليوم
     console.log('16. Calculating absent children...');
     const absentChildrenCount = todaySessions.filter(
       session => session.status === 'Absent'
@@ -692,7 +654,6 @@ exports.getChildrenManagementData = async (req, res) => {
 
     console.log(`17. Absent children today: ${absentChildrenCount}`);
 
-    // 7. طلبات التسجيل اليوم (من جدول ChildRegistrationRequests)
     console.log('18. Counting registration requests today...');
     const registrationRequestsToday = await ChildRegistrationRequest.count({
       where: {
@@ -705,7 +666,6 @@ exports.getChildrenManagementData = async (req, res) => {
 
     console.log(`19. Registration requests today: ${registrationRequestsToday}`);
 
-    // 8. الحصول على آخر تقييم لكل طفل
     console.log('20. Fetching latest evaluations...');
     const childIds = childrenByStatus.map(child => child.child_id);
     console.log(`21. Child IDs for evaluations: ${childIds.join(', ')}`);
@@ -727,7 +687,6 @@ exports.getChildrenManagementData = async (req, res) => {
       console.log(`    - Child ${eva.child_id}: Latest eval date: ${eva.latest_date}`);
     });
 
-    // الحصول على تفاصيل التقييمات الأخيرة
     console.log('23. Fetching evaluation details...');
     const evaluationDetails = await Evaluation.findAll({
       where: {
@@ -741,7 +700,6 @@ exports.getChildrenManagementData = async (req, res) => {
 
     console.log(`24. Found ${evaluationDetails.length} evaluation details`);
 
-    // إنشاء map للتقييمات الأخيرة
     const evaluationMap = {};
     evaluationDetails.forEach(evalu => {
       evaluationMap[evalu.child_id] = {
@@ -753,7 +711,6 @@ exports.getChildrenManagementData = async (req, res) => {
 
     console.log('25. Evaluation map created:', Object.keys(evaluationMap));
 
-    // 9. إضافة معلومات التقدم لكل طفل
     console.log('26. Adding progress info to children...');
     const childrenWithProgress = childrenByStatus.map(child => {
       const childData = child.get({ plain: true });
@@ -771,7 +728,6 @@ exports.getChildrenManagementData = async (req, res) => {
       };
     });
 
-    // 10. الحصول على آخر طلبات التسجيل
     console.log('27. Fetching latest registration requests...');
     const latestRegistrationRequests = await ChildRegistrationRequest.findAll({
       where: {
@@ -788,7 +744,6 @@ exports.getChildrenManagementData = async (req, res) => {
 
     console.log(`28. Found ${latestRegistrationRequests.length} pending registration requests`);
 
-    // إعداد الرد النهائي
     console.log('29. Preparing final response...');
     const response = {
       success: true,
@@ -834,7 +789,6 @@ exports.getChildrenManagementData = async (req, res) => {
   }
 };
 
-// دالة إضافية للحصول على إحصائيات مفصلة
 exports.getDetailedStatistics = async (req, res) => {
   console.log('=== START getDetailedStatistics ===');
   
@@ -869,7 +823,6 @@ exports.getDetailedStatistics = async (req, res) => {
     console.log('2. Institution ID:', institutionId);
     console.log('3. Date range:', { sevenDaysAgo, today });
 
-    // إحصائيات الأيام السبعة الماضية
     console.log('4. Fetching daily stats for last 7 days...');
     const dailyStats = await Child.findAll({
       where: {
@@ -890,7 +843,6 @@ exports.getDetailedStatistics = async (req, res) => {
 
     console.log('5. Daily stats:', dailyStats);
 
-    // توزيع الأطفال حسب التشخيص
     console.log('6. Fetching diagnosis distribution...');
     const diagnosisStats = await Child.findAll({
       where: {
@@ -942,7 +894,6 @@ exports.getDetailedStatistics = async (req, res) => {
 };
 
 
-// Function to check child archive eligibility (check only)
 exports.checkChildArchiveEligibility = async (req, res) => {
   console.log('=== START checkChildArchiveEligibility ===');
   
@@ -959,7 +910,6 @@ exports.checkChildArchiveEligibility = async (req, res) => {
       });
     }
 
-    // Get manager and institution information
     const manager = await Manager.findOne({
       where: { 
         manager_id: managerId, 
@@ -982,7 +932,6 @@ exports.checkChildArchiveEligibility = async (req, res) => {
     const institutionId = manager.Institution.institution_id;
     console.log('2. Institution ID:', institutionId);
 
-    // Check if child exists in the institution
     const child = await Child.findOne({
       where: {
         child_id: childId,
@@ -1001,7 +950,6 @@ exports.checkChildArchiveEligibility = async (req, res) => {
 
     console.log('3. Child found:', child.full_name);
 
-    // Check for upcoming non-cancelled sessions
     const now = new Date();
     
     const upcomingSessions = await Session.findAll({
@@ -1034,7 +982,6 @@ exports.checkChildArchiveEligibility = async (req, res) => {
 
     console.log(`4. Found ${upcomingSessions.length} upcoming sessions`);
 
-    // Get total active sessions count
     const allActiveSessions = await Session.count({
       where: {
         child_id: childId,
@@ -1045,7 +992,6 @@ exports.checkChildArchiveEligibility = async (req, res) => {
       }
     });
 
-    // Classify sessions
     const scheduledSessions = upcomingSessions.filter(s => 
       s.status === 'Scheduled' || s.status === 'Confirmed'
     );
@@ -1065,7 +1011,6 @@ exports.checkChildArchiveEligibility = async (req, res) => {
         'Pending Specialist Approval', 'Pending Approval'].includes(s.status)
     );
 
-    // Format dates in readable format
     const formatSessionInfo = (session) => {
       const sessionDate = new Date(session.date + ' ' + session.time);
       return {
@@ -1080,7 +1025,6 @@ exports.checkChildArchiveEligibility = async (req, res) => {
       };
     };
 
-    // Prepare response
     const response = {
       success: true,
       data: {
@@ -1090,7 +1034,7 @@ exports.checkChildArchiveEligibility = async (req, res) => {
           current_status: child.registration_status
         },
         eligibility_check: {
-          can_archive_directly: upcomingSessions.length === 0, // Can archive directly?
+          can_archive_directly: upcomingSessions.length === 0, 
           has_upcoming_sessions: upcomingSessions.length > 0,
           upcoming_sessions_count: upcomingSessions.length,
           all_active_sessions_count: allActiveSessions,
@@ -1106,9 +1050,9 @@ exports.checkChildArchiveEligibility = async (req, res) => {
           total_upcoming: upcomingSessions.length
         },
         actions_available: {
-          direct_archive: upcomingSessions.length === 0, // Can archive directly?
-          force_archive: true, // Can force archive?
-          view_details: true // Can view details?
+          direct_archive: upcomingSessions.length === 0, 
+          force_archive: true, 
+          view_details: true 
         },
         warnings: upcomingSessions.length > 0 ? [
           `This child has ${upcomingSessions.length} upcoming session(s)`,
@@ -1135,7 +1079,6 @@ exports.checkChildArchiveEligibility = async (req, res) => {
   }
 };
 
-// Function to force archive child (even if has upcoming sessions)
 exports.forceArchiveChild = async (req, res) => {
   console.log('=== START forceArchiveChild ===');
   
@@ -1152,7 +1095,6 @@ exports.forceArchiveChild = async (req, res) => {
       });
     }
 
-    // Get manager and institution information
     const manager = await Manager.findOne({
       where: { 
         manager_id: managerId, 
@@ -1175,7 +1117,6 @@ exports.forceArchiveChild = async (req, res) => {
     const institutionId = manager.Institution.institution_id;
     console.log('2. Institution ID:', institutionId);
 
-    // Check if child exists in the institution
     const child = await Child.findOne({
       where: {
         child_id: childId,
@@ -1194,11 +1135,9 @@ exports.forceArchiveChild = async (req, res) => {
 
     console.log('3. Child found:', child.full_name);
 
-    // Start database transaction
     const transaction = await sequelize.transaction();
     
     try {
-      // 1. Get all active sessions for the child
       console.log('4. Fetching all active sessions for child...');
       
       const allActiveSessions = await Session.findAll({
@@ -1218,7 +1157,6 @@ exports.forceArchiveChild = async (req, res) => {
 
       console.log(`5. Found ${allActiveSessions.length} active sessions to cancel`);
 
-      // 2. Cancel each session with reason recording
       const cancelledSessions = [];
       
       for (const session of allActiveSessions) {
@@ -1247,7 +1185,6 @@ exports.forceArchiveChild = async (req, res) => {
         console.log(`   - Cancelled session ${session.session_id} (${isUpcoming ? 'Upcoming' : 'Past/Current'})`);
       }
 
-      // 3. Update child status to Archived
       console.log('6. Updating child status to Archived...');
       
       await child.update({
@@ -1260,16 +1197,13 @@ exports.forceArchiveChild = async (req, res) => {
 
       console.log('7. Child status updated to Archived');
 
-      // 4. Save all changes
       await transaction.commit();
       
       console.log('8. Transaction committed successfully');
 
-      // 5. Analyze cancelled sessions
       const upcomingCancelled = cancelledSessions.filter(s => s.was_upcoming).length;
       const pastCancelled = cancelledSessions.length - upcomingCancelled;
 
-      // 6. Return success message
       const response = {
         success: true,
         message: 'Child archived successfully and all active sessions cancelled',
@@ -1314,7 +1248,6 @@ exports.forceArchiveChild = async (req, res) => {
       res.status(200).json(response);
 
     } catch (transactionError) {
-      // In case of error, rollback all changes
       await transaction.rollback();
       
       console.error('❌ ERROR in transaction:', transactionError);
@@ -1334,7 +1267,6 @@ exports.forceArchiveChild = async (req, res) => {
   }
 };
 
-// دالة لاستعادة الطفل من الأرشيف
 exports.restoreArchivedChild = async (req, res) => {
   console.log('=== START restoreArchivedChild ===');
   
@@ -1352,7 +1284,6 @@ exports.restoreArchivedChild = async (req, res) => {
       });
     }
 
-    // الحصول على معلومات المدير والمؤسسة
     const manager = await Manager.findOne({
       where: { 
         manager_id: managerId, 
@@ -1375,7 +1306,6 @@ exports.restoreArchivedChild = async (req, res) => {
     const institutionId = manager.Institution.institution_id;
     console.log('2. Institution ID:', institutionId);
 
-    // التحقق من وجود الطفل في المؤسسة ومؤرشف
     const child = await Child.findOne({
       where: {
         child_id: childId,
@@ -1394,7 +1324,6 @@ exports.restoreArchivedChild = async (req, res) => {
 
     console.log('3. Child found:', child.full_name);
 
-    // تحديث حالة الطفل
     await child.update({
       registration_status: status || 'Approved',
       restored_at: new Date(),
@@ -1445,7 +1374,6 @@ exports.restoreArchivedChild = async (req, res) => {
   }
 };
 
-// دالة جديدة لفحص البيانات بالتفصيل
 exports.debugChildrenData = async (req, res) => {
   console.log('=== START debugChildrenData ===');
   
@@ -1475,7 +1403,6 @@ exports.debugChildrenData = async (req, res) => {
     const institutionId = manager.Institution.institution_id;
     console.log('Institution ID:', institutionId);
 
-    // الحصول على جميع الأطفال في المؤسسة
     console.log('Fetching ALL children in institution...');
     const allChildren = await Child.findAll({
       where: {
@@ -1487,7 +1414,6 @@ exports.debugChildrenData = async (req, res) => {
 
     console.log(`Total children in institution: ${allChildren.length}`);
     
-    // حساب التوزيع حسب الحالة
     const statusDistribution = {};
     allChildren.forEach(child => {
       const status = child.registration_status;
@@ -1496,13 +1422,11 @@ exports.debugChildrenData = async (req, res) => {
 
     console.log('Status distribution:', statusDistribution);
 
-    // عرض تفاصيل كل طفل
     console.log('\n=== Children Details ===');
     allChildren.forEach((child, index) => {
       console.log(`${index + 1}. ID: ${child.child_id}, Name: ${child.full_name}, Status: ${child.registration_status}, Created: ${child.created_at}, Updated: ${child.updated_at}`);
     });
 
-    // الحصول على طلبات التسجيل
     console.log('\n=== Registration Requests ===');
     const allRequests = await ChildRegistrationRequest.findAll({
       where: {
@@ -1514,7 +1438,6 @@ exports.debugChildrenData = async (req, res) => {
 
     console.log(`Total registration requests: ${allRequests.length}`);
     
-    // حساب التوزيع حسب الحالة
     const requestStatusDistribution = {};
     allRequests.forEach(req => {
       requestStatusDistribution[req.status] = (requestStatusDistribution[req.status] || 0) + 1;
@@ -1522,17 +1445,14 @@ exports.debugChildrenData = async (req, res) => {
 
     console.log('Request status distribution:', requestStatusDistribution);
 
-    // عرض تفاصيل كل طلب
     allRequests.forEach((req, index) => {
       console.log(`${index + 1}. Request ID: ${req.request_id}, Child ID: ${req.child_id}, Status: ${req.status}, Requested: ${req.requested_at}`);
     });
 
-    // تحقق من التاريخ اليوم
     const today = formatDate(new Date());
     console.log('\n=== Today Analysis ===');
     console.log('Today (start of day):', today);
 
-    // الأطفال المحدثين اليوم
     const childrenUpdatedTodayList = await Child.findAll({
       where: {
         current_institution_id: institutionId,

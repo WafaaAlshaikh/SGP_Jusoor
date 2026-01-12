@@ -165,7 +165,6 @@ async function updateCompletionTableOnSessionAdd(childId, specialistId, institut
     const ChildSpecialistCompletion = require('../model/ChildSpecialistCompletion');
     const Child = require('../model/Child');
     
-    // 1. البحث عن سجل موجود
     const existingRecord = await ChildSpecialistCompletion.findOne({
       where: {
         child_id: childId,
@@ -174,10 +173,9 @@ async function updateCompletionTableOnSessionAdd(childId, specialistId, institut
       }
     });
     
-    // 2. تحديث أو إنشاء السجل
     if (existingRecord) {
       await existingRecord.update({
-        has_no_active_sessions: false, // أصبحت فيه جلسة نشطة
+        has_no_active_sessions: false, 
         status: 'pending',
         updated_at: new Date()
       });
@@ -194,7 +192,6 @@ async function updateCompletionTableOnSessionAdd(childId, specialistId, institut
       });
     }
     
-    // 3. التحقق إذا الطفل كان مكمل وإعادته لحالة Active
     const child = await Child.findOne({ where: { child_id: childId } });
     if (child && child.registration_status === 'Completed') {
       await child.update({
@@ -837,7 +834,6 @@ const addSessionsForChildren = async (req, res) => {
         
         notificationMessage += `\nPlease approve or reject as soon as possible.`;
 
-        // 🔥 Send FCM push notifications
         try {
           const tokens = await UserDeviceToken.findAll({
             where: { user_id: child.Parent.parent_id, is_active: true },
@@ -845,7 +841,6 @@ const addSessionsForChildren = async (req, res) => {
           });
           const uniqueTokens = [...new Set(tokens.map(t => t.token))];
 
-          // 1. FCM Notification (simple)
           const fcmMessage = `New session created for ${child.full_name} on ${date} at ${sessionTime}`;
           
           for (const fcmToken of uniqueTokens) {
@@ -869,7 +864,6 @@ const addSessionsForChildren = async (req, res) => {
             }
           }
           
-          // 2. In-app notification (with financial details)
           const notification = await Notification.create({
             user_id: child.Parent.parent_id,
             title: 'New Session Approval Request',
@@ -884,7 +878,6 @@ const addSessionsForChildren = async (req, res) => {
         } catch (pushErr) {
           console.error('❌ Error sending push to parent:', pushErr);
           
-          // Fallback: create in-app notification only
           const notification = await Notification.create({
             user_id: child.Parent.parent_id,
             title: 'New Session Approval Request',
@@ -907,7 +900,6 @@ const addSessionsForChildren = async (req, res) => {
       });
     }
 
-    // Notification for specialist
     await Notification.create({
       user_id: specialistId,
       title: 'New sessions created',
@@ -917,7 +909,6 @@ const addSessionsForChildren = async (req, res) => {
       is_read: false
     });
 
-    // Log notification summary
     console.log('📊 Notification Summary:');
     console.log(`   - Sessions created: ${createdSessions.length}`);
     console.log(`   - Parents notified: ${notifications.length}`);

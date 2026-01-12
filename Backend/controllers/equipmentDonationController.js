@@ -12,9 +12,7 @@ const {
 } = require('../model');
 const sequelize = require('../config/db');
 const { Op } = require('sequelize');
-// const { sendNotification } = require('../utils/notifications');
 
-// الحصول على فئات الأجهزة
 exports.getEquipmentCategories = async (req, res) => {
   try {
     const categories = await EquipmentCategory.findAll({
@@ -37,7 +35,6 @@ exports.getEquipmentCategories = async (req, res) => {
   }
 };
 
-// إنشاء طلب تبرع عيني
 exports.createEquipmentDonation = async (req, res) => {
   try {
     const {
@@ -51,7 +48,6 @@ exports.createEquipmentDonation = async (req, res) => {
       preferred_date
     } = req.body;
 
-    // التحقق من المدخلات الأساسية
     if (!institution_id || !equipment_name || !preferred_date) {
       return res.status(400).json({
         success: false,
@@ -59,7 +55,6 @@ exports.createEquipmentDonation = async (req, res) => {
       });
     }
 
-    // التحقق من المؤسسة
     const institution = await Institution.findByPk(institution_id, {
       attributes: ['institution_id', 'name', 'is_active']
     });
@@ -78,7 +73,6 @@ exports.createEquipmentDonation = async (req, res) => {
       });
     }
 
-    // تحديد بيانات المتبرع (من المستخدم المسجل دخول فقط)
     if (!req.user || !req.user.user_id) {
       return res.status(401).json({
         success: false,
@@ -104,7 +98,6 @@ exports.createEquipmentDonation = async (req, res) => {
       contact_phone: user.phone || null
     };
 
-    // معالجة الصور إذا وجدت
     let images = null;
     const uploadedFiles = Array.isArray(req.files) ? req.files : (req.files && req.files.images ? req.files.images : null);
     if (uploadedFiles) {
@@ -118,7 +111,6 @@ exports.createEquipmentDonation = async (req, res) => {
     }
 
     const result = await sequelize.transaction(async (t) => {
-      // إنشاء التبرع (بدون إلزام delivery_type/category/estimated_value) + موافقة مباشرة
       const equipmentDonation = await EquipmentDonation.create({
         donor_id: donorId,
         institution_id,
@@ -134,7 +126,6 @@ exports.createEquipmentDonation = async (req, res) => {
         status: 'approved'
       }, { transaction: t });
 
-      // إضافة للمخزون مباشرة (بدون انتظار موافقة مدير/تسليم)
       const existingInventoryItem = await InstitutionEquipmentInventory.findOne({
         where: {
           institution_id,
@@ -174,7 +165,6 @@ exports.createEquipmentDonation = async (req, res) => {
         }, { transaction: t });
       }
 
-      // محاولة matching بسيطة مع احتياجات مفتوحة (اختياري)
       const needWhere = {
         institution_id,
         status: 'open'
@@ -293,10 +283,8 @@ exports.createEquipmentDonation = async (req, res) => {
   }
 };
 
-// دالة مساعدة لإرسال إشعار للمدير
 async function sendNotificationToManager(institutionId, donation) {
   try {
-    // البحث عن مدير المؤسسة
     const manager = await Manager.findOne({
       where: { 
         institution_id: institutionId,
@@ -310,7 +298,6 @@ async function sendNotificationToManager(institutionId, donation) {
 
     if (!manager || !manager.User) return;
 
-    // إرسال إشعار
     const notificationData = {
       user_id: manager.manager_id,
       title: 'طلب تبرع عيني جديد',
@@ -324,19 +311,16 @@ async function sendNotificationToManager(institutionId, donation) {
       }
     };
 
-    // await sendNotification(notificationData);
 
   } catch (error) {
     console.error('Error sending manager notification:', error);
   }
 }
 
-// الحصول على طلبات التبرع العيني للمدير
 exports.getManagerEquipmentDonations = async (req, res) => {
   try {
     const managerId = req.user.user_id;
 
-    // التحقق من أن المستخدم مدير
     const manager = await Manager.findOne({
       where: { 
         manager_id: managerId,
@@ -361,7 +345,6 @@ exports.getManagerEquipmentDonations = async (req, res) => {
     const limitNum = parseInt(limit) || 10;
     const offset = (pageNum - 1) * limitNum;
 
-    // بناء where clause
     const whereClause = { institution_id: institutionId };
     if (status) {
       whereClause.status = status;
@@ -411,14 +394,12 @@ exports.getManagerEquipmentDonations = async (req, res) => {
   }
 };
 
-// تحديث حالة طلب التبرع (من قبل المدير)
 exports.updateEquipmentDonationStatus = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     const { id } = req.params;
     const { status, admin_notes, rejection_reason, actual_delivery_date } = req.body;
 
-    // التحقق من أن المستخدم مدير
     const manager = await Manager.findOne({
       where: { 
         manager_id: managerId,
@@ -439,7 +420,6 @@ exports.updateEquipmentDonationStatus = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
 
-    // البحث عن طلب التبرع
     const donation = await EquipmentDonation.findOne({
       where: {
         equipment_donation_id: id,
@@ -461,7 +441,6 @@ exports.updateEquipmentDonationStatus = async (req, res) => {
       });
     }
 
-    // التحقق من الحالة الجديدة
     const validStatuses = ['approved', 'rejected', 'scheduled', 'delivered', 'cancelled'];
     if (status && !validStatuses.includes(status)) {
       return res.status(400).json({
@@ -470,7 +449,6 @@ exports.updateEquipmentDonationStatus = async (req, res) => {
       });
     }
 
-    // البيانات للتحديث
     const updateData = {
       status: status || donation.status,
       admin_notes: admin_notes || donation.admin_notes,
@@ -485,11 +463,9 @@ exports.updateEquipmentDonationStatus = async (req, res) => {
       updateData.actual_delivery_date = new Date(actual_delivery_date);
     }
 
-    // تحديث الطلب
     const oldStatus = donation.status;
     await donation.update(updateData);
 
-    // عند التسليم: إنشاء عنصر بالمخزون + سجل History + محاولة matching مع الاحتياجات
     if (oldStatus !== 'delivered' && updateData.status === 'delivered') {
       const inventoryItem = await InstitutionEquipmentInventory.create({
         institution_id: institutionId,
@@ -520,7 +496,6 @@ exports.updateEquipmentDonationStatus = async (req, res) => {
         created_at: new Date()
       });
 
-      // Matching بسيط: نبحث عن أول احتياج مفتوح مناسب حسب category ثم أعلى priority
       const needWhere = {
         institution_id: institutionId,
         status: 'open'
@@ -535,7 +510,6 @@ exports.updateEquipmentDonationStatus = async (req, res) => {
       });
 
       if (need) {
-        // إذا الأولوية عالية: تخصيص تلقائي
         if ((need.priority_score || 0) >= 70 && inventoryItem.quantity_available > 0) {
           await inventoryItem.update({
             quantity_available: Math.max(0, inventoryItem.quantity_available - 1),
@@ -592,7 +566,6 @@ exports.updateEquipmentDonationStatus = async (req, res) => {
       }
     }
 
-    // إرسال إشعار للمتبرع إذا كان لديه حساب
     if (donation.donor_id && donation.donor) {
       await sendNotificationToDonor(donation, status);
     }
@@ -613,7 +586,6 @@ exports.updateEquipmentDonationStatus = async (req, res) => {
   }
 };
 
-// دالة مساعدة لإرسال إشعار للمتبرع
 async function sendNotificationToDonor(donation, newStatus) {
   try {
     const statusMessages = {
@@ -636,20 +608,17 @@ async function sendNotificationToDonor(donation, newStatus) {
       }
     };
 
-    // await sendNotification(notificationData);
 
   } catch (error) {
     console.error('Error sending donor notification:', error);
   }
 }
 
-// الحصول على تفاصيل طلب تبرع معين
 exports.getEquipmentDonationDetails = async (req, res) => {
   try {
     const { id } = req.params;
     let whereClause = { equipment_donation_id: id };
 
-    // إذا كان المستخدم ليس مديراً، نتحقق من أنه هو صاحب الطلب
     if (req.user && req.user.role !== 'Manager') {
       whereClause.donor_id = req.user.user_id;
     }
@@ -697,7 +666,6 @@ exports.getEquipmentDonationDetails = async (req, res) => {
   }
 };
 
-// إحصائيات التبرعات العينية للمدير
 exports.getEquipmentDonationStats = async (req, res) => {
   try {
     const managerId = req.user.user_id;
@@ -722,7 +690,6 @@ exports.getEquipmentDonationStats = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
 
-    // إحصائيات حسب الحالة
     const statusStats = await EquipmentDonation.findAll({
       where: { institution_id: institutionId },
       attributes: [
@@ -733,7 +700,6 @@ exports.getEquipmentDonationStats = async (req, res) => {
       raw: true
     });
 
-    // إحصائيات حسب حالة الجهاز
     const conditionStats = await EquipmentDonation.findAll({
       where: { institution_id: institutionId },
       attributes: [
@@ -744,7 +710,6 @@ exports.getEquipmentDonationStats = async (req, res) => {
       raw: true
     });
 
-    // إحصائيات زمنية (آخر 30 يوم)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -755,12 +720,10 @@ exports.getEquipmentDonationStats = async (req, res) => {
       }
     });
 
-    // إجمالي التبرعات المقدمة
     const totalDonations = await EquipmentDonation.count({
       where: { institution_id: institutionId }
     });
 
-    // التبرعات المسلمة
     const deliveredDonations = await EquipmentDonation.count({
       where: {
         institution_id: institutionId,
@@ -797,7 +760,6 @@ exports.getEquipmentDonationStats = async (req, res) => {
   }
 };
 
-// الحصول على سجل التبرعات للمستخدم
 exports.getUserEquipmentDonations = async (req, res) => {
   try {
     const userId = req.user.user_id;

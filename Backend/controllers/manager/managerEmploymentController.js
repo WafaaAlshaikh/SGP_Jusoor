@@ -3,7 +3,6 @@ const sequelize = require('../../config/db');
 const nodemailer = require('nodemailer');
 const bcrypt = require('bcryptjs');
 
-// Models
 const Manager = require('../../model/Manager');
 const Institution = require('../../model/Institution');
 const SpecialistRegistrationRequest = require('../../model/SpecialistRegistrationRequest');
@@ -308,7 +307,6 @@ exports.getEmploymentRequests = async (req, res) => {
   try {
     const managerId = req.user.user_id;
 
-    // Direct SQL query
     const query = `
       SELECT 
         sr.request_id,
@@ -351,7 +349,6 @@ exports.getEmploymentRequests = async (req, res) => {
       });
     }
 
-    // Get institution information
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
       include: [{
@@ -421,7 +418,6 @@ exports.getEmploymentRequestDetails = async (req, res) => {
     const managerId = req.user.user_id;
     const requestId = req.params.request_id;
 
-    // 1. Verify manager and institution
     const [managerResult] = await sequelize.query(`
       SELECT m.manager_id, i.institution_id
       FROM Managers m
@@ -438,7 +434,6 @@ exports.getEmploymentRequestDetails = async (req, res) => {
 
     const institutionId = managerResult[0].institution_id;
 
-    // 2. Get employment request details using a single comprehensive query
     const query = `
       SELECT 
         -- Employment request information
@@ -501,7 +496,6 @@ exports.getEmploymentRequestDetails = async (req, res) => {
 
     const requestData = results[0];
 
-    // 3. Prepare data for response
     const responseData = {
       request_id: requestData.request_id,
       specialist: {
@@ -524,7 +518,6 @@ exports.getEmploymentRequestDetails = async (req, res) => {
       }
     };
 
-    // 4. Add interview information if it exists
     if (requestData.interview_id) {
       responseData.interview = {
         interview_id: requestData.interview_id,
@@ -538,12 +531,10 @@ exports.getEmploymentRequestDetails = async (req, res) => {
       };
     }
 
-    // 5. Add eligibility information
     responseData.can_schedule_interview = requestData.request_status === 'Pending';
     responseData.can_approve = requestData.request_status === 'Interview' && 
                                requestData.interview_status === 'Completed';
 
-    // 6. Add additional information (optional)
     const [otherApplications] = await sequelize.query(`
       SELECT COUNT(*) as count
       FROM SpecialistRegistrationRequests
@@ -554,7 +545,6 @@ exports.getEmploymentRequestDetails = async (req, res) => {
 
     responseData.other_applications = otherApplications[0]?.count || 0;
 
-    // 7. Get institution information
     const [institutionInfo] = await sequelize.query(`
       SELECT name, location, contact_info
       FROM Institutions
@@ -595,7 +585,6 @@ exports.scheduleInterview = async (req, res) => {
       notes
     } = req.body;
 
-    // Validate required data
     if (!interview_type || !interview_date) {
       await transaction.rollback();
       return res.status(400).json({
@@ -639,7 +628,6 @@ exports.scheduleInterview = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
 
-    // Find the employment request
     const request = await SpecialistRegistrationRequest.findOne({
       where: {
         request_id: requestId,
@@ -662,7 +650,6 @@ exports.scheduleInterview = async (req, res) => {
       });
     }
 
-    // Check if an interview is already scheduled
     const existingInterview = await SpecialistInterview.findOne({
       where: { request_id: requestId },
       transaction
@@ -676,7 +663,6 @@ exports.scheduleInterview = async (req, res) => {
       });
     }
 
-    // Create the interview
     const interview = await SpecialistInterview.create({
       request_id: requestId,
       interview_type,
@@ -688,14 +674,12 @@ exports.scheduleInterview = async (req, res) => {
       status: 'Scheduled'
     }, { transaction });
 
-    // Update employment request status to Interview
     await request.update({
       status: 'Interview',
       reviewed_by: managerId,
       reviewed_at: new Date()
     }, { transaction });
 
-    // Send interview email
     const emailSent = await sendInterviewEmail(
       request.User.email,
       request.User.full_name,
@@ -741,7 +725,6 @@ exports.checkRequestStatus = async (req, res) => {
     const managerId = req.user.user_id;
     const requestId = req.params.request_id;
 
-    // SQL query to check request status
     const query = `
       SELECT 
         sr.request_id,
@@ -815,7 +798,6 @@ exports.approveEmploymentRequest = async (req, res) => {
 
     console.log('🔍 Approving request:', { requestId, salary });
 
-    // 1. Verify manager and institution
     const [managerResult] = await sequelize.query(`
       SELECT i.institution_id, i.name as institution_name
       FROM Managers m
@@ -837,7 +819,6 @@ exports.approveEmploymentRequest = async (req, res) => {
     const institutionId = managerResult[0].institution_id;
     const institutionName = managerResult[0].institution_name;
 
-    // 2. Get request details
     const [requestResult] = await sequelize.query(`
       SELECT 
         sr.user_id,
@@ -867,7 +848,6 @@ exports.approveEmploymentRequest = async (req, res) => {
     const request = requestResult[0];
     const userId = request.user_id;
 
-    // 3. Verify that the request is in Pending or Interview status
     if (request.request_status === 'Approved') {
       await transaction.rollback();
       return res.status(400).json({
@@ -884,10 +864,8 @@ exports.approveEmploymentRequest = async (req, res) => {
       });
     }
 
-    // 4. Approve the request directly
     console.log('✅ Approving request...');
 
-    // 4.1 Update employment request
     await sequelize.query(`
       UPDATE SpecialistRegistrationRequests
       SET 
@@ -900,7 +878,6 @@ exports.approveEmploymentRequest = async (req, res) => {
       transaction 
     });
 
-    // 4.2 Update user account
     await sequelize.query(`
       UPDATE Users
       SET 
@@ -912,7 +889,6 @@ exports.approveEmploymentRequest = async (req, res) => {
       transaction 
     });
 
-    // 4.3 Create/update specialist record
     await sequelize.query(`
       INSERT INTO Specialists (
         specialist_id,
@@ -943,7 +919,6 @@ exports.approveEmploymentRequest = async (req, res) => {
       transaction 
     });
 
-    // 5. Reject other requests in other institutions
     await sequelize.query(`
       UPDATE SpecialistRegistrationRequests
       SET 
@@ -958,7 +933,6 @@ exports.approveEmploymentRequest = async (req, res) => {
       transaction 
     });
 
-    // 6. Create temporary password
     const generatedPassword = Math.random().toString(36).slice(-8) + 'A1!';
     const hashedPassword = await bcrypt.hash(generatedPassword, 10);
     
@@ -971,7 +945,6 @@ exports.approveEmploymentRequest = async (req, res) => {
       transaction 
     });
 
-    // 7. Send approval email
     console.log('📧 Sending approval email...');
     const emailSent = await sendApprovalEmail(
       request.email,
@@ -980,12 +953,10 @@ exports.approveEmploymentRequest = async (req, res) => {
       generatedPassword
     );
 
-    // 8. Commit transaction
     await transaction.commit();
 
     console.log('🎉 Approval successful!');
 
-    // 9. Response
     res.json({
       success: true,
       message: 'Employment request approved successfully',
@@ -1055,7 +1026,6 @@ exports.rejectEmploymentRequest = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
 
-    // Find the employment request
     const request = await SpecialistRegistrationRequest.findOne({
       where: {
         request_id: requestId,
@@ -1078,14 +1048,12 @@ exports.rejectEmploymentRequest = async (req, res) => {
       });
     }
 
-    // Update employment request status to Rejected
     await request.update({
       status: 'Rejected',
       reviewed_by: managerId,
       reviewed_at: new Date()
     }, { transaction });
 
-    // If there is an interview, update it as well
     await SpecialistInterview.update({
       status: 'Cancelled'
     }, {
@@ -1093,7 +1061,6 @@ exports.rejectEmploymentRequest = async (req, res) => {
       transaction
     });
 
-    // Send rejection email
     try {
       const transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
@@ -1348,7 +1315,6 @@ exports.deleteInterview = async (req, res) => {
       });
     }
 
-    // Update employment request status to Pending
     await SpecialistRegistrationRequest.update({
       status: 'Pending',
       reviewed_by: null,

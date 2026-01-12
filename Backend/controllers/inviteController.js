@@ -13,7 +13,6 @@ function parseIntOr(value, fallback) {
 }
 
 function makeCode() {
-  // 12 chars base36
   return Math.random().toString(36).slice(2, 8) + Math.random().toString(36).slice(2, 8);
 }
 
@@ -23,7 +22,6 @@ async function ensureUniqueCode() {
     const exists = await DonationInvite.findOne({ where: { code } });
     if (!exists) return code;
   }
-  // fallback
   return `${Date.now().toString(36)}${makeCode()}`.slice(0, 24);
 }
 
@@ -96,7 +94,6 @@ exports.resolveDonationInvite = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Invite not found' });
     }
 
-    // Log click
     await DonationInviteEvent.create({
       invite_id: invite.invite_id,
       event_type: 'click',
@@ -174,7 +171,6 @@ exports.getMyDonationInviteStats = async (req, res) => {
       };
     });
 
-    // overall
     const totalClicks = events.filter((e) => e.event_type === 'click').length;
     const totalCheckouts = events.filter((e) => e.event_type === 'checkout_started').length;
     const totalDonations = events.filter((e) => e.event_type === 'donation_completed');
@@ -199,11 +195,9 @@ exports.getMyDonationInviteStats = async (req, res) => {
   }
 };
 
-// Internal helper used by webhook to mark a donation as completed for an invite
 exports._markInviteDonationCompleted = async ({ inviteId, stripeSessionId, donationId, amount, currency }) => {
   if (!inviteId) return;
 
-  // Try to find prior checkout event for this session
   const prior = stripeSessionId
     ? await DonationInviteEvent.findOne({
         where: { invite_id: inviteId, event_type: 'checkout_started', stripe_session_id: String(stripeSessionId) },
@@ -211,7 +205,6 @@ exports._markInviteDonationCompleted = async ({ inviteId, stripeSessionId, donat
       })
     : null;
 
-  // Avoid duplicates: if we already have a completed event for this donation/session
   const exists = await DonationInviteEvent.findOne({
     where: {
       invite_id: inviteId,

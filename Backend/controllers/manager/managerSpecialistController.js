@@ -122,7 +122,6 @@ exports.getInstitutionSpecialists = async (req, res) => {
       specialists.map(async (specialist) => {
         const specialistData = specialist.get({ plain: true });
 
-        // Session statistics
         const sessionStats = await Session.findAll({
           where: { specialist_id: specialist.specialist_id },
           attributes: [
@@ -136,7 +135,6 @@ exports.getInstitutionSpecialists = async (req, res) => {
         const totalSessions = sessionStats.reduce((sum, stat) => sum + parseInt(stat.count), 0);
         const completedSessions = sessionStats.find(stat => stat.status === 'Completed')?.count || 0;
 
-        // Evaluation statistics
         const evaluationStats = await Evaluation.findOne({
           where: { specialist_id: specialist.specialist_id },
           attributes: [
@@ -146,14 +144,12 @@ exports.getInstitutionSpecialists = async (req, res) => {
           raw: true
         });
 
-        // Unique children count
         const uniqueChildren = await Session.count({
           where: { specialist_id: specialist.specialist_id },
           distinct: true,
           col: 'child_id'
         });
 
-        // Upcoming sessions
         const upcomingSessions = await Session.count({
           where: {
             specialist_id: specialist.specialist_id,
@@ -162,7 +158,6 @@ exports.getInstitutionSpecialists = async (req, res) => {
           }
         });
 
-        // Attendance rate (last 30 days)
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
         
@@ -178,7 +173,6 @@ exports.getInstitutionSpecialists = async (req, res) => {
         const attendanceRate = recentSessions.length > 0 ? 
           (recentCompleted / recentSessions.length) * 100 : 0;
 
-        // Vacation requests
         const pendingVacations = await VacationRequest.count({
           where: {
             specialist_id: specialist.specialist_id,
@@ -245,7 +239,6 @@ exports.getInstitutionSpecialists = async (req, res) => {
       })
     );
 
-    // Get all available specializations for statistics
     const allSpecializations = await Specialist.findAll({
       where: { institution_id: institutionId },
       attributes: ['specialization'],
@@ -328,10 +321,8 @@ exports.getSpecialistDetails = async (req, res) => {
       });
     }
 
-    // Detailed statistics
     const detailedStats = await getSpecialistDetailedStats(specialist_id);
 
-    // Recent sessions
     const recentSessions = await Session.findAll({
       where: { specialist_id },
       include: [
@@ -349,7 +340,6 @@ exports.getSpecialistDetails = async (req, res) => {
       limit: 10
     });
 
-    // Recent evaluations
     const recentEvaluations = await Evaluation.findAll({
       where: { specialist_id },
       include: [
@@ -362,14 +352,12 @@ exports.getSpecialistDetails = async (req, res) => {
       limit: 10
     });
 
-    // Vacation requests
     const vacationRequests = await VacationRequest.findAll({
       where: { specialist_id },
       order: [['start_date', 'DESC']],
       limit: 5
     });
 
-    // Work schedule
     const SpecialistSchedule = require('../../model/SpecialistSchedule');
     const schedule = await SpecialistSchedule.findAll({
       where: { specialist_id },
@@ -480,7 +468,6 @@ exports.updateSpecialistStatus = async (req, res) => {
 
     await specialist.update(updateData);
 
-    // Send notification to specialist
     const Notification = require('../../model/Notification');
     let notificationTitle = '';
     let notificationMessage = '';
@@ -554,7 +541,6 @@ exports.getSpecialistsStatistics = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
 
-    // Basic statistics using direct queries
     const totalSpecialists = await Specialist.count({
       where: { institution_id: institutionId }
     });
@@ -579,7 +565,6 @@ exports.getSpecialistsStatistics = async (req, res) => {
       type: sequelize.QueryTypes.SELECT
     });
 
-    // Session statistics using direct query
     const sessionStats = await sequelize.query(`
       SELECT 
         COUNT(s.session_id) as total_sessions,
@@ -593,7 +578,6 @@ exports.getSpecialistsStatistics = async (req, res) => {
       type: sequelize.QueryTypes.SELECT
     });
 
-    // Evaluation statistics using direct query
     const evaluationStats = await sequelize.query(`
       SELECT 
         COUNT(e.evaluation_id) as total_evaluations,
@@ -606,7 +590,6 @@ exports.getSpecialistsStatistics = async (req, res) => {
       type: sequelize.QueryTypes.SELECT
     });
 
-    // Most active specialists using direct query
     const topActiveSpecialists = await sequelize.query(`
       SELECT 
         s.specialist_id,
@@ -626,7 +609,6 @@ exports.getSpecialistsStatistics = async (req, res) => {
       type: sequelize.QueryTypes.SELECT
     });
 
-    // Pending vacation requests using direct query
     const pendingVacations = await sequelize.query(`
       SELECT COUNT(*) as count
       FROM VacationRequests vr
@@ -637,7 +619,6 @@ exports.getSpecialistsStatistics = async (req, res) => {
       type: sequelize.QueryTypes.SELECT
     });
 
-    // Monthly statistics
     const monthlyTrends = await sequelize.query(`
       SELECT 
         DATE_FORMAT(date, '%Y-%m') as month,
@@ -652,7 +633,6 @@ exports.getSpecialistsStatistics = async (req, res) => {
       type: sequelize.QueryTypes.SELECT
     });
 
-    // Calculate average scores for active specialists
     const topPerformersWithScores = await Promise.all(
       topActiveSpecialists.map(async (specialist) => {
         const avgScoreResult = await sequelize.query(`
@@ -740,7 +720,6 @@ exports.getSpecialistPerformanceReport = async (req, res) => {
       end_date
     });
 
-    // Validate specialist_id
     if (!specialist_id) {
       return res.status(400).json({
         success: false,
@@ -786,11 +765,9 @@ exports.getSpecialistPerformanceReport = async (req, res) => {
       });
     }
 
-    // Build dateFilter safely
     const dateFilter = {};
     
     if (start_date && end_date) {
-      // Validate dates
       const startDate = new Date(start_date);
       const endDate = new Date(end_date);
       
@@ -805,7 +782,6 @@ exports.getSpecialistPerformanceReport = async (req, res) => {
         [Op.between]: [startDate, endDate]
       };
     } else {
-      // Use default range (last 30 days)
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
@@ -816,15 +792,13 @@ exports.getSpecialistPerformanceReport = async (req, res) => {
 
     console.log('Final date filter:', dateFilter);
 
-    // Detailed report
     const performanceReport = await generatePerformanceReport(specialist_id, dateFilter);
 
-    // Calculate number of days in the period
-    let days = 30; // default
+    let days = 30;
     if (start_date && end_date) {
       const start = new Date(start_date);
       const end = new Date(end_date);
-      days = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1; // +1 to include first day
+      days = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1; 
     }
 
     res.status(200).json({
@@ -870,7 +844,6 @@ const calculateOverallPerformance = (avgScore, attendanceRate, totalSessions) =>
 };
 
 const getSpecialistDetailedStats = async (specialistId) => {
-  // Monthly session statistics
   const monthlySessions = await Session.findAll({
     where: { 
       specialist_id: specialistId,
@@ -886,7 +859,6 @@ const getSpecialistDetailedStats = async (specialistId) => {
     raw: true
   });
 
-  // Session types distribution
   const sessionTypesDistribution = await Session.findAll({
     where: { specialist_id: specialistId },
     include: [{
@@ -901,7 +873,6 @@ const getSpecialistDetailedStats = async (specialistId) => {
     raw: true
   });
 
-  // Children progress
   const childrenProgress = await Evaluation.findAll({
     where: { specialist_id: specialistId },
     attributes: [
@@ -1062,24 +1033,20 @@ const generatePerformanceReport = async (specialistId, dateFilter) => {
     console.log('Starting generatePerformanceReport for specialist:', specialistId);
     console.log('Date filter:', dateFilter);
 
-    // Build session where clause safely
     const sessionWhereClause = {
       specialist_id: specialistId
     };
 
-    // Build evaluation where clause safely
     const evaluationWhereClause = {
       specialist_id: specialistId
     };
 
-    // Process dateFilter for sessions
     if (dateFilter.date) {
       if (dateFilter.date[Op.between]) {
         sessionWhereClause.date = {
           [Op.between]: dateFilter.date[Op.between]
         };
         
-        // Use same time range for evaluations
         evaluationWhereClause.created_at = {
           [Op.between]: dateFilter.date[Op.between]
         };
@@ -1093,7 +1060,6 @@ const generatePerformanceReport = async (specialistId, dateFilter) => {
         };
       }
     } else {
-      // Use default range (last 30 days)
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
@@ -1109,7 +1075,6 @@ const generatePerformanceReport = async (specialistId, dateFilter) => {
     console.log('Session where clause:', sessionWhereClause);
     console.log('Evaluation where clause:', evaluationWhereClause);
 
-    // Sessions in the specified period
     const sessions = await Session.findAll({
       where: sessionWhereClause,
       include: [
@@ -1127,7 +1092,6 @@ const generatePerformanceReport = async (specialistId, dateFilter) => {
 
     console.log(`Found ${sessions.length} sessions`);
 
-    // Evaluations in the specified period
     const evaluations = await Evaluation.findAll({
       where: evaluationWhereClause,
       include: [{
@@ -1138,11 +1102,9 @@ const generatePerformanceReport = async (specialistId, dateFilter) => {
 
     console.log(`Found ${evaluations.length} evaluations`);
 
-    // Performance analysis - with handling of undefined values
     const totalSessions = sessions.length;
     const completedSessions = sessions.filter(s => s.status === 'Completed').length;
     
-    // Calculate revenue with SessionType check
     const totalRevenue = sessions
       .filter(s => s.status === 'Completed')
       .reduce((sum, session) => {
@@ -1150,12 +1112,10 @@ const generatePerformanceReport = async (specialistId, dateFilter) => {
         return sum + sessionPrice;
       }, 0);
 
-    // Calculate average evaluations
     const validEvaluations = evaluations.filter(e => e.progress_score != null);
     const avgEvaluationScore = validEvaluations.length > 0 ?
       validEvaluations.reduce((sum, evaluation) => sum + evaluation.progress_score, 0) / validEvaluations.length : 0;
 
-    // Session types distribution
     const sessionTypeAnalysis = sessions.reduce((acc, session) => {
       const typeName = session.SessionType?.name || 'Not specified';
       if (!acc[typeName]) {
@@ -1169,7 +1129,6 @@ const generatePerformanceReport = async (specialistId, dateFilter) => {
       return acc;
     }, {});
 
-    // Children progress analysis
     const childProgressAnalysis = evaluations.reduce((acc, evaluation) => {
       const childName = evaluation.Child?.full_name || 'Unknown';
       if (!acc[childName]) {
@@ -1183,11 +1142,9 @@ const generatePerformanceReport = async (specialistId, dateFilter) => {
       return acc;
     }, {});
 
-    // Calculate performance rates
     const completionRate = totalSessions > 0 ? (completedSessions / totalSessions) * 100 : 0;
     const revenuePerSession = totalSessions > 0 ? totalRevenue / totalSessions : 0;
 
-    // Calculate performance indicators
     const consistencyScore = await calculateConsistencyScore(specialistId);
     const improvementTrend = calculateImprovementTrend(evaluations);
     const retentionRate = calculateRetentionRate(sessions);
@@ -1247,7 +1204,6 @@ const generatePerformanceReport = async (specialistId, dateFilter) => {
 const calculateImprovementTrend = (evaluations) => {
   if (evaluations.length < 2) return 'Not specified';
   
-  // Filter evaluations with valid scores
   const validEvaluations = evaluations
     .filter(e => e.progress_score != null && e.created_at)
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));

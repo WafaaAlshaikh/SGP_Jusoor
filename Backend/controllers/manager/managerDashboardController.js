@@ -1,4 +1,3 @@
-// controllers/managerDashboardController.js
 const { Session, SessionType, Child, Specialist, ChildRegistrationRequest, Institution, Manager, Donation, DonationAllocation,EquipmentDonation,EquipmentCategory,User, InstitutionEquipmentInventory, ChildEquipmentNeed, EquipmentAllocation, EquipmentItemHistory, EquipmentDonationCampaign } = require('../../model/index');
 const { Op, Sequelize } = require('sequelize');
 const Invoice = require('../../model/Invoice')
@@ -68,13 +67,11 @@ exports.getManagerDashboardStats = async (req, res) => {
 
     const currentDate = new Date();
     console.log('Current Date:', currentDate);
-    console.log('Current Month:', currentDate.getMonth() + 1); // +1 لأن الأشهر من 0-11
+    console.log('Current Month:', currentDate.getMonth() + 1); 
     
-    // الشهر الحالي: من أول الشهر إلى آخر الشهر (ديسمبر)
     const currentMonthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
     const currentMonthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59);
     
-    // الشهر الماضي: من أول الشهر الماضي إلى آخر الشهر الماضي (نوفمبر)
     const previousMonthStart = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
     const previousMonthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth(), 0, 23, 59, 59);
 
@@ -91,7 +88,6 @@ exports.getManagerDashboardStats = async (req, res) => {
       }
     });
 
-    // 1. إحصائيات الجلسات
     const sessionStats = await Session.findAll({
       where: {
         institution_id: institutionId,
@@ -111,7 +107,6 @@ exports.getManagerDashboardStats = async (req, res) => {
 
     const totalSessions = sessionStats.reduce((sum, stat) => sum + parseInt(stat.count), 0);
     
-    // الجلسات اليوم
     const todaySessions = await Session.count({
       where: {
         institution_id: institutionId,
@@ -124,12 +119,10 @@ exports.getManagerDashboardStats = async (req, res) => {
 
     console.log('Today Sessions:', todaySessions);
 
-    // 2. الإيرادات الشهرية والمقارنة - بناءً على paid_date في Invoice
     let currentMonthRevenue = 0;
     let previousMonthRevenue = 0;
 
     try {
-      // حساب إيرادات الشهر الحالي (ديسمبر): الفواتير المدفوعة هذا الشهر
       const currentMonthInvoices = await Invoice.findAll({
         where: {
           institution_id: institutionId,
@@ -147,7 +140,6 @@ exports.getManagerDashboardStats = async (req, res) => {
         return sum + amount;
       }, 0);
 
-      // حساب إيرادات الشهر السابق (نوفمبر): الفواتير المدفوعة الشهر الماضي
       const previousMonthInvoices = await Invoice.findAll({
         where: {
           institution_id: institutionId,
@@ -201,7 +193,6 @@ exports.getManagerDashboardStats = async (req, res) => {
       ? ((currentMonthRevenue - previousMonthRevenue) / previousMonthRevenue * 100).toFixed(1)
       : currentMonthRevenue > 0 ? 100 : 0;
 
-    // 4.5. إحصائيات التبرعات للمؤسسة
     let donationStats = {
       totalDonations: 0,
       donationBalance: 0,
@@ -229,10 +220,8 @@ exports.getManagerDashboardStats = async (req, res) => {
       console.log('Donation stats error:', donationError.message);
     }
 
-    // 3. إحصائيات إضافية للفواتير حسب الحالة
     let invoiceStats = {};
     try {
-      // جميع الفواتير للمؤسسة للتحقق
       const allInvoices = await Invoice.findAll({
         where: {
           institution_id: institutionId
@@ -246,7 +235,6 @@ exports.getManagerDashboardStats = async (req, res) => {
         console.log(`Invoice ${inv.invoice_id}: Status=${inv.status}, Amount=${inv.total_amount}, Paid Date=${inv.paid_date}, Due Date=${inv.due_date}`);
       });
 
-      // الفواتير المعلقة (Pending) المستحقة هذا الشهر
       const pendingInvoices = await Invoice.findAll({
         where: {
           institution_id: institutionId,
@@ -262,7 +250,6 @@ exports.getManagerDashboardStats = async (req, res) => {
         return sum + (parseFloat(invoice.total_amount) || 0);
       }, 0);
 
-      // الفواتير المتأخرة (Overdue)
       const overdueInvoices = await Invoice.findAll({
         where: {
           institution_id: institutionId,
@@ -307,18 +294,16 @@ exports.getManagerDashboardStats = async (req, res) => {
       };
     }
 
-    // 4. توزيع أنواع الجلسات
-    // 4. توزيع أنواع الجلسات - جميع الأنواع حتى بدون جلسات
+  
     let sessionDistribution = [];
     try {
-      // جلب جميع أنواع الجلسات المعتمدة للمؤسسة
       const sessionTypes = await SessionType.findAll({
         where: {
           institution_id: institutionId,
           approval_status: 'Approved'
         },
         attributes: ['session_type_id', 'name'],
-        order: [['name', 'ASC']] // ترتيب حسب الاسم
+        order: [['name', 'ASC']] 
       });
 
       console.log('All Session Types in Institution:', sessionTypes.map(st => ({
@@ -326,7 +311,6 @@ exports.getManagerDashboardStats = async (req, res) => {
         name: st.name
       })));
 
-      // حساب عدد الجلسات لكل نوع جلسة
       const distributionPromises = sessionTypes.map(async (sessionType) => {
         const count = await Session.count({
           where: {
@@ -347,15 +331,13 @@ exports.getManagerDashboardStats = async (req, res) => {
 
       const distributionResults = await Promise.all(distributionPromises);
       
-      // حساب العدد الإجمالي للجلسات (من الأنواع التي لديها جلسات)
       const totalSessionsForDistribution = distributionResults.reduce((sum, item) => sum + item.count, 0);
 
-      // تحويل النتائج إلى التنسيق المطلوب
       sessionDistribution = distributionResults.map(item => ({
-        category: item.name, // استخدام الاسم كنوع الفئة
-        name: item.name, // نفس الشيء للتوافق
+        category: item.name, 
+        name: item.name, 
         count: item.count,
-        hasSessions: item.hasSessions, // إضافة حقل لتحديد إذا كان فيه جلسات أم لا
+        hasSessions: item.hasSessions, 
         percentage: totalSessionsForDistribution > 0 
           ? Math.round((item.count / totalSessionsForDistribution) * 100)
           : 0
@@ -370,13 +352,11 @@ exports.getManagerDashboardStats = async (req, res) => {
 
     } catch (distributionError) {
       console.log('Session distribution error:', distributionError.message);
-      // في حالة الخطأ، نرجع مصفوفة فارغة بدل القيم الافتراضية
       sessionDistribution = [];
     }
 
     console.log('Final Session Distribution:', sessionDistribution);
 
-    // 5. عدد الأطفال
     const totalChildren = await Child.count({
       where: {
         current_institution_id: institutionId,
@@ -387,7 +367,6 @@ exports.getManagerDashboardStats = async (req, res) => {
 
     console.log('Total Children:', totalChildren);
 
-    // 6. عدد الأخصائيين
     const totalSpecialists = await Specialist.count({
       where: {
         institution_id: institutionId,
@@ -397,7 +376,6 @@ exports.getManagerDashboardStats = async (req, res) => {
 
     console.log('Total Specialists:', totalSpecialists);
 
-    // 7. طلبات التسجيل المنتظرة
     const pendingRegistrationRequests = await ChildRegistrationRequest.count({
       where: {
         institution_id: institutionId,
@@ -407,7 +385,6 @@ exports.getManagerDashboardStats = async (req, res) => {
 
     console.log('Pending Registration Requests:', pendingRegistrationRequests);
 
-    // 8. جلسات هذا الشهر (من أول الشهر إلى آخر الشهر)
     const monthlySessions = await Session.count({
       where: {
         institution_id: institutionId,
@@ -420,7 +397,6 @@ exports.getManagerDashboardStats = async (req, res) => {
       }
     });
 
-    // 9. جلسات الشهر الماضي للمقارنة
     const previousMonthSessions = await Session.count({
       where: {
         institution_id: institutionId,
@@ -456,13 +432,13 @@ exports.getManagerDashboardStats = async (req, res) => {
           }, {})
         },
         revenue: {
-          currentMonth: parseFloat(currentMonthRevenue),     // الفواتير المدفوعة في ديسمبر
-          previousMonth: parseFloat(previousMonthRevenue),   // الفواتير المدفوعة في نوفمبر
+          currentMonth: parseFloat(currentMonthRevenue),     
+          previousMonth: parseFloat(previousMonthRevenue),   
           growth: parseFloat(revenueGrowth),
           breakdown: {
-            paid: invoiceStats.paid,                        // المدفوع فعلياً في ديسمبر
-            pending: invoiceStats.pending,                  // المستحق ولم يدفع بعد في ديسمبر
-            overdue: invoiceStats.overdue                   // المتأخر
+            paid: invoiceStats.paid,                       
+            pending: invoiceStats.pending,                  
+            overdue: invoiceStats.overdue                  
           }
         },
         donations: donationStats,
@@ -505,7 +481,6 @@ exports.getManagerDashboardStats = async (req, res) => {
   }
 };
 
-// تقرير مالي مختصر للمؤسسة مع تأثير التبرعات
 exports.getFinancialReport = async (req, res) => {
   try {
     const managerId = req.user.user_id;
@@ -688,7 +663,6 @@ exports.getFinancialReport = async (req, res) => {
   }
 };
 
-// تفاصيل التبرعات للمؤسسة (قائمة التبرعات + قائمة التخصيصات)
 exports.getDonationDetails = async (req, res) => {
   try {
     const managerId = req.user.user_id;
@@ -704,21 +678,18 @@ exports.getDonationDetails = async (req, res) => {
     const institutionId = resolved.institutionId;
     const institution = resolved.institution;
 
-    // قائمة التبرعات للمؤسسة
     const donations = await Donation.findAll({
       where: { institution_id: institutionId, status: 'completed', payment_status: 'paid' },
       order: [['date', 'DESC']],
       attributes: ['donation_id', 'donor_id', 'amount', 'date', 'campaign_id']
     });
 
-    // قائمة التخصيصات من رصيد التبرعات
     const allocations = await DonationAllocation.findAll({
       where: { institution_id: institutionId },
       order: [['created_at', 'DESC']],
       attributes: ['allocation_id', 'donation_id', 'invoice_id', 'financial_assistance_request_id', 'amount_allocated', 'created_at']
     });
 
-    // إحضار معلومات أساسية عن الفواتير المرتبطة لتحسين العرض في الواجهة
     const invoiceIds = allocations
       .map(a => a.invoice_id)
       .filter(id => !!id);
@@ -763,7 +734,6 @@ exports.getDonationDetails = async (req, res) => {
   }
 };
 
-// دالة للتحقق من النماذج
 exports.checkModels = async (req, res) => {
   try {
     const models = {
@@ -777,7 +747,6 @@ exports.checkModels = async (req, res) => {
       Manager: typeof Manager
     };
 
-    // اختبار كل نموذج
     const tests = {};
     
     if (Session) {
@@ -809,7 +778,6 @@ exports.checkModels = async (req, res) => {
   }
 };
 
-// أضف هذا الـ route للت debugging
 exports.getDebugInfo = async (req, res) => {
   try {
     const managerId = req.user.user_id;
@@ -823,7 +791,6 @@ exports.getDebugInfo = async (req, res) => {
       return res.status(404).json({ error: 'Manager not found' });
     }
 
-    // عدِّد جميع الجداول للتأكد من البيانات
     const childrenCount = await Child.count({
       where: { current_institution_id: manager.Institution.institution_id }
     });
@@ -859,7 +826,6 @@ exports.getDebugInfo = async (req, res) => {
   }
 };
 
-// دالة لفحص الفواتير بالتفصيل
 exports.getInvoiceDebugInfo = async (req, res) => {
   try {
     const managerId = req.user.user_id;
@@ -875,14 +841,12 @@ exports.getInvoiceDebugInfo = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
 
-    // الحصول على جميع الفواتير للمؤسسة
     const allInvoices = await Invoice.findAll({
       where: { institution_id: institutionId },
       attributes: ['invoice_id', 'total_amount', 'status', 'paid_date', 'due_date', 'issued_date'],
       order: [['paid_date', 'DESC']]
     });
 
-    // إحصائيات الفواتير
     const invoiceStats = await Invoice.findAll({
       where: { institution_id: institutionId },
       attributes: [
@@ -906,7 +870,6 @@ exports.getInvoiceDebugInfo = async (req, res) => {
   }
 };
 
-// الحصول على إحصائيات التبرعات العينية
 exports.getEquipmentDonationStats = async (req, res) => {
   try {
     const managerId = req.user.user_id;
@@ -931,7 +894,6 @@ exports.getEquipmentDonationStats = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
 
-    // إحصائيات حسب الحالة
     const statusStats = await EquipmentDonation.findAll({
       where: { institution_id: institutionId },
       attributes: [
@@ -942,7 +904,6 @@ exports.getEquipmentDonationStats = async (req, res) => {
       raw: true
     });
 
-    // إحصائيات حسب حالة الجهاز
     const conditionStats = await EquipmentDonation.findAll({
       where: { institution_id: institutionId },
       attributes: [
@@ -953,7 +914,6 @@ exports.getEquipmentDonationStats = async (req, res) => {
       raw: true
     });
 
-    // إحصائيات زمنية (آخر 30 يوم)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -964,12 +924,10 @@ exports.getEquipmentDonationStats = async (req, res) => {
       }
     });
 
-    // إجمالي التبرعات المقدمة
     const totalDonations = await EquipmentDonation.count({
       where: { institution_id: institutionId }
     });
 
-    // التبرعات المسلمة
     const deliveredDonations = await EquipmentDonation.count({
       where: {
         institution_id: institutionId,
@@ -977,7 +935,6 @@ exports.getEquipmentDonationStats = async (req, res) => {
       }
     });
 
-    // التبرعات الأخيرة (آخر 5)
     const recentEquipmentDonations = await EquipmentDonation.findAll({
       where: { institution_id: institutionId },
       include: [
@@ -1037,7 +994,6 @@ exports.getEquipmentDonationStats = async (req, res) => {
   }
 };
 
-// الحصول على قائمة التبرعات العينية مع الفلاتر
 exports.getEquipmentDonationsList = async (req, res) => {
   try {
     const managerId = req.user.user_id;
@@ -1076,7 +1032,6 @@ exports.getEquipmentDonationsList = async (req, res) => {
     const limitNum = parseInt(limit) || 10;
     const offset = (pageNum - 1) * limitNum;
 
-    // بناء where clause مع الفلاتر
     const whereClause = { institution_id: institutionId };
     
     if (status && status !== 'all') {
@@ -1130,7 +1085,6 @@ exports.getEquipmentDonationsList = async (req, res) => {
       limit: limitNum
     });
 
-    // جلب الفئات المتاحة للفلترة
     const categories = await EquipmentCategory.findAll({
       where: { is_active: true },
       attributes: ['category_id', 'name_ar', 'name_en'],
@@ -1199,7 +1153,6 @@ exports.getEquipmentDonationsList = async (req, res) => {
   }
 };
 
-// تحديث حالة التبرع العيني
 exports.updateEquipmentDonationStatus = async (req, res) => {
   try {
     const managerId = req.user.user_id;
@@ -1320,7 +1273,6 @@ exports.updateEquipmentDonationStatus = async (req, res) => {
         needBaseWhere.category_id = donation.category_id;
       }
 
-      // Prefer needs that match the equipment name/type (fallback to category only)
       let need = null;
       if (normalizedDonationName.length > 0) {
         need = await ChildEquipmentNeed.findOne({

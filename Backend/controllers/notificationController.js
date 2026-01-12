@@ -56,7 +56,6 @@ exports.sendSimpleTest = async (req, res) => {
     console.log('Title:', title || 'Default Test');
     console.log('Body:', body || 'Test body');
 
-    // استدعاء الدالة المبسطة
     const result = await NotificationService.sendSimpleTest(
       token,
       title || 'Simple Test',
@@ -168,7 +167,6 @@ exports.sendSessionNotification = async (req, res) => {
   }
 };
 
-// في notificationController.js - إضافة دوال جديدة
 exports.sendManagerNotification = async (req, res) => {
   try {
     const { manager_id, title, body, data } = req.body;

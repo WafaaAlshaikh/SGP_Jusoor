@@ -112,7 +112,6 @@ exports.getParentWorkshops = async (req, res) => {
       });
     }
 
-    // 1) المؤسسات الحالية التي يتبع لها الأطفال
     const children = await Child.findAll({
       where: {
         parent_id: parentId,
@@ -126,7 +125,6 @@ exports.getParentWorkshops = async (req, res) => {
       .map(c => c.current_institution_id)
       .filter(id => !!id);
 
-    // 2) المؤسسات من طلبات التسجيل المعتمدة
     const approvedRequests = await ChildRegistrationRequest.findAll({
       where: {
         requested_by_parent_id: parentId,
@@ -140,7 +138,6 @@ exports.getParentWorkshops = async (req, res) => {
       .map(r => r.institution_id)
       .filter(id => !!id);
 
-    // دمج القوائم وإزالة التكرار
     const allInstitutionIds = Array.from(
       new Set([...currentInstitutionIds, ...approvedInstitutionIds])
     );

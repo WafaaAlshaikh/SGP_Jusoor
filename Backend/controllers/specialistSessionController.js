@@ -93,9 +93,7 @@ exports.requestDeleteSession = async (req, res) => {
       }
     );
 
-    // 🔥 أضف هذا الجزء: إرسال إشعار FCM للأهل
     if (session.child && session.child.parent_id) {
-      // 1. إضافة إشعار في قاعدة البيانات
       await Notification.create({
         user_id: session.child.parent_id,
         title: 'Session Cancelled',
@@ -105,9 +103,7 @@ exports.requestDeleteSession = async (req, res) => {
         is_read: false
       });
 
-      // 2. إرسال إشعار FCM
       try {
-        // جلب FCM tokens للأهل
         const UserDeviceToken = require('../model/UserDeviceToken');
         const parentTokens = await UserDeviceToken.findAll({
           where: { 
@@ -117,7 +113,6 @@ exports.requestDeleteSession = async (req, res) => {
           attributes: ['token']
         });
 
-        // إرسال إشعار لكل token
         for (const tokenData of parentTokens) {
           const fcmToken = tokenData.token;
           if (fcmToken && fcmToken.trim() !== '') {
@@ -126,8 +121,8 @@ exports.requestDeleteSession = async (req, res) => {
               session.child.full_name,
               session.date,
               session.time,
-              null, // no new date
-              null, // no new time
+              null,
+              null, 
               session.session_id,
               'cancelled'
             );
@@ -136,7 +131,6 @@ exports.requestDeleteSession = async (req, res) => {
         }
       } catch (fcmError) {
         console.error(`❌ Error sending FCM cancellation notification: ${fcmError.message}`);
-        // نستمر حتى لو فشل إرسال FCM
       }
     }
 
@@ -169,11 +163,9 @@ exports.requestSessionUpdate = async (req, res) => {
 
     if (!session) return res.status(404).json({ message: 'Session not found' });
 
-    // ✅ التحقق: إذا كانت الحالة "Completed" أو "Absent" → تحديث مباشر
     const immediateStatuses = ['Completed', 'Absent'];
     
     if (immediateStatuses.includes(status)) {
-      // تحديث مباشر دون انتظار موافقة
       await Session.update(
         {
           status: status,
@@ -186,7 +178,6 @@ exports.requestSessionUpdate = async (req, res) => {
         }
       );
 
-      // 🔥 إرسال إشعار FCM للأهل بالتغيير المباشر
       if (session.child && session.child.parent_id) {
         try {
           const UserDeviceToken = require('../model/UserDeviceToken');
@@ -206,8 +197,8 @@ exports.requestSessionUpdate = async (req, res) => {
                 session.child.full_name,
                 session.date,
                 session.time,
-                null, // no new date
-                null, // no new time
+                null, 
+                null, 
                 session.session_id,
                 status.toLowerCase()
               );
@@ -226,7 +217,6 @@ exports.requestSessionUpdate = async (req, res) => {
       });
     }
 
-    // ⭐ إذا كانت تعديل (Rescheduled) → طلب موافقة
     await Session.update(
       {
         status: 'Pending Approval',
@@ -254,7 +244,6 @@ exports.requestSessionUpdate = async (req, res) => {
       final_price: session.final_price
     });
 
-    // 🔥 إرسال إشعار FCM للأهل بطلب التعديل
     if (session.child && session.child.parent_id) {
       try {
         const UserDeviceToken = require('../model/UserDeviceToken');
@@ -406,10 +395,8 @@ exports.requestSessionUpdate = async (req, res) => {
 
     const updatedCount = result[0];
 
-    // 🔥 إرسال إشعارات FCM للأهل
     for (const session of todaySessions) {
       if (session.child && session.child.parent_id) {
-        // 1. إضافة إشعار في قاعدة البيانات
         await Notification.create({
           user_id: session.child.parent_id,
           title: 'Session Completed',
@@ -419,7 +406,6 @@ exports.requestSessionUpdate = async (req, res) => {
           is_read: false
         });
 
-        // 2. إرسال إشعار FCM
         try {
           const UserDeviceToken = require('../model/UserDeviceToken');
           const parentTokens = await UserDeviceToken.findAll({
@@ -438,8 +424,8 @@ exports.requestSessionUpdate = async (req, res) => {
                 session.child.full_name,
                 session.date,
                 session.time,
-                null, // no new date
-                null, // no new time
+                null, 
+                null, 
                 session.session_id,
                 'completed'
               );
@@ -785,7 +771,6 @@ exports.requestSessionUpdate = async (req, res) => {
         console.error('⚠️ Failed to create invoice for specialist-created session:', invoiceError);
       }
 
-      // 🔥 إرسال إشعار FCM للأخصائي بموافقة الأهل
       if (session.specialist_id) {
         try {
           const UserDeviceToken = require('../model/UserDeviceToken');
@@ -840,7 +825,6 @@ exports.requestSessionUpdate = async (req, res) => {
         is_visible: false
       });
 
-      // 🔥 إرسال إشعار FCM للأخصائي برفض الأهل
       if (session.specialist_id) {
         try {
           const UserDeviceToken = require('../model/UserDeviceToken');

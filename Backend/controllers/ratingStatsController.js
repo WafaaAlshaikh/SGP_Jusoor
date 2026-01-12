@@ -1,4 +1,3 @@
-// controllers/ratingStatsController.js
 const SessionRating = require('../model/SessionRating');
 const InstitutionReview = require('../model/InstitutionReview');
 const SpecialistFeedback = require('../model/SpecialistFeedback');
@@ -7,9 +6,7 @@ const Institution = require('../model/Institution');
 const { Op } = require('sequelize');
 const sequelize = require("../config/db");
 
-/**
- * لوحة إحصائيات التقييمات للمدير
- */
+
 const getRatingDashboard = async (req, res) => {
   try {
     const managerId = req.user.user_id;
@@ -22,7 +19,6 @@ const getRatingDashboard = async (req, res) => {
       });
     }
 
-    // الحصول على institution_id الخاص بالمدير
     const Manager = require('../model/Manager');
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
@@ -38,7 +34,6 @@ const getRatingDashboard = async (req, res) => {
 
     const institutionId = manager.institution_id;
 
-    // 1. إحصائيات الأخصائيين
     const specialistsStats = await Specialist.findAll({
       where: { institution_id: institutionId },
       attributes: [
@@ -55,7 +50,6 @@ const getRatingDashboard = async (req, res) => {
       limit: 10
     });
 
-    // 2. إحصائيات التقييمات الشهرية
     const monthlyStats = await SessionRating.findAll({
       attributes: [
         [sequelize.fn('DATE_FORMAT', sequelize.col('rated_at'), '%Y-%m'), 'month'],
@@ -72,7 +66,6 @@ const getRatingDashboard = async (req, res) => {
       raw: true
     });
 
-    // 3. توزيع التقييمات
     const ratingDistribution = {};
     for (let i = 1; i <= 5; i++) {
       const count = await SessionRating.count({
@@ -86,7 +79,6 @@ const getRatingDashboard = async (req, res) => {
       ratingDistribution[i] = count;
     }
 
-    // 4. أهم نقاط التحسين
     const lowRatedSpecialists = specialistsStats
       .filter(s => parseFloat(s.dataValues.avg_rating || 0) < 3.5)
       .map(s => ({
@@ -95,7 +87,6 @@ const getRatingDashboard = async (req, res) => {
         total_ratings: s.dataValues.total_ratings
       }));
 
-    // 5. إحصائيات المؤسسة
     const institutionStats = await InstitutionReview.findOne({
       where: { institution_id: institutionId },
       attributes: [
@@ -148,9 +139,7 @@ const getRatingDashboard = async (req, res) => {
   }
 };
 
-/**
- * تقرير مفصل عن أخصائي
- */
+
 const getSpecialistDetailedReport = async (req, res) => {
   try {
     const { specialistId } = req.params;
@@ -163,7 +152,6 @@ const getSpecialistDetailedReport = async (req, res) => {
       });
     }
 
-    // 1. معلومات الأخصائي
     const specialist = await Specialist.findOne({
       where: { specialist_id: specialistId },
       include: [{
@@ -179,7 +167,6 @@ const getSpecialistDetailedReport = async (req, res) => {
       });
     }
 
-    // 2. إحصائيات التقييمات
     const ratingStats = await SessionRating.findOne({
       where: { specialist_id: specialistId },
       attributes: [
@@ -192,7 +179,6 @@ const getSpecialistDetailedReport = async (req, res) => {
       raw: true
     });
 
-    // 3. التقييمات الأخيرة
     const recentRatings = await SessionRating.findAll({
       where: { specialist_id: specialistId },
       include: [
@@ -210,7 +196,6 @@ const getSpecialistDetailedReport = async (req, res) => {
       limit: 10
     });
 
-    // 4. توزيع التقييمات
     const ratingDistribution = {};
     for (let i = 1; i <= 5; i++) {
       const count = await SessionRating.count({
@@ -222,7 +207,6 @@ const getSpecialistDetailedReport = async (req, res) => {
       ratingDistribution[i] = count;
     }
 
-    // 5. الملاحظات السرية
     const confidentialFeedbacks = await SpecialistFeedback.findAll({
       where: { specialist_id: specialistId },
       include: [{
@@ -234,7 +218,6 @@ const getSpecialistDetailedReport = async (req, res) => {
       limit: 5
     });
 
-    // 6. الاتجاهات الشهرية
     const monthlyTrends = await SessionRating.findAll({
       attributes: [
         [sequelize.fn('DATE_FORMAT', sequelize.col('rated_at'), '%Y-%m'), 'month'],
@@ -296,9 +279,7 @@ const getSpecialistDetailedReport = async (req, res) => {
   }
 };
 
-/**
- * توليد توصيات بناء على البيانات
- */
+
 const generateRecommendations = (ratingStats, feedbacks) => {
   const recommendations = [];
   const avgRating = parseFloat(ratingStats.avg_rating || 0);
@@ -317,7 +298,6 @@ const generateRecommendations = (ratingStats, feedbacks) => {
     });
   }
 
-  // تحليل الملاحظات
   if (feedbacks.length > 0) {
     const lowScores = [];
     feedbacks.forEach(f => {

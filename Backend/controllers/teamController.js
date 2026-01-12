@@ -3,13 +3,11 @@ const ChildTeam = require('../model/ChildTeam');
 const Manager = require('../model/Manager');
 const Institution = require('../model/Institution');
 
-// جلب نظرة عامة على فريق الطفل
 exports.getChildTeamOverview = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     const { child_id } = req.params;
 
-    // التحقق من صلاحية المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId, is_active: true },
       include: [{ model: Institution }]
@@ -22,7 +20,6 @@ exports.getChildTeamOverview = async (req, res) => {
       });
     }
 
-    // جلب بيانات الفريق
     const childTeam = await TeamService.getChildTeamData(child_id, manager.Institution.institution_id);
 
     if (!childTeam) {
@@ -75,7 +72,6 @@ exports.getChildTeamOverview = async (req, res) => {
   }
 };
 
-// دالة مساعدة لحساب العمر
 function calculateAge(dateOfBirth) {
   if (!dateOfBirth) return 0;
   const birthDate = new Date(dateOfBirth);

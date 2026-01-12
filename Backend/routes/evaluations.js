@@ -174,7 +174,7 @@ sessionData.applied_discount_percentage = sessionData.applied_discount_percentag
     });
 
     // ⭐ ⭐ ⭐ ⭐ ⭐ نضيف هذا السطر هنا ⭐ ⭐ ⭐ ⭐ ⭐
-    await TeamService.updateTeamRoomWithEvaluation(child_id, specialistId, newEvaluation);
+    // await TeamService.updateTeamRoomWithEvaluation(child_id, specialistId, newEvaluation);
     // ⭐ ⭐ ⭐ ⭐ ⭐ نضيف هذا السطر هنا ⭐ ⭐ ⭐ ⭐ ⭐
     
     const response = {

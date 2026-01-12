@@ -1,7 +1,6 @@
 const { DonationCampaign, Donation, Manager, Institution, DonationAllocation, Invoice, Session, Child } = require('../../model');
 const { Op } = require('sequelize');
 
-// Helper: get manager institution
 async function getManagerInstitution(managerId) {
   const manager = await Manager.findOne({
     where: {
@@ -21,7 +20,6 @@ async function getManagerInstitution(managerId) {
   return manager.Institution;
 }
 
-// List all campaigns for manager's institution with progress
 exports.getCampaigns = async (req, res) => {
   try {
     const managerId = req.user.user_id;
@@ -39,7 +37,6 @@ exports.getCampaigns = async (req, res) => {
       order: [['created_at', 'DESC']]
     });
 
-    // Calculate progress for each campaign
     const campaignIds = campaigns.map(c => c.campaign_id);
     let sumsByCampaign = {};
     let donorsCountByCampaign = {};
@@ -119,7 +116,6 @@ exports.getCampaigns = async (req, res) => {
   }
 };
 
-// Detailed impact for a single campaign: donations + sessions/children supported
 exports.getCampaignImpact = async (req, res) => {
   try {
     const managerId = req.user.user_id;
@@ -154,7 +150,6 @@ exports.getCampaignImpact = async (req, res) => {
       });
     }
 
-    // Aggregate total donations for this campaign
     const donationAgg = await Donation.findOne({
       where: {
         institution_id: institution.institution_id,
@@ -172,7 +167,6 @@ exports.getCampaignImpact = async (req, res) => {
       ? parseFloat(((totalDonations / targetAmount) * 100).toFixed(1))
       : 0;
 
-    // Find all donations for this campaign
     const donations = await Donation.findAll({
       where: {
         institution_id: institution.institution_id,
@@ -189,7 +183,6 @@ exports.getCampaignImpact = async (req, res) => {
     let supportedChildrenCount = 0;
 
     if (donationIds.length > 0) {
-      // Get allocations tied to these donations
       const allocations = await DonationAllocation.findAll({
         where: {
           donation_id: {
@@ -266,7 +259,6 @@ exports.getCampaignImpact = async (req, res) => {
   }
 };
 
-// Create a new campaign
 exports.createCampaign = async (req, res) => {
   try {
     const managerId = req.user.user_id;
@@ -319,7 +311,6 @@ exports.createCampaign = async (req, res) => {
   }
 };
 
-// Update an existing campaign
 exports.updateCampaign = async (req, res) => {
   try {
     const managerId = req.user.user_id;

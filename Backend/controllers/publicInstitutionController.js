@@ -563,7 +563,6 @@ exports.getInstitutionSessionTypes = async (req, res) => {
   try {
     const { institutionId } = req.params;
     
-    // تحقق من وجود المؤسسة
     const institution = await Institution.findOne({
       where: {
         institution_id: institutionId,
@@ -579,7 +578,6 @@ exports.getInstitutionSessionTypes = async (req, res) => {
       });
     }
 
-    // جلب أنواع الجلسات النشطة والمعتمدة
     const sessionTypes = await SessionType.findAll({
       where: {
         institution_id: institutionId,
@@ -600,7 +598,6 @@ exports.getInstitutionSessionTypes = async (req, res) => {
       ]
     });
 
-    // تنسيق البيانات للإرجاع
     const formattedSessionTypes = sessionTypes.map(st => ({
       session_type_id: st.session_type_id,
       name: st.name,
@@ -625,12 +622,10 @@ exports.getInstitutionSessionTypes = async (req, res) => {
   }
 };
 
-// دالة أخرى للحصول على تفاصيل نوع جلسة محدد
 exports.getSessionTypeDetails = async (req, res) => {
   try {
     const { institutionId, sessionTypeId } = req.params;
     
-    // تحقق من وجود المؤسسة
     const institution = await Institution.findOne({
       where: {
         institution_id: institutionId,
@@ -646,7 +641,6 @@ exports.getSessionTypeDetails = async (req, res) => {
       });
     }
 
-    // جلب تفاصيل نوع الجلسة
     const sessionType = await SessionType.findOne({
       where: {
         session_type_id: sessionTypeId,

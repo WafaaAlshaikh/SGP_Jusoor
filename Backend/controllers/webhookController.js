@@ -1,4 +1,3 @@
-// controllers/webhookController.js
 const { Donation, Institution, DonationCampaign, User, DonationInvite, Payment, Invoice, Session } = require('../model');
 const Stripe = require('stripe');
 require('dotenv').config();
@@ -14,7 +13,6 @@ exports.handleStripeWebhook = async (req, res) => {
   let event;
 
   try {
-    // 1. التحقق من صحة الـ webhook
     event = stripe.webhooks.constructEvent(
       req.body, 
       sig, 
@@ -28,30 +26,24 @@ exports.handleStripeWebhook = async (req, res) => {
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  // 2. معالجة الأحداث المختلفة
   try {
     switch (event.type) {
-      // نجاح الدفع لمرة واحدة
       case 'checkout.session.completed':
         await handleCheckoutSessionCompleted(event.data.object);
         break;
 
-      // نجاح الدفع الشهري
       case 'invoice.payment_succeeded':
         await handleInvoicePaymentSucceeded(event.data.object);
         break;
 
-      // فشل الدفع
       case 'invoice.payment_failed':
         await handleInvoicePaymentFailed(event.data.object);
         break;
 
-      // إلغاء الاشتراك
       case 'customer.subscription.deleted':
         await handleSubscriptionDeleted(event.data.object);
         break;
 
-      // تحديث الاشتراك
       case 'customer.subscription.updated':
         await handleSubscriptionUpdated(event.data.object);
         break;
@@ -71,14 +63,12 @@ exports.handleStripeWebhook = async (req, res) => {
   }
 };
 
-// ==================== معالج نجاح جلسة الدفع ====================
 async function handleCheckoutSessionCompleted(session) {
   try {
     console.log(' Processing checkout.session.completed');
     console.log('   Session ID:', session.id);
     console.log('   Payment Status:', session.payment_status);
 
-    // البحث عن التبرع
     const donation = await Donation.findOne({
       where: { stripe_session_id: session.id }
     });
@@ -94,13 +84,11 @@ async function handleCheckoutSessionCompleted(session) {
         donor_name: session.metadata.donor_name || donation.donor_name,
       };
 
-      // تحديث إذا كانت البيانات متوفرة
       if (session.metadata.donor_email || session.metadata.donor_name) {
         await donation.update(updateData);
       }
     }
 
-    // تحديث حالة التبرع
     if (session.payment_status === 'paid') {
       await donation.update({
         status: 'completed',
@@ -112,7 +100,6 @@ async function handleCheckoutSessionCompleted(session) {
         receipt_url: session.invoice?.receipt_url || null,
       });
 
-      // Invite/referral tracking (if invite_code exists)
       try {
         const inviteCode = (session.metadata?.invite_code ?? '').toString().trim();
         if (inviteCode) {
@@ -131,7 +118,6 @@ async function handleCheckoutSessionCompleted(session) {
         console.warn('Invite donation_completed log failed:', e.message);
       }
 
-      // تحديث رصيد المؤسسة
       const institution = await Institution.findByPk(donation.institution_id);
       if (institution) {
         const newBalance = parseFloat(institution.donation_balance || 0) + 
@@ -142,7 +128,6 @@ async function handleCheckoutSessionCompleted(session) {
         console.log(` Institution balance updated: ${newBalance} JOD`);
       }
 
-      // تحديث رصيد الحملة (إن وجدت)
       if (donation.campaign_id) {
         const campaign = await DonationCampaign.findByPk(donation.campaign_id);
         if (campaign) {
@@ -157,7 +142,6 @@ async function handleCheckoutSessionCompleted(session) {
 
       console.log(' Donation completed successfully:', donation.donation_id);
 
-      // إرسال إشعار للمتبرع (اختياري)
       await sendDonationSuccessNotification(donation);
 
     } else {
@@ -250,14 +234,12 @@ async function handleInvoiceCheckoutSessionCompleted(session) {
   }
 }
 
-// ==================== معالج نجاح الاشتراك الشهري ====================
 async function handleInvoicePaymentSucceeded(invoice) {
   try {
     console.log(' Processing invoice.payment_succeeded');
     
     const subscriptionId = invoice.subscription;
     
-    // البحث عن التبرع الشهري
     const donation = await Donation.findOne({
       where: { 
         stripe_subscription_id: subscriptionId,
@@ -270,7 +252,6 @@ async function handleInvoicePaymentSucceeded(invoice) {
       return;
     }
 
-    // تحديث المؤسسة والحملة
     const institution = await Institution.findByPk(donation.institution_id);
     if (institution) {
       const newBalance = parseFloat(institution.donation_balance || 0) + 
@@ -294,7 +275,6 @@ async function handleInvoicePaymentSucceeded(invoice) {
   }
 }
 
-// ==================== معالج فشل الدفع ====================
 async function handleInvoicePaymentFailed(invoice) {
   try {
     console.log('❌ Processing invoice.payment_failed');
@@ -314,7 +294,6 @@ async function handleInvoicePaymentFailed(invoice) {
 
       console.log('❌ Donation marked as failed:', donation.donation_id);
       
-      // إرسال إشعار للمتبرع (اختياري)
       await sendDonationFailureNotification(donation);
     }
 
@@ -323,7 +302,6 @@ async function handleInvoicePaymentFailed(invoice) {
   }
 }
 
-// ==================== معالج إلغاء الاشتراك ====================
 async function handleSubscriptionDeleted(subscription) {
   try {
     console.log('🔴 Processing subscription.deleted');
@@ -347,23 +325,19 @@ async function handleSubscriptionDeleted(subscription) {
   }
 }
 
-// ==================== معالج تحديث الاشتراك ====================
 async function handleSubscriptionUpdated(subscription) {
   try {
     console.log('🔄 Processing subscription.updated');
     
-    // يمكن إضافة منطق إضافي هنا لتحديث الاشتراكات
     
   } catch (error) {
     console.error('❌ Error in handleSubscriptionUpdated:', error);
   }
 }
 
-// ==================== دوال الإشعارات ====================
 async function sendDonationSuccessNotification(donation) {
   try {
-    // إضافة منطق الإشعارات هنا
-    // مثل: إرسال بريد إلكتروني، Firebase notification، إلخ
+  
     console.log('📧 Sending success notification for donation:', donation.donation_id);
   } catch (error) {
     console.error('❌ Error sending notification:', error);

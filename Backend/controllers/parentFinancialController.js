@@ -2,15 +2,12 @@ const FinancialAssessmentService = require('../services/financialAssessmentServi
 const FinancialAssistanceRequest = require('../model/FinancialAssistanceRequest');
 const FreeSessionOffer = require('../model/FreeSessionOffer');
 
-// ==============================================
-// 🔄 التقييم المالي العام (جديد) - بدون طفل أو مؤسسة
-// ==============================================
+
 
 exports.initiateGeneralFinancialAssessment = async (req, res) => {
   try {
     const parentId = req.user.user_id;
     
-    // Get parent data
     const Parent = require('../model/Parent');
     const parent = await Parent.findOne({
       where: { parent_id: parentId },
@@ -27,13 +24,11 @@ exports.initiateGeneralFinancialAssessment = async (req, res) => {
       });
     }
     
-    // Check if parent already has a recent assessment
     const daysSinceLastAssessment = parent.last_financial_assessment ? 
       Math.floor((new Date() - new Date(parent.last_financial_assessment)) / (1000 * 60 * 60 * 24)) : null;
     
     const hasValidAssessment = daysSinceLastAssessment !== null && daysSinceLastAssessment <= 30;
     
-    // Prepare financial assessment questions (GENERAL version)
     const assessmentFlow = this.getGeneralFinancialAssessmentQuestions();
     
     res.status(200).json({
@@ -83,7 +78,6 @@ exports.submitGeneralFinancialAssessment = async (req, res) => {
     const parentId = req.user.user_id;
     const { responses } = req.body;
     
-    // Validate required fields
     if (!responses) {
       return res.status(400).json({
         success: false,
@@ -91,7 +85,6 @@ exports.submitGeneralFinancialAssessment = async (req, res) => {
       });
     }
     
-    // Get parent
     const Parent = require('../model/Parent');
     const parent = await Parent.findOne({ where: { parent_id: parentId } });
     
@@ -102,19 +95,15 @@ exports.submitGeneralFinancialAssessment = async (req, res) => {
       });
     }
     
-    // Process responses and update parent data
     const updatedParentData = this.processAssessmentResponses(parent, responses);
     await parent.update(updatedParentData);
     
-    // Get updated parent
     const updatedParent = await Parent.findOne({ where: { parent_id: parentId } });
     
-    // Calculate financial assessment
     const assessment = await FinancialAssessmentService.calculateFinancialScore({
       ...updatedParent.toJSON()
     });
     
-    // Update parent with assessment results
     await parent.update({
       financial_score: assessment.financial_score,
       financial_tier: assessment.financial_tier,
@@ -122,7 +111,6 @@ exports.submitGeneralFinancialAssessment = async (req, res) => {
       assessment_notes: 'General assessment completed'
     });
     
-    // Get available children for this parent
     const Child = require('../model/Child');
     const children = await Child.findAll({
       where: { parent_id: parentId },
@@ -135,7 +123,6 @@ exports.submitGeneralFinancialAssessment = async (req, res) => {
       limit: 10
     });
     
-    // Get recommended institutions based on financial tier
     let recommendedInstitutions = [];
     try {
       recommendedInstitutions = await this.getRecommendedInstitutions(
@@ -144,14 +131,11 @@ exports.submitGeneralFinancialAssessment = async (req, res) => {
       );
     } catch (instError) {
       console.warn('⚠️  Could not load recommended institutions:', instError.message);
-      // لا نستخدم بيانات افتراضية، نترك المصفوفة فارغة
     }
     
-    // Calculate credibility adjustment
     const credibilityMultiplier = parent.credibility_score ? 
       parent.credibility_score / 100 : 1;
     
-    // Prepare the response WITHOUT child/institution selection
     const response = {
       success: true,
       message: 'General financial assessment completed successfully',
@@ -247,7 +231,6 @@ exports.applyFinancialAssessmentToChild = async (req, res) => {
       use_existing_assessment = true
     } = req.body;
     
-    // Validate required fields
     if (!child_id || !institution_id) {
       return res.status(400).json({
         success: false,
@@ -255,7 +238,6 @@ exports.applyFinancialAssessmentToChild = async (req, res) => {
       });
     }
     
-    // Get parent with financial assessment
     const Parent = require('../model/Parent');
     const parent = await Parent.findOne({
       where: { parent_id: parentId },
@@ -272,7 +254,6 @@ exports.applyFinancialAssessmentToChild = async (req, res) => {
       });
     }
     
-    // Check if parent has financial assessment
     if (!parent.financial_score || !parent.last_financial_assessment) {
       return res.status(400).json({
         success: false,
@@ -282,7 +263,6 @@ exports.applyFinancialAssessmentToChild = async (req, res) => {
       });
     }
     
-    // Check if assessment is still valid (within 30 days)
     const assessmentAge = new Date() - new Date(parent.last_financial_assessment);
     const daysSinceAssessment = Math.floor(assessmentAge / (1000 * 60 * 60 * 24));
     
@@ -296,7 +276,7 @@ exports.applyFinancialAssessmentToChild = async (req, res) => {
       });
     }
     
-    // Get child data
+
     const Child = require('../model/Child');
     const child = await Child.findOne({
       where: {
@@ -317,7 +297,6 @@ exports.applyFinancialAssessmentToChild = async (req, res) => {
       });
     }
     
-    // Check if child is registered at the institution
     if (child.current_institution_id !== parseInt(institution_id)) {
       return res.status(400).json({
         success: false,
@@ -327,7 +306,6 @@ exports.applyFinancialAssessmentToChild = async (req, res) => {
       });
     }
     
-    // Get institution session costs
     const SessionType = require('../model/SessionType');
     const sessionTypes = await SessionType.findAll({
       where: {
@@ -345,12 +323,10 @@ exports.applyFinancialAssessmentToChild = async (req, res) => {
       });
     }
     
-    // Calculate estimated costs
-    const estimatedMonthlySessions = 8; // Default: 2 sessions per week
+    const estimatedMonthlySessions = 8; 
     let totalMonthlyCost = 0;
     let sessionDetails = [];
     
-    // Use average price for estimation
     const avgPrice = sessionTypes.reduce((sum, st) => sum + (parseFloat(st.price) || 0), 0) / sessionTypes.length;
     totalMonthlyCost = avgPrice * estimatedMonthlySessions;
     
@@ -361,25 +337,20 @@ exports.applyFinancialAssessmentToChild = async (req, res) => {
       frequency: st.frequency_recommendation || 'Weekly'
     }));
     
-    // Get discount based on financial assessment
     const suggestedDiscount = parseFloat(parent.financial_score) >= 40 ? 
       Math.min(100, Math.floor(parent.financial_score * 1.5)) : 0;
     
-    // Adjust discount based on child's condition severity
     const severityMultiplier = this.getSeverityMultiplier(child.Diagnosis?.severity);
     const adjustedDiscount = Math.min(100, Math.floor(suggestedDiscount * severityMultiplier));
     
-    // Determine if documents are required
     const requiresDocuments = adjustedDiscount >= 50 &&
       parent.financial_tier !== 'tier_5_no_assistance';
     
-    // Get institution information
     const Institution = require('../model/Institution');
     const institution = await Institution.findByPk(institution_id, {
       attributes: ['name', 'city', 'services_offered', 'average_session_price']
     });
     
-    // Prepare response
     const response = {
       success: true,
       message: 'Financial assessment applied successfully',
@@ -491,7 +462,6 @@ exports.initiateFinancialAssessment = async (req, res) => {
       });
     }
     
-    // Get parent data
     const Parent = require('../model/Parent');
     const parent = await Parent.findOne({
       where: { parent_id: parentId },
@@ -508,7 +478,6 @@ exports.initiateFinancialAssessment = async (req, res) => {
       });
     }
     
-    // Get child data
     const Child = require('../model/Child');
     const child = await Child.findOne({
       where: {
@@ -529,7 +498,6 @@ exports.initiateFinancialAssessment = async (req, res) => {
       });
     }
     
-    // Check if child is registered at the institution
     if (child.current_institution_id !== parseInt(institution_id)) {
       return res.status(400).json({
         success: false,
@@ -537,7 +505,6 @@ exports.initiateFinancialAssessment = async (req, res) => {
       });
     }
     
-    // Prepare financial assessment questions
     const assessmentFlow = this.getFinancialAssessmentQuestions(parent);
     
     res.status(200).json({
@@ -587,7 +554,6 @@ exports.submitFinancialAssessment = async (req, res) => {
       skip_documents = false
     } = req.body;
     
-    // Validate required fields
     if (!child_id || !institution_id || !responses) {
       return res.status(400).json({
         success: false,
@@ -595,7 +561,6 @@ exports.submitFinancialAssessment = async (req, res) => {
       });
     }
     
-    // Update parent information with responses
     const Parent = require('../model/Parent');
     const parent = await Parent.findOne({ where: { parent_id: parentId } });
     
@@ -606,19 +571,16 @@ exports.submitFinancialAssessment = async (req, res) => {
       });
     }
     
-    // Process responses and update parent data
     const updatedParentData = this.processAssessmentResponses(parent, responses);
     await parent.update(updatedParentData);
     
-    // Get updated parent data
     const updatedParent = await Parent.findOne({ where: { parent_id: parentId } });
     
-    // Calculate financial assessment
     const assessment = await FinancialAssessmentService.calculateFinancialScore({
       ...updatedParent.toJSON()
     });
     
-    // Update parent with assessment results
+
     await parent.update({
       financial_score: assessment.financial_score,
       financial_tier: assessment.financial_tier,
@@ -626,7 +588,6 @@ exports.submitFinancialAssessment = async (req, res) => {
       assessment_notes: 'Specific assessment completed for child: ' + child_id
     });
     
-    // Get institution session costs
     const SessionType = require('../model/SessionType');
     const sessionTypes = await SessionType.findAll({
       where: {
@@ -637,13 +598,12 @@ exports.submitFinancialAssessment = async (req, res) => {
       limit: 5
     });
     
-    // Calculate estimated costs
-    const estimatedMonthlySessions = 8; // Default: 2 sessions per week
+    const estimatedMonthlySessions = 8; 
     let totalMonthlyCost = 0;
     let sessionDetails = [];
     
     if (sessionTypes.length > 0) {
-      // Use average price for estimation
+
       const avgPrice = sessionTypes.reduce((sum, st) => sum + (parseFloat(st.price) || 0), 0) / sessionTypes.length;
       totalMonthlyCost = avgPrice * estimatedMonthlySessions;
       
@@ -654,14 +614,14 @@ exports.submitFinancialAssessment = async (req, res) => {
       }));
     }
     
-    // Determine if documents are required
+
     const suggestedDiscount = parseFloat(assessment.suggested_discount_percentage) || 0;
     const requiresDocuments = !skip_documents && 
       suggestedDiscount >= 50 &&
       assessment.financial_tier !== 'tier_5_no_assistance';
     
-    // Prepare response
-    const response = {
+
+      const response = {
       success: true,
       message: 'Financial assessment completed successfully',
       assessment_type: 'specific',
@@ -728,14 +688,14 @@ exports.requestFinancialAssistance = async (req, res) => {
     const {
       child_id,
       institution_id,
-      assessment_type = 'general', // 'general' or 'specific'
+      assessment_type = 'general', 
       requested_sessions_count = 8,
       urgency_reason,
       documents = [],
       use_existing_assessment = true
     } = req.body;
     
-    // Get parent with assessment data
+
     const Parent = require('../model/Parent');
     const parent = await Parent.findOne({
       where: { parent_id: parentId },
@@ -752,7 +712,7 @@ exports.requestFinancialAssistance = async (req, res) => {
       });
     }
     
-    // Check if parent has financial assessment
+
     if (!parent.financial_score || !parent.last_financial_assessment) {
       return res.status(400).json({
         success: false,
@@ -761,7 +721,7 @@ exports.requestFinancialAssistance = async (req, res) => {
       });
     }
     
-    // Check if assessment is still valid (within 30 days)
+
     const assessmentAge = new Date() - new Date(parent.last_financial_assessment);
     const daysSinceAssessment = Math.floor(assessmentAge / (1000 * 60 * 60 * 24));
     
@@ -773,7 +733,7 @@ exports.requestFinancialAssistance = async (req, res) => {
       });
     }
     
-    // Get child data
+
     const Child = require('../model/Child');
     const child = await Child.findOne({
       where: {
@@ -795,7 +755,7 @@ exports.requestFinancialAssistance = async (req, res) => {
       });
     }
     
-    // Calculate estimated cost
+
     const SessionType = require('../model/SessionType');
     const sessionTypes = await SessionType.findAll({
       where: {
@@ -808,18 +768,15 @@ exports.requestFinancialAssistance = async (req, res) => {
     
     const avgPrice = sessionTypes.length > 0 ?
       sessionTypes.reduce((sum, st) => sum + (parseFloat(st.price) || 0), 0) / sessionTypes.length :
-      50; // Default average price
+      50; 
     
     const totalOriginalCost = avgPrice * requested_sessions_count;
     
-    // Determine child urgency
     const childUrgency = this.determineChildUrgencyFromData(child, urgency_reason);
     
-    // Calculate discount based on financial score
     const requestedDiscountPercentage = parent.financial_score >= 40 ? 
       Math.min(100, Math.floor(parent.financial_score * 1.5)) : 0;
     
-    // Create financial assistance request
     const financialRequest = await FinancialAssistanceRequest.create({
       parent_id: parentId,
       child_id: child_id,
@@ -829,7 +786,7 @@ exports.requestFinancialAssistance = async (req, res) => {
       requested_total_amount: totalOriginalCost,
       parent_financial_score: parent.financial_score,
       parent_financial_tier: parent.financial_tier,
-      assessment_type: assessment_type, // Track which type of assessment was used
+      assessment_type: assessment_type,
       child_condition_urgency: childUrgency,
       status: 'submitted',
       auto_generated: false,
@@ -840,10 +797,8 @@ exports.requestFinancialAssistance = async (req, res) => {
       estimated_processing_days: parent.financial_tier === 'tier_1_critical' ? 3 : 7
     });
     
-    // Send notification to institution managers
     await this.notifyInstitutionManagers(institution_id, financialRequest);
     
-    // Prepare response
     const response = {
       success: true,
       message: 'Financial assistance request submitted successfully',
@@ -1028,22 +983,18 @@ exports.getRecommendedInstitutions = async (financialTier, discountPercentage) =
     const Institution = require('../model/Institution');
     const { Op } = require('sequelize');
     
-    // استخدم الحقول الموجودة فقط
     const whereConditions = { 
       is_active: true,
       approval_status: 'Approved'
     };
     
-    // 🔹 استبدل financial_aid_available بشرط بديل
     if (financialTier === 'tier_1_critical' || financialTier === 'tier_2_high') {
-      // استخدم services_offered بدلاً من financial_aid_available
       whereConditions.services_offered = { 
         [Op.ne]: null,
         [Op.not]: '' 
       };
     }
     
-    // جلب المؤسسات
     const institutions = await Institution.findAll({
       where: whereConditions,
       include: [{
@@ -1056,17 +1007,17 @@ exports.getRecommendedInstitutions = async (financialTier, discountPercentage) =
         'institution_id', 
         'name', 
         'city', 
-        'services_offered', // موجود
-        'conditions_supported', // موجود
-        'price_range', // موجود
-        'rating', // موجود
-        'capacity', // موجود
-        'available_slots' // موجود
+        'services_offered', 
+        'conditions_supported',
+        'price_range',
+        'rating', 
+        'capacity',
+        'available_slots' 
       ],
       limit: 6,
       order: [
-        ['rating', 'DESC'], // استخدم rating بدلاً من financial_aid_available
-        ['available_slots', 'DESC'], // أولوية للأماكن المتاحة
+        ['rating', 'DESC'], 
+        ['available_slots', 'DESC'], 
         ['name', 'ASC']
       ]
     });
@@ -1076,10 +1027,8 @@ exports.getRecommendedInstitutions = async (financialTier, discountPercentage) =
       const avgPrice = sessionPrices.length > 0 ? 
         sessionPrices.reduce((a, b) => a + b, 0) / sessionPrices.length : 0;
       
-      // تحديد المساعدة المالية بناءً على معايير بديلة
       const hasFinancialAid = this.determineFinancialAidAvailability(inst, financialTier);
       
-      // تحديد التخصصات من الحقول المتاحة
       const specializations = this.extractSpecializations(inst);
       
       return {
@@ -1097,14 +1046,12 @@ exports.getRecommendedInstitutions = async (financialTier, discountPercentage) =
     
   } catch (error) {
     console.error('⚠️ Error getting recommended institutions:', error.message);
-    return []; // إرجاع مصفوفة فارغة بدلاً من بيانات افتراضية
+    return []; 
   }
 };
 
 exports.determineFinancialAidAvailability = (institution, financialTier) => {
-  // معايير بديلة لتحديد المساعدة المالية:
   
-  // 1. إذا كان price_range يشير إلى أسعار منخفضة
   if (institution.price_range && (
       institution.price_range.includes('Low') ||
       institution.price_range.includes('low') ||
@@ -1113,19 +1060,17 @@ exports.determineFinancialAidAvailability = (institution, financialTier) => {
     return true;
   }
   
-  // 2. إذا كانت المؤسسة لديها خدمات متعددة
   if (institution.services_offered && 
       institution.services_offered.split(',').length >= 3) {
     return true;
   }
   
-  // 3. إذا كانت للمستويات العالية فقط
   if ((financialTier === 'tier_1_critical' || financialTier === 'tier_2_high') &&
       institution.capacity > institution.available_slots) {
-    return true; // المؤسسة لديها طاقة لاستقبال حالات تحتاج مساعدة
+    return true;
   }
   
-  return false; // الافتراضي
+  return false; 
 };
 
 exports.extractSpecializations = (institution) => {
@@ -1137,7 +1082,6 @@ exports.extractSpecializations = (institution) => {
     return institution.conditions_supported;
   }
   
-  // استخراج من الاسم إذا كان يحتوي على كلمات دلالية
   const name = institution.name || '';
   const specializationsMap = {
     'نطق': 'علاج النطق واللغة',
@@ -1162,19 +1106,15 @@ exports.extractSpecializations = (institution) => {
 exports.calculateInstitutionCompatibility = (financialTier, institution, hasFinancialAid) => {
   let score = 50;
   
-  // 1. المساعدة المالية (المقدرة)
   if (hasFinancialAid) score += 20;
   
-  // 2. التقييم
   if (institution.rating && institution.rating >= 4.0) score += 15;
   
-  // 3. الأماكن المتاحة
   if (institution.available_slots && institution.available_slots > 0) {
     const availabilityRatio = institution.available_slots / (institution.capacity || 10);
     if (availabilityRatio > 0.3) score += 10;
   }
   
-  // 4. نطاق السعر
   if (institution.price_range) {
     if (financialTier === 'tier_1_critical' || financialTier === 'tier_2_high') {
       if (institution.price_range.includes('Low') || institution.price_range.includes('منخفض')) {
@@ -1187,7 +1127,6 @@ exports.calculateInstitutionCompatibility = (financialTier, institution, hasFina
     }
   }
   
-  // 5. الخدمات المقدمة
   if (institution.services_offered && institution.services_offered.length > 20) {
     score += 10;
   }
@@ -1196,8 +1135,7 @@ exports.calculateInstitutionCompatibility = (financialTier, institution, hasFina
 };
 
 exports.estimateProcessingTime = (institution, financialTier) => {
-  // تقدير بناءً على عدة عوامل
-  let days = 7; // افتراضي
+  let days = 7; 
   
   if (financialTier === 'tier_1_critical') {
     days = 3;
@@ -1205,17 +1143,15 @@ exports.estimateProcessingTime = (institution, financialTier) => {
     days = 5;
   }
   
-  // تعديل حسب التقييم
   if (institution && institution.rating && institution.rating >= 4.5) {
     days -= 1;
   }
   
-  // تعديل حسب الأماكن المتاحة
   if (institution && institution.available_slots && institution.available_slots > 5) {
     days -= 1;
   }
   
-  return Math.max(2, days); // لا يقل عن يومين
+  return Math.max(2, days); 
 };
 
 exports.calculateEstimatedInstitutionDiscount = (financialTier, avgPrice) => {
@@ -1294,8 +1230,7 @@ exports.getAverageDiscountForTier = (tier) => {
 
 exports.estimateMonthlySavings = async (parentId, discountPercentage) => {
   try {
-    // Estimate based on average session cost and typical number of sessions
-    const averageSessionCost = 75; // Average across all institutions
+    const averageSessionCost = 75; 
     const typicalSessionsPerMonth = 8;
     const monthlyCost = averageSessionCost * typicalSessionsPerMonth;
     
@@ -1453,7 +1388,6 @@ exports.getFinancialAssessmentQuestions = (parent) => {
 exports.processAssessmentResponses = (parent, responses) => {
   const updates = {};
   
-  // Process each response
   if (responses.monthly_income) {
     const incomeMap = {
       'under_300': 150,
@@ -1488,7 +1422,6 @@ exports.processAssessmentResponses = (parent, responses) => {
     if (circumstances.includes('none')) {
       updates.special_circumstances = 'none';
     } else if (circumstances.length > 0) {
-      // Use the highest priority circumstance
       const priorityOrder = [
         'refugee_displaced',
         'widow_widower',
@@ -1529,7 +1462,6 @@ exports.processAssessmentResponses = (parent, responses) => {
     updates.additional_medical_expenses = expenseMap[responses.monthly_expenses] || 0;
   }
   
-  // Handle new fields from general assessment
   if (responses.monthly_medical_expenses) {
     const expenseMap = {
       'under_100': 50,
@@ -1643,7 +1575,6 @@ exports.getInstitutionContact = async (institutionId) => {
 exports.createStatusTimeline = (financialRequest) => {
   const timeline = [];
   
-  // Created
   timeline.push({
     status: 'created',
     date: financialRequest.created_at,
@@ -1651,7 +1582,6 @@ exports.createStatusTimeline = (financialRequest) => {
     completed: true
   });
   
-  // Submitted
   if (financialRequest.submitted_at) {
     timeline.push({
       status: 'submitted',
@@ -1661,7 +1591,6 @@ exports.createStatusTimeline = (financialRequest) => {
     });
   }
   
-  // Under Review
   if (financialRequest.status === 'under_review' || 
       financialRequest.status === 'pending_documents') {
     timeline.push({
@@ -1673,7 +1602,6 @@ exports.createStatusTimeline = (financialRequest) => {
     });
   }
   
-  // Documents Requested
   if (financialRequest.requires_documents && !financialRequest.documents_submitted) {
     timeline.push({
       status: 'documents_requested',
@@ -1684,7 +1612,6 @@ exports.createStatusTimeline = (financialRequest) => {
     });
   }
   
-  // Decision
   if (financialRequest.decision_date) {
     timeline.push({
       status: 'decision_made',
@@ -1695,7 +1622,7 @@ exports.createStatusTimeline = (financialRequest) => {
     });
   }
   
-  // Sessions Scheduled
+
   if (financialRequest.status === 'approved' || financialRequest.status === 'partially_approved') {
     timeline.push({
       status: 'sessions_scheduled',
@@ -1758,17 +1685,14 @@ exports.processDocumentUpload = async (documents, parentId) => {
   const processedDocs = [];
   
   for (const doc of documents) {
-    // Validate document
     if (!doc.type || !doc.file_data) {
       continue;
     }
     
-    // Generate unique filename
     const timestamp = Date.now();
     const fileId = `doc_${parentId}_${timestamp}_${Math.random().toString(36).substr(2, 9)}`;
     
-    // In production, upload to cloud storage (AWS S3, Google Cloud Storage, etc.)
-    // For now, we'll store metadata
+  
     processedDocs.push({
       id: fileId,
       type: doc.type,
@@ -1836,7 +1760,6 @@ exports.getParentFinancialProfile = async (req, res) => {
     
     console.log('🔍 Fetching financial profile for parent:', parentId);
 
-    // جلب بيانات الأب مع معلوماته المالية
     const Parent = require('../model/Parent');
     const parent = await Parent.findOne({
       where: { parent_id: parentId },
@@ -1853,7 +1776,6 @@ exports.getParentFinancialProfile = async (req, res) => {
       });
     }
 
-    // جلب الطلبات المالية النشطة
     const FinancialAssistanceRequest = require('../model/FinancialAssistanceRequest');
     const activeRequests = await FinancialAssistanceRequest.findAll({
       where: {
@@ -1864,7 +1786,6 @@ exports.getParentFinancialProfile = async (req, res) => {
       limit: 5
     });
 
-    // جلب الطلبات المكتملة
     const completedRequests = await FinancialAssistanceRequest.findAll({
       where: {
         parent_id: parentId,
@@ -1874,7 +1795,6 @@ exports.getParentFinancialProfile = async (req, res) => {
       limit: 10
     });
 
-    // تحضير البيانات
     const financialProfile = {
       parent_id: parent.parent_id,
       monthly_income: parent.monthly_income,
@@ -1993,13 +1913,11 @@ exports.getFinancialAssistanceStatus = async (req, res) => {
       });
     }
     
-    // تحويل الأرقام من Decimal إلى numbers عادية
     const requestedTotalAmount = parseFloat(financialRequest.requested_total_amount) || 0;
     const approvedTotalAmount = parseFloat(financialRequest.approved_total_amount) || 0;
     const requestedDiscount = parseFloat(financialRequest.requested_discount_percentage) || 0;
     const approvedDiscount = parseFloat(financialRequest.approved_discount_percentage) || 0;
     
-    // Get related sessions if approved
     let relatedSessions = [];
     if (financialRequest.status === 'approved' || financialRequest.status === 'partially_approved') {
       const Session = require('../model/Session');
@@ -2014,10 +1932,8 @@ exports.getFinancialAssistanceStatus = async (req, res) => {
       });
     }
     
-    // Prepare status timeline
     const statusTimeline = this.createStatusTimeline(financialRequest);
     
-    // Prepare response
     const response = {
       success: true,
       request: {
@@ -2083,7 +1999,6 @@ exports.uploadFinancialDocuments = async (req, res) => {
       });
     }
     
-    // Verify request belongs to parent
     const financialRequest = await FinancialAssistanceRequest.findOne({
       where: {
         request_id,
@@ -2099,23 +2014,19 @@ exports.uploadFinancialDocuments = async (req, res) => {
       });
     }
     
-    // Process and validate documents
     const processedDocuments = await this.processDocumentUpload(documents, parentId);
     
-    // Update request with documents
     await financialRequest.update({
       documents_submitted: processedDocuments,
       status: 'under_review',
       updated_at: new Date()
     });
     
-    // Update parent credibility score positively
     await FinancialAssessmentService.updateCredibilityScore(parentId, {
       verified_accurate: true,
       document_submission: true
     });
     
-    // Notify institution managers
     await this.notifyDocumentSubmission(financialRequest.institution_id, request_id);
     
     res.status(200).json({

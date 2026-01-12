@@ -74,7 +74,6 @@ exports.getInstitutionChildren = async (req, res) => {
       whereClause.registration_status = registration_status;
     }
 
-    // include clauses
     let include = [
       {
         model: Parent,
@@ -1262,7 +1261,7 @@ exports.getChildMultidisciplinaryInsights = async (req, res) => {
   }
 };
 
-// ================= دوال مساعدة =================
+// ================= Helper methodes =================
 
 const calculateAge = (dateOfBirth) => {
   if (!dateOfBirth) return 0;
@@ -1418,7 +1417,6 @@ const analyzeBestPerformingDays = (attendancePattern, evaluations) => {
   return performanceArray.sort((a, b) => b.average_performance - a.average_performance);
 };
 
-// ================= دوال الفريق متعدد التخصصات =================
 
 const getChildSpecialistsData = async (childId, institutionId) => {
   const sessions = await Session.findAll({
@@ -1480,7 +1478,6 @@ const getChildSpecialistsData = async (childId, institutionId) => {
           profile_picture: specialist.profile_picture || '',
           specialization: specialist['Specialist.specialization'] || 'غير محدد',
           experience: specialist['Specialist.years_experience'] || 0,
-        //   qualifications: specialist['Specialist.qualifications'] || 'غير محدد'
         },
         engagement: {
           total_sessions: sessions.length,
@@ -2238,18 +2235,12 @@ const createContingencyPlans = (child) => {
 };
 
 
-// في controllers/manager/managerChildrenController.js - إضافة هذه الدوال في الأسفل
 
-/**
- * @route   GET /api/manager/auto-approval/status
- * @desc    الحصول على حالة وإحصائيات النظام التلقائي
- * @access  Private (Manager only)
- */
+
 exports.getAutoApprovalStatus = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     
-    // التحقق من صلاحية المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId, is_active: true },
       include: [{
@@ -2267,7 +2258,6 @@ exports.getAutoApprovalStatus = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
 
-    // إحصائيات الطلبات
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -2285,7 +2275,6 @@ exports.getAutoApprovalStatus = async (req, res) => {
       raw: true
     });
 
-    // الأطفال المسجلين اليوم
     const todayRegistrations = await Child.count({
       where: {
         current_institution_id: institutionId,
@@ -2294,7 +2283,6 @@ exports.getAutoApprovalStatus = async (req, res) => {
       }
     });
 
-    // الجلسات المجدولة اليوم
     const todaySessions = await Session.count({
       where: {
         institution_id: institutionId,
@@ -2303,7 +2291,6 @@ exports.getAutoApprovalStatus = async (req, res) => {
       }
     });
 
-    // قدرة المؤسسة
     const totalChildren = await Child.count({
       where: {
         current_institution_id: institutionId,
@@ -2318,7 +2305,6 @@ exports.getAutoApprovalStatus = async (req, res) => {
     const capacityPercentage = institution.capacity ? 
       Math.round((totalChildren / institution.capacity) * 100) : 0;
 
-    // قرارات النظام اليوم
     const autoDecisions = await ChildRegistrationRequest.findAll({
       where: {
         institution_id: institutionId,
@@ -2388,16 +2374,11 @@ exports.getAutoApprovalStatus = async (req, res) => {
   }
 };
 
-/**
- * @route   POST /api/manager/auto-approval/process
- * @desc    تشغيل المعالجة التلقائية يدوياً
- * @access  Private (Manager only)
- */
+
 exports.triggerAutoApprovalProcess = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     
-    // التحقق من صلاحية المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId, is_active: true },
       include: [{
@@ -2418,7 +2399,6 @@ exports.triggerAutoApprovalProcess = async (req, res) => {
     const AutoApprovalService = require('../../services/autoApprovalService');
     const results = await AutoApprovalService.processPendingRegistrationRequests();
 
-    // تسجيل النشاط
     await this.logManagerActivity(managerId, 'trigger_auto_approval', {
       results: results,
       institution_id: manager.Institution.institution_id
@@ -2458,7 +2438,6 @@ exports.triggerAutoApprovalProcess = async (req, res) => {
   } catch (error) {
     console.error('❌ خطأ في تشغيل المعالجة التلقائية:', error);
     
-    // تسجيل الخطأ
     await this.logManagerActivity(req.user.user_id, 'auto_approval_error', {
       error: error.message,
       stack: error.stack
@@ -2472,17 +2451,12 @@ exports.triggerAutoApprovalProcess = async (req, res) => {
   }
 };
 
-/**
- * @route   PUT /api/manager/auto-approval/config
- * @desc    تحديث إعدادات النظام التلقائي
- * @access  Private (Manager only)
- */
+
 exports.updateAutoApprovalConfig = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     const { auto_approval_enabled, auto_approval_threshold, max_auto_approvals_per_day } = req.body;
 
-    // التحقق من صلاحية المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId, is_active: true },
       include: [{
@@ -2500,7 +2474,6 @@ exports.updateAutoApprovalConfig = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
 
-    // التحقق من القيم
     if (auto_approval_threshold !== undefined && (auto_approval_threshold < 0 || auto_approval_threshold > 100)) {
       return res.status(400).json({
         success: false,
@@ -2515,7 +2488,6 @@ exports.updateAutoApprovalConfig = async (req, res) => {
       });
     }
 
-    // تحديث الإعدادات
     const updateData = {};
     if (auto_approval_enabled !== undefined) updateData.auto_approval_enabled = auto_approval_enabled;
     if (auto_approval_threshold !== undefined) updateData.auto_approval_threshold = auto_approval_threshold;
@@ -2525,7 +2497,6 @@ exports.updateAutoApprovalConfig = async (req, res) => {
       where: { institution_id: institutionId }
     });
 
-    // تسجيل النشاط
     await this.logManagerActivity(managerId, 'update_auto_approval_config', {
       config_changes: updateData,
       institution_id: institutionId
@@ -2551,16 +2522,11 @@ exports.updateAutoApprovalConfig = async (req, res) => {
   }
 };
 
-/**
- * @route   GET /api/manager/auto-approval/pending-review
- * @desc    الحصول على الطلبات التي تحتاج مراجعة يدوية
- * @access  Private (Manager only)
- */
+
 exports.getPendingManualReviewRequests = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     
-    // التحقق من صلاحية المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId, is_active: true },
       include: [{
@@ -2583,13 +2549,12 @@ exports.getPendingManualReviewRequests = async (req, res) => {
     const pageLimit = Math.max(1, parseInt(limit, 10) || 20);
     const offset = (pageNum - 1) * pageLimit;
 
-    // الطلبات التي تحتاج مراجعة يدوية
     const { count, rows: requests } = await ChildRegistrationRequest.findAndCountAll({
       where: {
         institution_id: institutionId,
         status: 'Pending',
         requested_at: {
-          [Op.lt]: new Date(Date.now() - 2 * 60 * 60 * 1000) // طلبات أقدم من ساعتين
+          [Op.lt]: new Date(Date.now() - 2 * 60 * 60 * 1000) 
         }
       },
       include: [
@@ -2622,7 +2587,6 @@ exports.getPendingManualReviewRequests = async (req, res) => {
       const childData = request.Child.get({ plain: true });
       const age = calculateAge(childData.date_of_birth);
       
-      // حساب نقاط التقييم الافتراضي
       const evaluationScore = await this.calculateRequestScore(request);
       
       return {
@@ -2644,7 +2608,7 @@ exports.getPendingManualReviewRequests = async (req, res) => {
         } : null,
         request_info: {
           requested_at: request.requested_at,
-          waiting_time: Math.round((new Date() - new Date(request.requested_at)) / (1000 * 60)), // بالدقائق
+          waiting_time: Math.round((new Date() - new Date(request.requested_at)) / (1000 * 60)), 
           notes: request.notes
         },
         evaluation: {
@@ -2689,11 +2653,7 @@ exports.getPendingManualReviewRequests = async (req, res) => {
   }
 };
 
-/**
- * @route   POST /api/manager/auto-approval/bulk-action
- * @desc    تنفيذ إجراءات جماعية على الطلبات
- * @access  Private (Manager only)
- */
+
 exports.processBulkActions = async (req, res) => {
   try {
     const managerId = req.user.user_id;
@@ -2713,7 +2673,6 @@ exports.processBulkActions = async (req, res) => {
       });
     }
 
-    // التحقق من صلاحية المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId, is_active: true },
       include: [{
@@ -2731,7 +2690,6 @@ exports.processBulkActions = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
 
-    // التحقق من أن الطلبات تنتمي للمؤسسة
     const requests = await ChildRegistrationRequest.findAll({
       where: {
         request_id: { [Op.in]: request_ids },
@@ -2757,7 +2715,6 @@ exports.processBulkActions = async (req, res) => {
     try {
       for (const request of requests) {
         if (action === 'approve') {
-          // الموافقة مع الحجز التلقائي
           await this.approveWithAutoScheduling(request, managerId, notes, transaction);
           results.push({
             request_id: request.request_id,
@@ -2766,7 +2723,6 @@ exports.processBulkActions = async (req, res) => {
             action: 'approved'
           });
         } else {
-          // الرفض
           await this.rejectRequest(request, managerId, notes, transaction);
           results.push({
             request_id: request.request_id,
@@ -2779,7 +2735,6 @@ exports.processBulkActions = async (req, res) => {
 
       await transaction.commit();
 
-      // تسجيل النشاط
       await this.logManagerActivity(managerId, 'bulk_action', {
         action: action,
         count: requests.length,
@@ -2817,15 +2772,11 @@ exports.processBulkActions = async (req, res) => {
   }
 };
 
-// ==================== دوال مساعدة داخلية ====================
 
-// دالة مساعدة: تسجيل نشاط المدير
 exports.logManagerActivity = async (managerId, activityType, details) => {
   try {
-    // يمكنك إنشاء جدول ManagerActivityLog أو استخدام جدول موجود
     console.log(`📝 نشاط المدير: ${managerId} - ${activityType}`, details);
     
-    // هنا يمكنك حفظ في جدول Logs إذا كان موجوداً
     /*
     await ActivityLog.create({
       user_id: managerId,
@@ -2841,7 +2792,6 @@ exports.logManagerActivity = async (managerId, activityType, details) => {
   }
 };
 
-// دالة مساعدة: توليد توصيات النظام
 exports.generateSystemRecommendations = (totalChildren, capacity, requestStats) => {
   const recommendations = [];
   
@@ -2873,10 +2823,8 @@ exports.generateSystemRecommendations = (totalChildren, capacity, requestStats) 
   return recommendations;
 };
 
-// دالة مساعدة: حساب نقاط الطلب
 exports.calculateRequestScore = async (request) => {
-  // محاكاة لحساب النقاط
-  let score = 50; // نقطة افتراضية
+  let score = 50; 
   
   if (request.Child.diagnosis_id) score += 10;
   if (request.Child.symptoms_description) score += 5;
@@ -2886,7 +2834,6 @@ exports.calculateRequestScore = async (request) => {
   return Math.min(score, 100);
 };
 
-// دالة مساعدة: الحصول على عوامل التقييم
 exports.getEvaluationFactors = async (request) => {
   const factors = [];
   
@@ -2899,9 +2846,7 @@ exports.getEvaluationFactors = async (request) => {
   return factors;
 };
 
-// دالة مساعدة: الموافقة مع الحجز التلقائي
 exports.approveWithAutoScheduling = async (request, managerId, notes, transaction) => {
-  // 1. تحديث حالة الطلب
   await ChildRegistrationRequest.update(
     {
       status: 'Approved',
@@ -2914,7 +2859,6 @@ exports.approveWithAutoScheduling = async (request, managerId, notes, transactio
     }
   );
 
-  // 2. تحديث حالة الطفل
   await Child.update(
     {
       registration_status: 'Approved',
@@ -2926,7 +2870,6 @@ exports.approveWithAutoScheduling = async (request, managerId, notes, transactio
     }
   );
 
-  // 3. البحث عن أخصائي وحجز جلسة
   const AutoApprovalService = require('../../services/autoApprovalService');
   const generalSpecialist = await AutoApprovalService.findAvailableGeneralSpecialist(
     request.institution_id,
@@ -2950,7 +2893,6 @@ exports.approveWithAutoScheduling = async (request, managerId, notes, transactio
   }
 };
 
-// دالة مساعدة: رفض الطلب
 exports.rejectRequest = async (request, managerId, notes, transaction) => {
   await ChildRegistrationRequest.update(
     {

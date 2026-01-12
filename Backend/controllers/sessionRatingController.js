@@ -1,4 +1,3 @@
-// controllers/sessionRatingController.js
 const SessionRating = require('../model/SessionRating');
 const Session = require('../model/Session');
 const Child = require('../model/Child');
@@ -7,10 +6,7 @@ const { Op } = require('sequelize');
 const sequelize = require("../config/db");
 
 
-/**
- * تقييم جلسة معينة
- */
-// في sessionRatingController.js - دالة rateSession
+
 const rateSession = async (req, res) => {
   try {
     const { sessionId } = req.params;
@@ -19,10 +15,8 @@ const rateSession = async (req, res) => {
 
     console.log('⭐ Rating session:', { sessionId, parentId, rating });
 
-    // الجلسة متاحة بالفعل في req.session (من middleware)
     const session = req.session;
 
-    // حفظ التقييم
     const newRating = await SessionRating.create({
       session_id: sessionId,
       parent_id: parentId,
@@ -35,10 +29,8 @@ const rateSession = async (req, res) => {
       rated_at: new Date()
     });
 
-    // تحديث متوسط تقييم الأخصائي
     await updateSpecialistAverageRating(session.specialist_id);
 
-    // إشعار للأخصائي
     if (rating >= 4) {
       await Notification.create({
         user_id: session.specialist_id,
@@ -66,9 +58,8 @@ const rateSession = async (req, res) => {
   }
 };
 
-/**
- * جلب تقييمات جلسة معينة
- */
+
+
 const getSessionRatings = async (req, res) => {
   try {
     const { sessionId } = req.params;
@@ -100,9 +91,7 @@ const getSessionRatings = async (req, res) => {
   }
 };
 
-/**
- * جلب تقييمات أخصائي معين
- */
+
 const getSpecialistRatings = async (req, res) => {
   try {
     const { specialistId } = req.params;
@@ -122,7 +111,7 @@ const getSpecialistRatings = async (req, res) => {
           attributes: ['date', 'session_type'],
           include: [{
             model: Child,
-            as: 'child',  // ✅ تحديد alias
+            as: 'child', 
             attributes: ['full_name']
           }]
         }
@@ -132,7 +121,6 @@ const getSpecialistRatings = async (req, res) => {
       offset: offset
     });
 
-    // حساب الإحصائيات
     const stats = await SessionRating.findOne({
       where: { specialist_id: specialistId },
       attributes: [
@@ -181,9 +169,7 @@ const getSpecialistRatings = async (req, res) => {
   }
 };
 
-/**
- * جلب تقييماتي (للأهل)
- */
+
 const getMyRatings = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -203,7 +189,7 @@ const getMyRatings = async (req, res) => {
           attributes: ['date', 'session_type'],
           include: [{
             model: Child,
-            as: 'child',  // ✅ تحديد alias واضح
+            as: 'child',  
             attributes: ['full_name', 'child_id']
           }]
         }
@@ -245,9 +231,7 @@ const getMyRatings = async (req, res) => {
   }
 };
 
-/**
- * تحديث متوسط تقييم الأخصائي
- */
+
 const updateSpecialistAverageRating = async (specialistId) => {
   try {
     const stats = await SessionRating.findOne({
@@ -273,9 +257,7 @@ const updateSpecialistAverageRating = async (specialistId) => {
   }
 };
 
-/**
- * جلب توزيع التقييمات
- */
+
 const getRatingDistribution = async (specialistId) => {
   const distribution = {};
   for (let i = 1; i <= 5; i++) {
@@ -290,9 +272,7 @@ const getRatingDistribution = async (specialistId) => {
   return distribution;
 };
 
-/**
- * تحويل الرقم إلى تاج
- */
+
 const getRatingTag = (rating) => {
   const tags = {
     1: 'سيء',
@@ -304,9 +284,7 @@ const getRatingTag = (rating) => {
   return tags[rating] || 'جيد';
 };
 
-/**
- * جلب تقييمات أخصائي معين (للعرض الخاص بالأخصائي)
- */
+
 const getSpecialistRatingsForSpecialist = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
@@ -336,7 +314,6 @@ const getSpecialistRatingsForSpecialist = async (req, res) => {
       offset: offset
     });
 
-    // حساب الإحصائيات
     const stats = await SessionRating.findOne({
       where: { specialist_id: specialistId },
       attributes: [
@@ -348,7 +325,6 @@ const getSpecialistRatingsForSpecialist = async (req, res) => {
       raw: true
     });
 
-    // توزيع التقييمات
     const distribution = {};
     for (let i = 1; i <= 5; i++) {
       const count = await SessionRating.count({
@@ -402,9 +378,7 @@ const getSpecialistRatingsForSpecialist = async (req, res) => {
   }
 };
 
-/**
- * جلب إحصائيات التقييمات السريعة للأخصائي
- */
+
 const getSpecialistRatingStats = async (req, res) => {
   try {
     const specialistId = req.user.user_id;
@@ -419,7 +393,6 @@ const getSpecialistRatingStats = async (req, res) => {
       raw: true
     });
 
-    // عدد التقييمات في آخر 30 يوم
     const recentCount = await SessionRating.count({
       where: {
         specialist_id: specialistId,

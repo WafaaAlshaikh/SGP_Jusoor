@@ -16,13 +16,8 @@ const {
   SessionRating 
 } = require('../../model/index');
 
-// ==================== دوال مساعدة جديدة ====================
 
-/**
- * جلب FCM Token للأخصائي من قاعدة البيانات
- * @param {number} specialistId - معرف الأخصائي
- * @returns {Promise<string|null>} - FCM Token أو null إذا لم يوجد
- */
+
 const getSpecialistFCMToken = async (specialistId) => {
   try {
     const [tokenResult] = await sequelize.query(`
@@ -41,7 +36,6 @@ const getSpecialistFCMToken = async (specialistId) => {
   }
 };
 
-// 🔧 دالة مساعدة لإرسال إشعارات الجداول
 const sendScheduleNotification = async (specialistToken, action, scheduleData) => {
   try {
     if (!specialistToken || specialistToken.trim() === '') {
@@ -63,7 +57,7 @@ const sendScheduleNotification = async (specialistToken, action, scheduleData) =
           end_time: scheduleData.end_time,
           schedule_id: scheduleData.schedule_id?.toString(),
           timestamp: new Date().toISOString(),
-          channel: 'default_channel'  // ⬅️ أضف هذا
+          channel: 'default_channel'  
         };
         break;
 
@@ -78,7 +72,7 @@ const sendScheduleNotification = async (specialistToken, action, scheduleData) =
           end_time: scheduleData.end_time || '',
           schedule_id: scheduleData.schedule_id?.toString(),
           timestamp: new Date().toISOString(),
-          channel: 'default_channel'  // ⬅️ أضف هذا
+          channel: 'default_channel'  
         };
         break;
 
@@ -90,7 +84,7 @@ const sendScheduleNotification = async (specialistToken, action, scheduleData) =
           action: 'deleted',
           schedule_id: scheduleData.schedule_id?.toString(),
           timestamp: new Date().toISOString(),
-          channel: 'default_channel'  // ⬅️ أضف هذا
+          channel: 'default_channel'  
         };
         break;
 
@@ -102,7 +96,7 @@ const sendScheduleNotification = async (specialistToken, action, scheduleData) =
           action: 'bulk_added',
           count: scheduleData.count?.toString(),
           timestamp: new Date().toISOString(),
-          channel: 'default_channel'  // ⬅️ أضف هذا
+          channel: 'default_channel'  
         };
         break;
 
@@ -110,7 +104,7 @@ const sendScheduleNotification = async (specialistToken, action, scheduleData) =
         title = '📅 Schedule Modified';
         body = 'Your schedule has been modified';
         notificationData = {
-          channel: 'default_channel'  // ⬅️ أضف هذا
+          channel: 'default_channel'  
         };
     }
 
@@ -127,10 +121,8 @@ const sendScheduleNotification = async (specialistToken, action, scheduleData) =
   }
 };
 
-// Helper function to send welcome email
 const sendWelcomeEmail = async (email, full_name, password) => {
   try {
-    // Create transporter
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'smtp.gmail.com',
       port: process.env.SMTP_PORT || 587,
@@ -144,7 +136,6 @@ const sendWelcomeEmail = async (email, full_name, password) => {
       }
     });
 
-    // Plain text email
     const emailText = `
 Hello ${full_name},
 
@@ -164,7 +155,6 @@ Best regards,
 Jusoor System Team
 `;
 
-    // HTML email
     const emailHtml = `
 <!DOCTYPE html>
 <html lang="en">
@@ -310,7 +300,6 @@ Jusoor System Team
 </html>
 `;
 
-    // Email options
     const mailOptions = {
       from: process.env.SMTP_FROM || process.env.SMTP_USER || process.env.EMAIL_USER,
       to: email,
@@ -319,7 +308,6 @@ Jusoor System Team
       html: emailHtml
     };
 
-    // Send email
     const info = await transporter.sendMail(mailOptions);
     console.log('📧 Welcome email sent to:', email, 'Message ID:', info.messageId);
     return true;
@@ -330,18 +318,11 @@ Jusoor System Team
   }
 };
 
-// ==================== وظائف الإحصائيات الحالية (محفوظة) ====================
 
-/**
- * @desc    Get specialists count by session type
- * @route   GET /api/manager/stats/by-session-type
- * @access  Private/Manager
- */
 exports.getSpecialistsBySessionType = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     
-    // الحصول على مؤسسة المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
       include: [{
@@ -359,7 +340,6 @@ exports.getSpecialistsBySessionType = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
 
-    // الحصول على أنواع الجلسات للمؤسسة
     const sessionTypes = await SessionType.findAll({
       where: { 
         institution_id: institutionId,
@@ -371,7 +351,6 @@ exports.getSpecialistsBySessionType = async (req, res) => {
     const result = [];
 
     for (const sessionType of sessionTypes) {
-      // الحصول على الاخصائيين الذين يطابقون التخصص
       const specialists = await Specialist.findAll({
         where: {
           institution_id: institutionId,
@@ -385,7 +364,6 @@ exports.getSpecialistsBySessionType = async (req, res) => {
         }]
       });
 
-      // حساب عدد الجلسات لكل أخصائي لهذا النوع
       const specialistsWithSessions = await Promise.all(
         specialists.map(async (specialist) => {
           const sessionCount = await Session.count({
@@ -432,16 +410,11 @@ exports.getSpecialistsBySessionType = async (req, res) => {
   }
 };
 
-/**
- * @desc    Get active specialists count
- * @route   GET /api/manager/stats/active-count
- * @access  Private/Manager
- */
+
 exports.getActiveSpecialistsCount = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     
-    // الحصول على مؤسسة المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
       include: [{
@@ -459,7 +432,6 @@ exports.getActiveSpecialistsCount = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
 
-    // حساب الأخصائيين النشطين (approved)
     const activeSpecialistsCount = await Specialist.count({
       where: {
         institution_id: institutionId,
@@ -490,16 +462,11 @@ exports.getActiveSpecialistsCount = async (req, res) => {
   }
 };
 
-/**
- * @desc    Get vacation statistics
- * @route   GET /api/manager/stats/vacations
- * @access  Private/Manager
- */
+
 exports.getVacationStatistics = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     
-    // الحصول على مؤسسة المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
       include: [{
@@ -517,7 +484,6 @@ exports.getVacationStatistics = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
 
-    // الحصول على أخصائيي المؤسسة
     const institutionSpecialists = await Specialist.findAll({
       where: { institution_id: institutionId },
       attributes: ['specialist_id']
@@ -525,11 +491,9 @@ exports.getVacationStatistics = async (req, res) => {
 
     const specialistIds = institutionSpecialists.map(s => s.specialist_id);
 
-    // تاريخ اليوم
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // 1. الأخصائيين الغائبين اليوم
     const absentToday = await VacationRequest.count({
       where: {
         specialist_id: { [Op.in]: specialistIds },
@@ -539,14 +503,12 @@ exports.getVacationStatistics = async (req, res) => {
       }
     });
 
-    // 2. إجمالي طلبات الإجازة (جميع الحالات)
     const totalVacationRequests = await VacationRequest.count({
       where: {
         specialist_id: { [Op.in]: specialistIds }
       }
     });
 
-    // 3. طلبات الإجازة حسب الحالة
     const requestsByStatus = await VacationRequest.findAll({
       where: {
         specialist_id: { [Op.in]: specialistIds }
@@ -584,16 +546,11 @@ exports.getVacationStatistics = async (req, res) => {
   }
 };
 
-/**
- * @desc    Get average sessions per day
- * @route   GET /api/manager/stats/average-sessions
- * @access  Private/Manager
- */
+
 exports.getAverageSessionsPerDay = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     
-    // الحصول على مؤسسة المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
       include: [{
@@ -611,11 +568,9 @@ exports.getAverageSessionsPerDay = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
 
-    // الحصول على آخر 30 يوم
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    // الحصول على الجلسات المكتملة في آخر 30 يوم
     const sessionsLast30Days = await Session.findAll({
       where: {
         institution_id: institutionId,
@@ -628,7 +583,6 @@ exports.getAverageSessionsPerDay = async (req, res) => {
       attributes: ['date']
     });
 
-    // حساب عدد الأيام الفعلية التي بها جلسات
     const daysWithSessions = [...new Set(sessionsLast30Days.map(s => {
       const date = new Date(s.date);
       return date.toISOString().split('T')[0];
@@ -641,7 +595,6 @@ exports.getAverageSessionsPerDay = async (req, res) => {
       averageSessionsPerDay = totalSessions / daysWithSessions.length;
     }
 
-    // إحصائيات مفصلة
     const dailyStats = await Session.findAll({
       where: {
         institution_id: institutionId,
@@ -659,7 +612,6 @@ exports.getAverageSessionsPerDay = async (req, res) => {
       order: [[Sequelize.fn('DATE', Sequelize.col('date')), 'DESC']]
     });
 
-    // تحويل النتائج إلى شكل أبسط
     const formattedDailyStats = dailyStats.map(stat => ({
       day: stat.dataValues.day,
       session_count: parseInt(stat.dataValues.session_count)
@@ -687,16 +639,11 @@ exports.getAverageSessionsPerDay = async (req, res) => {
   }
 };
 
-/**
- * @desc    Get all specialist statistics (comprehensive)
- * @route   GET /api/manager/stats/comprehensive
- * @access  Private/Manager
- */
+
 exports.getComprehensiveStatistics = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     
-    // الحصول على مؤسسة المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
       include: [{
@@ -715,7 +662,6 @@ exports.getComprehensiveStatistics = async (req, res) => {
     const institutionId = manager.Institution.institution_id;
     const institutionName = manager.Institution.name;
 
-    // 1. عدد الأخصائيين النشطين
     const activeSpecialistsCount = await Specialist.count({
       where: {
         institution_id: institutionId,
@@ -728,7 +674,6 @@ exports.getComprehensiveStatistics = async (req, res) => {
       }]
     });
 
-    // 2. الأخصائيين حسب التخصص
     const specialistsBySpecialization = await Specialist.findAll({
       where: {
         institution_id: institutionId,
@@ -746,13 +691,11 @@ exports.getComprehensiveStatistics = async (req, res) => {
       group: ['specialization']
     });
 
-    // تحويل النتائج
     const formattedSpecialists = specialistsBySpecialization.map(spec => ({
       specialization: spec.specialization,
       count: parseInt(spec.dataValues.count)
     }));
 
-    // 3. إحصائيات الجلسات
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -776,7 +719,6 @@ exports.getComprehensiveStatistics = async (req, res) => {
       formattedSessionsStats[stat.status] = parseInt(stat.dataValues.count);
     });
 
-    // 4. أنواع الجلسات الأكثر شيوعاً - باستخدام استعلام منفصل
     const popularSessionTypes = await sequelize.query(
       `SELECT 
         st.name as session_type,
@@ -802,7 +744,6 @@ exports.getComprehensiveStatistics = async (req, res) => {
       count: parseInt(type.count)
     }));
 
-    // 5. إحصائيات الإجازات
     const specialistIds = await Specialist.findAll({
       where: { institution_id: institutionId },
       attributes: ['specialist_id']
@@ -875,18 +816,12 @@ exports.getComprehensiveStatistics = async (req, res) => {
   }
 };
 
-// ==================== وظائف إدارة الأخصائيين الجديدة ====================
 
-/**
- * @desc    Add new specialist
- * @route   POST /api/manager/specialists
- * @access  Private/Manager
- */
+
 exports.addSpecialist = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     
-    // Get manager institution
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
       include: [{
@@ -905,7 +840,6 @@ exports.addSpecialist = async (req, res) => {
     const institutionId = manager.Institution.institution_id;
     const institutionName = manager.Institution.name;
     
-    // New specialist data
     const {
       full_name,
       email,
@@ -915,7 +849,6 @@ exports.addSpecialist = async (req, res) => {
       salary
     } = req.body;
 
-    // Required fields validation
     if (!full_name || !email || !specialization) {
       return res.status(400).json({
         success: false,
@@ -923,7 +856,6 @@ exports.addSpecialist = async (req, res) => {
       });
     }
 
-    // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return res.status(400).json({
@@ -932,7 +864,6 @@ exports.addSpecialist = async (req, res) => {
       });
     }
 
-    // Check if email already exists
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       return res.status(400).json({
@@ -941,7 +872,6 @@ exports.addSpecialist = async (req, res) => {
       });
     }
 
-    // Generate a strong random password
     const generatePassword = () => {
       const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
       let password = '';
@@ -953,16 +883,13 @@ exports.addSpecialist = async (req, res) => {
 
     const generatedPassword = generatePassword();
 
-    // Hash the password
     const hashedPassword = await bcrypt.hash(generatedPassword, 10);
 
-    // Start DB transaction
     const transaction = await sequelize.transaction();
 
     try {
       console.log('🔍 Step 1: Creating user account for:', email);
       
-      // 1. Create new user
       const newUser = await User.create({
         full_name,
         email,
@@ -978,7 +905,6 @@ exports.addSpecialist = async (req, res) => {
 
       console.log('🔍 Step 2: Creating specialist record');
       
-      // 2. Create specialist record
       const newSpecialist = await Specialist.create({
         specialist_id: newUser.user_id,
         specialization,
@@ -992,7 +918,6 @@ exports.addSpecialist = async (req, res) => {
 
       console.log('🔍 Step 3: Sending welcome email');
       
-      // 3. Send welcome email with password
       const emailSent = await sendWelcomeEmail(email, full_name, generatedPassword);
       
       if (!emailSent) {
@@ -1042,16 +967,11 @@ exports.addSpecialist = async (req, res) => {
 };
 
 
-/**
- * @desc    Add new session type (إضافة نوع جلسة جديد)
- * @route   POST /api/manager/session-types
- * @access  Private/Manager
- */
+
 exports.addSessionType = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     
-    // الحصول على مؤسسة المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
       include: [{
@@ -1069,7 +989,6 @@ exports.addSessionType = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
     
-    // بيانات نوع الجلسة الجديد
     const {
       name,
       duration,
@@ -1079,7 +998,6 @@ exports.addSessionType = async (req, res) => {
       target_conditions
     } = req.body;
 
-    // التحقق من وجود البيانات المطلوبة
     if (!name || !duration || !price || !category || !specialist_specialization) {
       return res.status(400).json({
         success: false,
@@ -1087,7 +1005,6 @@ exports.addSessionType = async (req, res) => {
       });
     }
 
-    // التحقق من صحة الفئة
     const validCategories = ['Speech', 'Behavioral', 'Occupational', 'Educational'];
     if (!validCategories.includes(category)) {
       return res.status(400).json({
@@ -1096,7 +1013,6 @@ exports.addSessionType = async (req, res) => {
       });
     }
 
-    // إنشاء نوع الجلسة الجديد
     const newSessionType = await SessionType.create({
       institution_id: institutionId,
       name,
@@ -1105,8 +1021,8 @@ exports.addSessionType = async (req, res) => {
       category,
       specialist_specialization,
       target_conditions: target_conditions ? JSON.parse(target_conditions) : null,
-      approval_status: 'Approved', // المدير يضيف مباشرة كنوع معتمد
-      created_by_specialist_id: null // المدير يضيفه
+      approval_status: 'Approved',
+      created_by_specialist_id: null 
     });
 
     res.status(201).json({
@@ -1142,7 +1058,6 @@ exports.getAllSpecialistsSchedules = async (req, res) => {
     const managerId = req.user.user_id;
 
     console.log('🔍 Step 1: Executing SQL query');
-    // استعلام مباشر
     const query = `
       SELECT 
         sp.specialist_id,
@@ -1185,7 +1100,7 @@ exports.getAllSpecialistsSchedules = async (req, res) => {
     }
 
     console.log('🔄 Step 2: Grouping results by specialist');
-    // تجميع النتائج
+
     const specialistsMap = {};
     
     results.forEach((row, index) => {
@@ -1215,7 +1130,6 @@ exports.getAllSpecialistsSchedules = async (req, res) => {
     console.log('📊 Grouped into', specialists.length, 'specialists');
 
     console.log('🔍 Step 3: Getting institution info');
-    // الحصول على اسم المؤسسة
     const [institutionInfo] = await sequelize.query(`
       SELECT i.institution_id, i.name 
       FROM Managers m
@@ -1253,11 +1167,7 @@ exports.getAllSpecialistsSchedules = async (req, res) => {
   }
 };
 
-/**
- * @desc    Get specialist schedule by ID (الحصول على جدول أخصائي محدد)
- * @route   GET /api/manager/specialists/:id/schedule
- * @access  Private/Manager
- */
+
 exports.getSpecialistSchedule = async (req, res) => {
   try {
     console.log('🎯 === START getSpecialistSchedule ===');
@@ -1266,14 +1176,13 @@ exports.getSpecialistSchedule = async (req, res) => {
     console.log('🔗 Request params:', req.params);
 
     const managerId = req.user.user_id;
-    const specialistId = parseInt(req.params.id); // ⬅️ تحويل إلى رقم
+    const specialistId = parseInt(req.params.id); 
     
     console.log('🔢 Step 1: Parsing parameters');
     console.log('   Manager ID:', managerId);
     console.log('   Requested specialist ID:', specialistId, 'Type:', typeof specialistId);
 
     console.log('🔍 Step 2: Searching for manager');
-    // البحث عن المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId }
     });
@@ -1292,7 +1201,6 @@ exports.getSpecialistSchedule = async (req, res) => {
     console.log('   Institution ID:', manager.institution_id);
 
     console.log('🔍 Step 4: Checking if specialist belongs to same institution');
-    // التحقق من أن الأخصائي تابع لنفس المؤسسة
     const specialist = await Specialist.findOne({
       where: {
         specialist_id: specialistId,
@@ -1324,7 +1232,6 @@ exports.getSpecialistSchedule = async (req, res) => {
     console.log('   Specialization:', specialist.specialization);
 
     console.log('🔍 Step 5: Fetching schedules for specialist');
-    // الحصول على جداول الأخصائي
     const schedules = await SpecialistSchedule.findAll({
       where: { specialist_id: specialistId },
       attributes: ['schedule_id', 'day_of_week', 'start_time', 'end_time'],
@@ -1372,18 +1279,13 @@ exports.getSpecialistSchedule = async (req, res) => {
   }
 };
 
-/**
- * @desc    Add schedule for specialist (إضافة جدول دوام لأخصائي)
- * @route   POST /api/manager/specialists/:id/schedule
- * @access  Private/Manager
- */
+
 exports.addSpecialistSchedule = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     const specialistId = req.params.id;
-    const { day_of_week, start_time, end_time } = req.body; // ✅ تم التعديل: أزلنا specialist_fcm_token
+    const { day_of_week, start_time, end_time } = req.body; 
 
-    // الحصول على مؤسسة المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
       include: [{
@@ -1401,7 +1303,6 @@ exports.addSpecialistSchedule = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
 
-    // التحقق من أن الأخصائي تابع لنفس المؤسسة
     const specialist = await Specialist.findOne({
       where: {
         specialist_id: specialistId,
@@ -1421,7 +1322,6 @@ exports.addSpecialistSchedule = async (req, res) => {
       });
     }
 
-    // التحقق من البيانات
     if (!day_of_week || !start_time || !end_time) {
       return res.status(400).json({
         success: false,
@@ -1429,7 +1329,6 @@ exports.addSpecialistSchedule = async (req, res) => {
       });
     }
 
-    // التحقق من صحة يوم الأسبوع
     const validDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     if (!validDays.includes(day_of_week)) {
       return res.status(400).json({
@@ -1438,7 +1337,6 @@ exports.addSpecialistSchedule = async (req, res) => {
       });
     }
 
-    // التحقق من عدم وجود جدول مكرر في نفس اليوم
     const existingSchedule = await SpecialistSchedule.findOne({
       where: {
         specialist_id: specialistId,
@@ -1453,7 +1351,6 @@ exports.addSpecialistSchedule = async (req, res) => {
       });
     }
 
-    // إضافة الجدول الجديد
     const newSchedule = await SpecialistSchedule.create({
       specialist_id: specialistId,
       day_of_week,
@@ -1461,10 +1358,8 @@ exports.addSpecialistSchedule = async (req, res) => {
       end_time
     });
 
-    // ✅ التعديل: جلب التوكن من قاعدة البيانات بدلاً من الفرونت
     const specialistToken = await getSpecialistFCMToken(specialistId);
     
-    // 👇 إرسال الإشعار إذا كان في توكن
     if (specialistToken) {
       await sendScheduleNotification(
         specialistToken,
@@ -1502,18 +1397,13 @@ exports.addSpecialistSchedule = async (req, res) => {
   }
 };
 
-/**
- * @desc    Update specialist schedule (تعديل جدول دوام أخصائي)
- * @route   PUT /api/manager/schedules/:scheduleId
- * @access  Private/Manager
- */
+
 exports.updateSpecialistSchedule = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     const scheduleId = req.params.scheduleId;
-    const { day_of_week, start_time, end_time } = req.body; // ✅ تم التعديل: أزلنا specialist_fcm_token
+    const { day_of_week, start_time, end_time } = req.body; 
 
-    // التحقق من وجود بيانات للتعديل
     if (!day_of_week && !start_time && !end_time) {
       return res.status(400).json({
         success: false,
@@ -1521,7 +1411,6 @@ exports.updateSpecialistSchedule = async (req, res) => {
       });
     }
 
-    // العثور على الجدول
     const schedule = await SpecialistSchedule.findByPk(scheduleId, {
       include: [{
         model: Specialist,
@@ -1545,7 +1434,6 @@ exports.updateSpecialistSchedule = async (req, res) => {
       });
     }
 
-    // بيانات التحديث
     const updateData = {};
     if (day_of_week) {
       const validDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -1566,13 +1454,10 @@ exports.updateSpecialistSchedule = async (req, res) => {
       end_time: schedule.end_time
     };
 
-    // تحديث الجدول
     await schedule.update(updateData);
 
-    // ✅ التعديل: جلب التوكن من قاعدة البيانات بدلاً من الفرونت
     const specialistToken = await getSpecialistFCMToken(schedule.specialist_id);
     
-    // 👇 إرسال الإشعار إذا كان في توكن
     if (specialistToken) {
       await sendScheduleNotification(
         specialistToken,
@@ -1610,18 +1495,13 @@ exports.updateSpecialistSchedule = async (req, res) => {
   }
 };
 
-/**
- * @desc    Delete specialist schedule (حذف جدول دوام أخصائي)
- * @route   DELETE /api/manager/schedules/:scheduleId
- * @access  Private/Manager
- */
+
+
 exports.deleteSpecialistSchedule = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     const scheduleId = req.params.scheduleId;
-    // ✅ تم التعديل: أزلنا const { specialist_fcm_token } = req.body;
 
-    // العثور على الجدول والتحقق من الصلاحيات
     const schedule = await SpecialistSchedule.findByPk(scheduleId, {
       include: [{
         model: Specialist,
@@ -1645,19 +1525,15 @@ exports.deleteSpecialistSchedule = async (req, res) => {
       });
     }
 
-    // حفظ بيانات الجدول قبل الحذف للإشعار
     const scheduleData = {
       schedule_id: schedule.schedule_id,
       day_of_week: schedule.day_of_week
     };
 
-    // حذف الجدول
     await schedule.destroy();
 
-    // ✅ التعديل: جلب التوكن من قاعدة البيانات بدلاً من الفرونت
     const specialistToken = await getSpecialistFCMToken(schedule.specialist_id);
     
-    // 👇 إرسال الإشعار إذا كان في توكن
     if (specialistToken) {
       await sendScheduleNotification(
         specialistToken,
@@ -1683,18 +1559,13 @@ exports.deleteSpecialistSchedule = async (req, res) => {
   }
 };
 
-/**
- * @desc    Add multiple schedules for specialist (إضافة جداول متعددة لأخصائي)
- * @route   POST /api/manager/specialists/:id/schedules/bulk
- * @access  Private/Manager
- */
+
 exports.addMultipleSchedules = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     const specialistId = req.params.id;
-    const { schedules } = req.body; // ✅ تم التعديل: أزلنا specialist_fcm_token
+    const { schedules } = req.body; 
 
-    // الحصول على مؤسسة المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
       include: [{
@@ -1712,7 +1583,6 @@ exports.addMultipleSchedules = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
 
-    // التحقق من أن الأخصائي تابع لنفس المؤسسة
     const specialist = await Specialist.findOne({
       where: {
         specialist_id: specialistId,
@@ -1735,7 +1605,6 @@ exports.addMultipleSchedules = async (req, res) => {
       });
     }
 
-    // التحقق من صحة جميع الجداول
     const validDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const errors = [];
 
@@ -1755,14 +1624,12 @@ exports.addMultipleSchedules = async (req, res) => {
       });
     }
 
-    // بدء المعاملة
     const transaction = await sequelize.transaction();
 
     try {
       const createdSchedules = [];
 
       for (const scheduleData of schedules) {
-        // التحقق من عدم وجود جدول مكرر في نفس اليوم
         const existingSchedule = await SpecialistSchedule.findOne({
           where: {
             specialist_id: specialistId,
@@ -1779,7 +1646,6 @@ exports.addMultipleSchedules = async (req, res) => {
           });
         }
 
-        // إضافة الجدول
         const newSchedule = await SpecialistSchedule.create({
           specialist_id: specialistId,
           day_of_week: scheduleData.day_of_week,
@@ -1792,10 +1658,8 @@ exports.addMultipleSchedules = async (req, res) => {
 
       await transaction.commit();
 
-      // ✅ التعديل: جلب التوكن من قاعدة البيانات بدلاً من الفرونت
       const specialistToken = await getSpecialistFCMToken(specialistId);
       
-      // 👇 إرسال الإشعار إذا كان في توكن
       if (specialistToken && createdSchedules.length > 0) {
         await sendScheduleNotification(
           specialistToken,
@@ -1838,18 +1702,11 @@ exports.addMultipleSchedules = async (req, res) => {
 
 
 
-// ==================== وظائف إدارة طلبات الإجازات ====================
 
-/**
- * @desc    Get all vacation requests for institution (الحصول على جميع طلبات الإجازة)
- * @route   GET /api/manager/vacation-requests
- * @access  Private/Manager
- */
 exports.getVacationRequests = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     
-    // الحصول على مؤسسة المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
       include: [{
@@ -1868,13 +1725,12 @@ exports.getVacationRequests = async (req, res) => {
     const institutionId = manager.Institution.institution_id;
     const institutionName = manager.Institution.name;
 
-    // الحصول على جميع طلبات الإجازة للمؤسسة مع تفاصيل الأخصائي
     const vacationRequests = await VacationRequest.findAll({
       where: { institution_id: institutionId },
       include: [
         {
           model: Specialist,
-          as: 'specialist', // ⬅️ أضف هذا
+          as: 'specialist', 
           include: [{
             model: User,
             attributes: ['full_name', 'email', 'phone']
@@ -1893,16 +1749,14 @@ exports.getVacationRequests = async (req, res) => {
       ]
     });
 
-    // حساب الإحصائيات
     const pendingCount = vacationRequests.filter(req => req.status === 'Pending').length;
     const approvedCount = vacationRequests.filter(req => req.status === 'Approved').length;
     const rejectedCount = vacationRequests.filter(req => req.status === 'Rejected').length;
 
-    // تحويل النتائج
     const formattedRequests = vacationRequests.map(request => ({
       request_id: request.request_id,
       specialist: {
-        specialist_id: request.specialist.specialist_id, // ⬅️ استخدم request.specialist
+        specialist_id: request.specialist.specialist_id, 
         full_name: request.specialist.User.full_name,
         email: request.specialist.User.email,
         phone: request.specialist.User.phone,
@@ -1942,17 +1796,12 @@ exports.getVacationRequests = async (req, res) => {
   }
 };
 
-/**
- * @desc    Get vacation request details (الحصول على تفاصيل طلب إجازة)
- * @route   GET /api/manager/vacation-requests/:requestId
- * @access  Private/Manager
- */
+
 exports.getVacationRequestDetails = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     const requestId = req.params.requestId;
 
-    // الحصول على مؤسسة المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
       include: [{
@@ -1970,7 +1819,6 @@ exports.getVacationRequestDetails = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
 
-    // الحصول على تفاصيل طلب الإجازة
     const vacationRequest = await VacationRequest.findOne({
       where: {
         request_id: requestId,
@@ -1979,7 +1827,7 @@ exports.getVacationRequestDetails = async (req, res) => {
       include: [
         {
           model: Specialist,
-          as: 'specialist', // ⬅️ أضف هذا
+          as: 'specialist', 
           include: [{
             model: User,
             attributes: ['full_name', 'email', 'phone', 'profile_picture']
@@ -1995,7 +1843,6 @@ exports.getVacationRequestDetails = async (req, res) => {
       });
     }
 
-    // حساب عدد الأيام
     const startDate = new Date(vacationRequest.start_date);
     const endDate = new Date(vacationRequest.end_date);
     const totalDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
@@ -2005,7 +1852,7 @@ exports.getVacationRequestDetails = async (req, res) => {
       data: {
         request_id: vacationRequest.request_id,
         specialist: {
-          specialist_id: vacationRequest.specialist.specialist_id, // ⬅️ استخدم vacationRequest.specialist
+          specialist_id: vacationRequest.specialist.specialist_id, 
           full_name: vacationRequest.specialist.User.full_name,
           email: vacationRequest.specialist.User.email,
           phone: vacationRequest.specialist.User.phone,
@@ -2032,18 +1879,13 @@ exports.getVacationRequestDetails = async (req, res) => {
   }
 };
 
-/**
- * @desc    Update vacation request status (تحديث حالة طلب الإجازة)
- * @route   PUT /api/manager/vacation-requests/:requestId/status
- * @access  Private/Manager
- */
+
 exports.updateVacationRequestStatus = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     const requestId = req.params.requestId;
     const { status, manager_notes } = req.body;
 
-    // التحقق من الحالة
     const validStatuses = ['Approved', 'Rejected'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
@@ -2052,7 +1894,6 @@ exports.updateVacationRequestStatus = async (req, res) => {
       });
     }
 
-    // الحصول على مؤسسة المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
       include: [{
@@ -2070,16 +1911,15 @@ exports.updateVacationRequestStatus = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
 
-    // العثور على طلب الإجازة
     const vacationRequest = await VacationRequest.findOne({
       where: {
         request_id: requestId,
         institution_id: institutionId,
-        status: 'Pending' // يمكن تعديل الطلبات في حالة Pending فقط
+        status: 'Pending' 
       },
       include: [{
         model: Specialist,
-        as: 'specialist', // ⬅️ أضف هذا
+        as: 'specialist', 
         include: [{
           model: User,
           attributes: ['full_name', 'email']
@@ -2094,12 +1934,10 @@ exports.updateVacationRequestStatus = async (req, res) => {
       });
     }
 
-    // تحديث حالة طلب الإجازة
     await vacationRequest.update({
       status: status
     });
 
-    // إرسال بريد إلكتروني للأخصائي
     try {
       const transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
@@ -2129,7 +1967,6 @@ exports.updateVacationRequestStatus = async (req, res) => {
       console.log('📧 Email sent to specialist about vacation request status');
     } catch (emailError) {
       console.error('Failed to send email:', emailError);
-      // لا نعيد خطأ هنا لأن العملية الرئيسية نجحت
     }
 
     res.json({
@@ -2155,18 +1992,12 @@ exports.updateVacationRequestStatus = async (req, res) => {
   }
 };
 
-// ==================== وظائف إدارة أنواع الجلسات ====================
 
-/**
- * @desc    Get pending session types (الحصول على أنواع الجلسات قيد الانتظار)
- * @route   GET /api/manager/session-types/pending
- * @access  Private/Manager
- */
+
 exports.getPendingSessionTypes = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     
-    // الحصول على مؤسسة المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
       include: [{
@@ -2185,7 +2016,6 @@ exports.getPendingSessionTypes = async (req, res) => {
     const institutionId = manager.Institution.institution_id;
     const institutionName = manager.Institution.name;
 
-    // الحصول على أنواع الجلسات قيد الانتظار
     const pendingSessionTypes = await SessionType.findAll({
       where: { 
         institution_id: institutionId,
@@ -2234,18 +2064,13 @@ exports.getPendingSessionTypes = async (req, res) => {
   }
 };
 
-/**
- * @desc    Update session type approval (تحديث موافقة على نوع جلسة)
- * @route   PUT /api/manager/session-types/:sessionTypeId/approval
- * @access  Private/Manager
- */
+
 exports.updateSessionTypeApproval = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     const sessionTypeId = req.params.sessionTypeId;
     const { approval_status, price } = req.body;
 
-    // التحقق من البيانات
     if (!approval_status || (approval_status === 'Approved' && !price)) {
       return res.status(400).json({
         success: false,
@@ -2255,7 +2080,6 @@ exports.updateSessionTypeApproval = async (req, res) => {
       });
     }
 
-    // التحقق من الحالة
     const validStatuses = ['Approved', 'Rejected'];
     if (!validStatuses.includes(approval_status)) {
       return res.status(400).json({
@@ -2264,7 +2088,6 @@ exports.updateSessionTypeApproval = async (req, res) => {
       });
     }
 
-    // التحقق من السعر إذا تمت الموافقة
     if (approval_status === 'Approved' && (isNaN(price) || price <= 0)) {
       return res.status(400).json({
         success: false,
@@ -2272,7 +2095,6 @@ exports.updateSessionTypeApproval = async (req, res) => {
       });
     }
 
-    // الحصول على مؤسسة المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
       include: [{
@@ -2290,7 +2112,6 @@ exports.updateSessionTypeApproval = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
 
-    // العثور على نوع الجلسة
     const sessionType = await SessionType.findOne({
       where: {
         session_type_id: sessionTypeId,
@@ -2311,20 +2132,16 @@ exports.updateSessionTypeApproval = async (req, res) => {
       });
     }
 
-    // بيانات التحديث
     const updateData = {
       approval_status: approval_status
     };
 
-    // إذا تمت الموافقة، تحديث السعر
     if (approval_status === 'Approved') {
       updateData.price = parseFloat(price);
     }
 
-    // تحديث نوع الجلسة
     await sessionType.update(updateData);
 
-    // إرسال بريد إلكتروني للأخصائي الذي أنشأ النوع
     if (sessionType.CreatedBySpecialist) {
       try {
         const transporter = nodemailer.createTransport({
@@ -2383,16 +2200,11 @@ exports.updateSessionTypeApproval = async (req, res) => {
 };
 
 
-/**
- * @desc    Get all session types (الحصول على جميع أنواع الجلسات للمؤسسة)
- * @route   GET /api/manager/session-types
- * @access  Private/Manager
- */
+
 exports.getAllSessionTypes = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     
-    // الحصول على مؤسسة المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
       include: [{
@@ -2411,12 +2223,11 @@ exports.getAllSessionTypes = async (req, res) => {
     const institutionId = manager.Institution.institution_id;
     const institutionName = manager.Institution.name;
 
-    // الحصول على جميع أنواع الجلسات للمؤسسة باستثناء pending
     const sessionTypes = await SessionType.findAll({
       where: { 
         institution_id: institutionId,
         approval_status: {
-          [Op.ne]: 'Pending' // لا تشمل أنواع الجلسات قيد الانتظار
+          [Op.ne]: 'Pending' 
         }
       },
       include: [{
@@ -2430,7 +2241,6 @@ exports.getAllSessionTypes = async (req, res) => {
       ]
     });
 
-    // إحصائيات فقط للأنواع المعتمدة والمرفوضة
     const statistics = {
       total: sessionTypes.length,
       approved: sessionTypes.filter(st => st.approval_status === 'Approved').length,
@@ -2475,11 +2285,7 @@ exports.getAllSessionTypes = async (req, res) => {
 };
 
 
-/**
- * @desc    Edit session type (تعديل نوع جلسة)
- * @route   PUT /api/manager/session-types/:sessionTypeId
- * @access  Private/Manager
- */
+
 exports.editSessionType = async (req, res) => {
   try {
     const managerId = req.user.user_id;
@@ -2494,7 +2300,6 @@ exports.editSessionType = async (req, res) => {
       target_conditions
     } = req.body;
 
-    // الحصول على مؤسسة المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
       include: [{
@@ -2512,7 +2317,6 @@ exports.editSessionType = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
 
-    // العثور على نوع الجلسة
     const sessionType = await SessionType.findOne({
       where: {
         session_type_id: sessionTypeId,
@@ -2527,7 +2331,6 @@ exports.editSessionType = async (req, res) => {
       });
     }
 
-    // بيانات التحديث
     const updateData = {};
     if (name) updateData.name = name;
     if (duration) updateData.duration = parseInt(duration);
@@ -2538,7 +2341,6 @@ exports.editSessionType = async (req, res) => {
       updateData.target_conditions = target_conditions ? target_conditions : null;
     }
 
-    // تحديث نوع الجلسة
     await sessionType.update(updateData);
 
     res.json({
@@ -2566,11 +2368,7 @@ exports.editSessionType = async (req, res) => {
   }
 };
 
-/**
- * @desc    Soft delete session type (حذف ناعم لنوع جلسة)
- * @route   DELETE /api/manager/session-types/:sessionTypeId
- * @access  Private/Manager
- */
+
 exports.deleteSessionType = async (req, res) => {
   try {
     const managerId = req.user.user_id;
@@ -2578,7 +2376,6 @@ exports.deleteSessionType = async (req, res) => {
 
     console.log(`Attempting to delete session type ${sessionTypeId} by manager ${managerId}`);
 
-    // الحصول على مؤسسة المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
       include: [{
@@ -2596,7 +2393,6 @@ exports.deleteSessionType = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
 
-    // البحث عن نوع الجلسة للتأكد من وجوده
     const sessionType = await SessionType.findOne({
       where: {
         session_type_id: sessionTypeId,
@@ -2613,7 +2409,6 @@ exports.deleteSessionType = async (req, res) => {
 
     console.log(`Found session type: ${sessionType.name}, status: ${sessionType.approval_status }`);
 
-    // التحقق مما إذا كان نوع الجلسة محذوفاً بالفعل
     if (sessionType.approval_status === 'Deleted') {
       return res.status(400).json({
         success: false,
@@ -2621,7 +2416,6 @@ exports.deleteSessionType = async (req, res) => {
       });
     }
 
-    // التحقق من وجود جلسات مستقبلية تستخدم هذا النوع
     const now = new Date();
     const today = now.toISOString().split('T')[0];
     const currentTime = now.toTimeString().split(' ')[0];
@@ -2631,13 +2425,11 @@ exports.deleteSessionType = async (req, res) => {
         session_type_id: sessionTypeId,
         institution_id: institutionId,
         [Op.or]: [
-          // جلسات تاريخها في المستقبل
           {
             date: {
               [Op.gt]: today
             }
           },
-          // جلسات تاريخها اليوم ولكن وقتها في المستقبل
           {
             date: today,
             time: {
@@ -2645,7 +2437,6 @@ exports.deleteSessionType = async (req, res) => {
             }
           }
         ],
-        // الحالات التي تمنع الحذف
         status: {
           [Op.in]: ['Scheduled', 'Rescheduled', 'Confirmed', 'Pending Approval']
         }
@@ -2655,9 +2446,7 @@ exports.deleteSessionType = async (req, res) => {
 
     console.log(`Found ${futureSessions.length} future sessions that might block deletion`);
 
-    // التحقق من وجود جلسات مستقبلية تمنع الحذف
     if (futureSessions.length > 0) {
-      // جمع معلومات الجلسات المستقبلية
       const sessionInfo = futureSessions.map(session => ({
         id: session.session_id,
         date: session.date,
@@ -2675,7 +2464,6 @@ exports.deleteSessionType = async (req, res) => {
       });
     }
 
-    // تنفيذ Soft Delete - تحديث الحالة إلى Deleted
     const [updatedCount] = await SessionType.update(
       {
         approval_status : 'Deleted',
@@ -2685,7 +2473,7 @@ exports.deleteSessionType = async (req, res) => {
         where: {
           session_type_id: sessionTypeId,
           institution_id: institutionId,
-          approval_status : { [Op.ne]: 'Deleted' } // تحديث فقط إذا لم يكن محذوفاً بالفعل
+          approval_status : { [Op.ne]: 'Deleted' } 
         }
       }
     );
@@ -2699,7 +2487,6 @@ exports.deleteSessionType = async (req, res) => {
       });
     }
 
-    // جلب عدد الجلسات المرتبطة (لأغراض الإعلام)
     const allSessionsCount = await Session.count({
       where: {
         session_type_id: sessionTypeId,
@@ -2725,7 +2512,6 @@ exports.deleteSessionType = async (req, res) => {
   } catch (error) {
     console.error('Error soft deleting session type:', error);
     
-    // تفصيل الخطأ بشكل أفضل
     let errorMessage = 'Server error';
     if (error.name === 'SequelizeDatabaseError') {
       errorMessage = 'Database error occurred. Please check if the status field exists.';
@@ -2741,18 +2527,11 @@ exports.deleteSessionType = async (req, res) => {
     });
   }
 };
-// ==================== وظائف عرض الأخصائيين ====================
 
-/**
- * @desc    Get all specialists with details (نسخة SQL مباشرة)
- * @route   GET /api/manager/specialists
- * @access  Private/Manager
- */
 exports.getAllSpecialists = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     
-    // استعلام SQL مباشر - أضف average_rating و total_ratings
     const query = `
       SELECT 
         s.specialist_id,
@@ -2761,9 +2540,9 @@ exports.getAllSpecialists = async (req, res) => {
         s.salary,
         s.approval_status,
         s.institution_id,
-        s.average_rating,          -- ⬅️ أضف هذا
-        s.total_ratings,          -- ⬅️ أضف هذا
-        s.rating_badge,           -- ⬅️ أضف هذا (اختياري)
+        s.average_rating,         
+        s.total_ratings,         
+        s.rating_badge,          
         u.full_name,
         u.email,
         u.phone,
@@ -2786,7 +2565,6 @@ exports.getAllSpecialists = async (req, res) => {
       replacements: [managerId]
     });
 
-    // الحصول على معلومات المؤسسة
     const [institutionInfo] = await sequelize.query(`
       SELECT i.institution_id, i.name 
       FROM Managers m
@@ -2806,7 +2584,6 @@ exports.getAllSpecialists = async (req, res) => {
     const institutionId = institutionInfo[0].institution_id;
     const institutionName = institutionInfo[0].name;
 
-    // تجميع النتائج حسب الأخصائي
     const specialistsMap = {};
     
     results.forEach(row => {
@@ -2826,9 +2603,9 @@ exports.getAllSpecialists = async (req, res) => {
             years_experience: row.years_experience,
             salary: row.salary,
             approval_status: row.approval_status,
-            average_rating: row.average_rating || 0,     // ⬅️ تأكد من وجوده
-            total_ratings: row.total_ratings || 0,       // ⬅️ تأكد من وجوده
-            rating_badge: row.rating_badge || 'new'      // ⬅️ تأكد من وجوده
+            average_rating: row.average_rating || 0,     
+            total_ratings: row.total_ratings || 0,       
+            rating_badge: row.rating_badge || 'new'     
           },
           schedules: []
         };
@@ -2846,12 +2623,10 @@ exports.getAllSpecialists = async (req, res) => {
 
     const specialists = Object.values(specialistsMap);
 
-    // حساب الإحصائيات
     const approvedCount = specialists.filter(s => s.professional_info.approval_status === 'Approved').length;
     const pendingCount = specialists.filter(s => s.professional_info.approval_status === 'Pending').length;
     const rejectedCount = specialists.filter(s => s.professional_info.approval_status === 'Rejected').length;
     
-    // ⬅️ إحصائيات التقييمات الجديدة
     const ratingStats = {
       total_with_ratings: specialists.filter(s => s.professional_info.average_rating > 0).length,
       average_overall: specialists.reduce((sum, s) => sum + (s.professional_info.average_rating || 0), 0) / specialists.length,
@@ -2860,12 +2635,10 @@ exports.getAllSpecialists = async (req, res) => {
                                               s.professional_info.total_ratings === 0).length
     };
 
-    // الحصول على آخر 5 أخصائيين
     const recentSpecialists = specialists
       .sort((a, b) => new Date(b.personal_info.created_at) - new Date(a.personal_info.created_at))
       .slice(0, 5);
 
-    // ترتيب الأخصائيين حسب التقييم (الأعلى أولاً) للعرض
     const sortedByRating = [...specialists].sort((a, b) => 
       (b.professional_info.average_rating || 0) - (a.professional_info.average_rating || 0)
     );
@@ -2882,13 +2655,13 @@ exports.getAllSpecialists = async (req, res) => {
           approved: approvedCount,
           pending: pendingCount,
           rejected: rejectedCount,
-          rating_stats: ratingStats  // ⬅️ إحصائيات التقييمات الجديدة
+          rating_stats: ratingStats 
         },
         recent_specialists: recentSpecialists.map(spec => ({
           ...spec,
           has_schedules: spec.schedules.length > 0
         })),
-        top_rated_specialists: sortedByRating.slice(0, 5).map(spec => ({  // ⬅️ الأخصائيين الأعلى تقييماً
+        top_rated_specialists: sortedByRating.slice(0, 5).map(spec => ({  
           ...spec,
           has_schedules: spec.schedules.length > 0
         })),
@@ -2910,11 +2683,7 @@ exports.getAllSpecialists = async (req, res) => {
 };
 
 
-/**
- * @desc    Get specialist comprehensive report with sessions, ratings, vacations, and schedules
- * @route   GET /api/manager/specialists/:id/report
- * @access  Private/Manager
- */
+
 exports.getSpecialistComprehensiveReport = async (req, res) => {
   try {
     console.log('🎯 === START getSpecialistComprehensiveReport (SQL) ===');
@@ -2922,7 +2691,6 @@ exports.getSpecialistComprehensiveReport = async (req, res) => {
     const managerId = req.user.user_id;
     const specialistId = parseInt(req.params.id);
 
-    // التحقق من المدير والمؤسسة
     const [managerResult] = await sequelize.query(`
       SELECT m.manager_id, i.institution_id, i.name as institution_name
       FROM Managers m
@@ -2940,7 +2708,6 @@ exports.getSpecialistComprehensiveReport = async (req, res) => {
     const institutionId = managerResult[0].institution_id;
     const institutionName = managerResult[0].institution_name;
 
-    // معلومات الأخصائي
     const [specialistResult] = await sequelize.query(`
       SELECT 
         s.specialist_id,
@@ -2972,7 +2739,6 @@ exports.getSpecialistComprehensiveReport = async (req, res) => {
 
     const specialist = specialistResult[0];
 
-    // الجداول
     const [schedules] = await sequelize.query(`
       SELECT schedule_id, day_of_week, start_time, end_time
       FROM SpecialistSchedules
@@ -2980,7 +2746,6 @@ exports.getSpecialistComprehensiveReport = async (req, res) => {
       ORDER BY FIELD(day_of_week, 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday')
     `, { replacements: [specialistId] });
 
-    // الجلسات
     const [sessions] = await sequelize.query(`
       SELECT 
         session_id,
@@ -2997,17 +2762,15 @@ exports.getSpecialistComprehensiveReport = async (req, res) => {
       ORDER BY date DESC
     `, { replacements: [specialistId, institutionId] });
 
-    // تحليل الجلسات
     const today = new Date().toISOString().split('T')[0];
     const sessionsByStatus = {};
     const upcomingSessions = [];
     const completedSessions = [];
-    const cancelledSessions = []; // ⬅️ إضافة جلسات ملغاة
+    const cancelledSessions = []; 
 
     sessions.forEach(session => {
       sessionsByStatus[session.status] = (sessionsByStatus[session.status] || 0) + 1;
       
-      // الجلسات القادمة
       if (session.date >= today && ['Scheduled', 'Confirmed', 'Approved'].includes(session.status)) {
         upcomingSessions.push({
           session_id: session.session_id,
@@ -3019,7 +2782,6 @@ exports.getSpecialistComprehensiveReport = async (req, res) => {
         });
       }
       
-      // الجلسات المكتملة
       if (session.status === 'Completed') {
         completedSessions.push({
           session_id: session.session_id,
@@ -3030,7 +2792,6 @@ exports.getSpecialistComprehensiveReport = async (req, res) => {
         });
       }
       
-      // الجلسات الملغاة
       if (session.status === 'Cancelled') {
         cancelledSessions.push({
           session_id: session.session_id,
@@ -3041,7 +2802,6 @@ exports.getSpecialistComprehensiveReport = async (req, res) => {
       }
     });
 
-    // التقييمات
     const [ratings] = await sequelize.query(`
       SELECT 
         sr.session_rating_id,
@@ -3060,7 +2820,6 @@ exports.getSpecialistComprehensiveReport = async (req, res) => {
       ORDER BY sr.rated_at DESC
     `, { replacements: [specialistId] });
 
-    // حساب متوسط التقييم
     let averageRating = 0;
     const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
     if (ratings.length > 0) {
@@ -3069,7 +2828,6 @@ exports.getSpecialistComprehensiveReport = async (req, res) => {
       ratings.forEach(r => ratingDistribution[r.rating]++);
     }
 
-    // الإجازات - تحليل مفصل
     const [vacations] = await sequelize.query(`
       SELECT 
         request_id,
@@ -3085,25 +2843,22 @@ exports.getSpecialistComprehensiveReport = async (req, res) => {
     `, { replacements: [specialistId, institutionId] });
 
     const vacationStats = { approved: 0, pending: 0, rejected: 0 };
-    let totalApprovedVacationDays = 0; // ⬅️ أيام الإجازة المعتمدة فقط
+    let totalApprovedVacationDays = 0; 
     const upcomingVacations = [];
-    const currentVacations = []; // ⬅️ الإجازات الحالية (اليوم ضمنها)
-    const pastVacations = []; // ⬅️ الإجازات الماضية
+    const currentVacations = []; 
+    const pastVacations = []; 
 
     if (vacations && vacations.length > 0) {
       vacations.forEach(vacation => {
-        // إحصائيات الحالة
         if (vacation && vacation.status) {
           const statusKey = vacation.status.toLowerCase();
           vacationStats[statusKey] = (vacationStats[statusKey] || 0) + 1;
           
-          // حساب أيام الإجازة المعتمدة فقط
           if (vacation.status === 'Approved' && vacation.total_days) {
             totalApprovedVacationDays += vacation.total_days;
           }
         }
 
-        // تصنيف الإجازات حسب التواريخ
         if (vacation.end_date >= today) {
           upcomingVacations.push({
             request_id: vacation.request_id,
@@ -3115,7 +2870,6 @@ exports.getSpecialistComprehensiveReport = async (req, res) => {
           });
         }
 
-        // الإجازات الحالية (اليوم ضمن فترة الإجازة)
         if (vacation.start_date <= today && vacation.end_date >= today) {
           currentVacations.push({
             request_id: vacation.request_id,
@@ -3127,7 +2881,6 @@ exports.getSpecialistComprehensiveReport = async (req, res) => {
           });
         }
 
-        // الإجازات الماضية
         if (vacation.end_date < today) {
           pastVacations.push({
             request_id: vacation.request_id,
@@ -3141,7 +2894,6 @@ exports.getSpecialistComprehensiveReport = async (req, res) => {
       });
     }
 
-    // ⬅️ الإجازات المعتمدة للشهر الحالي
     const [currentMonthVacations] = await sequelize.query(`
       SELECT 
         COUNT(*) as count,
@@ -3154,7 +2906,6 @@ exports.getSpecialistComprehensiveReport = async (req, res) => {
         AND YEAR(start_date) = YEAR(NOW())
     `, { replacements: [specialistId, institutionId] });
 
-    // ⬅️ إحصائيات شهرية للجلسات
     const [monthlyStats] = await sequelize.query(`
       SELECT 
         DATE_FORMAT(date, '%Y-%m') as month,
@@ -3169,7 +2920,6 @@ exports.getSpecialistComprehensiveReport = async (req, res) => {
       ORDER BY month ASC
     `, { replacements: [specialistId, institutionId] });
 
-    // ⬅️ معدل الحضور والغياب للأطفال في جلسات الأخصائي
     const [childAttendanceStats] = await sequelize.query(`
       SELECT 
         COUNT(*) as total_sessions,
@@ -3182,7 +2932,6 @@ exports.getSpecialistComprehensiveReport = async (req, res) => {
         AND date >= DATE_SUB(NOW(), INTERVAL 3 MONTH)
     `, { replacements: [specialistId, institutionId] });
 
-    // تجميع التقرير
     const report = {
       specialist_info: {
         specialist_id: specialist.specialist_id,
@@ -3210,7 +2959,6 @@ exports.getSpecialistComprehensiveReport = async (req, res) => {
       },
       schedules: schedules || [],
       statistics: {
-        // إحصائيات الجلسات
         sessions_summary: {
           total_sessions: sessions.length || 0,
           upcoming_sessions: upcomingSessions.length || 0,
@@ -3219,27 +2967,24 @@ exports.getSpecialistComprehensiveReport = async (req, res) => {
           sessions_by_status: sessionsByStatus || {}
         },
         
-        // إحصائيات التقييمات
         ratings_summary: {
           total_ratings: ratings.length || 0,
           average_rating: averageRating,
           rating_distribution: ratingDistribution
         },
         
-        // إحصائيات الإجازات
         vacations_summary: {
           total_requests: vacations ? vacations.length : 0,
           vacation_stats: vacationStats,
-          approved_vacation_days: totalApprovedVacationDays || 0, // ⬅️ أيام الإجازة المعتمدة
+          approved_vacation_days: totalApprovedVacationDays || 0, 
           current_month_vacations: {
             count: currentMonthVacations[0]?.count || 0,
             days: currentMonthVacations[0]?.total_days || 0
           },
-          current_vacations_count: currentVacations.length, // ⬅️ الإجازات الحالية (متعطل الآن)
+          current_vacations_count: currentVacations.length, 
           upcoming_vacations_count: upcomingVacations.length
         },
         
-        // إحصائيات حضور الأطفال
         child_attendance: {
           total_sessions: childAttendanceStats[0]?.total_sessions || 0,
           child_absent_count: childAttendanceStats[0]?.child_absent_count || 0,
@@ -3248,15 +2993,13 @@ exports.getSpecialistComprehensiveReport = async (req, res) => {
         }
       },
       
-      // تفاصيل
       upcoming_sessions: upcomingSessions.slice(0, 10) || [],
       recent_completed_sessions: completedSessions.slice(0, 10) || [],
       recent_cancelled_sessions: cancelledSessions.slice(0, 10) || [],
       
-      // معلومات الإجازات
-      current_vacations: currentVacations, // ⬅️ إذا كان متوقف حالياً
-      upcoming_vacations: upcomingVacations.slice(0, 5) || [], // ⬅️ آخر 5 إجازات قادمة
-      recent_vacations: pastVacations.slice(0, 5) || [], // ⬅️ آخر 5 إجازات ماضية
+      current_vacations: currentVacations, 
+      upcoming_vacations: upcomingVacations.slice(0, 5) || [],
+      recent_vacations: pastVacations.slice(0, 5) || [],
       
       recent_ratings: ratings ? ratings.slice(0, 10) : [],
       monthly_analytics: monthlyStats || [],
@@ -3283,11 +3026,7 @@ exports.getSpecialistComprehensiveReport = async (req, res) => {
 };
 
 
-/**
- * @desc    Archive specialist (تحويل أخصائي إلى حالة مؤرشف)
- * @route   PUT /api/manager/specialists/:id/archive
- * @access  Private/Manager
- */
+
 exports.archiveSpecialist = async (req, res) => {
   try {
     console.log('🎯 === START archiveSpecialist ===');
@@ -3301,7 +3040,6 @@ exports.archiveSpecialist = async (req, res) => {
     console.log('   Specialist ID:', specialistId);
     console.log('   Force Archive:', forceArchive);
 
-    // 1. التحقق من المدير والمؤسسة
     const [managerResult] = await sequelize.query(`
       SELECT m.manager_id, i.institution_id, i.name as institution_name
       FROM Managers m
@@ -3319,7 +3057,6 @@ exports.archiveSpecialist = async (req, res) => {
 
     const institutionId = managerResult[0].institution_id;
 
-    // 2. التحقق من وجود الأخصائي
     const [specialistResult] = await sequelize.query(`
       SELECT 
         s.specialist_id,
@@ -3344,7 +3081,6 @@ exports.archiveSpecialist = async (req, res) => {
     const specialistName = specialistResult[0].full_name;
     console.log('✅ Specialist found:', specialistName);
 
-    // 3. التحقق من الجلسات المستقبلية
     const today = new Date().toISOString().split('T')[0];
     
     const [upcomingSessions] = await sequelize.query(`
@@ -3370,11 +3106,9 @@ exports.archiveSpecialist = async (req, res) => {
 
     console.log('📊 Found', upcomingSessions.length, 'upcoming sessions');
 
-    // 4. إذا كان هناك جلسات مستقبلية ولم يتم اختيار forceArchive
     if (upcomingSessions.length > 0 && !forceArchive) {
       console.log('⚠️ Specialist has upcoming sessions');
       
-      // تجميع معلومات الجلسات لعرضها للمدير
       const sessionsInfo = upcomingSessions.slice(0, 10).map(session => ({
         session_id: session.session_id,
         date: session.date,
@@ -3399,15 +3133,12 @@ exports.archiveSpecialist = async (req, res) => {
       });
     }
 
-    // 5. بدء معاملة DB
     const transaction = await sequelize.transaction();
     
     try {
-      // 5.1 إذا كانت هناك جلسات مستقبلية وتم اختيار forceArchive
       if (upcomingSessions.length > 0) {
         console.log('🔄 Cancelling upcoming sessions...');
         
-        // تحويل جميع الجلسات المستقبلية إلى Cancelled
         await sequelize.query(`
           UPDATE Sessions 
           SET 
@@ -3429,7 +3160,6 @@ exports.archiveSpecialist = async (req, res) => {
         console.log(`✅ Cancelled ${upcomingSessions.length} upcoming sessions`);
       }
 
-      // 5.2 إلغاء تنشيط الحساب في جدول Users
       console.log('🔄 Deactivating user account...');
       await sequelize.query(`
         UPDATE Users 
@@ -3440,7 +3170,6 @@ exports.archiveSpecialist = async (req, res) => {
         transaction
       });
 
-      // 5.3 تحديث حالة الأخصائي إلى archived
       console.log('🔄 Archiving specialist...');
       await sequelize.query(`
         UPDATE Specialists 
@@ -3453,7 +3182,6 @@ exports.archiveSpecialist = async (req, res) => {
         transaction
       });
 
-      // 5.4 (اختياري) إلغاء جدول الأخصائي
       console.log('🔄 Removing specialist schedule...');
       await sequelize.query(`
         DELETE FROM SpecialistSchedules 
@@ -3463,29 +3191,11 @@ exports.archiveSpecialist = async (req, res) => {
         transaction
       });
 
-      // // 5.5 (اختياري) إضافة سجل في جدول المديريات
-      // console.log('📝 Adding archive log...');
-      // await sequelize.query(`
-      //   INSERT INTO SpecialistArchiveLog 
-      //   (specialist_id, archived_by_manager_id, institution_id, 
-      //    archived_at, cancelled_sessions_count, notes)
-      //   VALUES (?, ?, ?, NOW(), ?, ?)
-      // `, {
-      //   replacements: [
-      //     specialistId,
-      //     managerId,
-      //     institutionId,
-      //     upcomingSessions.length,
-      //     `Archived by manager. ${upcomingSessions.length} sessions cancelled.`
-      //   ],
-      //   transaction
-      // });
+     
 
-      // 6. التأكيد والمعاملة
       await transaction.commit();
       console.log('✅ Transaction committed successfully');
 
-      // 7. إرجاع النتيجة النهائية
       const result = {
         success: true,
         message: 'Specialist archived successfully',
@@ -3531,17 +3241,12 @@ exports.archiveSpecialist = async (req, res) => {
   }
 };
 
-/**
- * @desc    Get specialist upcoming sessions (جلب الجلسات المستقبلية لأخصائي)
- * @route   GET /api/manager/specialists/:id/upcoming-sessions
- * @access  Private/Manager
- */
+
 exports.getSpecialistUpcomingSessions = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     const specialistId = parseInt(req.params.id);
 
-    // التحقق من المدير
     const [managerResult] = await sequelize.query(`
       SELECT m.institution_id
       FROM Managers m
@@ -3558,7 +3263,6 @@ exports.getSpecialistUpcomingSessions = async (req, res) => {
     const institutionId = managerResult[0].institution_id;
     const today = new Date().toISOString().split('T')[0];
 
-    // جلب الجلسات المستقبلية - تصحيح الـ JOIN
     const [sessions] = await sequelize.query(`
       SELECT 
         s.session_id,
@@ -3585,7 +3289,6 @@ exports.getSpecialistUpcomingSessions = async (req, res) => {
       ORDER BY s.date ASC, s.time ASC
     `, { replacements: [specialistId, institutionId, today] });
 
-    // معلومات الأخصائي
     const [specialistInfo] = await sequelize.query(`
       SELECT 
         s.specialist_id,
@@ -3619,17 +3322,13 @@ exports.getSpecialistUpcomingSessions = async (req, res) => {
     });
   }
 };
-/**
- * @desc    Get specialist details (نسخة SQL مباشرة)
- * @route   GET /api/manager/specialists/:specialistId
- * @access  Private/Manager
- */
+
+
 exports.getSpecialistDetails = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     const specialistId = req.params.specialistId;
 
-    // استعلام SQL مباشر
     const query = `
       SELECT 
         s.specialist_id,
@@ -3667,7 +3366,6 @@ exports.getSpecialistDetails = async (req, res) => {
       });
     }
 
-    // تجميع النتائج
     const specialist = {
       specialist_id: results[0].specialist_id,
       personal_info: {
@@ -3694,7 +3392,6 @@ exports.getSpecialistDetails = async (req, res) => {
         }))
     };
 
-    // الحصول على إحصائيات الجلسات
     const sessionStatsQuery = `
       SELECT 
         status,
@@ -3738,11 +3435,7 @@ exports.getSpecialistDetails = async (req, res) => {
 };
 
 
-/**
- * @desc    Update specialist salary (تعديل راتب الأخصائي)
- * @route   PUT /api/manager/specialists/:id/salary
- * @access  Private/Manager
- */
+
 exports.updateSpecialistSalary = async (req, res) => {
   try {
     console.log("🎯 === START updateSpecialistSalary ===");
@@ -3758,7 +3451,6 @@ exports.updateSpecialistSalary = async (req, res) => {
       });
     }
 
-    // 1. التحقق من المدير ومؤسسته
     const [managerResult] = await sequelize.query(`
       SELECT m.manager_id, i.institution_id
       FROM Managers m
@@ -3776,7 +3468,6 @@ exports.updateSpecialistSalary = async (req, res) => {
 
     const institutionId = managerResult[0].institution_id;
 
-    // 2. التحقق من وجود الأخصائي في نفس المؤسسة
     const [specialistResult] = await sequelize.query(`
       SELECT specialist_id, salary, 
              (SELECT full_name FROM Users WHERE user_id = s.specialist_id) as full_name
@@ -3795,11 +3486,9 @@ exports.updateSpecialistSalary = async (req, res) => {
     const oldSalary = specialistResult[0].salary;
     const specialistName = specialistResult[0].full_name;
 
-    // 3. تنفيذ التحديث في معاملة Transaction
     const transaction = await sequelize.transaction();
     try {
 
-      // تحديث الراتب
       await sequelize.query(`
         UPDATE Specialists
         SET salary = ?
@@ -3809,15 +3498,7 @@ exports.updateSpecialistSalary = async (req, res) => {
         transaction
       });
 
-      // (اختياري) إضافة Log في جدول جديد (لو عندك)
-      // await sequelize.query(`
-      //   INSERT INTO SalaryHistory 
-      //   (specialist_id, old_salary, new_salary, updated_by, updated_at)
-      //   VALUES (?, ?, ?, ?, NOW())
-      // `, {
-      //   replacements: [specialistId, oldSalary, salary, managerId],
-      //   transaction
-      // });
+     
 
       await transaction.commit();
       console.log("✅ Salary updated successfully");

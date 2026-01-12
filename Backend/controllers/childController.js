@@ -171,7 +171,6 @@ exports.saveChildBasicInfo = async (req, res) => {
         coordinates: childCoords
       } : null,
       next_step: 'medical_info',
-      // 🔴 NEW: إضافة سؤال بسيط
       ask_financial_help: 'هل تحتاج مساعدة مالية لعلاج طفلك؟ (اختياري - سؤال واحد فقط)'
     });
 
@@ -197,7 +196,6 @@ exports.analyzeMedicalCondition = async (req, res) => {
       medical_history,
       previous_services,
       additional_notes,
-      // 🎯 NEW: إضافة حقول المساعدة المالية
       needs_financial_help = false,
       monthly_income_range = null
     } = req.body;
@@ -283,7 +281,6 @@ exports.analyzeMedicalCondition = async (req, res) => {
       child.address
     );
 
-    // 🎯 NEW: معالجة المساعدة المالية
     let financialHelp = null;
     let hasFinancialAssessment = false;
     
@@ -293,7 +290,6 @@ exports.analyzeMedicalCondition = async (req, res) => {
       const Parent = require('../model/Parent');
       let parent = await Parent.findOne({ where: { parent_id: parentId } });
       
-      // إذا الأب مش موجود في جدول Parents
       if (!parent) {
         console.log('👨 Creating parent record...');
         const User = require('../model/User');
@@ -304,10 +300,9 @@ exports.analyzeMedicalCondition = async (req, res) => {
         });
       }
       
-      // حساب نسبة المساعدة بناءً على نطاق الدخل
-      let financialScore = 50; // قيمة متوسطة افتراضية
+      let financialScore = 50; 
       let suggestedDiscount = 0;
-      let monthlyIncomeNumeric = null; // قيمة رقمية تقريبية لحقل monthly_income (DECIMAL)
+      let monthlyIncomeNumeric = null; 
 
       if (monthly_income_range) {
         console.log(` Monthly income range: ${monthly_income_range}`);
@@ -333,19 +328,16 @@ exports.analyzeMedicalCondition = async (req, res) => {
           suggestedDiscount = 15;
           monthlyIncomeNumeric = 1300;
         } else {
-          // إذا تم اختيار "أفضل عدم الإجابة"
           financialScore = 60;
           suggestedDiscount = 35;
-          monthlyIncomeNumeric = null; // لا نخزن قيمة رقمية محددة
+          monthlyIncomeNumeric = null; 
         }
       } else {
-        // إذا لم يحدد نطاق الدخل
         financialScore = 65;
         suggestedDiscount = 45;
         monthlyIncomeNumeric = null;
       }
 
-      // حفظ البيانات المالية
       await parent.update({
         financial_score: financialScore,
         last_financial_assessment: new Date(),
@@ -388,7 +380,6 @@ exports.analyzeMedicalCondition = async (req, res) => {
       } : null,
       target_conditions: targetConditions,
       recommended_institutions: recommendedInstitutions,
-      // 🎯 NEW: إضافة معلومات المساعدة المالية
       financial_help: financialHelp,
       has_financial_assessment: hasFinancialAssessment,
       next_step: 'select_institution'
@@ -487,269 +478,7 @@ exports.getInstitutionsWithFilters = async (req, res) => {
   }
 };
 
-// ================= STEP 4: Request Institution Registration =================
-// exports.requestInstitutionRegistration = async (req, res) => {
-//   try {
-//     const parentId = req.user.user_id;
-//     const child_id = req.params.id;
-//     const { 
-//       institution_id, 
-//       notes, 
-//       consent_given,
-//       // 🎯 NEW: حقل تطبيق الخصم المالي
-//       apply_financial_discount = false
-//     } = req.body;
 
-//     console.log('🔍 Request registration data:', {
-//       parentId,
-//       child_id, 
-//       institution_id,
-//       apply_financial_discount
-//     });
-
-//     if (!child_id || !institution_id) {
-//       return res.status(400).json({ 
-//         success: false,
-//         message: 'Child ID and Institution ID are required'
-//       });
-//     }
-
-//     const child = await Child.findOne({
-//       where: { 
-//         child_id: child_id,
-//         parent_id: parentId 
-//       }
-//     });
-
-//     if (!child) {
-//       return res.status(404).json({ 
-//         success: false,
-//         message: 'Child not found' 
-//       });
-//     }
-
-//     const existingRequest = await ChildRegistrationRequest.findOne({
-//       where: { 
-//         child_id: child_id, 
-//         institution_id: institution_id,
-//         status: 'Pending' 
-//       }
-//     });
-
-//     if (existingRequest) {
-//       return res.status(400).json({ 
-//         success: false,
-//         message: 'There is already a pending registration request for this institution' 
-//       });
-//     }
-
-//     // التحقق من المؤسسة
-//     const institution = await Institution.findByPk(institution_id);
-//     if (!institution) {
-//       return res.status(404).json({ 
-//         success: false,
-//         message: 'Institution not found' 
-//       });
-//     }
-
-//     // 🎯 NEW: التحقق من وجود تقييم مالي إذا طلب تطبيق الخصم
-//     let discountInfo = null;
-//     let financialRequest = null;
-    
-//     if (apply_financial_discount === true || apply_financial_discount === 'true') {
-//       console.log('💰 Checking for financial assessment...');
-      
-//       const Parent = require('../model/Parent');
-//       const parent = await Parent.findOne({ where: { parent_id: parentId } });
-      
-//       if (parent && parent.financial_score) {
-//         // حساب نسبة الخصم
-//         const discountPercentage = Math.min(100, Math.floor(parent.financial_score * 1.2));
-        
-//         discountInfo = {
-//           applied: true,
-//           discount_percentage: discountPercentage,
-//           financial_score: parent.financial_score,
-//           tier: parent.financial_tier,
-//           note: `سيتم تطبيق خصم ${discountPercentage}% على الجلسات إذا تمت الموافقة`
-//         };
-        
-//         console.log(`✅ Discount calculated: ${discountPercentage}% based on score ${parent.financial_score}`);
-        
-//         // إنشاء طلب مساعدة مالية بسيط
-//         try {
-//           const FinancialAssistanceRequest = require('../model/FinancialAssistanceRequest');
-          
-//           // حساب التكلفة التقريبية
-//           const SessionType = require('../model/SessionType');
-//           const sessionTypes = await SessionType.findAll({
-//             where: { institution_id: institution_id },
-//             limit: 1
-//           });
-          
-//           const avgPrice = sessionTypes.length > 0 ? 
-//             parseFloat(sessionTypes[0].price) || 50 : 50;
-//           const totalMonthlyCost = avgPrice * 8; // 8 جلسات شهرياً
-        
-//           financialRequest = await FinancialAssistanceRequest.create({
-//             parent_id: parentId,
-//             child_id: child_id,
-//             institution_id: institution_id,
-//             requested_sessions_count: 8,
-//             requested_discount_percentage: discountPercentage,
-//             requested_total_amount: totalMonthlyCost,
-//             parent_financial_score: parent.financial_score,
-//             parent_financial_tier: parent.financial_tier,
-//             status: 'submitted',
-//             auto_generated: false,
-//             requires_documents: discountPercentage >= 50,
-//             submitted_at: new Date(),
-//             estimated_processing_days: discountPercentage >= 70 ? 3 : 7
-//           });
-          
-//           console.log(`✅ Financial assistance request created: ${financialRequest.request_id}`);
-          
-//         } catch (financialError) {
-//           console.error('⚠️ Could not create financial request:', financialError.message);
-//           // نكمل حتى لو فشل إنشاء طلب المساعدة المالية
-//         }
-        
-//       } else {
-//         discountInfo = {
-//           applied: false,
-//           note: 'لم تقم بإدخال معلومات مالية. يمكنك إضافتها لاحقاً من صفحة الطفل.'
-//         };
-//         console.log('⚠️ No financial assessment found for parent');
-//       }
-//     }
-
-//     // إنشاء طلب التسجيل وربطه بطلب المساعدة المالية (إن وُجد)
-//     const request = await ChildRegistrationRequest.create({
-//       child_id: child_id,
-//       institution_id: institution_id,
-//       requested_by_parent_id: parentId,
-//       status: 'Pending',
-//       notes: notes || null,
-//       financial_assistance_request_id: financialRequest
-//         ? financialRequest.request_id
-//         : null,
-//     });
-
-//     await child.update({ 
-//       registration_status: 'Pending',
-//       consent_given: consent_given || false
-//     });
-
-//     // 🔥 إضافة: تشغيل المعالجة التلقائية (غير متزامن)
-//     setTimeout(async () => {
-//       try {
-//         console.log(`🔄 بدء المعالجة التلقائية للطلب: ${request.request_id}`);
-        
-//         // استدعاء خدمة الموافقة التلقائية
-//         const AutoApprovalService = require('../services/autoApprovalService');
-//         const approvalResult = await AutoApprovalService.processSingleRequest(request.request_id);
-        
-//         console.log(`✅ نتيجة المعالجة التلقائية للطلب ${request.request_id}:`, approvalResult.status);
-        
-//         // إرسال إشعار للأهل بناءً على النتيجة
-//         let notificationMessage = '';
-//         let notificationType = '';
-        
-//         switch (approvalResult.status) {
-//           case 'Approved':
-//             // في هذه المرحلة الموافقة تمت، لكن حجز الجلسة يعتمد على توفر أخصائي وموعد
-//             // AutoApprovalService سيحاول الحجز، وإن نجح سيرسل إشعاراً منفصلاً بتفاصيل الجلسة
-//             notificationMessage = `مبروك! تمت الموافقة تلقائياً على تسجيل ${child.full_name} في ${institution.name}. سيتم إبلاغك بتفاصيل جلسة التقييم الأولي عند حجزها من قبل المؤسسة.`;
-//             notificationType = 'registration_auto_approved';
-//             break;
-//           case 'Rejected':
-//             notificationMessage = `عذراً، تم رفض طلب تسجيل ${child.full_name} في ${institution.name} تلقائياً. السبب: ${approvalResult.reason || 'عدم استيفاء الشروط'}.`;
-//             notificationType = 'registration_auto_rejected';
-//             break;
-//           case 'Pending':
-//             notificationMessage = `طلب تسجيل ${child.full_name} في ${institution.name} قيد المراجعة من قبل إدارة المؤسسة.`;
-//             notificationType = 'registration_under_review';
-//             break;
-//         }
-        
-//         // إنشاء إشعار للأهل
-//         await Notification.create({
-//           user_id: parentId,
-//           title: 'تحديث حالة طلب التسجيل',
-//           message: notificationMessage,
-//           type: notificationType,
-//           related_id: request.request_id,
-//           is_read: false
-//         });
-        
-//         // إذا تمت الموافقة وحجز الجلسة
-//         if (approvalResult.status === 'Approved' && approvalResult.session) {
-//           // إشعار إضافي بمعلومات الجلسة
-//           await Notification.create({
-//             user_id: parentId,
-//             title: 'تفاصيل الجلسة المجدولة',
-//             message: `تم حجز جلسة التقييم الأولي مع ${approvalResult.session.specialist_name} في ${approvalResult.session.date} الساعة ${approvalResult.session.time}.`,
-//             type: 'session_scheduled',
-//             related_id: approvalResult.session.session_id,
-//             is_read: false
-//           });
-//         }
-        
-//       } catch (autoError) {
-//         console.error('❌ خطأ في المعالجة التلقائية:', autoError);
-        
-//         // إشعار خطأ (للأغراض التسجيلية فقط)
-//         await Notification.create({
-//           user_id: parentId,
-//           title: 'خطأ في المعالجة التلقائية',
-//           message: 'حدث خطأ أثناء معالجة طلب التسجيل تلقائياً. سيتصل بك فريق المؤسسة قريباً.',
-//           type: 'system_error',
-//           related_id: request.request_id,
-//           is_read: false
-//         });
-//       }
-//     }, 2000); // تأخير 2 ثانية لضمان حفظ الطلب
-
-//     res.status(201).json({ 
-//       success: true,
-//       message: 'Registration request submitted successfully',
-//       data: {
-//         request_id: request.request_id,
-//         status: 'Pending',
-//         institution: {
-//           id: institution.institution_id,
-//           name: institution.name,
-//           city: institution.city,
-//           address: institution.location_address
-//         },
-//         child: {
-//           id: child.child_id,
-//           name: child.full_name
-//         },
-//         // 🎯 NEW: إضافة معلومات الخصم المالي
-//         financial_discount: discountInfo,
-//         financial_request_id: financialRequest ? financialRequest.request_id : null,
-//         note: 'سيتم مراجعة الطلب تلقائياً في غضون دقائق. ستتلقى إشعاراً عند تغيير الحالة.',
-//         estimated_review_time: '2-5 دقائق',
-//         auto_approval_enabled: institution.auto_approval_enabled || true
-//       },
-//       next_steps: [
-//         'سيتم مراجعة الطلب تلقائياً بواسطة النظام',
-//         'إذا تمت الموافقة تلقائياً، سيتم حجز جلسة التقييم الأولي',
-//         'إذا احتاج الطلب لمراجعة يدوية، ستتصل بك المؤسسة',
-//         'ستتلقى إشعاراً عند تغيير حالة الطلب'
-//       ]
-//     });
-
-//   } catch (error) {
-//     console.error('❌ Error requesting registration:', error);
-//     res.status(500).json({ 
-//       success: false,
-//       message: 'Failed to submit registration request', 
-//       error: error.message 
-//     });
-//   }
-// };
 
 
 exports.requestInstitutionRegistration = async (req, res) => {
@@ -760,7 +489,6 @@ exports.requestInstitutionRegistration = async (req, res) => {
       institution_id, 
       notes, 
       consent_given
-      // ❌ إزالة: apply_financial_discount = false - لأنها أصبحت تلقائية
     } = req.body;
 
     console.log('🔍 Request registration data:', {
@@ -805,7 +533,6 @@ exports.requestInstitutionRegistration = async (req, res) => {
       });
     }
 
-    // التحقق من المؤسسة
     const institution = await Institution.findByPk(institution_id);
     if (!institution) {
       return res.status(404).json({ 
@@ -814,20 +541,16 @@ exports.requestInstitutionRegistration = async (req, res) => {
       });
     }
 
-    // 🔴 NEW: التحقق التلقائي من الحالة المالية
     let discountInfo = null;
     let financialAssessment = null;
     let autoFinancialAidStatus = 'checking';
     
-    // دائماً نتحقق من الحالة المالية تلقائياً
     const Parent = require('../model/Parent');
     const parent = await Parent.findOne({ where: { parent_id: parentId } });
     
     if (parent && parent.financial_score) {
-      // 🔴 استخدام الخدمة الجديدة للتحقق من المساعدة المالية
       const AutoFinancialAidService = require('../services/autoFinancialAidService');
       
-      // جلب أنواع الجلسات للمؤسسة للتحقق السريع
       const SessionType = require('../model/SessionType');
       const initialAssessmentType = await SessionType.findOne({
         where: {
@@ -837,7 +560,6 @@ exports.requestInstitutionRegistration = async (req, res) => {
       });
 
       if (initialAssessmentType) {
-        // التحقق السريع من المساعدة المالية
         const quickCheck = await AutoFinancialAidService.quickCheckFinancialAid(
           child_id,
           institution_id,
@@ -879,14 +601,12 @@ exports.requestInstitutionRegistration = async (req, res) => {
       autoFinancialAidStatus = 'no_assessment';
     }
 
-    // إنشاء طلب التسجيل (بدون ربط بطلب مساعدة مالية يدوي)
     const request = await ChildRegistrationRequest.create({
       child_id: child_id,
       institution_id: institution_id,
       requested_by_parent_id: parentId,
       status: 'Pending',
       notes: notes || null,
-      // ❌ لم نعد نربط بطلب مساعدة مالية يدوي
       financial_assistance_request_id: null,
     });
 
@@ -895,24 +615,20 @@ exports.requestInstitutionRegistration = async (req, res) => {
       consent_given: consent_given || false
     });
 
-    // 🔴 NEW: تشغيل المعالجة التلقائية مع المساعدة المالية
     setTimeout(async () => {
       try {
         console.log(`🔄 بدء المعالجة التلقائية للطلب: ${request.request_id}`);
         
-        // استدعاء خدمة الموافقة التلقائية
         const AutoApprovalService = require('../services/autoApprovalService');
         const approvalResult = await AutoApprovalService.processSingleRequest(request.request_id);
         
         console.log(`✅ نتيجة المعالجة التلقائية للطلب ${request.request_id}:`, approvalResult.status);
         
-        // إرسال إشعار للأهل بناءً على النتيجة
         let notificationMessage = '';
         let notificationType = '';
         
         switch (approvalResult.status) {
           case 'Approved':
-            // إضافة معلومات المساعدة المالية التلقائية للإشعار
             let aidInfo = '';
             if (discountInfo.auto_applied) {
               if (discountInfo.final_price === 0) {
@@ -935,7 +651,6 @@ exports.requestInstitutionRegistration = async (req, res) => {
             break;
         }
         
-        // إنشاء إشعار للأهل
         await Notification.create({
           user_id: parentId,
           title: 'تحديث حالة طلب التسجيل',
@@ -946,13 +661,11 @@ exports.requestInstitutionRegistration = async (req, res) => {
           metadata: financialAssessment
         });
         
-        // ❌ لم نعد نرسل إشعار منفصل عن الجلسة - لأن خدمة الموافقة التلقائية
-        // ستقوم بإرسال الإشعارات المناسبة
+       
 
       } catch (autoError) {
         console.error('❌ خطأ في المعالجة التلقائية:', autoError);
         
-        // إشعار خطأ
         await Notification.create({
           user_id: parentId,
           title: 'خطأ في المعالجة التلقائية',
@@ -962,9 +675,8 @@ exports.requestInstitutionRegistration = async (req, res) => {
           is_read: false
         });
       }
-    }, 2000); // تأخير 2 ثانية
+    }, 2000); 
 
-    // 🔴 NEW: تحضير معلومات الاستجابة مع المساعدة المالية التلقائية
     const responseData = {
       request_id: request.request_id,
       status: 'Pending',
@@ -980,7 +692,6 @@ exports.requestInstitutionRegistration = async (req, res) => {
         name: child.full_name,
         age: calculateAge(child.date_of_birth)
       },
-      // 🔴 معلومات المساعدة المالية التلقائية
       auto_financial_aid: {
         status: autoFinancialAidStatus,
         assessment: financialAssessment,
@@ -993,7 +704,6 @@ exports.requestInstitutionRegistration = async (req, res) => {
       auto_approval_enabled: institution.auto_approval_enabled || true
     };
 
-    // 🔴 NEW: إضافة معلومات التبرعات المتاحة
     if (institution.donation_balance > 0) {
       responseData.donation_info = {
         available_balance: parseFloat(institution.donation_balance || 0),
@@ -1012,7 +722,6 @@ exports.requestInstitutionRegistration = async (req, res) => {
         '💡 الخصم التلقائي يعتمد على: 1) حالتك المالية 2) رصيد التبرعات المتاح',
         'ستتلقى إشعاراً عند تغيير حالة الطلب'
       ],
-      // 🔴 NEW: معلومات إضافية
       financial_transparency: {
         how_it_works: 'النظام يتحقق تلقائياً من حالتك المالية ويطبق الخصم المناسب',
         no_action_required: 'لست بحاجة لطلب المساعدة - النظام يقوم بذلك تلقائياً',
@@ -1036,7 +745,6 @@ exports.requestInstitutionRegistration = async (req, res) => {
   }
 };
 
-// 🔴 NEW: دالة مساعدة لحساب العمر
 function calculateAge(dateOfBirth) {
   if (!dateOfBirth) return null;
   const today = new Date();
@@ -1049,7 +757,6 @@ function calculateAge(dateOfBirth) {
   return age;
 }
 
-// 🔴 NEW: دالة مساعدة للحصول على تسمية الفئة المالية
 function getTierLabel(tier) {
   const labels = {
     'tier_1_critical': 'حرج',
@@ -1477,7 +1184,6 @@ exports.addChild = async (req, res) => {
       consent_given,
       location_lat,   
       location_lng,
-      // 🎯 NEW: إضافة حقول المساعدة المالية
       needs_financial_help = false,
       monthly_income_range = null
     } = req.body;
@@ -1549,7 +1255,6 @@ exports.addChild = async (req, res) => {
       }
     }
 
-    // 🎯 NEW: معالجة المساعدة المالية
     let financialHelp = null;
     if (needs_financial_help === true || needs_financial_help === 'true') {
       console.log('💰 Processing financial help in addChild...');
@@ -1671,7 +1376,6 @@ exports.addChild = async (req, res) => {
       }));
     }
 
-    // 🎯 NEW: إضافة معلومات المساعدة المالية
     if (financialHelp) {
       response.financial_help = financialHelp;
     }
@@ -1762,7 +1466,6 @@ exports.getChild = async (req, res) => {
       limit: 1
     });
 
-    // 🎯 NEW: جلب معلومات التقييم المالي
     const Parent = require('../model/Parent');
     const parent = await Parent.findOne({ where: { parent_id: parentId } });
     
@@ -1818,7 +1521,6 @@ exports.getChild = async (req, res) => {
       location_lat: child.location_lat,
       location_lng: child.location_lng,
       
-      // 🎯 NEW: إضافة معلومات التقييم المالي
       financial_assessment: financialInfo
     };
 
@@ -2225,17 +1927,9 @@ exports.getChildStatistics = async (req, res) => {
 
 
 
-// controllers/childController.js - إضافة دالة جديدة
 
 
-/**
- * رفع وتحليل مستند طبي
- */
-// controllers/childController.js
 
-/**
- * رفع وتحليل مستند طبي - النسخة المحسنة
- */
 exports.uploadMedicalDocument = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -2245,7 +1939,6 @@ exports.uploadMedicalDocument = async (req, res) => {
     console.log('   - Parent ID:', parentId);
     console.log('   - Child ID:', childId);
 
-    // التحقق من وجود الطفل
     const child = await Child.findOne({
       where: {
         child_id: childId,
@@ -2260,7 +1953,6 @@ exports.uploadMedicalDocument = async (req, res) => {
       });
     }
 
-    // التحقق من وجود ملف مرفوع
     if (!req.file) {
       console.log('❌ No file in request');
       console.log('Request body:', req.body);
@@ -2281,9 +1973,7 @@ exports.uploadMedicalDocument = async (req, res) => {
     console.log('   - MIME type:', uploadedFile.mimetype);
  const fileExt = path.extname(uploadedFile.originalname).toLowerCase();
 
-    // التحقق الإضافي من نوع الملف
     if (!FileUploadService.isValidFileType(uploadedFile.path)) {
-      // حذف الملف المرفوع
       await FileUploadService.deleteFile(uploadedFile.path);
       
       return res.status(400).json({
@@ -2292,7 +1982,6 @@ exports.uploadMedicalDocument = async (req, res) => {
       });
     }
 
-    // تحليل المستند بالـ AI
     console.log('🤖 Starting AI document analysis...');
     
     let analysisResult;
@@ -2305,7 +1994,6 @@ exports.uploadMedicalDocument = async (req, res) => {
       console.log('✅ AI analysis completed');
     } catch (analysisError) {
       console.error('❌ AI analysis failed:', analysisError);
-      // نكمل حتى لو فشل التحليل
       analysisResult = {
         success: false,
         error: analysisError.message,
@@ -2313,7 +2001,6 @@ exports.uploadMedicalDocument = async (req, res) => {
       };
     }
 
-    // إنشاء كائن بيانات الملف
     const documentData = {
       file_id: `doc_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
       file_name: uploadedFile.originalname,
@@ -2327,7 +2014,6 @@ exports.uploadMedicalDocument = async (req, res) => {
         analysisResult.extracted_text.substring(0, 500) : null
     };
 
-    // تحديث قائمة المستندات في قاعدة البيانات
     const currentDocuments = child.medical_documents || [];
     currentDocuments.push(documentData);
 
@@ -2359,7 +2045,6 @@ exports.uploadMedicalDocument = async (req, res) => {
   } catch (error) {
     console.error('❌ Upload error:', error);
     
-    // حذف الملف إذا تم رفعه
     if (req.file && req.file.path) {
       await FileUploadService.deleteFile(req.file.path);
     }
@@ -2373,9 +2058,7 @@ exports.uploadMedicalDocument = async (req, res) => {
   }
 };
 
-/**
- * حذف مستند طبي
- */
+
 exports.deleteMedicalDocument = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -2402,11 +2085,9 @@ exports.deleteMedicalDocument = async (req, res) => {
       });
     }
 
-    // حذف الملف من النظام
     const document = documents[documentIndex];
     await FileUploadService.deleteFile(document.file_path);
 
-    // إزالة من قاعدة البيانات
     documents.splice(documentIndex, 1);
     await child.update({ medical_documents: documents });
 
@@ -2427,9 +2108,7 @@ exports.deleteMedicalDocument = async (req, res) => {
 
 // ================= ACTIVITY RECOMMENDATION FUNCTIONS =================
 
-/**
- * رفع مستند لتحليل الأنشطة
- */
+
 exports.uploadActivityDocument = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -2437,7 +2116,6 @@ exports.uploadActivityDocument = async (req, res) => {
 
     console.log('📤 طلب رفع مستند للأنشطة:', { parentId, childId });
 
-    // التحقق من وجود الطفل
     const child = await Child.findOne({
       where: { child_id: childId, parent_id: parentId }
     });
@@ -2449,7 +2127,6 @@ exports.uploadActivityDocument = async (req, res) => {
       });
     }
 
-    // التحقق من وجود ملف
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -2460,7 +2137,6 @@ exports.uploadActivityDocument = async (req, res) => {
     const uploadedFile = req.file;
     console.log('✅ File received for activity analysis:', uploadedFile.originalname);
 
-    // تحليل المستند
     let extractedText = '';
     const fileExt = path.extname(uploadedFile.originalname).toLowerCase();
     
@@ -2469,13 +2145,11 @@ exports.uploadActivityDocument = async (req, res) => {
     } else if (['.jpg', '.jpeg', '.png'].includes(fileExt)) {
       extractedText = await DocumentAnalysisService.extractTextFromImage(uploadedFile.path);
     } else {
-      // للملفات النصية
       extractedText = await fs.readFile(uploadedFile.path, 'utf8');
     }
 
     console.log(`📝 Extracted text length: ${extractedText.length} chars`);
 
-    // حفظ المستند مؤقتاً للتحليل
     const documentData = {
       file_id: `activity_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
       file_name: uploadedFile.originalname,
@@ -2486,7 +2160,6 @@ exports.uploadActivityDocument = async (req, res) => {
       extracted_text_preview: extractedText.substring(0, 500)
     };
 
-    // حفظ في قاعدة البيانات (مؤقت)
     const tempAnalysis = await TempActivityAnalysis.create({
       child_id: childId,
       parent_id: parentId,
@@ -2506,7 +2179,6 @@ exports.uploadActivityDocument = async (req, res) => {
   } catch (error) {
     console.error('❌ Error uploading activity document:', error);
     
-    // حذف الملف إذا تم رفعه
     if (req.file && req.file.path) {
       await FileUploadService.deleteFile(req.file.path);
     }
@@ -2519,9 +2191,7 @@ exports.uploadActivityDocument = async (req, res) => {
   }
 };
 
-/**
- * تحليل المستند وتوليد أنشطة
- */
+
 exports.analyzeForActivities = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -2530,7 +2200,6 @@ exports.analyzeForActivities = async (req, res) => {
 
     console.log('🎮 بدء تحليل الأنشطة:', { childId, analysis_id });
 
-    // التحقق من وجود الطفل
     const child = await Child.findOne({
       where: { child_id: childId, parent_id: parentId },
       attributes: ['child_id', 'full_name', 'date_of_birth', 'gender', 'diagnosis_id', 'medical_documents']
@@ -2543,7 +2212,6 @@ exports.analyzeForActivities = async (req, res) => {
       });
     }
 
-    // جلب النص المستخرج (إما من analysis_id أو من child documents)
     let documentText = '';
     
     if (analysis_id) {
@@ -2556,12 +2224,10 @@ exports.analyzeForActivities = async (req, res) => {
       }
     }
     
-    // إذا لم يكن هناك نص، نحاول من مستندات الطفل السابقة
     if (!documentText || documentText.length < 50) {
       if (child.medical_documents) {
         const docs = child.medical_documents;
         if (Array.isArray(docs) && docs.length > 0) {
-          // أخذ أحدث مستند
           const latestDoc = docs[docs.length - 1];
           if (latestDoc.extracted_text_preview) {
             documentText = latestDoc.extracted_text_preview;
@@ -2570,13 +2236,11 @@ exports.analyzeForActivities = async (req, res) => {
       }
     }
 
-    // إذا لا يزال لا يوجد نص، نستخدم معلومات الطفل الأساسية
     if (!documentText || documentText.length < 50) {
       const diagnosis = await Diagnosis.findByPk(child.diagnosis_id);
       documentText = `Child: ${child.full_name}, Age: ${exports.calculateAge(child.date_of_birth)} years, Gender: ${child.gender}, Condition: ${diagnosis?.name || 'Not specified'}`;
     }
 
-    // معلومات الطفل
     const childInfo = {
       id: child.child_id,
       name: child.full_name,
@@ -2585,7 +2249,6 @@ exports.analyzeForActivities = async (req, res) => {
       diagnosis: child.diagnosis_id ? (await Diagnosis.findByPk(child.diagnosis_id))?.name : null
     };
 
-    // استدعاء خدمة تحليل الأنشطة
     const ActivityAnalysisService = require('../services/activityAnalysisService');
     const analysisResult = await ActivityAnalysisService.analyzeForActivities(
       childId, 
@@ -2596,7 +2259,6 @@ exports.analyzeForActivities = async (req, res) => {
     const savedActivities = [];
     const savedIds = [];
 
-    // حفظ التوصيات في قاعدة البيانات
     if (analysisResult.success && analysisResult.activities && analysisResult.activities.length > 0) {
       for (const activity of analysisResult.activities) {
         try {
@@ -2630,7 +2292,6 @@ exports.analyzeForActivities = async (req, res) => {
           
         } catch (saveError) {
           console.error('❌ Error saving activity:', saveError);
-          // نستمر في حفظ الأنشطة الأخرى حتى لو فشل أحدها
           savedActivities.push({
             ...activity,
             id: null,
@@ -2640,7 +2301,6 @@ exports.analyzeForActivities = async (req, res) => {
       }
     }
 
-    // حذف التحليل المؤقت إذا كان موجوداً
     if (analysis_id) {
       await TempActivityAnalysis.destroy({
         where: { analysis_id, child_id: childId }
@@ -2674,9 +2334,7 @@ exports.analyzeForActivities = async (req, res) => {
   }
 };
 
-/**
- * جلب الأنشطة المقترحة للطفل
- */
+
 exports.getActivityRecommendations = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -2739,16 +2397,13 @@ exports.getActivityRecommendations = async (req, res) => {
   }
 };
 
-/**
- * تحديث حالة النشاط (بدء/إكمال/تقييم)
- */
+
 exports.updateActivityStatus = async (req, res) => {
   try {
     const parentId = req.user.user_id;
     const { id: childId, activityId } = req.params;
     const { status, parent_rating, child_engagement, notes } = req.body;
 
-    // التحقق من ملكية النشاط
     const activity = await ActivityRecommendation.findOne({
       where: {
         recommendation_id: activityId,
@@ -2799,9 +2454,7 @@ exports.updateActivityStatus = async (req, res) => {
   }
 };
 
-/**
- * تحليل سريع بدون مستند (بناءً على معلومات الطفل)
- */
+
 exports.quickActivityAnalysis = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -2831,7 +2484,6 @@ exports.quickActivityAnalysis = async (req, res) => {
       symptoms: child.symptoms_description || ''
     };
 
-    // إنشاء نص افتراضي للتحليل
     const mockDocumentText = `
 Child Assessment Summary:
 Name: ${childInfo.name}
@@ -2853,7 +2505,7 @@ Recommendations: Focus on age-appropriate activities to support overall developm
       success: true,
       message: 'Quick activity analysis completed',
       child_info: childInfo,
-      recommendations: analysisResult.activities.slice(0, 6), // 6 أنشطة كحد أقصى للتحليل السريع
+      recommendations: analysisResult.activities.slice(0, 6), 
       note: 'These are general recommendations. For personalized activities, upload a medical/assessment document.'
     });
 

@@ -1,4 +1,3 @@
-// controllers/institutionReviewController.js
 const InstitutionReview = require('../model/InstitutionReview');
 const Institution = require('../model/Institution');
 const Session = require('../model/Session');
@@ -8,9 +7,6 @@ const sequelize = require("../config/db");
 
 
 
-/**
- * إضافة مراجعة جديدة للمؤسسة
- */
 const addInstitutionReview = async (req, res) => {
   try {
     const { institutionId } = req.params;
@@ -33,7 +29,6 @@ const addInstitutionReview = async (req, res) => {
       accessibility_rating
     });
 
-    // التحقق من وجود جميع التقييمات المطلوبة
     if (
       facilities_rating === undefined ||
       staff_rating === undefined ||
@@ -46,7 +41,6 @@ const addInstitutionReview = async (req, res) => {
       });
     }
 
-    // 1. التحقق من وجود المؤسسة
     const institution = await Institution.findByPk(institutionId);
     if (!institution) {
       return res.status(404).json({
@@ -55,7 +49,6 @@ const addInstitutionReview = async (req, res) => {
       });
     }
 
-    // 2. التحقق من وجود زيارات سابقة للمؤسسة
     const visitCount = await Session.count({
       where: {
         institution_id: institutionId,
@@ -78,7 +71,6 @@ const addInstitutionReview = async (req, res) => {
       });
     }
 
-    // 3. حساب التقييم العام
     const overall_rating = (
       parseFloat(facilities_rating) +
       parseFloat(staff_rating) +
@@ -88,7 +80,6 @@ const addInstitutionReview = async (req, res) => {
 
     console.log(`📈 Overall rating calculated: ${overall_rating.toFixed(2)}`);
 
-    // 4. التحقق إذا سبق التقييم
     const existingReview = await InstitutionReview.findOne({
       where: {
         institution_id: institutionId,
@@ -98,7 +89,6 @@ const addInstitutionReview = async (req, res) => {
 
     let review;
     if (existingReview) {
-      // تحديث المراجعة الحالية
       review = await existingReview.update({
         facilities_rating: parseFloat(facilities_rating),
         staff_rating: parseFloat(staff_rating),
@@ -111,7 +101,6 @@ const addInstitutionReview = async (req, res) => {
         updated_at: new Date()
       });
     } else {
-      // إضافة مراجعة جديدة
       review = await InstitutionReview.create({
         parent_id: parentId,
         institution_id: institutionId,
@@ -130,13 +119,10 @@ const addInstitutionReview = async (req, res) => {
 
     console.log('✅ Review saved successfully:', review.institution_review_id);
 
-    // 5. تحديث متوسط تقييم المؤسسة
     try {
-  // 4. تحديث متوسط تقييم المؤسسة
   await updateInstitutionAverageRating(institutionId);
 } catch (updateError) {
   console.error('⚠️ Warning: Failed to update institution average:', updateError);
-  // لا ترمي خطأ هنا حتى لا تفسد الاستجابة الناجحة
 }
 
 res.status(existingReview ? 200 : 201).json({
@@ -155,9 +141,7 @@ res.status(existingReview ? 200 : 201).json({
   }
 };
 
-/**
- * جلب مراجعات مؤسسة معينة
- */
+
 const getInstitutionReviews = async (req, res) => {
   try {
     const { institutionId } = req.params;
@@ -180,7 +164,6 @@ const getInstitutionReviews = async (req, res) => {
       offset: offset
     });
 
-    // حساب الإحصائيات
     const stats = await InstitutionReview.findOne({
       where: { institution_id: institutionId },
       attributes: [
@@ -240,9 +223,7 @@ const getInstitutionReviews = async (req, res) => {
   }
 };
 
-/**
- * جلب مراجعاتي للمؤسسات
- */
+
 const getMyInstitutionReviews = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -279,16 +260,13 @@ const getMyInstitutionReviews = async (req, res) => {
   }
 };
 
-/**
- * تحديث متوسط تقييم المؤسسة
- */
+
 
 const updateInstitutionAverageRating = async (institutionId) => {
   try {
     const stats = await InstitutionReview.findOne({
       where: { 
         institution_id: institutionId,
-        // إزالة شرط status لأن الحقل غير موجود
       },
       attributes: [
         [sequelize.fn('AVG', sequelize.col('overall_rating')), 'avg_rating'],
@@ -304,7 +282,6 @@ const updateInstitutionAverageRating = async (institutionId) => {
 
     console.log('📊 Institution stats:', stats);
 
-    // تحديث جدول المؤسسات
     await Institution.update({
       average_rating: parseFloat(stats.avg_rating || 0).toFixed(1),
       facilities_rating: parseFloat(stats.avg_facilities || 0).toFixed(1),
@@ -321,7 +298,6 @@ const updateInstitutionAverageRating = async (institutionId) => {
 
   } catch (error) {
     console.error('❌ Error updating institution average:', error);
-    // لا ترمي خطأ هنا حتى لا تؤثر على العملية الرئيسية
   }
 };
 

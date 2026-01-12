@@ -4,16 +4,11 @@ const { Op } = require('sequelize');
 
 class ActivityAnalysisService {
   
-  /**
-   * تحليل المستند وتوليد أنشطة مخصصة
-   */
-  // في ActivityAnalysisService.js - إصلاح دالة analyzeForActivities
-
+ 
 static async analyzeForActivities(childId, documentText, childInfo = {}) {
   try {
     console.log('🎮 بدء تحليل الأنشطة للطفل:', childId);
     
-    // 1. أولاً: تحليل الحالة من النص
     const conditionAnalysis = await this.analyzeChildCondition(documentText);
     
     // 2. ثانياً: توليد الأنشطة بناءً على التحليل

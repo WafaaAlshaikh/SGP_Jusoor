@@ -1,13 +1,9 @@
-// controllers/specialistFeedbackController.js
 const SpecialistFeedback = require('../model/SpecialistFeedback');
 const Session = require('../model/Session');
 const Child = require('../model/Child');
 const { Op } = require('sequelize');
 const sequelize = require("../config/db");
 
-/**
- * إضافة ملاحظات سرية عن أخصائي
- */
 const submitSpecialistFeedback = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -24,7 +20,6 @@ const submitSpecialistFeedback = async (req, res) => {
 
     console.log('🔒 Submitting specialist feedback:', { parentId, specialist_id });
 
-    // 1. التحقق من وجود جلسات سابقة مع الأخصائي
     const sessionCount = await Session.count({
       where: {
         specialist_id: specialist_id,
@@ -43,7 +38,6 @@ const submitSpecialistFeedback = async (req, res) => {
       });
     }
 
-    // 2. التحقق إذا سبق تقديم ملاحظات
     const existingFeedback = await SpecialistFeedback.findOne({
       where: {
         parent_id: parentId,
@@ -58,7 +52,6 @@ const submitSpecialistFeedback = async (req, res) => {
       });
     }
 
-    // 3. حفظ الملاحظات
     const feedback = await SpecialistFeedback.create({
       parent_id: parentId,
       specialist_id: specialist_id,
@@ -91,15 +84,12 @@ const submitSpecialistFeedback = async (req, res) => {
   }
 };
 
-/**
- * جلب ملاحظات الأخصائيين (للمدير فقط)
- */
+
 const getSpecialistFeedbacksForManager = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     const userRole = req.user.role;
 
-    // التحقق من صلاحية المدير
     if (userRole !== 'Manager') {
       return res.status(403).json({
         success: false,
@@ -134,7 +124,6 @@ const getSpecialistFeedbacksForManager = async (req, res) => {
       offset: offset
     });
 
-    // حساب الإحصائيات إذا طلب أخصائي محدد
     let statistics = null;
     if (specialistId) {
       const stats = await SpecialistFeedback.findOne({
@@ -198,9 +187,7 @@ const getSpecialistFeedbacksForManager = async (req, res) => {
   }
 };
 
-/**
- * جلب ملاحظاتي التي قدمتها (للأهل)
- */
+
 const getMyFeedbacks = async (req, res) => {
   try {
     const parentId = req.user.user_id;

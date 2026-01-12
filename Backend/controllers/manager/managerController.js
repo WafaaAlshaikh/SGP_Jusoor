@@ -399,7 +399,6 @@ exports.reviewSessionFinancialAidRequest = async (req, res) => {
   }
 };
 
-// Generate free session offers for financially needy families
 exports.generateFreeSessionOffers = async (req, res) => {
   try {
     return res.status(410).json({
@@ -436,7 +435,6 @@ exports.generateFreeSessionOffers = async (req, res) => {
 
     const institutionId = manager.institution_id;
 
-    // Find children in this institution whose parents are tier_1_critical or tier_2_high
     const needyChildren = await Child.findAll({
       where: {
         current_institution_id: institutionId,
@@ -636,7 +634,6 @@ exports.approveChildRegistration = async (req, res) => {
 
     console.log(`🔍 Approving child registration request: ${request_id}`);
 
-    // Get registration request
     const registrationRequest = await ChildRegistrationRequest.findOne({
       where: { 
         request_id,
@@ -661,7 +658,6 @@ exports.approveChildRegistration = async (req, res) => {
       });
     }
 
-    // Verify manager authorization
     const Manager = require('../../model/Manager');
     const manager = await Manager.findOne({
       where: { 
@@ -677,7 +673,6 @@ exports.approveChildRegistration = async (req, res) => {
       });
     }
 
-    // Update registration request status
     await registrationRequest.update({
       status: 'Approved',
       reviewed_at: new Date(),
@@ -685,7 +680,6 @@ exports.approveChildRegistration = async (req, res) => {
       notes: notes
     });
 
-    // Update child status
     await Child.update(
       {
         registration_status: 'Approved',
@@ -702,7 +696,6 @@ exports.approveChildRegistration = async (req, res) => {
     if (apply_financial_assistance !== 'none') {
       console.log('💰 Processing financial assistance...');
       
-      // Auto-generate financial assistance request
       financialAssistanceResult = await FinancialAssessmentService.autoGenerateFinancialAssistanceRequest(
         registrationRequest.child_id,
         registrationRequest.institution_id,
@@ -712,7 +705,6 @@ exports.approveChildRegistration = async (req, res) => {
       if (financialAssistanceResult.success) {
         const financialRequest = financialAssistanceResult.request;
         
-        // Apply custom discount if provided
         if (custom_discount_percentage !== undefined) {
           await financialRequest.update({
             requested_discount_percentage: custom_discount_percentage,
@@ -723,7 +715,6 @@ exports.approveChildRegistration = async (req, res) => {
             decision_notes: `Manager manually set discount to ${custom_discount_percentage}%`
           });
         } else if (apply_financial_assistance === 'auto_approve') {
-          // Auto-approve based on assessment
           await financialRequest.update({
             approved_discount_percentage: financialRequest.requested_discount_percentage,
             status: 'approved',
@@ -733,7 +724,6 @@ exports.approveChildRegistration = async (req, res) => {
           });
         }
         
-        // If require documents, update status
         if (require_documents && financialRequest.requested_discount_percentage >= 50) {
           await financialRequest.update({
             status: 'pending_documents',
@@ -742,10 +732,8 @@ exports.approveChildRegistration = async (req, res) => {
           });
         }
         
-        // Use the financial request for scheduling
         const finalFinancialRequest = await FinancialAssistanceRequest.findByPk(financialRequest.request_id);
         
-        // Auto-schedule sessions if enabled
         if (auto_schedule && finalFinancialRequest.status === 'approved') {
           console.log('📅 Auto-scheduling sessions with financial assistance...');
           
@@ -757,14 +745,13 @@ exports.approveChildRegistration = async (req, res) => {
         }
       }
     } else {
-      // No financial assistance - regular scheduling
       if (auto_schedule) {
         console.log('📅 Auto-scheduling sessions without financial assistance...');
         
         schedulingResult = await AutoSchedulingService.scheduleSessionsWithFinancialAssistance(
           registrationRequest.child_id,
           registrationRequest.institution_id,
-          null // No financial assistance
+          null
         );
       }
     }
@@ -829,12 +816,10 @@ exports.sendRegistrationApprovalNotifications = async (registrationRequest, fina
     const Notification = require('../../model/Notification');
     const User = require('../../model/User');
     
-    // Get manager info for notification
     const manager = await User.findByPk(managerId, {
       attributes: ['full_name']
     });
     
-    // 1. Notification to Parent
     let parentMessage = `✅ Your child ${registrationRequest.Child.full_name} has been approved for registration at ${registrationRequest.Institution.name}.`;
     
     if (financialResult?.success) {
@@ -861,7 +846,6 @@ exports.sendRegistrationApprovalNotifications = async (registrationRequest, fina
       is_read: false
     });
     
-    // 2. Notification to Manager (confirmation)
     await Notification.create({
       user_id: managerId,
       title: 'Registration Approved Successfully',
@@ -893,7 +877,6 @@ exports.getFinancialAssistanceRequests = async (req, res) => {
       sort_order = 'DESC'
     } = req.query;
     
-    // Get manager's institution
     const Manager = require('../../model/Manager');
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
@@ -907,7 +890,6 @@ exports.getFinancialAssistanceRequests = async (req, res) => {
       });
     }
     
-    // Build query conditions
     const whereConditions = {
       institution_id: manager.institution_id
     };
@@ -922,15 +904,12 @@ exports.getFinancialAssistanceRequests = async (req, res) => {
       };
     }
     
-    // Calculate pagination
     const offset = (parseInt(page) - 1) * parseInt(limit);
     
-    // Get total count
     const totalCount = await FinancialAssistanceRequest.count({
       where: whereConditions
     });
     
-    // Get requests
     const requests = await FinancialAssistanceRequest.findAll({
       where: whereConditions,
       include: [
@@ -959,7 +938,6 @@ exports.getFinancialAssistanceRequests = async (req, res) => {
       limit: parseInt(limit)
     });
     
-    // Format response
     const formattedRequests = requests.map(request => {
       const urgencyColor = {
         'critical': 'red',
@@ -1024,7 +1002,6 @@ exports.getFinancialAssistanceRequests = async (req, res) => {
       };
     });
     
-    // Get statistics
     const stats = await FinancialAssistanceRequest.findAll({
       where: { institution_id: manager.institution_id },
       attributes: [
@@ -1096,7 +1073,6 @@ exports.reviewFinancialAssistanceRequest = async (req, res) => {
       documents_required = false
     } = req.body;
     
-    // Get the request
     const financialRequest = await FinancialAssistanceRequest.findOne({
       where: { request_id },
       include: [
@@ -1114,7 +1090,6 @@ exports.reviewFinancialAssistanceRequest = async (req, res) => {
       });
     }
     
-    // Verify manager authorization
     const Manager = require('../../model/Manager');
     const manager = await Manager.findOne({
       where: { 
@@ -1137,7 +1112,6 @@ exports.reviewFinancialAssistanceRequest = async (req, res) => {
       decision_notes: decision_notes
     };
     
-    // Process based on action
     switch (action) {
       case 'approve':
         updatedStatus = 'approved';
@@ -1175,16 +1149,13 @@ exports.reviewFinancialAssistanceRequest = async (req, res) => {
     
     updateData.status = updatedStatus;
     
-    // Update the request
     await financialRequest.update(updateData);
     
-    // If approved, schedule a single initial assessment/general session (Pending Approval)
     let schedulingResult = null;
     if (action === 'approve' || action === 'partial_approve') {
       try {
         const AutoApprovalService = require('../../services/autoApprovalService');
 
-        // 1) Find an available General specialist in this institution
         const generalSpecialist = await AutoApprovalService.findAvailableGeneralSpecialist(
           financialRequest.institution_id,
           null
@@ -1196,10 +1167,9 @@ exports.reviewFinancialAssistanceRequest = async (req, res) => {
             reason: 'No General specialist available for this institution'
           };
         } else {
-          // 2) Find the next available slot for this specialist
           const slot = await AutoApprovalService.findNextAvailableSlot(
             generalSpecialist.specialist_id,
-            60 // duration in minutes
+            60 
           );
 
           if (!slot) {
@@ -1208,7 +1178,6 @@ exports.reviewFinancialAssistanceRequest = async (req, res) => {
               reason: 'No available time slots found for General specialist'
             };
           } else {
-            // 3) Create an initial assessment session with status 'Pending Approval'
             const session = await AutoApprovalService.createInitialAssessmentSession(
               financialRequest.child_id,
               generalSpecialist.specialist_id,
@@ -1236,8 +1205,7 @@ exports.reviewFinancialAssistanceRequest = async (req, res) => {
       }
     }
     
-    // If this financial assistance request is linked to a child registration request,
-    // and the registration is still Pending, approve the registration and update child info
+    
     if (action === 'approve' || action === 'partial_approve') {
       try {
         const linkedRegistration = await ChildRegistrationRequest.findOne({
@@ -1267,7 +1235,6 @@ exports.reviewFinancialAssistanceRequest = async (req, res) => {
       }
     }
     
-    // Send notification to parent
     await this.sendFinancialDecisionNotification(financialRequest, action, managerId);
     
     res.status(200).json({
@@ -1293,7 +1260,6 @@ exports.reviewFinancialAssistanceRequest = async (req, res) => {
   }
 };
 
-// Helper methods
 exports.calculateEstimatedSubsidy = async (institutionId) => {
   try {
     const result = await FinancialAssistanceRequest.findAll({
@@ -1301,7 +1267,7 @@ exports.calculateEstimatedSubsidy = async (institutionId) => {
         institution_id: institutionId,
         status: 'approved',
         decision_date: {
-          [Op.gte]: new Date(new Date() - 30 * 24 * 60 * 60 * 1000) // Last 30 days
+          [Op.gte]: new Date(new Date() - 30 * 24 * 60 * 60 * 1000) 
         }
       },
       attributes: [

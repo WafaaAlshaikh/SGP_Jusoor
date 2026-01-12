@@ -82,7 +82,6 @@ exports.getInstitutionProfile = async (req, res) => {
   }
 };
 
-// Validation for institution update data
 const validateInstitutionUpdateData = (updateData) => {
   const errors = [];
 
@@ -155,7 +154,6 @@ const validateInstitutionUpdateData = (updateData) => {
   return errors;
 };
 
-// Validation for manager update data
 const validateManagerUpdateData = (updateData) => {
   const errors = [];
 
@@ -421,7 +419,6 @@ exports.uploadProfilePicture = async (req, res) => {
       });
     }
 
-    // طباعة معلومات الملف كاملة
     console.log('File details:', {
       filename: req.file.filename,
       originalname: req.file.originalname,
@@ -434,7 +431,6 @@ exports.uploadProfilePicture = async (req, res) => {
     const managerId = req.user.user_id;
     console.log('Manager ID:', managerId);
 
-    // التحقق من أن الملف موجود فعلياً
     if (!fs.existsSync(req.file.path)) {
       console.log('❌ File does not exist on disk:', req.file.path);
       return res.status(500).json({
@@ -443,7 +439,6 @@ exports.uploadProfilePicture = async (req, res) => {
       });
     }
 
-    // التحقق من نوع الملف بناءً على الامتداد (بدلاً من MIME type)
     const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
     const fileExtension = path.extname(req.file.originalname).toLowerCase();
     
@@ -452,7 +447,6 @@ exports.uploadProfilePicture = async (req, res) => {
     
     if (!allowedExtensions.includes(fileExtension)) {
       console.log('❌ Invalid file extension:', fileExtension);
-      // حذف الملف المؤقت
       fs.unlinkSync(req.file.path);
       return res.status(400).json({
         success: false,
@@ -460,21 +454,18 @@ exports.uploadProfilePicture = async (req, res) => {
       });
     }
 
-    // إنشاء رابط الصورة
     const protocol = req.protocol;
     const host = req.get('host');
     const profilePictureUrl = `${protocol}://${host}/uploads/profiles/${req.file.filename}`;
     
     console.log('Generated URL:', profilePictureUrl);
 
-    // تحديث قاعدة البيانات
     const managerUser = await User.findOne({
       where: { user_id: managerId, role: 'Manager' }
     });
 
     if (!managerUser) {
       console.log('❌ Manager not found in database');
-      // حذف الملف المرفوع
       fs.unlinkSync(req.file.path);
       return res.status(404).json({
         success: false,
@@ -482,7 +473,6 @@ exports.uploadProfilePicture = async (req, res) => {
       });
     }
 
-    // حذف الصورة القديمة إذا كانت موجودة
     if (managerUser.profile_picture) {
       try {
         const oldFilename = managerUser.profile_picture.split('/').pop();
@@ -493,11 +483,9 @@ exports.uploadProfilePicture = async (req, res) => {
         }
       } catch (oldFileError) {
         console.log('⚠️ Could not delete old image:', oldFileError.message);
-        // نستمر حتى لو لم نستطع حذف الصورة القديمة
       }
     }
 
-    // تحديث الرابط في قاعدة البيانات
     console.log('Updating database with new image URL...');
     await managerUser.update({
       profile_picture: profilePictureUrl,
@@ -506,7 +494,6 @@ exports.uploadProfilePicture = async (req, res) => {
 
     console.log('✅ Database updated successfully');
 
-    // تحقق من أن الملف يمكن الوصول إليه
     console.log('Verifying file accessibility...');
     const fileStats = fs.statSync(req.file.path);
     console.log('File size on disk:', fileStats.size, 'bytes');
@@ -527,7 +514,6 @@ exports.uploadProfilePicture = async (req, res) => {
   } catch (error) {
     console.error('❌ Error in uploadProfilePicture:', error);
     
-    // حذف الملف إذا كان هناك خطأ
     if (req.file && req.file.path && fs.existsSync(req.file.path)) {
       try {
         fs.unlinkSync(req.file.path);
@@ -546,7 +532,6 @@ exports.uploadProfilePicture = async (req, res) => {
   }
 };
 
-// Update manager profile picture
 exports.updateManagerProfilePicture = async (req, res) => {
   try {
     const managerId = req.user.user_id;
@@ -605,9 +590,7 @@ exports.updateManagerProfilePicture = async (req, res) => {
   }
 };
 
-// ============================
-// Get institution reviews with AI analysis
-// ============================
+
 exports.getInstitutionReviews = async (req, res) => {
   try {
     const managerId = req.user.user_id;
@@ -635,9 +618,7 @@ exports.getInstitutionReviews = async (req, res) => {
       order: [['created_at', 'DESC']]
     });
 
-    // ============================
-    // Statistics
-    // ============================
+   
     const totalReviews = reviews.length;
 
     let overallAvg = 0,
@@ -673,9 +654,7 @@ exports.getInstitutionReviews = async (req, res) => {
       recommendationRate = ((sums.recommendations / totalReviews) * 100).toFixed(0);
     }
 
-    // ============================
-    // Star distribution
-    // ============================
+ 
     const starDistribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
 
     reviews.forEach(r => {
@@ -683,9 +662,7 @@ exports.getInstitutionReviews = async (req, res) => {
       if (starDistribution[star] !== undefined) starDistribution[star]++;
     });
 
-    // ============================
-    // Format reviews
-    // ============================
+   
     const formattedReviews = reviews.map(r => ({
       review_id: r.institution_review_id,
       parent: {
@@ -706,9 +683,7 @@ exports.getInstitutionReviews = async (req, res) => {
       created_at: r.created_at
     }));
 
-    // ============================
-    // Category classification (3 groups)
-    // ============================
+    
     const categoryScores = {
       facilities: parseFloat(facilitiesAvg),
       staff: parseFloat(staffAvg),
@@ -738,9 +713,7 @@ exports.getInstitutionReviews = async (req, res) => {
     const good = groups.good;
     const weaknesses = groups.need_improve;
 
-    // ============================
-    // AI Analysis
-    // ============================
+    
     let aiAnalysis = null;
 
     const textReviews = reviews
@@ -769,9 +742,7 @@ exports.getInstitutionReviews = async (req, res) => {
       });
     }
 
-    // ============================
-    // Response
-    // ============================
+   
     res.status(200).json({
       success: true,
       data: {
@@ -809,9 +780,7 @@ exports.getInstitutionReviews = async (req, res) => {
   }
 };
 
-// ============================
-// Helper functions
-// ============================
+
 function getCategoryLabel(category) {
   const labels = {
     facilities: 'Facilities & Equipment',
@@ -864,9 +833,7 @@ Return JSON:
   return extractJSONFromText(completion.choices[0]?.message?.content);
 }
 
-// ============================
-// JSON Extractor
-// ============================
+
 function extractJSONFromText(text) {
   try {
     return JSON.parse(text);

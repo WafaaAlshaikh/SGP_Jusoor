@@ -448,7 +448,6 @@ const compareDateRangeProgress = async (req, res) => {
       });
     }
 
-    // Verify specialist access
     const hasAccess = await Session.findOne({
       where: { specialist_id: specialistId, child_id: childId }
     });
@@ -641,7 +640,6 @@ const analyzePeriodProgress = async (req, res) => {
       });
     }
 
-    // Calculate date range based on period
     const endDate = new Date();
     const startDate = new Date();
 
@@ -660,7 +658,6 @@ const analyzePeriodProgress = async (req, res) => {
         break;
     }
 
-    // Verify specialist access
     const hasAccess = await Session.findOne({
       where: { specialist_id: specialistId, child_id: childId }
     });
@@ -690,7 +687,6 @@ const analyzePeriodProgress = async (req, res) => {
       });
     }
 
-    // Get evaluations for the period
     const evaluations = await Evaluation.findAll({
       where: {
         child_id: childId,
@@ -709,7 +705,6 @@ const analyzePeriodProgress = async (req, res) => {
       });
     }
 
-    // Get sessions for the period
     const sessions = await Session.findAll({
       where: {
         child_id: childId,
@@ -720,7 +715,6 @@ const analyzePeriodProgress = async (req, res) => {
       }
     });
 
-    // Calculate period-specific analysis
     const periodAnalysis = AnalysisService.calculatePeriodAnalysis(
       evaluations,
       sessions,
@@ -729,7 +723,6 @@ const analyzePeriodProgress = async (req, res) => {
       endDate
     );
 
-    // Generate AI analysis for the period
     const aiAnalysis = await AnalysisService.generatePeriodAnalysis(
       child,
       evaluations,

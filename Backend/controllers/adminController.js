@@ -1,4 +1,3 @@
-// controllers/adminController.js
 const { Op, Sequelize } = require('sequelize');
 const sequelize = require('../config/db');
 const User = require('../model/User');
@@ -759,7 +758,6 @@ class AdminController {
       institution.updated_at = new Date();
       await institution.save({ transaction });
 
-      // الموافقة على مدير المؤسسة
       const manager = await User.findOne({
         where: { 
           institution_id: institution_id,
@@ -772,7 +770,6 @@ class AdminController {
         manager.status = 'Approved';
         await manager.save({ transaction });
 
-        // إنشاء سجل في جدول Manager
         await Manager.findOrCreate({
           where: { manager_id: manager.user_id },
           defaults: {
@@ -783,7 +780,6 @@ class AdminController {
           transaction
         });
 
-        // إرسال إشعار للمدير
         await Notification.create({
           user_id: manager.user_id,
           title: 'تمت الموافقة على مؤسستك',
@@ -794,7 +790,6 @@ class AdminController {
         }, { transaction });
       }
 
-      // تسجيل العملية
       await AuditLog.create({
         admin_id: req.user.user_id,
         action_type: 'institution_approval',
@@ -851,7 +846,6 @@ class AdminController {
       institution.updated_at = new Date();
       await institution.save({ transaction });
 
-      // إعلام مدير المؤسسة
       const manager = await User.findOne({
         where: { 
           institution_id: institution_id,
@@ -871,7 +865,6 @@ class AdminController {
         }, { transaction });
       }
 
-      // تسجيل العملية
       await AuditLog.create({
         admin_id: req.user.user_id,
         action_type: 'institution_rejection',
@@ -921,7 +914,6 @@ class AdminController {
       institution.updated_at = new Date();
       await institution.save({ transaction });
 
-      // تعليق جميع الأخصائيين التابعين للمؤسسة
       await Specialist.update(
         { approval_status: 'Archived' },
         { 
@@ -930,7 +922,6 @@ class AdminController {
         }
       );
 
-      // إشعار للأخصائيين
       const specialists = await User.findAll({
         where: { 
           institution_id: institution_id,
@@ -950,7 +941,6 @@ class AdminController {
         }, { transaction });
       }
 
-      // تسجيل العملية
       await AuditLog.create({
         admin_id: req.user.user_id,
         action_type: 'institution_suspension',
@@ -1050,7 +1040,6 @@ class AdminController {
       user.status = 'Approved';
       await user.save({ transaction });
 
-      // إذا كان أخصائي، الموافقة على سجله في Specialist
       if (user.role === 'Specialist') {
         await Specialist.update(
           { approval_status: 'Approved' },
@@ -1061,7 +1050,6 @@ class AdminController {
         );
       }
 
-      // إذا كان مدير، إنشاء سجل في Manager
       if (user.role === 'Manager') {
         await Manager.findOrCreate({
           where: { manager_id: user.user_id },
@@ -1074,7 +1062,6 @@ class AdminController {
         });
       }
 
-      // إرسال إشعار للمستخدم
       await Notification.create({
         user_id: user.user_id,
         title: 'تمت الموافقة على حسابك',
@@ -1084,7 +1071,6 @@ class AdminController {
         created_at: new Date()
       }, { transaction });
 
-      // تسجيل العملية
       await AuditLog.create({
         admin_id: req.user.user_id,
         action_type: 'user_approval',
@@ -1135,7 +1121,6 @@ class AdminController {
         });
       }
 
-      // عدم تعليق الأدمن
       if (user.role === 'Admin') {
         await transaction.rollback();
         return res.status(403).json({ 
@@ -1147,7 +1132,6 @@ class AdminController {
       user.status = 'Canceled';
       await user.save({ transaction });
 
-      // إذا كان أخصائي، تعليقه
       if (user.role === 'Specialist') {
         await Specialist.update(
           { approval_status: 'Archived' },
@@ -1157,7 +1141,6 @@ class AdminController {
           }
         );
 
-        // إلغاء جلساته المستقبلية
         await Session.update(
           { status: 'Cancelled' },
           { 
@@ -1171,7 +1154,6 @@ class AdminController {
         );
       }
 
-      // إرسال إشعار للمستخدم
       await Notification.create({
         user_id: user.user_id,
         title: 'تم تعليق حسابك',
@@ -1181,7 +1163,6 @@ class AdminController {
         created_at: new Date()
       }, { transaction });
 
-      // تسجيل العملية
       await AuditLog.create({
         admin_id: req.user.user_id,
         action_type: 'user_suspension',
@@ -1282,7 +1263,6 @@ class AdminController {
       
       await report.save({ transaction });
 
-      // إشعار للمبلغ
       await Notification.create({
         user_id: report.reporter_user_id,
         title: 'تحديث حالة البلاغ',
@@ -1292,7 +1272,6 @@ class AdminController {
         created_at: new Date()
       }, { transaction });
 
-      // تسجيل العملية
       await AuditLog.create({
         admin_id: req.user.user_id,
         action_type: 'report_resolution',
@@ -1351,7 +1330,6 @@ class AdminController {
         order: [['date', 'DESC']]
       });
 
-      // إحصائيات
       const totalAmount = await Donation.sum('amount', { where: whereCondition });
       const totalCount = await Donation.count({ where: whereCondition });
 
@@ -1391,7 +1369,6 @@ class AdminController {
         order: [['category', 'ASC'], ['setting_key', 'ASC']]
       });
 
-      // تحويل القيم بناءً على النوع
       const processedSettings = settings.map(setting => {
         let value = setting.setting_value;
         
@@ -1462,7 +1439,6 @@ class AdminController {
         });
       }
 
-      // تحويل القيمة بناءً على النوع
       let stringValue;
       switch (setting.setting_type) {
         case 'boolean':
@@ -1484,7 +1460,6 @@ class AdminController {
       setting.updated_at = new Date();
       await setting.save({ transaction });
 
-      // تسجيل العملية
       await AuditLog.create({
         admin_id: req.user.user_id,
         action_type: 'setting_change',
@@ -1522,7 +1497,6 @@ class AdminController {
         dateFilter[Op.between] = [new Date(start_date), new Date(end_date)];
       }
 
-      // إحصائيات المستخدمين
       const userStats = await User.findAll({
         attributes: [
           'role',
@@ -1532,7 +1506,6 @@ class AdminController {
         raw: true
       });
 
-      // إحصائيات المؤسسات
       const institutionStats = await Institution.findAll({
         attributes: [
           'approval_status',
@@ -1542,7 +1515,6 @@ class AdminController {
         raw: true
       });
 
-      // التبرعات الشهرية
       const monthlyDonations = await Donation.findAll({
         attributes: [
           [sequelize.fn('DATE_FORMAT', sequelize.col('date'), '%Y-%m'), 'month'],
@@ -1554,7 +1526,6 @@ class AdminController {
         raw: true
       });
 
-      // الجلسات الشهرية
       const monthlySessions = await Session.findAll({
         attributes: [
           [sequelize.fn('DATE_FORMAT', sequelize.col('date'), '%Y-%m'), 'month'],
@@ -1566,7 +1537,6 @@ class AdminController {
         raw: true
       });
 
-      // أعلى المؤسسات تبرعاً
       const topInstitutions = await Donation.findAll({
         attributes: [
           'institution_id',
@@ -1648,10 +1618,8 @@ class AdminController {
         });
       }
 
-      // حذف المحتوى
       await content.destroy({ transaction });
 
-      // إشعار للمستخدم
       if (user_id) {
         await Notification.create({
           user_id: user_id,
@@ -1663,7 +1631,6 @@ class AdminController {
         }, { transaction });
       }
 
-      // تسجيل العملية
       await AuditLog.create({
         admin_id: req.user.user_id,
         action_type: 'content_removal',
@@ -1752,7 +1719,6 @@ async getAllUsers(req, res) {
     
     const offset = (page - 1) * limit;
 
-    // بناء شروط البحث
     const whereCondition = {};
     
     if (search) {
@@ -1767,7 +1733,6 @@ async getAllUsers(req, res) {
     if (status) whereCondition.status = status;
     if (institution_id) whereCondition.institution_id = institution_id;
 
-    // استعلام مع العلاقات
     const includeModels = [
       {
         model: Institution,
@@ -1776,7 +1741,6 @@ async getAllUsers(req, res) {
       }
     ];
 
-    // إضافة نماذج إضافية حسب الدور
     const users = await User.findAndCountAll({
       where: whereCondition,
       include: includeModels,
@@ -1789,7 +1753,6 @@ async getAllUsers(req, res) {
       distinct: true
     });
 
-    // إحصائيات إضافية
     const stats = await User.findAll({
       attributes: [
         'role',
@@ -1799,7 +1762,6 @@ async getAllUsers(req, res) {
       raw: true
     });
 
-    // جلب مستخدمي الشهر الحالي
     const thisMonth = new Date();
     const firstDay = new Date(thisMonth.getFullYear(), thisMonth.getMonth(), 1);
     
@@ -1875,16 +1837,13 @@ async getUserDetails(req, res) {
       });
     }
 
-    // جلب معلومات إضافية حسب الدور
     let additionalInfo = {};
     
     if (user.role === 'Parent') {
-      // جلب عدد الأطفال
       const childrenCount = await Child.count({ 
         where: { parent_id: user_id } 
       });
       
-      // جلب الجلسات
       const sessions = await Session.findAll({
         where: { 
           child_id: { 
@@ -1905,7 +1864,6 @@ async getUserDetails(req, res) {
     }
 
     if (user.role === 'Specialist') {
-      // إحصائيات الأخصائي
       const sessionsCount = await Session.count({ 
         where: { specialist_id: user_id } 
       });
@@ -1917,7 +1875,6 @@ async getUserDetails(req, res) {
         }
       });
 
-      // متوسط التقييم
       const ratings = await SessionRating.findAll({
         where: { specialist_id: user_id },
         attributes: [
@@ -1967,7 +1924,6 @@ async updateUserStatus(req, res) {
       });
     }
 
-    // منع تعديل حالة الأدمن من قبل أدمن آخر
     if (user.role === 'Admin' && req.user.user_id !== user_id) {
       await transaction.rollback();
       return res.status(403).json({ 
@@ -1981,7 +1937,6 @@ async updateUserStatus(req, res) {
     user.updated_at = new Date();
     await user.save({ transaction });
 
-    // تحديث جداول مرتبطة حسب الدور
     if (user.role === 'Specialist') {
       const specialist = await Specialist.findByPk(user_id, { transaction });
       if (specialist) {
@@ -1994,7 +1949,6 @@ async updateUserStatus(req, res) {
       }
     }
 
-    // إذا كان المستخدم مديراً وتغيرت حالته
     if (user.role === 'Manager') {
       const manager = await Manager.findByPk(user_id, { transaction });
       if (manager) {
@@ -2003,7 +1957,6 @@ async updateUserStatus(req, res) {
       }
     }
 
-    // إرسال إشعار للمستخدم
     await Notification.create({
       user_id: user.user_id,
       title: 'Account Status Updated',
@@ -2013,7 +1966,6 @@ async updateUserStatus(req, res) {
       created_at: new Date()
     }, { transaction });
 
-    // تسجيل العملية
     await AuditLog.create({
       admin_id: req.user.user_id,
       action_type: 'user_status_change',
@@ -2057,7 +2009,6 @@ async deleteUser(req, res) {
       });
     }
 
-    // منع حذف الأدمن
     if (user.role === 'Admin') {
       await transaction.rollback();
       return res.status(403).json({ 
@@ -2066,14 +2017,11 @@ async deleteUser(req, res) {
       });
     }
 
-    // حفظ نسخة احتياطية من البيانات قبل الحذف
     const userData = user.toJSON();
     delete userData.password;
 
-    // حذف المستخدم (حذف فعلي أو soft delete)
     await user.destroy({ transaction });
 
-    // حذف البيانات المرتبطة حسب الدور
     if (user.role === 'Parent') {
       await Parent.destroy({ 
         where: { parent_id: user_id },
@@ -2095,7 +2043,6 @@ async deleteUser(req, res) {
       });
     }
 
-    // تسجيل العملية
     await AuditLog.create({
       admin_id: req.user.user_id,
       action_type: 'user_deletion',
@@ -2124,7 +2071,7 @@ async deleteUser(req, res) {
       message: 'Error deleting user' 
     });
   }
-} // End of deleteUser method
+} 
 
 // ==================== 🏢 ALL INSTITUTIONS MANAGEMENT ====================
 async getAllInstitutions(req, res) {
@@ -2140,7 +2087,6 @@ async getAllInstitutions(req, res) {
     
     const offset = (page - 1) * limit;
 
-    // بناء شروط البحث
     const whereCondition = {};
     
     if (search) {
@@ -2156,7 +2102,6 @@ async getAllInstitutions(req, res) {
     if (city) whereCondition.city = city;
     if (region) whereCondition.region = region;
 
-    // استعلام المؤسسات مع المعلومات الإضافية
     const institutions = await Institution.findAndCountAll({
       where: whereCondition,
       include: [
@@ -2197,7 +2142,6 @@ async getAllInstitutions(req, res) {
       };
     });
 
-    // إحصائيات إضافية
     const stats = await Institution.findAll({
       attributes: [
         'approval_status',
@@ -2207,7 +2151,6 @@ async getAllInstitutions(req, res) {
       raw: true
     });
 
-    // المؤسسات الأكثر نشاطاً (حسب الجلسات)
     const activeInstitutions = await Session.findAll({
       attributes: [
         'institution_id',
@@ -2215,7 +2158,7 @@ async getAllInstitutions(req, res) {
       ],
       where: {
         date: {
-          [Op.gte]: new Date(new Date() - 30 * 24 * 60 * 60 * 1000) // آخر 30 يوم
+          [Op.gte]: new Date(new Date() - 30 * 24 * 60 * 60 * 1000) 
         }
       },
       group: ['institution_id'],
@@ -2224,7 +2167,6 @@ async getAllInstitutions(req, res) {
       raw: true
     });
 
-    // جلب أسماء المؤسسات النشطة
     const activeInstitutionIds = activeInstitutions.map(inst => inst.institution_id);
     const activeInstitutionDetails = await Institution.findAll({
       where: {
@@ -2456,7 +2398,6 @@ async getAllInstitutions(req, res) {
         }
       });
 
-      // Admin-created institutions should be approved by default
       createData.approval_status = 'Approved';
       createData.is_active = true;
 
@@ -2727,7 +2668,6 @@ async getAllInstitutions(req, res) {
     }
   }
 
-  // في controllers/adminController.js - أضف هذه الدوال
 
 // ==================== 📱 APP CONTENT MANAGEMENT ====================
 
@@ -2825,7 +2765,6 @@ async getContentDetails(req, res) {
       });
     }
 
-    // جلب تاريخ التعديلات
     const auditLogs = await AuditLog.findAll({
       where: {
         target_type: 'AppContent',
@@ -2884,7 +2823,6 @@ async createContent(req, res) {
       normalizedMetadata.visible_to = ['all'];
     }
 
-    // التحقق من البيانات المطلوبة
     if (!content_type || !title_ar || !title_en || !content_ar || !content_en || !section_key) {
       await transaction.rollback();
       return res.status(400).json({ 
@@ -2893,7 +2831,6 @@ async createContent(req, res) {
       });
     }
 
-    // التحقق من أن section_key فريد
     const existingContent = await AppContent.findOne({
       where: { section_key },
       transaction
@@ -2907,7 +2844,6 @@ async createContent(req, res) {
       });
     }
 
-    // إنشاء المحتوى
     const content = await AppContent.create({
       content_type,
       title_ar,
@@ -2923,7 +2859,6 @@ async createContent(req, res) {
       updated_by: req.user.user_id
     }, { transaction });
 
-    // تسجيل العملية
     await AuditLog.create({
       admin_id: req.user.user_id,
       action_type: 'content_create',
@@ -2975,7 +2910,6 @@ async updateContent(req, res) {
 
     const oldData = content.toJSON();
     
-    // الحقول المسموح بتحديثها
     const allowedFields = [
       'title_ar', 'title_en', 'content_ar', 'content_en',
       'display_order', 'is_active', 'icon', 'metadata'
@@ -2992,7 +2926,6 @@ async updateContent(req, res) {
 
     await content.update(filteredUpdate, { transaction });
 
-    // تسجيل العملية
     const changes = {};
     Object.keys(filteredUpdate).forEach(key => {
       if (oldData[key] !== filteredUpdate[key]) {
@@ -3046,13 +2979,10 @@ async deleteContent(req, res) {
       });
     }
 
-    // حفظ نسخة احتياطية قبل الحذف
     const backupData = content.toJSON();
 
-    // حذف المحتوى
     await content.destroy({ transaction });
 
-    // تسجيل العملية
     await AuditLog.create({
       admin_id: req.user.user_id,
       action_type: 'content_delete',
@@ -3097,7 +3027,6 @@ async reorderContent(req, res) {
       });
     }
 
-    // تحديث ترتيب المحتويات
     for (const update of order_updates) {
       const { content_id, display_order } = update;
       
@@ -3115,7 +3044,6 @@ async reorderContent(req, res) {
       }
     }
 
-    // تسجيل العملية
     await AuditLog.create({
       admin_id: req.user.user_id,
       action_type: 'content_reorder',
@@ -3132,7 +3060,6 @@ async reorderContent(req, res) {
 
     await transaction.commit();
 
-    // جلب المحتويات بعد التحديث
     const updatedContents = await AppContent.findAll({
       where: { content_type },
       order: [['display_order', 'ASC']]
@@ -3153,19 +3080,17 @@ async reorderContent(req, res) {
   }
 }
 
-// دوال لجلب المحتوى للمستخدمين العاديين
 
 async getHelpSections(req, res) {
   try {
-    const language = req.query.lang || 'ar'; // 'ar' أو 'en'
-    const userRole = req.user?.role || 'Parent'; // افتراضي Parent
+    const language = req.query.lang || 'ar';
+    const userRole = req.user?.role || 'Parent'; 
 
     const whereCondition = {
       content_type: 'help_section',
       is_active: true
     };
 
-    // يمكن إضافة فلترة حسب دور المستخدم إذا لزم
     if (userRole === 'Parent') {
       whereCondition[Op.and] = Sequelize.literal(
         `metadata IS NULL
@@ -3223,7 +3148,6 @@ async getAboutContent(req, res) {
       order: [['display_order', 'ASC']]
     });
 
-    // جلب سياسة الخصوصية وشروط الخدمة
     const privacyPolicy = await AppContent.findOne({
       where: {
         content_type: 'privacy_policy',
@@ -3270,9 +3194,8 @@ async getAboutContent(req, res) {
   }
 }
 
-// controllers/adminController.js
 
-// ==================== 📱 APP CONTENT MANAGEMENT (متابعة) ====================
+// ==================== 📱 APP CONTENT MANAGEMENT ====================
 
 async batchUpdateContentStatus(req, res) {
   const transaction = await sequelize.transaction();
@@ -3288,7 +3211,6 @@ async batchUpdateContentStatus(req, res) {
       });
     }
 
-    // تحديث حالة المحتويات
     await AppContent.update(
       {
         is_active,
@@ -3303,7 +3225,6 @@ async batchUpdateContentStatus(req, res) {
       }
     );
 
-    // تسجيل العملية
     await AuditLog.create({
       admin_id: req.user.user_id,
       action_type: 'content_batch_update',
@@ -3424,7 +3345,6 @@ async importContent(req, res) {
         });
 
         if (existing) {
-          // تحديث المحتوى الموجود
           await existing.update({
             ...contentData,
             updated_by: req.user.user_id,
@@ -3432,7 +3352,6 @@ async importContent(req, res) {
           }, { transaction });
           results.updated++;
         } else {
-          // إنشاء محتوى جديد
           await AppContent.create({
             ...contentData,
             created_by: req.user.user_id,
@@ -3449,7 +3368,6 @@ async importContent(req, res) {
       }
     }
 
-    // تسجيل العملية
     await AuditLog.create({
       admin_id: req.user.user_id,
       action_type: 'content_import',

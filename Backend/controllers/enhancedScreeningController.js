@@ -9,10 +9,8 @@ class EnhancedScreeningController {
     try {
       console.log('🤖 Starting enhanced screening analysis...');
 
-      // 1. Convert screening results to symptoms description for AI
       const symptomsDescription = this.generateSymptomsFromScreening(screeningResults, childAgeMonths);
       
-      // 2. Use AI Analysis
       let aiAnalysis = null;
       
       if (symptomsDescription && symptomsDescription.trim() !== '') {
@@ -20,8 +18,8 @@ class EnhancedScreeningController {
         
         aiAnalysis = await GroqAIService.analyzeSymptoms(
           symptomsDescription, 
-          '', // medical_history
-          ''  // previous_services
+          '', 
+          ''  
         );
 
         if (!aiAnalysis || !aiAnalysis.suggested_conditions || aiAnalysis.suggested_conditions.length === 0) {
@@ -30,13 +28,11 @@ class EnhancedScreeningController {
         }
       }
 
-      // 3. Get recommended institutions
       const recommendedInstitutions = await this.getInstitutionsFromScreening(
         screeningResults, 
         childLocation
       );
 
-      // 4. Generate smart next steps
       const nextSteps = this.generateScreeningNextSteps(screeningResults, aiAnalysis, recommendedInstitutions);
 
       return {
@@ -101,12 +97,10 @@ class EnhancedScreeningController {
       symptoms += `- Age: ${childAgeMonths} months\n`;
     }
 
-    // Add recommendations if available
     if (screeningResults.recommendations && screeningResults.recommendations.length > 0) {
       symptoms += `\n🔸 Initial Recommendations: ${screeningResults.recommendations.join(', ')}`;
     }
 
-    // Add positive indicators if no concerns
     if (!screeningResults.primary_concern && screeningResults.positive_indicators) {
       symptoms += `\n✅ Positive Development: ${screeningResults.positive_indicators.join(', ')}`;
     }
@@ -118,7 +112,6 @@ async getInstitutionsFromScreening(screeningResults, childLocation, parentLocati
   try {
     const targetConditions = [];
     
-    // Determine target conditions based on screening results
     if (screeningResults.primary_concern === 'autism') {
       targetConditions.push('Autism');
       targetConditions.push('ASD');
@@ -149,7 +142,6 @@ async getInstitutionsFromScreening(screeningResults, childLocation, parentLocati
 
     console.log('🎯 Target conditions for institutions:', targetConditions);
 
-    // Use our own method with parent location
     return await this.getRecommendedInstitutionsForScreening(
       targetConditions,
       childLocation?.city || '',
@@ -274,7 +266,6 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
 
         if (matchingSpecialties.length > 2) matchScore += 0.2;
 
-        //  Calculate distance using parent location
         let distance = null;
         if (parentLocation.lat && parentLocation.lng && instData.location_lat && instData.location_lng) {
           distance = this.calculateDistance(
@@ -286,7 +277,6 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
           console.log(`📍 Distance from parent to ${instData.name}: ${distance} km`);
         }
 
-        // Simple city-based matching
         if (childCity && instData.city === childCity) {
           matchScore += 0.2;
         }
@@ -307,7 +297,6 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
 
         let finalScore = matchScore;
         
-        //  Adjust score based on distance (closer = better)
         if (distance !== null) {
           if (distance < 5) {
             finalScore += 0.3; 
@@ -318,7 +307,6 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
           }
         }
         
-        // Adjust score based on specialization match
         if (matchingSpecialties.length > 0) {
           finalScore += 0.1 * matchingSpecialties.length;
         }
@@ -349,7 +337,6 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
 
     let filteredInstitutions = scoredInstitutions.filter(i => i !== null);
 
-    //  Sort by distance if available, otherwise by match score
     filteredInstitutions.sort((a, b) => {
       switch(sort_by) {
         case 'distance':
@@ -488,7 +475,6 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
           targetConditions.forEach(tc => {
             const targetLower = tc.toLowerCase();
             
-            // Check conditions match
             if (stConditions.some(stc => {
               if (!stc) return false;
               const stcLower = stc.toLowerCase();
@@ -501,7 +487,6 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
               conditionMatch = true;
             }
             
-            // Check specialization match
             if (stSpecialization.toLowerCase().includes(targetLower)) {
               conditionMatch = true;
               matchDetails.push(`✅ Matches specialization: "${stSpecialization}" with target "${tc}"`);
@@ -521,7 +506,6 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
               description: st.description || 'No description available'
             });
             
-            //  Add matching reasons
             matchDetails.forEach(detail => {
               if (!matchingReasons.includes(detail)) {
                 matchingReasons.push(detail);
@@ -541,7 +525,6 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
           matchingReasons.push(`✅ Offers ${matchingSpecialties.length} different specialties`);
         }
 
-        // Calculate distance using parent location
         let distance = null;
         let distanceReason = '';
         if (parentLocation.lat && parentLocation.lng && instData.location_lat && instData.location_lng) {
@@ -569,7 +552,6 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
           console.log(`   📏 Distance from parent: ${distance.toFixed(1)} km - ${distanceReason}`);
         }
 
-        // Simple city-based matching
         if (childCity && instData.city === childCity) {
           matchScore += 0.2;
           matchingReasons.push(`🏙️ Located in your city (${childCity})`);
@@ -580,7 +562,6 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
           ? matchingSessionTypes.reduce((sum, st) => sum + (st.price || 0), 0) / matchingSessionTypes.length
           : 0;
 
-        // Price-based filtering and reasoning
         if (max_price && avgPrice > parseFloat(max_price)) {
           console.log(`   ❌ Excluded: Average price ${avgPrice.toFixed(2)} exceeds max ${max_price}`);
           return null;
@@ -606,13 +587,11 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
 
         let finalScore = matchScore;
         
-        // Adjust score based on specialization match
         if (matchingSpecialties.length > 0) {
           finalScore += 0.1 * matchingSpecialties.length;
           matchingReasons.push(`🎯 Specialized in ${matchingSpecialties.length} relevant areas`);
         }
 
-        // Summary for this institution
         console.log(`   📊 FINAL SCORE: ${(finalScore * 100).toFixed(0)}%`);
         console.log(`   🎯 Matching specialties: ${matchingSpecialties.join(', ')}`);
         console.log(`   📋 Matching services: ${matchingSessionTypes.length}`);
@@ -646,7 +625,6 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
 
     let filteredInstitutions = scoredInstitutions.filter(i => i !== null);
 
-    // Sort by distance if available, otherwise by match score
     filteredInstitutions.sort((a, b) => {
       switch(sort_by) {
         case 'distance':
@@ -669,7 +647,6 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
     const offset = (page - 1) * limit;
     const paginatedInstitutions = filteredInstitutions.slice(offset, offset + limit);
 
-    //  FINAL SUMMARY
     console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('🎯 FINAL RECOMMENDATION SUMMARY');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -691,7 +668,6 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
       console.log(`   📋 Why we recommend it:`);
       inst.matching_reasons.forEach(reason => console.log(`      • ${reason}`));
       
-      // Show available services
       if (inst.available_services.length > 0) {
         console.log(`   🔍 Available services:`);
         inst.available_services.forEach(service => {
@@ -743,7 +719,6 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
       steps.push('🩺 Schedule comprehensive developmental assessment');
     }
 
-    // Steps based on primary concern
     if (primaryConcern) {
       if (riskLevel === 'medium' || riskLevel === 'moderate') {
         steps.push(`📋 Recommended: Professional assessment for ${this.getConditionEnglishName(primaryConcern)}`);
@@ -755,7 +730,6 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
       }
     }
 
-    // Add institution recommendations
     if (recommendedInstitutions.length > 0) {
       const topInstitution = recommendedInstitutions[0];
       steps.push(`🏫 Recommended center: "${topInstitution.name}" in ${topInstitution.city} - Match: ${topInstitution.match_score}`);
@@ -765,7 +739,6 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
       }
     }
 
-    // General next steps
     if (!primaryConcern) {
       steps.push('✅ Child appears to be developing typically for age');
       steps.push('📅 Continue with routine pediatric check-ups');
@@ -776,7 +749,6 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
       steps.push('👪 Join parent support groups if available');
     }
 
-    // AI analysis insights
     if (aiAnalysis && aiAnalysis.suggested_conditions && aiAnalysis.suggested_conditions.length > 0) {
       const topAICondition = aiAnalysis.suggested_conditions[0];
       if (topAICondition.confidence > 70) {
@@ -856,7 +828,6 @@ async getRecommendedInstitutionsForScreening(targetConditions, childCity, childA
     return actions.length > 0 ? actions : ['Continue routine developmental surveillance'];
   }
 
-  // Helper function to calculate distance (simplified for screening)
   calculateDistance(lat1, lon1, lat2, lon2) {
     if (!lat1 || !lon1 || !lat2 || !lon2) return null;
     

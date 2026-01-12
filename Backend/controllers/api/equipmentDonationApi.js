@@ -1,7 +1,6 @@
 const { EquipmentDonation, EquipmentCategory, Institution, EquipmentDonationCampaign } = require('../../model');
 const { Op } = require('sequelize');
 
-// API للحصول على المؤسسات التي تقبل تبرعات عينية
 exports.getInstitutionsForEquipmentDonation = async (req, res) => {
   try {
     const institutions = await Institution.findAll({
@@ -59,7 +58,6 @@ exports.getOpenEquipmentCampaigns = async (req, res) => {
   }
 };
 
-// API للحصول على حملات تبرع المعدات لمؤسسة (لا تحتاج مصادقة)
 exports.getInstitutionEquipmentCampaigns = async (req, res) => {
   try {
     const institutionId = parseInt(req.params.institutionId, 10);
@@ -105,7 +103,6 @@ exports.getInstitutionEquipmentCampaigns = async (req, res) => {
   }
 };
 
-// API للحصول على تفاصيل حملة معدات (لا تحتاج مصادقة)
 exports.getEquipmentCampaignDetails = async (req, res) => {
   try {
     const campaignId = parseInt(req.params.campaignId, 10);
@@ -145,7 +142,6 @@ exports.getEquipmentCampaignDetails = async (req, res) => {
   }
 };
 
-// API لإنشاء تبرع عيني بدون مصادقة
 exports.createAnonymousEquipmentDonation = async (req, res) => {
   try {
     const {
@@ -162,7 +158,6 @@ exports.createAnonymousEquipmentDonation = async (req, res) => {
       contact_email
     } = req.body;
 
-    // التحقق من البيانات المطلوبة
     if (!institution_id || !equipment_name || !contact_person || !contact_phone) {
       return res.status(400).json({
         success: false,
@@ -170,9 +165,8 @@ exports.createAnonymousEquipmentDonation = async (req, res) => {
       });
     }
 
-    // إنشاء التبرع
     const donation = await EquipmentDonation.create({
-      donor_id: null, // متبرع مجهول
+      donor_id: null, 
       institution_id,
       category_id,
       equipment_name,
@@ -207,7 +201,6 @@ exports.createAnonymousEquipmentDonation = async (req, res) => {
   }
 };
 
-// API للتحقق من حالة التبرع
 exports.checkEquipmentDonationStatus = async (req, res) => {
   try {
     const { donation_id, contact_phone } = req.query;

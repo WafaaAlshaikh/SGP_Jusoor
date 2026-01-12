@@ -13,7 +13,6 @@ const sequelize = require('../config/db');
 const fs = require('fs');
 const path = require('path');
 
-// ========== Upload Parent Profile Picture ==========
 const uploadParentProfilePicture = async (req, res) => {
   try {
     if (!req.file) {
@@ -25,13 +24,11 @@ const uploadParentProfilePicture = async (req, res) => {
 
     const parentId = req.user.user_id;
     
-    // التحقق من وجود الأهل
     const parent = await Parent.findOne({ 
       where: { parent_id: parentId } 
     });
     
     if (!parent) {
-      // حذف الملف المرفوع إذا لم يتم العثور على الأهل
       if (req.file && req.file.path) {
         fs.unlinkSync(req.file.path);
       }
@@ -41,7 +38,6 @@ const uploadParentProfilePicture = async (req, res) => {
       });
     }
 
-    // الحصول على بيانات المستخدم
     const user = await User.findOne({
       where: { user_id: parentId }
     });
@@ -56,7 +52,6 @@ const uploadParentProfilePicture = async (req, res) => {
       });
     }
 
-    // حذف الصورة القديمة إذا كانت موجودة
     if (user.profile_picture) {
       try {
         const oldFilename = user.profile_picture.split('/').pop();
@@ -67,18 +62,15 @@ const uploadParentProfilePicture = async (req, res) => {
         }
       } catch (deleteError) {
         console.log('⚠️ Could not delete old parent image:', deleteError.message);
-        // نستمر حتى لو لم نستطع حذف الصورة القديمة
       }
     }
 
-    // إنشاء رابط الصورة الجديدة
     const protocol = req.protocol;
     const host = req.get('host');
     const profilePictureUrl = `${protocol}://${host}/uploads/parents/${req.file.filename}`;
 
     console.log('📸 Parent profile picture URL:', profilePictureUrl);
 
-    // تحديث الصورة في قاعدة البيانات
     await User.update({
       profile_picture: profilePictureUrl,
       updated_at: new Date()
@@ -86,7 +78,6 @@ const uploadParentProfilePicture = async (req, res) => {
       where: { user_id: parentId }
     });
 
-    // جلب البيانات المحدثة
     const updatedUser = await User.findOne({
       where: { user_id: parentId },
       attributes: ['user_id', 'full_name', 'email', 'phone', 'profile_picture', 'created_at', 'updated_at']
@@ -104,7 +95,6 @@ const uploadParentProfilePicture = async (req, res) => {
   } catch (error) {
     console.error('❌ Error uploading parent profile picture:', error);
     
-    // حذف الملف المرفوع إذا حدث خطأ
     if (req.file && req.file.path) {
       try {
         fs.unlinkSync(req.file.path);
@@ -122,7 +112,6 @@ const uploadParentProfilePicture = async (req, res) => {
   }
 };
 
-// ========== Get Parent Dashboard ==========
 const getParentDashboard = async (req, res) => {
   try {
     const parentId = req.user.user_id; 
@@ -151,7 +140,6 @@ const getParentDashboard = async (req, res) => {
       ],
     });
     
-    // Get evaluations for each child
     const childrenWithEvaluations = await Promise.all(
       children.map(async (child) => {
         const evaluations = await sequelize.query(`
@@ -233,7 +221,6 @@ const getParentDashboard = async (req, res) => {
   }
 };
 
-// ========== Update Parent Profile ==========
 const updateParentProfile = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -315,7 +302,6 @@ const sendNotificationToSpecialist = async (specialistId, title, body, data = {}
       return;
     }
 
-    // جلب التوكن من قاعدة البيانات
     const [tokenResult] = await sequelize.query(`
       SELECT token 
       FROM UserDeviceTokens 
@@ -328,7 +314,6 @@ const sendNotificationToSpecialist = async (specialistId, title, body, data = {}
     if (!tokenResult.length || !tokenResult[0].token) {
       console.log(`⚠️ No token found for specialist ${specialistId}`);
       
-      // إنشاء إشعار في قاعدة البيانات على أي حال
       await Notification.create({
         user_id: specialistId,
         title: title,
@@ -344,7 +329,6 @@ const sendNotificationToSpecialist = async (specialistId, title, body, data = {}
 
     const token = tokenResult[0].token.trim();
     
-    // إعداد بيانات الإشعار
     const notificationData = {
       type: data.type || 'session_notification',
       session_id: data.session_id?.toString() || '',
@@ -357,7 +341,6 @@ const sendNotificationToSpecialist = async (specialistId, title, body, data = {}
       ...data
     };
 
-    // إرسال الإشعار عبر Firebase
     await NotificationService.sendToToken(
       token,
       title,
@@ -365,7 +348,6 @@ const sendNotificationToSpecialist = async (specialistId, title, body, data = {}
       notificationData
     );
 
-    // حفظ الإشعار في قاعدة البيانات
     await Notification.create({
       user_id: specialistId,
       title: title,
@@ -380,10 +362,9 @@ const sendNotificationToSpecialist = async (specialistId, title, body, data = {}
 
   } catch (error) {
     console.error('❌ Error sending notification to specialist:', error);
-    // لا نوقف العملية إذا فشل الإشعار
   }
 };
-// ========== Reschedule Session ==========
+
 const rescheduleSession = async (req, res) => {
   try {
     const { sessionId } = req.params;
@@ -392,7 +373,6 @@ const rescheduleSession = async (req, res) => {
 
     console.log('🔄 Rescheduling session:', { sessionId, parentId, new_date, new_time, note });
 
-    // Load the current session with child information
     const session = await Session.findOne({
       where: { session_id: sessionId },
       include: [
@@ -417,7 +397,6 @@ const rescheduleSession = async (req, res) => {
       });
     }
 
-    // Validate session status
     if (session.status !== 'Scheduled' && session.status !== 'Pending Approval') {
       return res.status(400).json({
         success: false,
@@ -425,11 +404,9 @@ const rescheduleSession = async (req, res) => {
       });
     }
 
-    // Save old date and time for history
     const oldDate = session.date;
     const oldTime = session.time;
 
-    // 1. Check for conflicting sessions
     const conflictingSession = await Session.findOne({
       where: {
         specialist_id: session.specialist_id,
@@ -447,7 +424,6 @@ const rescheduleSession = async (req, res) => {
       });
     }
 
-    // 2. Check specialist schedule (SpecialistSchedule)
     const SpecialistSchedule = require('../model/SpecialistSchedule');
     const targetDate = new Date(new_date);
     const dayOfWeek = targetDate.toLocaleDateString('en-US', { weekday: 'long' });
@@ -459,10 +435,9 @@ const rescheduleSession = async (req, res) => {
       }
     });
 
-    let newStatus = 'Pending Approval'; // Default status
+    let newStatus = 'Pending Approval';
 
     if (specialistSchedule) {
-      // Check if the new time is within specialist working hours
       const sessionTime = new_time.substring(0, 5);
       const scheduleStart = specialistSchedule.start_time.substring(0, 5);
       const scheduleEnd = specialistSchedule.end_time.substring(0, 5);
@@ -483,31 +458,26 @@ const rescheduleSession = async (req, res) => {
       );
     }
 
-    // 3. Prepare update data
     const updateData = {
       date: new_date,
       time: new_time,
       status: newStatus,
       rescheduled_at: new Date(),
       rescheduled_by: 'parent',
-      old_date: oldDate, // Store old date for reference
-      old_time: oldTime  // Store old time for reference
+      old_date: oldDate, 
+      old_time: oldTime  
     };
 
-    // Add parent note if provided
     if (note) {
       updateData.reschedule_note = note;
     }
 
-    // Add automatic note for specialist
     const autoNote = `Session rescheduled from ${oldDate} ${oldTime} to ${new_date} ${new_time}`;
     updateData.specialist_note =
       autoNote + (note ? `\nParent note: ${note}` : '');
 
-    // 4. Update the session
     await Session.update(updateData, { where: { session_id: sessionId } });
 
-    // 5. Fetch updated session with additional info
     const updatedSession = await Session.findByPk(sessionId, {
       include: [
         {
@@ -528,10 +498,7 @@ const rescheduleSession = async (req, res) => {
       ]
     });
 
-    // 🔥 NEW: Send notification to specialist
-    // تحديث هذه الأجزاء في rescheduleSession:
-
-// 🔥 FIX: إصلاح بيانات الإشعار
+   
 await sendNotificationToSpecialist(
   updatedSession.specialist.user_id,
   newStatus === 'Rescheduled' ? '📅 تم تأجيل الجلسة' : '⏳ طلب تأجيل الجلسة',
@@ -540,9 +507,9 @@ await sendNotificationToSpecialist(
     : `طلب تأجيل جلسة ${updatedSession.child.full_name} من ${oldDate} ${oldTime} إلى ${new_date} ${new_time} (في انتظار الموافقة)`,
   {
     type: 'session_rescheduled',
-    session_id: sessionId.toString(), // ✅ تأكد أنه string
-    child_id: updatedSession.child.child_id.toString(), // ✅ إضافة child_id
-    child_name: updatedSession.child.full_name, // ✅ تأكد أن الاسم موجود
+    session_id: sessionId.toString(), 
+    child_id: updatedSession.child.child_id.toString(), 
+    child_name: updatedSession.child.full_name, 
     old_date: oldDate,
     old_time: oldTime,
     new_date: new_date,
@@ -552,14 +519,12 @@ await sendNotificationToSpecialist(
     note: note || '',
     action: 'view_session',
     channel: 'session_channel',
-    // ✅ إضافة هذه الحقول المهمة للفرونت
     notificationType: 'session_rescheduled',
     click_action: 'FLUTTER_NOTIFICATION_CLICK',
     timestamp: new Date().toISOString()
   }
 );
 
-// أيضًا في إنشاء الإشعار في قاعدة البيانات
 await Notification.create({
   user_id: session.specialist_id,
   title: newStatus === 'Rescheduled' ? 'تم تأجيل جلسة' : 'طلب تأجيل جلسة',
@@ -579,7 +544,6 @@ await Notification.create({
     child_name: updatedSession.child.full_name,
     child_id: updatedSession.child.child_id,
     session_id: sessionId,
-    // ✅ إضافة بيانات إضافية
     notification_data: {
       type: 'session_rescheduled',
       action: 'view_session',
@@ -588,7 +552,6 @@ await Notification.create({
   })
 });
 
-    // 6. Create database notification for specialist
     try {
       await Notification.create({
         user_id: session.specialist_id,
@@ -614,7 +577,6 @@ await Notification.create({
       console.error('❌ Error creating notification:', notifError);
     }
 
-    // 7. Success response
     res.status(200).json({
       success: true,
       message:
@@ -660,7 +622,6 @@ await Notification.create({
 };
 
 
-// ========== Get Child Evaluations ==========
 const getChildEvaluations = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -755,12 +716,11 @@ const getChildEvaluations = async (req, res) => {
   }
 };
 
-// ========== Export all functions ==========
 module.exports = { 
   getParentDashboard,
   updateParentProfile,
   rescheduleSession,
   getChildEvaluations,
   uploadParentProfilePicture,
-  sendNotificationToSpecialist // ✅ تصدير الدالة الجديدة
+  sendNotificationToSpecialist 
 };

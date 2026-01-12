@@ -25,7 +25,6 @@ exports.getInstitutions = async (req, res) => {
       order: [['name', 'ASC']]
     });
     
-    // Format the response
     const formattedInstitutions = institutions.map(inst => ({
       institution_id: inst.institution_id,
       name: inst.name,

@@ -20,7 +20,6 @@ function sanitizeMediaUrls(value) {
   return null;
 }
 
-// Public/Donor feed (requires auth): only institutions the donor interacted with (money/equipment)
 exports.getDonorImpactFeed = async (req, res) => {
   try {
     const userId = req.user?.user_id;
@@ -37,7 +36,6 @@ exports.getDonorImpactFeed = async (req, res) => {
       ? parseIntOrDefault(req.query.equipment_campaign_id, 0)
       : null;
 
-    // donor institutions from both money & equipment donations
     const [moneyInstitutions, equipmentInstitutions] = await Promise.all([
       Donation.findAll({
         where: { donor_id: userId },

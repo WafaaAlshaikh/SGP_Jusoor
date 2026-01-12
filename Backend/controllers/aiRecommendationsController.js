@@ -150,14 +150,12 @@ function buildDonorRecommendationReasons({ inst, donorCity, donorRegion, hasDona
 function scoreInstitutionForDonor({ inst, donorCity, donorRegion, hasDonatedBefore }) {
   let score = 0;
 
-  // Need signals
   score += Math.min(40, inst.active_campaigns * 10);
   score += Math.min(35, inst.open_equipment_campaigns * 8);
   if (inst.remaining_amount && inst.remaining_amount > 0) {
     score += Math.min(15, Math.log10(inst.remaining_amount + 1) * 4);
   }
 
-  // Location match
   if (donorCity && inst.city && String(inst.city).toLowerCase() === String(donorCity).toLowerCase()) score += 20;
   else if (
     donorRegion &&
@@ -169,10 +167,8 @@ function scoreInstitutionForDonor({ inst, donorCity, donorRegion, hasDonatedBefo
     score += 10;
   }
 
-  // Loyalty
   if (hasDonatedBefore) score += 15;
 
-  // Rating (soft)
   if (inst.rating) score += Math.min(10, (Number(inst.rating) / 5) * 10);
 
   return Math.round(score);
@@ -259,7 +255,6 @@ Rules:
   }
 }
 
-// Get AI-powered institution recommendations
 exports.getRecommendations = async (req, res) => {
   try {
     const { childConditions, childAge, location, budget } = req.query;
@@ -271,7 +266,6 @@ exports.getRecommendations = async (req, res) => {
       });
     }
 
-    // Get all active institutions
     const institutions = await sequelize.query(`
       SELECT 
         institution_id,
@@ -292,7 +286,6 @@ exports.getRecommendations = async (req, res) => {
       type: sequelize.QueryTypes.SELECT
     });
 
-    // Use Groq AI to generate smart recommendations
     const aiRecommendations = await generateAIRecommendations({
       childConditions,
       childAge: childAge || 'not specified',
@@ -301,7 +294,6 @@ exports.getRecommendations = async (req, res) => {
       institutions
     });
 
-    // Calculate match scores
     const rankedInstitutions = institutions.map(inst => {
       const matchScore = calculateMatchScore(inst, {
         childConditions: childConditions.split(','),
@@ -316,7 +308,6 @@ exports.getRecommendations = async (req, res) => {
       };
     });
 
-    // Sort by match score
     rankedInstitutions.sort((a, b) => b.match_score - a.match_score);
 
     res.status(200).json({
@@ -430,7 +421,6 @@ exports.getDonorRecommendations = async (req, res) => {
   }
 };
 
-// Generate AI-powered recommendations using Groq
 async function generateAIRecommendations(data) {
   try {
     const apiKey = process.env.GROQ_API_KEY;
@@ -495,12 +485,10 @@ Format your response as JSON:
 
     const aiResponse = response.data.choices[0]?.message?.content || '{}';
     
-    // Try to parse JSON from response
     try {
       const parsed = JSON.parse(aiResponse);
       return parsed;
     } catch (parseError) {
-      // If not valid JSON, extract info manually
       return {
         summary: aiResponse.substring(0, 200),
         recommendations: []
@@ -515,11 +503,9 @@ Format your response as JSON:
   }
 }
 
-// Calculate match score based on multiple factors
 function calculateMatchScore(institution, criteria) {
   let score = 0;
 
-  // Check conditions match
   if (institution.conditions_supported && criteria.childConditions) {
     const instConditions = institution.conditions_supported.toLowerCase();
     const childConditions = criteria.childConditions.map(c => c.toLowerCase());
@@ -531,24 +517,20 @@ function calculateMatchScore(institution, criteria) {
     score += (matchingConditions.length / childConditions.length) * 40;
   }
 
-  // Check location match
   if (institution.location && criteria.location) {
     if (institution.location.toLowerCase().includes(criteria.location.toLowerCase())) {
       score += 25;
     }
   }
 
-  // Rating factor
   if (institution.rating) {
     score += (institution.rating / 5) * 20;
   }
 
-  // Availability factor
   if (institution.available_slots && institution.available_slots > 0) {
     score += 10;
   }
 
-  // Price factor
   if (institution.price_range && criteria.budget) {
     const budgetMatch = matchBudget(institution.price_range, criteria.budget);
     score += budgetMatch * 5;
@@ -565,7 +547,7 @@ function matchBudget(priceRange, budget) {
   if (rangeLower.includes('medium') && budgetLower.includes('medium')) return 1;
   if (rangeLower.includes('high') && budgetLower.includes('high')) return 1;
   
-  return 0.5; // Partial match
+  return 0.5; 
 }
 
 function findAIReasoning(centerName, aiRecommendations) {

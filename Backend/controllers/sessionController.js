@@ -107,7 +107,6 @@ const getUpcomingSessions = async (req, res) => {
 
 
 
-// ================= وظيفة جديدة: التحقق التلقائي من حالة الأهل المالية عند استلام جلسة =================
 const checkAutoFinancialAssistance = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -151,7 +150,6 @@ const checkAutoFinancialAssistance = async (req, res) => {
       });
     }
 
-    // التحقق من حالة الأهل المالية
     const Parent = require('../model/Parent');
     const parent = await Parent.findOne({ 
       where: { parent_id: parentId } 
@@ -162,7 +160,6 @@ const checkAutoFinancialAssistance = async (req, res) => {
     let tierLabel = '';
 
     if (parent && parent.financial_score) {
-      // تحديد نسبة الخصم بناءً على الفئة المالية
       if (parent.financial_tier === 'tier_1_critical') {
         discountPercentage = 80;
         tierLabel = 'حرج';
@@ -249,7 +246,6 @@ const checkAutoFinancialAssistance = async (req, res) => {
   }
 };
 
-// ================= وظيفة لتطبيق الخصم التلقائي =================
 const applyAutoDiscount = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -257,7 +253,6 @@ const applyAutoDiscount = async (req, res) => {
 
     console.log('💰 تطبيق خصم تلقائي للجلسة:', session_id);
 
-    // استخدام نفس المنطق الموجود في parentSessionDecision
     req.params.id = session_id;
     req.body.decision = 'request_aid';
     
@@ -410,7 +405,6 @@ const cancelSession = async (req, res) => {
       const childName = session.child?.full_name || 'Unknown child';
       const specialistName = session.specialist?.full_name || 'Specialist';
 
-      // 🔥 NEW: Send notification to specialist
       const notificationTitle = '❌ Session Cancelled';
       const notificationBody =
         `The session for ${childName} scheduled on ${session.date} at ${session.time}` +
@@ -985,7 +979,6 @@ const processPayment = async (req, res) => {
         payment_date: new Date()
       });
 
-      // 🔥 NEW: Send notification to the specialist
       await sendNotificationToSpecialist(
         session.specialist.user_id,
         '💰 Payment Received',
@@ -1002,7 +995,6 @@ const processPayment = async (req, res) => {
         }
       );
 
-      // Also create a notification in the database (for legacy support)
       if (session.specialist_id) {
         await Notification.create({
           user_id: session.specialist_id,
@@ -1047,7 +1039,6 @@ const processPayment = async (req, res) => {
 
 
 
-// 🔧 وظيفة جديدة: إنشاء جلسة مع التحقق التلقائي للمساعدة المالية
 const createSessionWithAutoFinancialAid = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -1060,7 +1051,6 @@ const createSessionWithAutoFinancialAid = async (req, res) => {
       notes 
     } = req.body;
 
-    // 1. Validate session data
     if (!child_id || !session_type_id || !date || !time) {
       return res.status(400).json({
         success: false,
@@ -1068,7 +1058,6 @@ const createSessionWithAutoFinancialAid = async (req, res) => {
       });
     }
 
-    // 2. Verify that the child belongs to the parent
     const child = await Child.findOne({
       where: { 
         child_id,
@@ -1084,7 +1073,6 @@ const createSessionWithAutoFinancialAid = async (req, res) => {
       });
     }
 
-    // 3. Validate session type
     const sessionType = await SessionType.findByPk(session_type_id, {
       include: [
         {
@@ -1110,7 +1098,6 @@ const createSessionWithAutoFinancialAid = async (req, res) => {
       });
     }
 
-    // 4. Create the session
     const session = await Session.create({
       child_id,
       session_type_id,
@@ -1130,13 +1117,10 @@ const createSessionWithAutoFinancialAid = async (req, res) => {
       payment_status: 'Pending'
     });
 
-    // 5. Automatically check and apply financial aid
     const financialAidResult = await AutoFinancialAidService.autoApplyFinancialAid(session.session_id);
 
-    // 6. Reload the session with updated information
     await session.reload();
 
-    // 7. 🔥 NEW: Send notification to the specialist
     if (sessionType.specialist && sessionType.specialist.User) {
       await sendNotificationToSpecialist(
         sessionType.specialist.User.user_id,
@@ -1156,7 +1140,6 @@ const createSessionWithAutoFinancialAid = async (req, res) => {
       );
     }
 
-    // 8. Send the response
     return res.status(201).json({
       success: true,
       message: 'Session created with auto financial aid check',
@@ -1184,7 +1167,6 @@ const createSessionWithAutoFinancialAid = async (req, res) => {
 };
 
 
-// 🔧 وظيفة جديدة: التحقق من المساعدة المالية لجلسة موجودة
 const checkSessionFinancialAid = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -1220,16 +1202,13 @@ const checkSessionFinancialAid = async (req, res) => {
       });
     }
 
-    // التحقق السريع من المساعدة المالية
     const quickCheck = await AutoFinancialAidService.quickCheckFinancialAid(
       session.child.child_id,
       session.institution_id,
       session.session_type_id
     );
 
-    // إذا كانت الجلسة في حالة "Pending Approval" ولم يتم تطبيق المساعدة بعد
     if (session.status === 'Pending Approval' && !session.financial_assistance_applied) {
-      // يمكننا تطبيق المساعدة التلقائية مباشرة
       const applyResult = await AutoFinancialAidService.autoApplyFinancialAid(session_id);
       
       return res.status(200).json({
@@ -1252,7 +1231,6 @@ const checkSessionFinancialAid = async (req, res) => {
       });
     }
 
-    // إذا كانت المساعدة مطبقة بالفعل
     if (session.financial_assistance_applied) {
       return res.status(200).json({
         success: true,
@@ -1268,7 +1246,6 @@ const checkSessionFinancialAid = async (req, res) => {
       });
     }
 
-    // إذا لم يمكن تطبيق المساعدة
     return res.status(200).json({
       success: true,
       message: 'Financial aid check completed',
@@ -1286,7 +1263,6 @@ const checkSessionFinancialAid = async (req, res) => {
   }
 };
 
-// 🔧 تعديل وظيفة parentSessionDecision لتتجنب الخلط
 const parentSessionDecision = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -1346,7 +1322,6 @@ const parentSessionDecision = async (req, res) => {
       });
     }
 
-    // Parent rejects the session
     if (decision === 'reject') {
       await session.update({
         status: 'Rejected',
@@ -1355,7 +1330,6 @@ const parentSessionDecision = async (req, res) => {
         is_visible: false
       });
 
-      // 🔥 NEW: Send notification to specialist
       await sendNotificationToSpecialist(
         session.specialist.user_id,
         '❌ Session Rejected',
@@ -1380,14 +1354,11 @@ const parentSessionDecision = async (req, res) => {
       });
     }
 
-    // decision === 'approve'
-    // Always allow approval; apply automatic financial aid if not already applied (this also creates an invoice)
     if (!session.financial_assistance_applied) {
       await AutoFinancialAidService.autoApplyFinancialAid(session.session_id);
       await session.reload();
     }
 
-    // Ensure invoice exists (autoApplyFinancialAid should create it even if no discount is applied)
     const invoice = await Invoice.findOne({
       where: { session_id: session.session_id }
     });
@@ -1404,7 +1375,6 @@ const parentSessionDecision = async (req, res) => {
       payment_status: finalPrice === 0 ? 'Paid' : 'Pending'
     });
 
-    // 🔥 NEW: Send notification to specialist
     let notificationTitle = '✅ Session Approved';
     let notificationBody = `The session for ${session.child.full_name} has been approved`;
 
@@ -1459,7 +1429,6 @@ const parentSessionDecision = async (req, res) => {
 };
 
 
-// 🔧 تعديل وظيفة تأكيد الجلسة التلقائية
 const parentConfirmAutoSession = async (req, res) => {
   try {
     const parentId = req.user.user_id;
@@ -1491,23 +1460,18 @@ const parentConfirmAutoSession = async (req, res) => {
       });
     }
 
-    // 🔴 NEW: Check automatic financial assistance
     if (!session.financial_assistance_applied) {
-      // Apply automatic financial assistance if not already applied
       await AutoFinancialAidService.autoApplyFinancialAid(id);
 
-      // Reload session data
       await session.reload();
     }
 
-    // If the session is fully free, update status immediately
     if (session.final_price === 0) {
       await session.update({
         status: 'Scheduled',
         payment_status: 'Paid'
       });
 
-      // 🔥 NEW: Send notification to specialist
       await sendNotificationToSpecialist(
         session.specialist.user_id,
         '✅ Free Session Confirmed',
@@ -1540,7 +1504,6 @@ const parentConfirmAutoSession = async (req, res) => {
       });
     }
 
-    // If there is a final price, create an invoice
     const invoice = await Invoice.create({
       session_id: session.session_id,
       parent_id: parentId,
@@ -1563,7 +1526,6 @@ const parentConfirmAutoSession = async (req, res) => {
       payment_status: 'Pending'
     });
 
-    // 🔥 NEW: Send notification to specialist
     await sendNotificationToSpecialist(
       session.specialist.user_id,
       '✅ Session Confirmed',
@@ -1607,7 +1569,6 @@ const parentConfirmAutoSession = async (req, res) => {
 };
 
 
-// 🔧 دالة مساعدة: إرسال إشعار للأخصائي
 const sendNotificationToSpecialist = async (specialistId, title, body, data = {}) => {
   try {
     if (!specialistId) {
@@ -1615,7 +1576,6 @@ const sendNotificationToSpecialist = async (specialistId, title, body, data = {}
       return;
     }
 
-    // جلب التوكن من قاعدة البيانات
     const [tokenResult] = await sequelize.query(`
       SELECT token 
       FROM UserDeviceTokens 
@@ -1628,7 +1588,6 @@ const sendNotificationToSpecialist = async (specialistId, title, body, data = {}
     if (!tokenResult.length || !tokenResult[0].token) {
       console.log(`⚠️ No token found for specialist ${specialistId}`);
       
-      // إنشاء إشعار في قاعدة البيانات على أي حال
       await Notification.create({
         user_id: specialistId,
         title: title,
@@ -1644,7 +1603,6 @@ const sendNotificationToSpecialist = async (specialistId, title, body, data = {}
 
     const token = tokenResult[0].token.trim();
     
-    // إعداد بيانات الإشعار
     const notificationData = {
       type: data.type || 'session_notification',
       session_id: data.session_id?.toString() || '',
@@ -1657,7 +1615,6 @@ const sendNotificationToSpecialist = async (specialistId, title, body, data = {}
       ...data
     };
 
-    // إرسال الإشعار عبر Firebase
     await NotificationService.sendToToken(
       token,
       title,
@@ -1665,7 +1622,6 @@ const sendNotificationToSpecialist = async (specialistId, title, body, data = {}
       notificationData
     );
 
-    // حفظ الإشعار في قاعدة البيانات
     await Notification.create({
       user_id: specialistId,
       title: title,
@@ -1680,7 +1636,6 @@ const sendNotificationToSpecialist = async (specialistId, title, body, data = {}
 
   } catch (error) {
     console.error('❌ Error sending notification to specialist:', error);
-    // لا نوقف العملية إذا فشل الإشعار
   }
 };
 

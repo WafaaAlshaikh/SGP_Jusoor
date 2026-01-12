@@ -2,7 +2,6 @@ const Review = require('../model/Review');
 const ReviewHelpful = require('../model/ReviewHelpful');
 const sequelize = require('../config/db');
 
-// Get all reviews for an institution
 exports.getInstitutionReviews = async (req, res) => {
   try {
     const { institutionId } = req.params;
@@ -51,7 +50,6 @@ exports.getInstitutionReviews = async (req, res) => {
       type: sequelize.QueryTypes.SELECT
     });
 
-    // Get rating statistics
     const stats = await sequelize.query(`
       SELECT 
         COUNT(*) as total_reviews,
@@ -107,7 +105,6 @@ exports.createReview = async (req, res) => {
       images
     } = req.body;
 
-    // Validation
     if (!rating || rating < 1 || rating > 5) {
       return res.status(400).json({
         success: false,
@@ -115,7 +112,6 @@ exports.createReview = async (req, res) => {
       });
     }
 
-    // Check if user already reviewed this institution
     const existingReview = await Review.findOne({
       where: {
         institution_id: institutionId,
@@ -130,7 +126,6 @@ exports.createReview = async (req, res) => {
       });
     }
 
-    // Check if user had a session at this institution (for verified badge)
     const hasSession = await sequelize.query(`
       SELECT COUNT(*) as count
       FROM Sessions s
@@ -143,7 +138,6 @@ exports.createReview = async (req, res) => {
 
     const verifiedVisit = hasSession[0].count > 0;
 
-    // Create review
     const newReview = await Review.create({
       institution_id: institutionId,
       user_id: userId,
@@ -156,10 +150,9 @@ exports.createReview = async (req, res) => {
       value_rating,
       images: images ? JSON.stringify(images) : null,
       verified_visit: verifiedVisit,
-      status: 'approved' // Auto-approve for now
+      status: 'approved' 
     });
 
-    // Update institution average rating
     await updateInstitutionRating(institutionId);
 
     res.status(201).json({
@@ -177,7 +170,6 @@ exports.createReview = async (req, res) => {
   }
 };
 
-// Update a review
 exports.updateReview = async (req, res) => {
   try {
     const userId = req.user.user_id;
@@ -216,7 +208,6 @@ exports.updateReview = async (req, res) => {
       updated_at: new Date()
     });
 
-    // Update institution average rating
     await updateInstitutionRating(review.institution_id);
 
     res.status(200).json({
@@ -234,7 +225,6 @@ exports.updateReview = async (req, res) => {
   }
 };
 
-// Delete a review
 exports.deleteReview = async (req, res) => {
   try {
     const userId = req.user.user_id;
@@ -254,7 +244,6 @@ exports.deleteReview = async (req, res) => {
     const institutionId = review.institution_id;
     await review.destroy();
 
-    // Update institution average rating
     await updateInstitutionRating(institutionId);
 
     res.status(200).json({
@@ -271,14 +260,12 @@ exports.deleteReview = async (req, res) => {
   }
 };
 
-// Mark review as helpful/not helpful
 exports.markReviewHelpful = async (req, res) => {
   try {
     const userId = req.user.user_id;
     const { reviewId } = req.params;
     const { isHelpful } = req.body;
 
-    // Check if already voted
     const existingVote = await ReviewHelpful.findOne({
       where: { review_id: reviewId, user_id: userId }
     });

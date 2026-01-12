@@ -25,7 +25,6 @@ console.log('Email config check:');
 console.log('SMTP_USER exists:', !!process.env.SMTP_USER);
 console.log('EMAIL_USER exists:', !!process.env.EMAIL_USER);
 
-// دالة مساعدة لإنشاء كلمة سر عشوائية
 const generateRandomPassword = () => {
   return crypto.randomBytes(8).toString('hex');
 };
@@ -34,7 +33,6 @@ const sendParentCredentials = async (email, password, parentName) => {
   try {
     const nodemailer = require('nodemailer');
     
-    // إنشاء transporter
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'smtp.gmail.com',
       port: parseInt(process.env.SMTP_PORT) || 587,
@@ -45,13 +43,11 @@ const sendParentCredentials = async (email, password, parentName) => {
       }
     });
 
-    // تأكد من وجود البيانات المطلوبة
     if (!process.env.SMTP_USER && !process.env.EMAIL_USER) {
       console.error('Email user not configured');
       return false;
     }
 
-    // HTML content (بالإنجليزية فقط)
     const html = `
       <!DOCTYPE html>
       <html>
@@ -95,7 +91,6 @@ const sendParentCredentials = async (email, password, parentName) => {
       </html>
     `;
 
-    // إعداد خيارات الإيميل
     const mailOptions = {
       from: process.env.SMTP_FROM || `"Jusoor App" <${process.env.SMTP_USER || process.env.EMAIL_USER}>`,
       to: email,
@@ -104,7 +99,6 @@ const sendParentCredentials = async (email, password, parentName) => {
       text: `Hello ${parentName},\n\nA new account has been created for you on Jusoor App.\n\nEmail: ${email}\nPassword: ${password}\n\nPlease change your password after logging in.\n\nBest regards,\nThe Jusoor Team`
     };
 
-    // إرسال الإيميل
     const info = await transporter.sendMail(mailOptions);
     console.log('✅ Email sent to parent:', info.messageId);
     return true;
@@ -112,7 +106,6 @@ const sendParentCredentials = async (email, password, parentName) => {
   } catch (error) {
     console.error('❌ Error sending email to parent:', error.message);
     
-    // طباعة معلومات مفيدة لل debugging
     console.log('Email configuration check:');
     console.log('- SMTP_HOST:', process.env.SMTP_HOST || 'Not set');
     console.log('- SMTP_PORT:', process.env.SMTP_PORT || 'Not set');
@@ -124,12 +117,10 @@ const sendParentCredentials = async (email, password, parentName) => {
   }
 };
 
-// 1. جلب قائمة الآباء الموجودين في المؤسسة
 exports.getParentsList = async (req, res) => {
   try {
     const managerId = req.user.user_id;
     
-    // الحصول على مؤسسة المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
       include: [{
@@ -147,7 +138,6 @@ exports.getParentsList = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
     
-    // جلب جميع الآباء الذين لديهم أطفال في المؤسسة
     const parents = await Parent.findAll({
       include: [
         {
@@ -167,7 +157,6 @@ exports.getParentsList = async (req, res) => {
       distinct: true
     });
 
-    // تنسيق البيانات
     const formattedParents = parents.map(parent => ({
       parent_id: parent.parent_id,
       user: parent.User,
@@ -201,22 +190,17 @@ exports.getParentsList = async (req, res) => {
   }
 };
 
-// 2. إضافة طفل جديد
 exports.addNewChild = async (req, res) => {
   const transaction = await sequelize.transaction();
   
   try {
     const managerId = req.user.user_id;
     const {
-      // معلومات الأب
       parentData,
-      // معلومات الطفل
       childData,
-      // معلومات الجلسة (اختيارية - يمكن حجزها لاحقاً)
       sessionData
     } = req.body;
 
-    // التحقق من البيانات المطلوبة
     if (!childData || !childData.full_name || !childData.date_of_birth || !childData.gender) {
       await transaction.rollback();
       return res.status(400).json({
@@ -225,7 +209,6 @@ exports.addNewChild = async (req, res) => {
       });
     }
 
-    // الحصول على مؤسسة المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
       include: [{
@@ -245,9 +228,7 @@ exports.addNewChild = async (req, res) => {
     const institutionId = manager.Institution.institution_id;
     let parentId;
 
-    // الحالة 1: إذا كان الأب موجود (تم اختياره من القائمة)
     if (parentData && parentData.parent_id) {
-      // التحقق من وجود الأب
       const existingParent = await Parent.findOne({
         where: { parent_id: parentData.parent_id },
         include: [{
@@ -266,13 +247,10 @@ exports.addNewChild = async (req, res) => {
 
       parentId = existingParent.parent_id;
 
-      // إرسال إشعار للأب (اختياري)
-      // يمكن إضافة إرسال إشعار هنا إذا رغبت
+     
 
     } else if (parentData && parentData.email) {
-      // الحالة 2: إضافة أب جديد
       
-      // التحقق من عدم وجود مستخدم بهذا الإيميل
       const existingUser = await User.findOne({
         where: { email: parentData.email }
       }, { transaction });
@@ -285,11 +263,9 @@ exports.addNewChild = async (req, res) => {
         });
       }
 
-      // إنشاء كلمة سر عشوائية
       const randomPassword = generateRandomPassword();
       const hashedPassword = await bcrypt.hash(randomPassword, 10);
 
-      // إنشاء حساب المستخدم (الأب)
       const newUser = await User.create({
         full_name: parentData.full_name,
         email: parentData.email,
@@ -301,7 +277,6 @@ exports.addNewChild = async (req, res) => {
         region: parentData.region || null
       }, { transaction });
 
-      // إنشاء سجل الأب
       const newParent = await Parent.create({
         parent_id: newUser.user_id,
         address: parentData.address || null,
@@ -310,7 +285,6 @@ exports.addNewChild = async (req, res) => {
 
       parentId = newParent.parent_id;
 
-      // إرسال الإيميل بالمعلومات
       const emailSent = await sendParentCredentials(
         parentData.email,
         randomPassword,
@@ -319,7 +293,6 @@ exports.addNewChild = async (req, res) => {
 
       if (!emailSent) {
         console.warn('Failed to send email to parent, but account was created');
-        // لا نوقف العملية إذا فشل الإيميل
       }
 
     } else {
@@ -330,10 +303,8 @@ exports.addNewChild = async (req, res) => {
       });
     }
 
-    // إنشاء معرف فريد للطفل
     const childIdentifier = `CH${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
-    // إنشاء الطفل
     const newChild = await Child.create({
       parent_id: parentId,
       full_name: childData.full_name,
@@ -344,7 +315,7 @@ exports.addNewChild = async (req, res) => {
       symptoms_description: childData.symptoms_description || null,
       medical_history: childData.medical_history || null,
       current_institution_id: institutionId,
-      registration_status: 'Approved', // مباشرة يكون معتمد
+      registration_status: 'Approved', 
       child_identifier: childIdentifier,
       city: childData.city || null,
       address: childData.address || null,
@@ -352,10 +323,9 @@ exports.addNewChild = async (req, res) => {
       school_info: childData.school_info || null,
       previous_services: childData.previous_services || null,
       additional_notes: childData.additional_notes || null,
-      consent_given: true // بما أن المدير هو من أضافه
+      consent_given: true 
     }, { transaction });
 
-    // إذا كانت هناك بيانات جلسة، نحجز جلسة General
     let sessionResult = null;
     if (sessionData && sessionData.book_session) {
       sessionResult = await bookGeneralSessionInternal(
@@ -370,11 +340,9 @@ exports.addNewChild = async (req, res) => {
     await transaction.commit();
 
     try {
-  // فقط إذا أرسل الفرونت التوكنات مع الطلب
-  const { tokens } = req.body; // { parent_token, specialist_token }
+  const { tokens } = req.body; 
   
   if (tokens) {
-    // 1. إشعار للأهل (إذا كان أب موجود وليس جديد)
     if ( tokens.parent_token) {
       await NotificationService.sendChildAdded(
         tokens.parent_token,
@@ -385,7 +353,6 @@ exports.addNewChild = async (req, res) => {
       });
     }
     
-    // 2. إشعار للأخصائي (إذا تم حجز جلسة)
     if (sessionResult && tokens.specialist_token) {
       await NotificationService.sendSessionBooked(
         tokens.specialist_token,
@@ -401,10 +368,8 @@ exports.addNewChild = async (req, res) => {
   
 } catch (notificationError) {
   console.error('⚠️ Error in notification logic:', notificationError.message);
-  // لا نوقف العملية إذا فشلت الإشعارات
 }
 
-    // تحضير الرد
     const response = {
       success: true,
       message: 'Child added successfully',
@@ -417,13 +382,12 @@ exports.addNewChild = async (req, res) => {
         },
         parent: {
           parent_id: parentId,
-          is_new: !parentData.parent_id // إذا كان أب جديد
+          is_new: !parentData.parent_id 
         },
         session: sessionResult
       }
     };
 
-    // إذا تم حجز جلسة
     if (sessionResult) {
       response.data.session = sessionResult;
       response.message += ' and General session booked';
@@ -443,43 +407,36 @@ exports.addNewChild = async (req, res) => {
   
 };
 
-// 3. جلب الأخصائيين المتاحين لجلسة General
 exports.getAvailableSpecialists = async (req, res) => {
   console.log('=== START getAvailableSpecialists ===');
   
   try {
     const managerId = req.user.user_id;
-    const { date } = req.query; // التاريخ المطلوب (اختياري)
+    const { date } = req.query;
 
     console.log('1. Manager ID:', managerId);
     console.log('2. Requested date:', date);
 
-    // ==== START: الكود المعدل الجديد - إصلاح مشكلة التوقيت ====
     let requestDate;
     const now = new Date();
     
-    // تحويل الآن إلى تنسيق YYYY-MM-DD بدون توقيت
     const nowDateStr = now.toISOString().split('T')[0];
     
     if (date) {
-      // استخدام التاريخ كما هو مباشرة - لا نعتمد على new Date() للتحقق
-      // التحقق إذا كان التاريخ في الماضي بمقارنة النصوص فقط
+     
       if (date < nowDateStr) {
         console.log('⚠️ Requested date is in the past, using current date instead');
-        requestDate = nowDateStr; // استخدام التاريخ الحالي كنص
+        requestDate = nowDateStr;
       } else {
-        requestDate = date; // استخدام التاريخ المطلوب كما هو
+        requestDate = date; 
       }
     } else {
-      // إذا لم يتم تمرير تاريخ، استخدم التاريخ الحالي
       requestDate = nowDateStr;
     }
     
     console.log('3. Using date:', requestDate);
     console.log('3.1 Now date:', nowDateStr);
-    // ==== END: الكود المعدل الجديد ====
-
-    // الحصول على مؤسسة المدير
+  
     console.log('4. Fetching manager with institution...');
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
@@ -500,7 +457,6 @@ exports.getAvailableSpecialists = async (req, res) => {
     const institutionId = manager.Institution.institution_id;
     console.log('5. Institution ID:', institutionId);
 
-    // جلب نوع الجلسة General
     console.log('6. Fetching General session type...');
     const generalSessionType = await SessionType.findOne({
       where: {
@@ -522,7 +478,6 @@ exports.getAvailableSpecialists = async (req, res) => {
       duration: generalSessionType.duration
     });
 
-    // جلب الأخصائيين بتخصص General
     console.log('8. Fetching specialists with General specialization...');
     const specialists = await Specialist.findAll({
       where: {
@@ -541,7 +496,6 @@ exports.getAvailableSpecialists = async (req, res) => {
 
     console.log('9. Found specialists count:', specialists.length);
 
-    // إذا ما في أخصائيين
     if (specialists.length === 0) {
       console.log('⚠️ WARNING: No General specialists found');
       return res.status(200).json({
@@ -553,7 +507,7 @@ exports.getAvailableSpecialists = async (req, res) => {
             name: generalSessionType.name,
             duration: generalSessionType.duration
           },
-          requested_date: requestDate, // تغيير هنا: requestDate بدلاً من requestDate.toISOString().split('T')[0]
+          requested_date: requestDate,
           closest_available_slot: null,
           available_days: [],
           total_available_slots: 0,
@@ -565,7 +519,6 @@ exports.getAvailableSpecialists = async (req, res) => {
 
     const specialistIds = specialists.map(spec => spec.specialist_id);
     
-    // ====== دالة مساعدة: تحويل الوقت إلى تنسيق مناسب ======
     const formatTime = (timeString) => {
       const [hours, minutes] = timeString.split(':');
       const hour = parseInt(hours);
@@ -574,12 +527,10 @@ exports.getAvailableSpecialists = async (req, res) => {
       return `${displayHour}:${minutes} ${ampm}`;
     };
 
-    // ====== دالة مساعدة: البحث عن جميع المواعيد المتاحة خلال 14 يوم ======
     const findAllAvailableSlots = async (specialistIds, startDate, daysToCheck = 14) => {
       const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       const results = [];
       
-      // تحويل startDate من نص (YYYY-MM-DD) إلى كائن Date
       const baseDate = new Date(startDate);
       
       for (let i = 0; i < daysToCheck; i++) {
@@ -590,7 +541,6 @@ exports.getAvailableSpecialists = async (req, res) => {
         
         console.log(`   Checking date ${dateStr} (${dayOfWeek})...`);
         
-        // جلب جداول الأخصائيين لهذا اليوم
         const schedules = await SpecialistSchedule.findAll({
           where: {
             specialist_id: specialistIds,
@@ -601,7 +551,6 @@ exports.getAvailableSpecialists = async (req, res) => {
         if (schedules.length > 0) {
           console.log(`   ✅ Found ${schedules.length} schedules for date ${dateStr}`);
           
-          // جلب الجلسات الموجودة في هذا التاريخ
           const existingSessions = await Session.findAll({
             where: {
               institution_id: institutionId,
@@ -613,30 +562,25 @@ exports.getAvailableSpecialists = async (req, res) => {
             attributes: ['specialist_id', 'time']
           });
 
-          // تحليل كل جدول لإيجاد المواعيد الفاضية
           const availableSlotsForDate = [];
           
           for (const schedule of schedules) {
             const scheduleStartTime = new Date(`${dateStr} ${schedule.start_time}`);
             const scheduleEndTime = new Date(`${dateStr} ${schedule.end_time}`);
             
-            // جلسات هذا الأخصائي في هذا اليوم
             const specialistSessions = existingSessions.filter(
               session => session.specialist_id === schedule.specialist_id
             );
             
-            // إيجاد الأخصائي
             const specialist = specialists.find(s => s.specialist_id === schedule.specialist_id);
             if (!specialist) continue;
             
-            // توليد المواعيد الفاضية
             let currentTime = new Date(scheduleStartTime);
             
             while (currentTime < scheduleEndTime) {
               const slotEnd = new Date(currentTime);
               slotEnd.setMinutes(slotEnd.getMinutes() + generalSessionType.duration);
               
-              // التحقق إذا كان الوقت متاحاً
               const isOccupied = specialistSessions.some(session => {
                 const sessionTime = new Date(`${dateStr} ${session.time}`);
                 const sessionEndTime = new Date(sessionTime);
@@ -649,7 +593,6 @@ exports.getAvailableSpecialists = async (req, res) => {
                 );
               });
               
-              // التحقق إذا كان الوقت في المستقبل (بما في ذلك اليوم الحالي)
               const currentDateTime = new Date();
               const isSameDay = currentTime.getDate() === currentDateTime.getDate() && 
                                currentTime.getMonth() === currentDateTime.getMonth() && 
@@ -657,7 +600,6 @@ exports.getAvailableSpecialists = async (req, res) => {
               
               let isFutureOrCurrent = true;
               if (isSameDay) {
-                // إذا كان نفس اليوم، نتحقق إذا كان الوقت الحالي أقل من وقت الموعد
                 isFutureOrCurrent = currentTime > currentDateTime;
               }
               
@@ -687,16 +629,13 @@ exports.getAvailableSpecialists = async (req, res) => {
                 });
               }
               
-              // التقدم بمقدار 15 دقيقة
               currentTime.setMinutes(currentTime.getMinutes() + 15);
             }
           }
           
           if (availableSlotsForDate.length > 0) {
-            // ترتيب المواعيد حسب الوقت
             availableSlotsForDate.sort((a, b) => a.date_time - b.date_time);
             
-            // تجميع المواعيد حسب الأخصائي
             const slotsBySpecialist = availableSlotsForDate.reduce((acc, slot) => {
               const specialistKey = slot.specialist_id;
               if (!acc[specialistKey]) {
@@ -721,7 +660,6 @@ exports.getAvailableSpecialists = async (req, res) => {
               return acc;
             }, {});
 
-            // تحويل إلى مصفوفة
             const specialistsArray = Object.values(slotsBySpecialist).map(spec => ({
               id: spec.specialist_id,
               name: spec.specialist_name,
@@ -762,13 +700,11 @@ exports.getAvailableSpecialists = async (req, res) => {
       return results;
     };
 
-    // البحث عن المواعيد المتاحة
     console.log('10. Searching for available slots starting from:', requestDate);
     const allAvailableDays = await findAllAvailableSlots(specialistIds, requestDate, 14);
     
     console.log('11. Found days with available slots:', allAvailableDays.length);
     
-    // إيجاد أقرب موعد متاح (بين جميع الأيام)
     let closestSlotInfo = null;
     allAvailableDays.forEach(day => {
       if (day.closest_slot && (!closestSlotInfo || day.closest_slot.date_time < closestSlotInfo.date_time)) {
@@ -791,7 +727,6 @@ exports.getAvailableSpecialists = async (req, res) => {
     
     console.log('12. Closest slot overall:', closestSlotInfo);
 
-    // تجميع البيانات للإرجاع
     const response = {
       success: true,
       data: {
@@ -800,7 +735,7 @@ exports.getAvailableSpecialists = async (req, res) => {
           name: generalSessionType.name,
           duration: generalSessionType.duration
         },
-        requested_date: requestDate, // تغيير هنا: requestDate بدلاً من requestDate.toISOString().split('T')[0]
+        requested_date: requestDate, 
         closest_available_slot: closestSlotInfo,
         available_days: allAvailableDays,
         total_available_days: allAvailableDays.length,
@@ -848,7 +783,6 @@ exports.getAvailableSpecialists = async (req, res) => {
     });
   }
 };
-// 4. حجز جلسة General للطفل
 exports.bookGeneralSession = async (req, res) => {
   const transaction = await sequelize.transaction();
   
@@ -862,7 +796,6 @@ exports.bookGeneralSession = async (req, res) => {
       notes
     } = req.body;
 
-    // التحقق من البيانات المطلوبة
     if (!child_id || !specialist_id || !date || !start_time) {
       await transaction.rollback();
       return res.status(400).json({
@@ -871,7 +804,6 @@ exports.bookGeneralSession = async (req, res) => {
       });
     }
 
-    // الحصول على مؤسسة المدير
     const manager = await Manager.findOne({
       where: { manager_id: managerId },
       include: [{
@@ -890,7 +822,6 @@ exports.bookGeneralSession = async (req, res) => {
 
     const institutionId = manager.Institution.institution_id;
 
-    // التحقق من وجود الطفل
     const child = await Child.findOne({
       where: {
         child_id: child_id,
@@ -906,10 +837,8 @@ exports.bookGeneralSession = async (req, res) => {
       });
     }
 
-    // جلب نوع الجلسة General
     const generalSessionType = await SessionType.findOne({
       where: {
-        // category: 'General',
         name: 'General'
       }
     }, { transaction });
@@ -922,7 +851,6 @@ exports.bookGeneralSession = async (req, res) => {
       });
     }
 
-    // التحقق من توفر الموعد
     const existingSession = await Session.findOne({
       where: {
         specialist_id: specialist_id,
@@ -942,13 +870,11 @@ exports.bookGeneralSession = async (req, res) => {
       });
     }
 
-    // حساب وقت نهاية الجلسة
     const startDateTime = new Date(`${date} ${start_time}`);
     const endDateTime = new Date(startDateTime);
     endDateTime.setMinutes(endDateTime.getMinutes() + generalSessionType.duration);
     const end_time = endDateTime.toTimeString().slice(0, 5);
 
-    // إنشاء الجلسة
     const newSession = await Session.create({
       child_id: child_id,
       specialist_id: specialist_id,
@@ -956,7 +882,7 @@ exports.bookGeneralSession = async (req, res) => {
       session_type_id: generalSessionType.session_type_id,
       date: date,
       time: start_time,
-      status: 'Scheduled', // مباشرة معتمدة لأن المدير يحجز
+      status: 'Scheduled', 
       is_first_booking: true,
       approved_by_manager_id: managerId,
       manager_approval_date: new Date(),
@@ -968,10 +894,9 @@ exports.bookGeneralSession = async (req, res) => {
       payment_status: 'Pending'
     }, { transaction });
 
-    // تحديث حالة الطفل إذا كان جديداً
     if (child.registration_status === 'Approved') {
       await child.update({
-        registration_status: 'Active' // أو أي حالة تناسب نظامك
+        registration_status: 'Active'
       }, { transaction });
     }
 
@@ -1011,8 +936,7 @@ exports.bookGeneralSession = async (req, res) => {
   }
 };
 
-// دالة مساعدة داخلية لحجز جلسة General
-// دالة مساعدة داخلية لحجز جلسة General - معدلة
+
 const bookGeneralSessionInternal = async (childId, sessionData, managerId, institutionId, transaction) => {
   try {
     const { specialist_id, date, start_time, notes } = sessionData;
@@ -1021,7 +945,6 @@ const bookGeneralSessionInternal = async (childId, sessionData, managerId, insti
       return null;
     }
 
-    // التحقق من توفر الموعد
     const existingSession = await Session.findOne({
       where: {
         specialist_id: specialist_id,
@@ -1038,7 +961,6 @@ const bookGeneralSessionInternal = async (childId, sessionData, managerId, insti
       return null;
     }
 
-    // جلب نوع الجلسة General
     const generalSessionType = await SessionType.findOne({
       where: {
         name: 'General'
@@ -1050,13 +972,11 @@ const bookGeneralSessionInternal = async (childId, sessionData, managerId, insti
       return null;
     }
 
-    // حساب وقت نهاية الجلسة
     const startDateTime = new Date(`${date} ${start_time}`);
     const endDateTime = new Date(startDateTime);
     endDateTime.setMinutes(endDateTime.getMinutes() + generalSessionType.duration);
     const end_time = endDateTime.toTimeString().slice(0, 5);
 
-    // إنشاء الجلسة - استخدم 'Scheduled' بدلاً من 'Approved'
     const newSession = await Session.create({
       child_id: childId,
       specialist_id: specialist_id,
@@ -1064,7 +984,7 @@ const bookGeneralSessionInternal = async (childId, sessionData, managerId, insti
       session_type_id: generalSessionType.session_type_id,
       date: date,
       time: start_time,
-      status: 'Scheduled', // غيرت من 'Approved' إلى 'Scheduled'
+      status: 'Scheduled', 
       is_first_booking: true,
       approved_by_manager_id: managerId,
       manager_approval_date: new Date(),
@@ -1074,7 +994,7 @@ const bookGeneralSessionInternal = async (childId, sessionData, managerId, insti
       parent_approved: true,
       is_paid: false,
       payment_status: 'Pending',
-      session_type: 'Onsite' // أضفت هذا الحقل المطلوب في الـ INSERT
+      session_type: 'Onsite' 
     }, { transaction });
 
     console.log('✅ Session created successfully for child', childId, 'at', date, start_time);

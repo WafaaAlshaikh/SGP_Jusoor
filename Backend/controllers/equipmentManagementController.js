@@ -161,7 +161,6 @@ async function ensureEquipmentDonationCampaignForNeed(need) {
     }
   });
 
-  // Keep it in sync if the need was edited/created with different details
   await campaign.update({
     institution_id: need.institution_id,
     child_id: need.child_id,
@@ -624,7 +623,6 @@ exports.updateManagerEquipmentCampaign = async (req, res) => {
 
     await campaign.update(update);
 
-    // If this campaign is tied to a need and marked fulfilled, update the need status as well (best-effort)
     if (campaign.need_id && update.status === 'fulfilled') {
       const need = await ChildEquipmentNeed.findOne({ where: { need_id: campaign.need_id } });
       if (need && !['allocated', 'delivered', 'cancelled'].includes(need.status)) {

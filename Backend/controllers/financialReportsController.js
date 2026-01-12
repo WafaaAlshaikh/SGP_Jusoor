@@ -15,11 +15,8 @@ const Parent = require('../model/Parent');
 const Specialist = require('../model/Specialist');
 const User = require('../model/User');
 
-// ==================== التقارير المالية الشاملة ====================
 
-/**
- * التقرير المالي الشهري الكامل
- */
+
 exports.getMonthlyFinancialReport = async (req, res) => {
   try {
     const managerId = req.user.user_id;
@@ -46,25 +43,18 @@ exports.getMonthlyFinancialReport = async (req, res) => {
     const previousMonthStart = new Date(targetYear, targetMonth - 2, 1);
     const previousMonthEnd = new Date(targetYear, targetMonth - 1, 0, 23, 59, 59);
 
-    // ============ 1. الإيرادات ============
     const revenueData = await getRevenueData(institutionId, periodStart, periodEnd, previousMonthStart, previousMonthEnd);
 
-    // ============ 2. التبرعات ============
     const donationData = await getDonationData(institutionId, periodStart, periodEnd, previousMonthStart, previousMonthEnd);
 
-    // ============ 3. المساعدات المالية ============
     const financialAssistanceData = await getFinancialAssistanceData(institutionId, periodStart, periodEnd);
 
-    // ============ 4. الجلسات والخدمات ============
     const sessionsData = await getSessionsData(institutionId, periodStart, periodEnd);
 
-    // ============ 5. تحليل الديون والمستحقات ============
     const receivablesData = await getReceivablesData(institutionId, periodStart, periodEnd);
 
-    // ============ 6. النفقات (تقديرية) ============
     const expensesData = await getExpensesData(institutionId, periodStart, periodEnd);
 
-    // ============ 7. ملخص الأداء ============
     const performanceSummary = calculatePerformanceSummary(
       revenueData,
       donationData,
@@ -74,7 +64,6 @@ exports.getMonthlyFinancialReport = async (req, res) => {
       expensesData
     );
 
-    // ============ 8. المقارنة مع الشهر السابق ============
     const monthlyComparison = await getMonthlyComparison(
       institutionId,
       periodStart,
@@ -83,7 +72,6 @@ exports.getMonthlyFinancialReport = async (req, res) => {
       previousMonthEnd
     );
 
-    // ============ 9. التوقعات للشهر القادم ============
     const nextMonthProjections = await getNextMonthProjections(
       institutionId,
       targetYear,
@@ -125,12 +113,7 @@ exports.getMonthlyFinancialReport = async (req, res) => {
   }
 };
 
-/**
- * تقرير مالي شامل (V2)
- * - مصدر البيانات: DB فقط
- * - المصاريف: رواتب الأخصائيين + تخصيصات التبرعات فقط (بدون Operational تقديري)
- * - يعيد: KPIs, Revenue Sources, Monthly Performance, Top Specialists, Invoice Details, Financial Summary/Health
- */
+
 exports.getAdvancedFinancialReportV2 = async (req, res) => {
   try {
     const managerId = req.user.user_id;
@@ -539,24 +522,20 @@ function calculateFinancialHealthScore(netProfit, profitMargin, totalReceivables
     const tr = parseFloat(totalReceivables || 0);
     const oi = parseFloat(operationalIndicator || 0);
 
-    // Profitability
     if (np > 0) score += 20;
     else if (np > -1000) score += 10;
     else score -= 10;
 
-    // Margin
     if (pm >= 20) score += 15;
     else if (pm >= 10) score += 10;
     else if (pm >= 0) score += 5;
     else score -= 10;
 
-    // Receivables (lower is healthier)
     if (tr <= 0) score += 10;
     else if (tr <= 500) score += 5;
     else if (tr <= 2000) score -= 5;
     else score -= 10;
 
-    // Operational indicator (0..100)
     if (oi >= 80) score += 5;
     else if (oi >= 50) score += 2;
     else if (oi > 0) score -= 2;
@@ -578,7 +557,6 @@ async function analyzeRealExpensesByMonth(institutionId, year) {
       const monthStart = new Date(year, month, 1);
       const monthEnd = new Date(year, month + 1, 0, 23, 59, 59);
 
-      // نفقات الموظفين بناءً على رواتب الأخصائيين الفعلية
       const totalMonthlySalaries = await Specialist.sum('salary', {
         where: {
           institution_id: institutionId,
